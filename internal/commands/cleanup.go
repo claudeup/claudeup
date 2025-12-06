@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/malston/claude-pm/internal/claude"
+	"github.com/malston/claude-pm/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -117,35 +118,38 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Confirm with user
-	fmt.Print("Continue? [y/N]: ")
-	var response string
-	fmt.Scanln(&response)
-	if response != "y" && response != "Y" {
-		fmt.Println("Cancelled")
-		return nil
-	}
-
-	// Apply fixes
+	// Apply fixes with prompt
 	fixed := 0
 	if len(fixableIssues) > 0 {
-		for _, issue := range fixableIssues {
-			if plugin, exists := plugins.Plugins[issue.PluginName]; exists {
-				plugin.InstallPath = issue.ExpectedPath
-				plugins.Plugins[issue.PluginName] = plugin
-				fixed++
+		confirm, err := ui.ConfirmYesNo("Fix these paths?")
+		if err != nil {
+			return err
+		}
+		if confirm {
+			for _, issue := range fixableIssues {
+				if plugin, exists := plugins.Plugins[issue.PluginName]; exists {
+					plugin.InstallPath = issue.ExpectedPath
+					plugins.Plugins[issue.PluginName] = plugin
+					fixed++
+				}
 			}
 		}
 	}
 
-	// Remove unfixable entries
+	// Remove unfixable entries with prompt
 	removed := 0
 	removedIssues := []PathIssue{}
 	if len(unfixableIssues) > 0 {
-		for _, issue := range unfixableIssues {
-			if plugins.DisablePlugin(issue.PluginName) {
-				removed++
-				removedIssues = append(removedIssues, issue)
+		confirm, err := ui.ConfirmYesNo("Remove broken entries?")
+		if err != nil {
+			return err
+		}
+		if confirm {
+			for _, issue := range unfixableIssues {
+				if plugins.DisablePlugin(issue.PluginName) {
+					removed++
+					removedIssues = append(removedIssues, issue)
+				}
 			}
 		}
 	}
