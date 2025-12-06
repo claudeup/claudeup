@@ -98,9 +98,16 @@ List all installed plugins with detailed information:
 
 ```bash
 claude-pm plugins
+
+# Show only summary statistics
+claude-pm plugins --summary
 ```
 
 Shows version, status, installation path, and type (local/cached) for each plugin.
+
+**Plugin Types:**
+- **Cached:** Plugin copied to `~/.claude/plugins/cache/`
+- **Local:** Plugin referenced from marketplace directory
 
 #### Marketplaces
 
