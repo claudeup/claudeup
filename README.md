@@ -168,6 +168,10 @@ This is useful for:
 Diagnose and fix common issues with your Claude installation:
 
 ```bash
+# Check for updates
+claude-pm update --check-only   # See what's available
+claude-pm update                # Apply updates
+
 # Run comprehensive diagnostics
 claude-pm doctor
 
@@ -194,6 +198,13 @@ claude-pm cleanup               # Actually remove stale entries
 - Removes plugin entries where directories don't exist
 - `--dry-run` flag to preview changes
 - `--reinstall` flag to show reinstall commands
+
+**Update Command:**
+- Checks marketplaces for git updates
+- Checks plugins for newer marketplace commits
+- `--check-only` flag to preview without applying
+- Updates marketplaces via git pull
+- Updates plugin commit references
 
 ## Configuration
 
@@ -254,7 +265,7 @@ claude-pm --claude-dir /custom/path status
 - ✅ `claude-pm doctor` - Diagnose common issues
 - ✅ `claude-pm fix-paths` - Fix plugin path issues automatically
 - ✅ `claude-pm cleanup` - Clean stale plugin entries
-- `claude-pm update` - Update marketplaces and plugins (planned)
+- ✅ `claude-pm update` - Check and apply marketplace and plugin updates
 
 ### Phase 4: Project-Level Config & Polish
 
