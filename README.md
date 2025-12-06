@@ -213,6 +213,71 @@ claude-pm cleanup               # Actually remove stale entries
 - Updates marketplaces via git pull
 - Updates plugin commit references
 
+## Understanding Plugin Types
+
+Claude Code installs plugins in two different ways, which affects how they're stored and whether they're prone to path issues.
+
+### Plugin Storage Types
+
+**Cached Plugins (`isLocal: false`)**
+- Plugin is **copied** to `~/.claude/plugins/cache/plugin-name`
+- Creates an independent copy separate from the marketplace
+- More stable - less prone to path issues
+- Example: Most superpowers-marketplace plugins
+
+**Local Plugins (`isLocal: true`)**
+- Plugin **references** the marketplace directory directly
+- Path: `~/.claude/plugins/marketplaces/marketplace-name/plugins/plugin-name`
+- No separate copy - points directly to marketplace
+- Example: Most claude-code-plugins plugins
+
+### The Plugin Path Bug
+
+There's a **known bug in the Claude CLI** that affects local plugins:
+
+**The Problem:**
+1. Claude CLI sets `isLocal: true` for marketplace plugins
+2. BUT creates paths **without** the `/plugins/` subdirectory
+3. Results in broken paths like:
+   - Wrong: `~/.claude/plugins/marketplaces/claude-code-plugins/hookify`
+   - Right: `~/.claude/plugins/marketplaces/claude-code-plugins/plugins/hookify`
+
+**The Impact:**
+- Plugins appear in `installed_plugins.json` but paths don't exist
+- Shows as "stale" in `claude-pm status`
+- Plugin commands, skills, and MCP servers are unavailable
+
+**The Fix:**
+```bash
+# Diagnose the issue
+claude-pm doctor
+
+# See which plugins are affected
+claude-pm plugins --summary
+
+# Automatically fix the paths
+claude-pm fix-paths
+```
+
+### Why the --summary Flag Exists
+
+The `--summary` flag was added to help you:
+1. **Identify affected plugins** - Local plugins are the ones with path bugs
+2. **Understand your installation** - See how Claude CLI installed your plugins
+3. **Track the fix** - Verify that `fix-paths` corrected the issues
+4. **Future troubleshooting** - Quickly check plugin type distribution
+
+**Example:**
+```bash
+$ claude-pm plugins --summary
+
+By Type:
+  Cached: 7 (copied to ~/.claude/plugins/cache/)
+  Local:  20 (referenced from marketplace)
+```
+
+If you have many "local" plugins, they were likely affected by the path bug. Run `claude-pm doctor` to check.
+
 ## Configuration
 
 ### Global Config File
