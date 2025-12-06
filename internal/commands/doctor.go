@@ -33,7 +33,7 @@ type PathIssue struct {
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
-	fmt.Println("Running diagnostics...\n")
+	fmt.Println("Running diagnostics...")
 
 	// Load plugins
 	plugins, err := claude.LoadPlugins(claudeDir)

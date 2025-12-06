@@ -47,7 +47,7 @@ type PluginUpdate struct {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	fmt.Println("Checking for updates...\n")
+	fmt.Println("Checking for updates...")
 
 	// Load marketplaces
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
