@@ -291,13 +291,12 @@ func updateMarketplace(name, path string) error {
 }
 
 func updatePlugin(name string, plugins *claude.PluginRegistry) error {
-	// Update the gitCommitSha to the latest marketplace commit
 	plugin, exists := plugins.Plugins[name]
 	if !exists {
 		return fmt.Errorf("plugin not found")
 	}
 
-	// Find marketplace path
+	// Find marketplace path from plugin install path
 	var marketplacePath string
 	parts := strings.Split(plugin.InstallPath, string(filepath.Separator))
 	for i, part := range parts {
@@ -308,19 +307,103 @@ func updatePlugin(name string, plugins *claude.PluginRegistry) error {
 	}
 
 	if marketplacePath == "" {
-		return fmt.Errorf("marketplace not found")
+		return fmt.Errorf("marketplace not found in path")
 	}
 
-	// Get latest commit
+	// Get latest commit from marketplace
 	cmd := exec.Command("git", "-C", marketplacePath, "rev-parse", "HEAD")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to get latest commit: %w", err)
 	}
-
 	latestCommit := strings.TrimSpace(string(output))
+
+	// For cached plugins (isLocal: false), re-copy from marketplace to cache
+	if !plugin.IsLocal {
+		// Extract plugin name from full name (e.g., "hookify@claude-code-plugins" -> "hookify")
+		pluginBaseName := strings.Split(name, "@")[0]
+
+		// Find source plugin in marketplace (try /plugins/ and /skills/ subdirectories)
+		var sourcePath string
+		possiblePaths := []string{
+			filepath.Join(marketplacePath, "plugins", pluginBaseName),
+			filepath.Join(marketplacePath, "skills", pluginBaseName),
+		}
+
+		for _, path := range possiblePaths {
+			if _, err := os.Stat(path); err == nil {
+				sourcePath = path
+				break
+			}
+		}
+
+		if sourcePath == "" {
+			return fmt.Errorf("plugin source not found in marketplace")
+		}
+
+		// Remove old cached version
+		if err := os.RemoveAll(plugin.InstallPath); err != nil {
+			return fmt.Errorf("failed to remove old cached plugin: %w", err)
+		}
+
+		// Copy updated plugin to cache
+		if err := copyDir(sourcePath, plugin.InstallPath); err != nil {
+			return fmt.Errorf("failed to copy updated plugin: %w", err)
+		}
+	}
+
+	// Update the gitCommitSha
 	plugin.GitCommitSha = latestCommit
 	plugins.Plugins[name] = plugin
 
 	return nil
+}
+
+// copyDir recursively copies a directory
+func copyDir(src, dst string) error {
+	// Create destination directory
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return err
+	}
+
+	// Read source directory
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			// Recursively copy subdirectory
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// Copy file
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a single file
+func copyFile(src, dst string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	// Get source file permissions
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(dst, data, srcInfo.Mode())
 }
