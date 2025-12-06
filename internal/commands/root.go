@@ -9,13 +9,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const version = "0.2.0"
+
 var (
 	claudeDir string
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "claude-pm",
-	Short: "Manage Claude Code plugins, marketplaces, and MCP servers",
+	Use:     "claude-pm",
+	Short:   "Manage Claude Code plugins, marketplaces, and MCP servers",
+	Version: version,
 	Long: `claude-pm is a comprehensive CLI tool for managing Claude Code installations.
 
 It provides visibility into and control over:
