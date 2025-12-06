@@ -42,7 +42,7 @@ go build -o bin/claude-pm ./cmd/claude-pm
 claude-pm status
 
 # List all installed plugins
-claude-pm plugins list
+claude-pm plugins
 
 # Enable/disable plugins
 claude-pm disable compound-engineering@every-marketplace
@@ -97,7 +97,7 @@ Issues Detected
 List all installed plugins with detailed information:
 
 ```bash
-claude-pm plugins list
+claude-pm plugins
 ```
 
 Shows version, status, installation path, and type (local/cached) for each plugin.
@@ -248,7 +248,7 @@ claude-pm --claude-dir /custom/path status
 ### Phase 1: Core Status & Discovery ✅ (Complete)
 
 - ✅ `claude-pm status` - Overview of installation
-- ✅ `claude-pm plugins list` - List all plugins
+- ✅ `claude-pm plugins` - List all plugins
 - ✅ `claude-pm marketplaces` - List marketplaces
 - ✅ `claude-pm mcp list` - List MCP servers
 
@@ -307,7 +307,7 @@ go build -o bin/claude-pm ./cmd/claude-pm
 ```bash
 # Test against your actual Claude installation
 ./bin/claude-pm status
-./bin/claude-pm plugins list
+./bin/claude-pm plugins
 ./bin/claude-pm mcp list
 ```
 

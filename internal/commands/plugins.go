@@ -12,20 +12,13 @@ import (
 
 var pluginsCmd = &cobra.Command{
 	Use:   "plugins",
-	Short: "Manage Claude Code plugins",
-	Long:  `List and manage installed Claude Code plugins.`,
-}
-
-var pluginsListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List all installed plugins",
+	Short: "List installed plugins",
 	Long:  `Display detailed information about all installed plugins.`,
 	RunE:  runPluginsList,
 }
 
 func init() {
 	rootCmd.AddCommand(pluginsCmd)
-	pluginsCmd.AddCommand(pluginsListCmd)
 }
 
 func runPluginsList(cmd *cobra.Command, args []string) error {
