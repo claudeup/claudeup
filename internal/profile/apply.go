@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/malston/claude-pm/internal/secrets"
+	"github.com/claudeup/claudeup/internal/secrets"
 )
 
 // CommandExecutor runs claude CLI commands

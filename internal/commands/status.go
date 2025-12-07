@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/malston/claude-pm/internal/claude"
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +35,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print header
-	printHeader("claude-pm Status")
+	printHeader("claudeup Status")
 
 	// Print marketplaces
 	fmt.Println("\nMarketplaces (" + fmt.Sprint(len(marketplaces)) + ")")
@@ -68,7 +68,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print MCP servers placeholder
 	fmt.Println("\nMCP Servers")
-	fmt.Println("  → Run 'claude-pm mcp list' for details")
+	fmt.Println("  → Run 'claudeup mcp list' for details")
 
 	// Print issues if any
 	if len(stalePlugins) > 0 {
@@ -77,7 +77,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		for _, name := range stalePlugins {
 			fmt.Printf("    - %s\n", name)
 		}
-		fmt.Println("  → Run 'claude-pm doctor' for details")
+		fmt.Println("  → Run 'claudeup doctor' for details")
 	}
 
 	return nil

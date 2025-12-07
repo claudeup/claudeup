@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/malston/claude-pm/internal/claude"
-	"github.com/malston/claude-pm/internal/config"
-	"github.com/malston/claude-pm/internal/mcp"
+	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -33,8 +33,8 @@ var mcpDisableCmd = &cobra.Command{
 The server reference must be in the format: plugin-name:server-name
 
 Example:
-  claude-pm mcp disable compound-engineering@every-marketplace:playwright
-  claude-pm mcp disable superpowers-chrome@superpowers-marketplace:chrome`,
+  claudeup mcp disable compound-engineering@every-marketplace:playwright
+  claudeup mcp disable superpowers-chrome@superpowers-marketplace:chrome`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPDisable,
 }
@@ -47,8 +47,8 @@ var mcpEnableCmd = &cobra.Command{
 The server reference must be in the format: plugin-name:server-name
 
 Example:
-  claude-pm mcp enable compound-engineering@every-marketplace:playwright
-  claude-pm mcp enable superpowers-chrome@superpowers-marketplace:chrome`,
+  claudeup mcp enable compound-engineering@every-marketplace:playwright
+  claudeup mcp enable superpowers-chrome@superpowers-marketplace:chrome`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPEnable,
 }
@@ -148,7 +148,7 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✓ Disabled MCP server %s\n\n", serverRef)
 	fmt.Println("This MCP server will no longer be loaded")
-	fmt.Printf("Run 'claude-pm mcp enable %s' to re-enable\n", serverRef)
+	fmt.Printf("Run 'claudeup mcp enable %s' to re-enable\n", serverRef)
 	fmt.Println("\nNote: You may need to restart Claude Code for changes to take effect")
 
 	return nil
@@ -179,7 +179,7 @@ func runMCPEnable(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✓ Enabled MCP server %s\n\n", serverRef)
 	fmt.Println("This MCP server will now be loaded")
-	fmt.Printf("Run 'claude-pm mcp disable %s' to disable again\n", serverRef)
+	fmt.Printf("Run 'claudeup mcp disable %s' to disable again\n", serverRef)
 	fmt.Println("\nNote: You may need to restart Claude Code for changes to take effect")
 
 	return nil

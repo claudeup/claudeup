@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/malston/claude-pm/internal/config"
+	"github.com/claudeup/claudeup/internal/config"
 )
 
 // SelectFromList prompts user to select items from numbered list

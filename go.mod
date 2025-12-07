@@ -1,4 +1,4 @@
-module github.com/malston/claude-pm
+module github.com/claudeup/claudeup
 
 go 1.25.1
 

@@ -1,4 +1,4 @@
-// ABOUTME: Global configuration flags for claude-pm
+// ABOUTME: Global configuration flags for claudeup
 // ABOUTME: Stores runtime flag values accessible across commands
 package config
 

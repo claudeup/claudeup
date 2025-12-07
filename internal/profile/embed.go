@@ -1,4 +1,4 @@
-// ABOUTME: Embedded default profiles for claude-pm
+// ABOUTME: Embedded default profiles for claudeup
 // ABOUTME: Uses Go embed to bundle profiles in the binary
 package profile
 

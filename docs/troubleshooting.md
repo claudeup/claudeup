@@ -3,7 +3,7 @@
 ## Quick Diagnosis
 
 ```bash
-claude-pm doctor
+claudeup doctor
 ```
 
 This checks for common issues and recommends fixes.
@@ -15,7 +15,7 @@ There's a known bug in Claude CLI ([#11278](https://github.com/anthropics/claude
 ### Symptoms
 
 - Plugins show as installed but don't work
-- `claude-pm status` shows "stale paths"
+- `claudeup status` shows "stale paths"
 - Plugin commands, skills, and MCP servers are unavailable
 
 ### Cause
@@ -30,7 +30,7 @@ Right: ~/.claude/plugins/marketplaces/claude-code-plugins/plugins/hookify
 ### Fix
 
 ```bash
-claude-pm cleanup
+claudeup cleanup
 ```
 
 This automatically corrects the paths. Use `--dry-run` to preview changes first.
@@ -54,7 +54,7 @@ Understanding plugin types helps with troubleshooting:
 Check your plugin types:
 
 ```bash
-claude-pm plugins --summary
+claudeup plugins --summary
 ```
 
 ## Common Issues
@@ -62,7 +62,7 @@ claude-pm plugins --summary
 ### "Stale paths detected"
 
 ```bash
-claude-pm cleanup
+claudeup cleanup
 ```
 
 ### MCP server not working after changes
@@ -74,13 +74,13 @@ MCP server changes require restarting Claude Code to take effect.
 Check if it's in the disabled list:
 
 ```bash
-cat ~/.claude-pm/config.json | grep disabledPlugins
+cat ~/.claudeup/config.json | grep disabledPlugins
 ```
 
 Re-enable with:
 
 ```bash
-claude-pm enable <plugin>@<marketplace>
+claudeup enable <plugin>@<marketplace>
 ```
 
 ### Marketplace missing
@@ -88,8 +88,8 @@ claude-pm enable <plugin>@<marketplace>
 If a marketplace was deleted but plugins still reference it:
 
 ```bash
-claude-pm doctor        # Diagnose
-claude-pm cleanup       # Remove broken references
+claudeup doctor        # Diagnose
+claudeup cleanup       # Remove broken references
 ```
 
 ### Secrets not resolving
@@ -117,12 +117,12 @@ docker info
 Pull the image manually:
 
 ```bash
-docker pull ghcr.io/malston/claude-pm-sandbox:latest
+docker pull ghcr.io/claudeup/claudeup-sandbox:latest
 ```
 
 ## Getting Help
 
-If `claude-pm doctor` and `claude-pm cleanup` don't resolve your issue:
+If `claudeup doctor` and `claudeup cleanup` don't resolve your issue:
 
-1. Check existing issues: https://github.com/malston/claude-pm/issues
-2. Open a new issue with output from `claude-pm doctor`
+1. Check existing issues: https://github.com/claudeup/claudeup/issues
+2. Open a new issue with output from `claudeup doctor`

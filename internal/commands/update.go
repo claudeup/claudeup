@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/malston/claude-pm/internal/claude"
-	"github.com/malston/claude-pm/internal/ui"
+	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 

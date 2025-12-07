@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/malston/claude-pm/internal/claude"
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/spf13/cobra"
 )
 

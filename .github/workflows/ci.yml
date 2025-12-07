@@ -52,9 +52,9 @@ jobs:
 
     - name: Build binary
       run: |
-        go build -v -o bin/claude-pm ./cmd/claude-pm
-        ./bin/claude-pm --version || echo "Version command not implemented yet"
+        go build -v -o bin/claudeup ./cmd/claudeup
+        ./bin/claudeup --version || echo "Version command not implemented yet"
 
     - name: Test binary runs
       run: |
-        ./bin/claude-pm --help
+        ./bin/claudeup --help

@@ -11,7 +11,7 @@ import (
 
 // DockerRunner implements Runner using Docker
 type DockerRunner struct {
-	// ClaudePMDir is the claude-pm config directory (~/.claude-pm)
+	// ClaudePMDir is the claudeup config directory (~/.claudeup)
 	ClaudePMDir string
 }
 

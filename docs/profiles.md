@@ -10,16 +10,16 @@ Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use
 ## Commands
 
 ```bash
-claude-pm profile list              # List available profiles
-claude-pm profile show <name>       # Show profile contents
-claude-pm profile create <name>     # Save current setup as a profile
-claude-pm profile use <name>        # Apply a profile (replaces current config)
-claude-pm profile suggest           # Get profile suggestion based on project
+claudeup profile list              # List available profiles
+claudeup profile show <name>       # Show profile contents
+claudeup profile create <name>     # Save current setup as a profile
+claudeup profile use <name>        # Apply a profile (replaces current config)
+claudeup profile suggest           # Get profile suggestion based on project
 ```
 
 ## Profile Structure
 
-Profiles are stored in `~/.claude-pm/profiles/` as JSON files:
+Profiles are stored in `~/.claudeup/profiles/` as JSON files:
 
 ```json
 {
@@ -99,18 +99,18 @@ The `detect` field enables automatic profile suggestion based on project files:
 - `files`: Profile matches if these files exist
 - `contains`: Profile matches if files contain these strings
 
-Run `claude-pm profile suggest` in a project directory to get a recommendation.
+Run `claudeup profile suggest` in a project directory to get a recommendation.
 
 ## Setup Integration
 
-The `claude-pm setup` command uses profiles:
+The `claudeup setup` command uses profiles:
 
 ```bash
 # Setup with default profile
-claude-pm setup
+claudeup setup
 
 # Setup with specific profile
-claude-pm setup --profile backend
+claudeup setup --profile backend
 ```
 
 If an existing Claude installation is detected, setup offers to save it as a profile before applying the new one.

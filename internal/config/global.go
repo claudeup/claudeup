@@ -1,5 +1,5 @@
-// ABOUTME: Global configuration management for claude-pm
-// ABOUTME: Handles loading and saving ~/.claude-pm/config.json
+// ABOUTME: Global configuration management for claudeup
+// ABOUTME: Handles loading and saving ~/.claudeup/config.json
 package config
 
 import (
@@ -51,7 +51,7 @@ func DefaultConfig() *GlobalConfig {
 // configPath returns the path to the global config file
 func configPath() string {
 	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".claude-pm", "config.json")
+	return filepath.Join(homeDir, ".claudeup", "config.json")
 }
 
 // Load reads the global config file, creating it with defaults if it doesn't exist

@@ -84,5 +84,5 @@ func CleanState(claudePMDir, profile string) error {
 
 // DefaultImage returns the default sandbox image name
 func DefaultImage() string {
-	return "ghcr.io/malston/claude-pm-sandbox:latest"
+	return "ghcr.io/claudeup/claudeup-sandbox:latest"
 }

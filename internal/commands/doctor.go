@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/malston/claude-pm/internal/claude"
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/spf13/cobra"
 )
 
@@ -107,7 +107,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 
 		// Unified recommendation
-		fmt.Println("\n  → Run 'claude-pm cleanup' to fix and remove these issues")
+		fmt.Println("\n  → Run 'claudeup cleanup' to fix and remove these issues")
 		fmt.Println("     (use --fix-only or --remove-only for granular control)")
 	}
 	fmt.Println()

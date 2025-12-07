@@ -181,7 +181,7 @@ func TestDefaultImage(t *testing.T) {
 	if image == "" {
 		t.Error("DefaultImage returned empty string")
 	}
-	if image != "ghcr.io/malston/claude-pm-sandbox:latest" {
+	if image != "ghcr.io/claudeup/claudeup-sandbox:latest" {
 		t.Errorf("unexpected default image: %s", image)
 	}
 }

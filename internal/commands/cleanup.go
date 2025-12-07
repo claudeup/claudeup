@@ -5,8 +5,8 @@ package commands
 import (
 	"fmt"
 
-	"github.com/malston/claude-pm/internal/claude"
-	"github.com/malston/claude-pm/internal/ui"
+	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -176,7 +176,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	}
 
 	if fixed > 0 || removed > 0 {
-		fmt.Println("\nRun 'claude-pm status' to verify the changes")
+		fmt.Println("\nRun 'claudeup status' to verify the changes")
 	}
 
 	return nil

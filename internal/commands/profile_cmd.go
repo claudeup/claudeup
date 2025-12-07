@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/malston/claude-pm/internal/config"
-	"github.com/malston/claude-pm/internal/profile"
+	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +75,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	if len(profiles) == 0 {
 		fmt.Println("No profiles found.")
-		fmt.Println("Create one with: claude-pm profile create <name>")
+		fmt.Println("Create one with: claudeup profile create <name>")
 		return nil
 	}
 
@@ -104,8 +104,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Use 'claude-pm profile show <name>' for details")
-	fmt.Println("Use 'claude-pm profile use <name>' to apply a profile")
+	fmt.Println("Use 'claudeup profile show <name>' for details")
+	fmt.Println("Use 'claudeup profile use <name>' to apply a profile")
 
 	return nil
 }
@@ -316,7 +316,7 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 
 	if len(profiles) == 0 {
 		fmt.Println("No profiles available.")
-		fmt.Println("Create one with: claude-pm profile create <name>")
+		fmt.Println("Create one with: claudeup profile create <name>")
 		return nil
 	}
 

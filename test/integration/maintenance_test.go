@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/malston/claude-pm/internal/claude"
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 func TestDoctorDetectsStalePlugins(t *testing.T) {

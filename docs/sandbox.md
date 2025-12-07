@@ -6,10 +6,10 @@ Run Claude Code in an isolated Docker container for security. Protects your syst
 
 ```bash
 # Ephemeral session - nothing persists after exit
-claude-pm sandbox
+claudeup sandbox
 
 # Persistent session - state saved between sessions
-claude-pm sandbox --profile untrusted
+claudeup sandbox --profile untrusted
 ```
 
 ## How It Works
@@ -40,20 +40,20 @@ The sandbox has access to:
 
 ```bash
 # Basic usage
-claude-pm sandbox                           # Ephemeral session
-claude-pm sandbox --profile <name>          # Persistent with profile
+claudeup sandbox                           # Ephemeral session
+claudeup sandbox --profile <name>          # Persistent with profile
 
 # Mount control
-claude-pm sandbox --no-mount                # No filesystem access
-claude-pm sandbox --mount ~/data:/data      # Additional mount
+claudeup sandbox --no-mount                # No filesystem access
+claudeup sandbox --mount ~/data:/data      # Additional mount
 
 # Secret control
-claude-pm sandbox --secret EXTRA_KEY        # Add secret for this session
-claude-pm sandbox --no-secret GITHUB_TOKEN  # Exclude a secret
+claudeup sandbox --secret EXTRA_KEY        # Add secret for this session
+claudeup sandbox --no-secret GITHUB_TOKEN  # Exclude a secret
 
 # Utilities
-claude-pm sandbox --shell                   # Drop to bash instead of Claude
-claude-pm sandbox --clean --profile foo     # Reset sandbox state
+claudeup sandbox --shell                   # Drop to bash instead of Claude
+claudeup sandbox --clean --profile foo     # Reset sandbox state
 ```
 
 ## Profile Configuration
@@ -94,7 +94,7 @@ Add sandbox settings to your profile:
 ### Ephemeral Mode (default)
 
 ```bash
-claude-pm sandbox
+claudeup sandbox
 ```
 
 - Container state is discarded on exit
@@ -104,17 +104,17 @@ claude-pm sandbox
 ### Profile Mode
 
 ```bash
-claude-pm sandbox --profile untrusted
+claudeup sandbox --profile untrusted
 ```
 
-- State saved to `~/.claude-pm/sandboxes/<profile>/`
+- State saved to `~/.claudeup/sandboxes/<profile>/`
 - Plugins and configuration persist between sessions
 - Each profile has its own isolated state
 
 ### Resetting State
 
 ```bash
-claude-pm sandbox --clean --profile untrusted
+claudeup sandbox --clean --profile untrusted
 ```
 
 Removes all persistent state for a profile's sandbox, returning it to a fresh state.
@@ -122,7 +122,7 @@ Removes all persistent state for a profile's sandbox, returning it to a fresh st
 ## Requirements
 
 - Docker installed and running
-- First run will pull the sandbox image from `ghcr.io/malston/claude-pm-sandbox`
+- First run will pull the sandbox image from `ghcr.io/claudeup/claudeup-sandbox`
 
 ## Security Model
 
@@ -137,7 +137,7 @@ For maximum security when testing truly untrusted plugins:
 
 ```bash
 cd $(mktemp -d)
-claude-pm sandbox --no-mount
+claudeup sandbox --no-mount
 ```
 
 This runs with no filesystem access at all.

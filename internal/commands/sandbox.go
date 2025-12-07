@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/malston/claude-pm/internal/profile"
-	"github.com/malston/claude-pm/internal/sandbox"
-	"github.com/malston/claude-pm/internal/secrets"
+	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/internal/sandbox"
+	"github.com/claudeup/claudeup/internal/secrets"
 	"github.com/spf13/cobra"
 )
 
@@ -35,19 +35,19 @@ Use --profile to persist state between sessions.
 
 The current working directory is mounted at /workspace unless --no-mount is used.`,
 	Example: `  # Ephemeral session
-  claude-pm sandbox
+  claudeup sandbox
 
   # Persistent session using a profile
-  claude-pm sandbox --profile untrusted
+  claudeup sandbox --profile untrusted
 
   # Drop to bash instead of Claude CLI
-  claude-pm sandbox --shell
+  claudeup sandbox --shell
 
   # Add extra mount
-  claude-pm sandbox --mount ~/data:/data
+  claudeup sandbox --mount ~/data:/data
 
   # Reset a profile's sandbox state
-  claude-pm sandbox --clean --profile untrusted`,
+  claudeup sandbox --clean --profile untrusted`,
 	RunE: runSandbox,
 }
 
@@ -66,7 +66,7 @@ func init() {
 }
 
 func runSandbox(cmd *cobra.Command, args []string) error {
-	claudePMDir := filepath.Join(profile.MustHomeDir(), ".claude-pm")
+	claudePMDir := filepath.Join(profile.MustHomeDir(), ".claudeup")
 
 	// Handle --clean
 	if sandboxClean {

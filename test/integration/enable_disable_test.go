@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/malston/claude-pm/internal/claude"
-	"github.com/malston/claude-pm/internal/config"
+	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/config"
 )
 
 func TestPluginDisableEnable(t *testing.T) {

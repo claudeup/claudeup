@@ -8,12 +8,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/malston/claude-pm/internal/claude"
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 func TestDiscoverMCPServers(t *testing.T) {
 	// Create temp directory structure
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestDiscoverMCPServers(t *testing.T) {
 
 func TestDiscoverMCPServersWithEnv(t *testing.T) {
 	// Create temp directory
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func TestDiscoverMCPServersWithEnv(t *testing.T) {
 
 func TestDiscoverMCPServersInvalidJSON(t *testing.T) {
 	// Create temp directory
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestDiscoverMCPServersInvalidJSON(t *testing.T) {
 
 func TestDiscoverMCPServersNoPluginJSON(t *testing.T) {
 	// Create temp directory
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}

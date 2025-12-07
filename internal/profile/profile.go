@@ -1,4 +1,4 @@
-// ABOUTME: Profile struct and Load/Save functionality for claude-pm
+// ABOUTME: Profile struct and Load/Save functionality for claudeup
 // ABOUTME: Profiles define a desired state of Claude Code configuration
 package profile
 

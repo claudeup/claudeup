@@ -176,7 +176,7 @@ func TestEnableMCPServer(t *testing.T) {
 
 func TestSaveAndLoad(t *testing.T) {
 	// Create temp directory for test
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}

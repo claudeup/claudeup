@@ -31,9 +31,9 @@ go.work
 Thumbs.db
 
 # Build artifacts
-/claude-pm
-/claude-pm-*
-docker/claude-pm
+/claudeup
+/claudeup-*
+docker/claudeup
 
 # Worktrees
 .worktrees/

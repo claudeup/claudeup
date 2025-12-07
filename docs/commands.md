@@ -14,9 +14,9 @@
 First-time setup or reset of Claude Code installation.
 
 ```bash
-claude-pm setup                    # Interactive setup with default profile
-claude-pm setup --profile frontend # Setup with specific profile
-claude-pm setup --yes              # Non-interactive
+claudeup setup                    # Interactive setup with default profile
+claudeup setup --profile frontend # Setup with specific profile
+claudeup setup --yes              # Non-interactive
 ```
 
 ### profile
@@ -24,11 +24,11 @@ claude-pm setup --yes              # Non-interactive
 Manage configuration profiles.
 
 ```bash
-claude-pm profile list             # List available profiles
-claude-pm profile show <name>      # Display profile contents
-claude-pm profile create <name>    # Save current setup as profile
-claude-pm profile use <name>       # Apply a profile
-claude-pm profile suggest          # Suggest profile for current project
+claudeup profile list             # List available profiles
+claudeup profile show <name>      # Display profile contents
+claudeup profile create <name>    # Save current setup as profile
+claudeup profile use <name>       # Apply a profile
+claudeup profile suggest          # Suggest profile for current project
 ```
 
 ## Sandbox
@@ -38,14 +38,14 @@ claude-pm profile suggest          # Suggest profile for current project
 Run Claude Code in an isolated Docker container.
 
 ```bash
-claude-pm sandbox                       # Ephemeral session
-claude-pm sandbox --profile <name>      # Persistent session
-claude-pm sandbox --shell               # Drop to bash
-claude-pm sandbox --mount <host:container>  # Additional mount
-claude-pm sandbox --no-mount            # No working directory mount
-claude-pm sandbox --secret <name>       # Add secret
-claude-pm sandbox --no-secret <name>    # Exclude secret
-claude-pm sandbox --clean --profile <name>  # Reset sandbox state
+claudeup sandbox                       # Ephemeral session
+claudeup sandbox --profile <name>      # Persistent session
+claudeup sandbox --shell               # Drop to bash
+claudeup sandbox --mount <host:container>  # Additional mount
+claudeup sandbox --no-mount            # No working directory mount
+claudeup sandbox --secret <name>       # Add secret
+claudeup sandbox --no-secret <name>    # Exclude secret
+claudeup sandbox --clean --profile <name>  # Reset sandbox state
 ```
 
 ## Status & Discovery
@@ -55,7 +55,7 @@ claude-pm sandbox --clean --profile <name>  # Reset sandbox state
 Overview of your Claude Code installation.
 
 ```bash
-claude-pm status
+claudeup status
 ```
 
 Shows marketplaces, plugin counts, MCP servers, and any detected issues.
@@ -65,8 +65,8 @@ Shows marketplaces, plugin counts, MCP servers, and any detected issues.
 List installed plugins.
 
 ```bash
-claude-pm plugins           # Full list with details
-claude-pm plugins --summary # Summary statistics only
+claudeup plugins           # Full list with details
+claudeup plugins --summary # Summary statistics only
 ```
 
 ### marketplaces
@@ -74,7 +74,7 @@ claude-pm plugins --summary # Summary statistics only
 List installed marketplace repositories.
 
 ```bash
-claude-pm marketplaces
+claudeup marketplaces
 ```
 
 ### mcp
@@ -82,9 +82,9 @@ claude-pm marketplaces
 Manage MCP servers.
 
 ```bash
-claude-pm mcp list                              # List all MCP servers
-claude-pm mcp disable <plugin>:<server>         # Disable specific server
-claude-pm mcp enable <plugin>:<server>          # Re-enable server
+claudeup mcp list                              # List all MCP servers
+claudeup mcp disable <plugin>:<server>         # Disable specific server
+claudeup mcp enable <plugin>:<server>          # Re-enable server
 ```
 
 ## Enable/Disable
@@ -94,7 +94,7 @@ claude-pm mcp enable <plugin>:<server>          # Re-enable server
 Re-enable a disabled plugin.
 
 ```bash
-claude-pm enable <plugin>@<marketplace>
+claudeup enable <plugin>@<marketplace>
 ```
 
 ### disable
@@ -102,10 +102,10 @@ claude-pm enable <plugin>@<marketplace>
 Disable a plugin without uninstalling.
 
 ```bash
-claude-pm disable <plugin>@<marketplace>
+claudeup disable <plugin>@<marketplace>
 ```
 
-Disabled plugins are stored in `~/.claude-pm/config.json` and can be re-enabled.
+Disabled plugins are stored in `~/.claudeup/config.json` and can be re-enabled.
 
 ## Maintenance
 
@@ -114,7 +114,7 @@ Disabled plugins are stored in `~/.claude-pm/config.json` and can be re-enabled.
 Diagnose common issues with your installation.
 
 ```bash
-claude-pm doctor
+claudeup doctor
 ```
 
 Checks for missing marketplaces, broken plugin paths, and other problems.
@@ -124,11 +124,11 @@ Checks for missing marketplaces, broken plugin paths, and other problems.
 Fix plugin issues.
 
 ```bash
-claude-pm cleanup              # Fix paths and remove broken entries
-claude-pm cleanup --dry-run    # Preview changes
-claude-pm cleanup --fix-only   # Only fix paths
-claude-pm cleanup --remove-only # Only remove broken entries
-claude-pm cleanup --reinstall  # Show reinstall commands
+claudeup cleanup              # Fix paths and remove broken entries
+claudeup cleanup --dry-run    # Preview changes
+claudeup cleanup --fix-only   # Only fix paths
+claudeup cleanup --remove-only # Only remove broken entries
+claudeup cleanup --reinstall  # Show reinstall commands
 ```
 
 ### update
@@ -136,16 +136,16 @@ claude-pm cleanup --reinstall  # Show reinstall commands
 Check for and apply updates.
 
 ```bash
-claude-pm update              # Apply updates
-claude-pm update --check-only # Preview without applying
+claudeup update              # Apply updates
+claudeup update --check-only # Preview without applying
 ```
 
 ## Configuration
 
-Configuration is stored in `~/.claude-pm/`:
+Configuration is stored in `~/.claudeup/`:
 
 ```
-~/.claude-pm/
+~/.claudeup/
 ├── config.json       # Disabled plugins/servers, preferences
 ├── profiles/         # Saved profiles
 └── sandboxes/        # Persistent sandbox state

@@ -11,7 +11,7 @@ import (
 
 func TestPluginPathExists(t *testing.T) {
 	// Create temp directory
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +136,7 @@ func TestPluginExists(t *testing.T) {
 
 func TestLoadAndSavePlugins(t *testing.T) {
 	// Create temp directory
-	tempDir, err := os.MkdirTemp("", "claude-pm-test-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {
 		t.Fatal(err)
 	}

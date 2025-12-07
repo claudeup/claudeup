@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/malston/claude-pm/internal/claude"
-	"github.com/malston/claude-pm/internal/mcp"
+	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/mcp"
 )
 
 // TestEnv represents a test environment with a fake Claude installation
@@ -22,7 +22,7 @@ type TestEnv struct {
 func SetupTestEnv(t *testing.T) *TestEnv {
 	t.Helper()
 
-	tempDir, err := os.MkdirTemp("", "claude-pm-e2e-*")
+	tempDir, err := os.MkdirTemp("", "claudeup-e2e-*")
 	if err != nil {
 		t.Fatal(err)
 	}

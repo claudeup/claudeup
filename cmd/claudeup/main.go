@@ -1,4 +1,4 @@
-// ABOUTME: Entry point for the claude-pm CLI tool
+// ABOUTME: Entry point for the claudeup CLI tool
 // ABOUTME: Initializes and executes the root command
 package main
 
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/malston/claude-pm/internal/commands"
+	"github.com/claudeup/claudeup/internal/commands"
 )
 
 var version = "dev" // Injected at build time via -ldflags

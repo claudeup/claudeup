@@ -10,9 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/malston/claude-pm/internal/config"
-	"github.com/malston/claude-pm/internal/profile"
-	"github.com/malston/claude-pm/internal/secrets"
+	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/internal/secrets"
 	"github.com/spf13/cobra"
 )
 
@@ -134,7 +134,7 @@ func ensureClaudeCLI() error {
 			fmt.Println()
 			fmt.Println("To install manually, visit: https://docs.anthropic.com/en/docs/claude-code/getting-started")
 			fmt.Println()
-			fmt.Println("Then run 'claude-pm setup' again.")
+			fmt.Println("Then run 'claudeup setup' again.")
 			return fmt.Errorf("Claude CLI not installed")
 		}
 	}
@@ -164,7 +164,7 @@ func getClaudeVersion() string {
 }
 
 func getProfilesDir() string {
-	return filepath.Join(profile.MustHomeDir(), ".claude-pm", "profiles")
+	return filepath.Join(profile.MustHomeDir(), ".claudeup", "profiles")
 }
 
 func hasContent(p *profile.Profile) bool {

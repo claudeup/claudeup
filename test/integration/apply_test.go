@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/malston/claude-pm/internal/profile"
-	"github.com/malston/claude-pm/internal/secrets"
+	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/internal/secrets"
 )
 
 // MockExecutor records commands for verification

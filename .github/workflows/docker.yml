@@ -1,4 +1,4 @@
-# ABOUTME: Builds and publishes the claude-pm sandbox Docker image.
+# ABOUTME: Builds and publishes the claudeup sandbox Docker image.
 # ABOUTME: Triggered on releases and manual dispatch for testing.
 
 name: Docker
@@ -20,7 +20,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}-sandbox
+  IMAGE_NAME: claudeup/claudeup-sandbox
 
 jobs:
   build:
@@ -36,11 +36,11 @@ jobs:
       with:
         go-version: '1.25.1'
 
-    - name: Build claude-pm binary for Linux
+    - name: Build claudeup binary for Linux
       env:
         VERSION: ${{ github.ref_name }}
       run: |
-        GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o docker/claude-pm ./cmd/claude-pm
+        GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o docker/claudeup ./cmd/claudeup
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3

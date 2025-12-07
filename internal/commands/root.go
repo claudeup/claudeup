@@ -1,4 +1,4 @@
-// ABOUTME: Root command and CLI initialization for claude-pm
+// ABOUTME: Root command and CLI initialization for claudeup
 // ABOUTME: Sets up cobra command structure and global flags
 package commands
 
@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/malston/claude-pm/internal/config"
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -15,9 +15,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "claude-pm",
+	Use:   "claudeup",
 	Short: "Manage Claude Code plugins, marketplaces, and MCP servers",
-	Long: `claude-pm is a comprehensive CLI tool for managing Claude Code installations.
+	Long: `claudeup is a comprehensive CLI tool for managing Claude Code installations.
 
 It provides visibility into and control over:
   - Installed plugins and their state
