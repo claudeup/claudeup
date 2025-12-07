@@ -101,11 +101,10 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		profilesDir := filepath.Join(claudePMDir, "profiles")
 		p, err := profile.Load(profilesDir, sandboxProfile)
 		if err != nil {
-			fmt.Printf("Warning: could not load profile %q: %v\n", sandboxProfile, err)
-		} else {
-			// Apply profile's sandbox config
-			applyProfileSandboxConfig(&opts, p)
+			return fmt.Errorf("failed to load profile %q: %w", sandboxProfile, err)
 		}
+		// Apply profile's sandbox config (may be empty, that's fine)
+		applyProfileSandboxConfig(&opts, p)
 	}
 
 	// Working directory mount

@@ -33,3 +33,4 @@ Thumbs.db
 # Build artifacts
 /claude-pm
 /claude-pm-*
+docker/claude-pm

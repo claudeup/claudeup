@@ -78,6 +78,8 @@ func TestCleanState(t *testing.T) {
 }
 
 func TestParseMount(t *testing.T) {
+	home, _ := os.UserHomeDir()
+
 	tests := []struct {
 		name    string
 		input   string
@@ -95,9 +97,14 @@ func TestParseMount(t *testing.T) {
 			want:  Mount{Host: "/host", Container: "/container", ReadOnly: true},
 		},
 		{
-			name:  "home directory mount",
+			name:  "home directory expansion",
 			input: "~/data:/data",
-			want:  Mount{Host: "~/data", Container: "/data", ReadOnly: false},
+			want:  Mount{Host: home + "/data", Container: "/data", ReadOnly: false},
+		},
+		{
+			name:  "home directory only",
+			input: "~:/home",
+			want:  Mount{Host: home, Container: "/home", ReadOnly: false},
 		},
 		{
 			name:    "invalid format - single path",
@@ -112,6 +119,16 @@ func TestParseMount(t *testing.T) {
 		{
 			name:    "invalid option",
 			input:   "/host:/container:rw",
+			wantErr: true,
+		},
+		{
+			name:    "empty host path",
+			input:   ":/container",
+			wantErr: true,
+		},
+		{
+			name:    "empty container path",
+			input:   "/host:",
 			wantErr: true,
 		},
 	}
@@ -130,6 +147,30 @@ func TestParseMount(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("got %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExpandHome(t *testing.T) {
+	home, _ := os.UserHomeDir()
+
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"~/foo", home + "/foo"},
+		{"~", home},
+		{"/absolute/path", "/absolute/path"},
+		{"relative/path", "relative/path"},
+		{"~user/foo", "~user/foo"}, // Only ~ or ~/ is expanded, not ~user
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := expandHome(tt.input)
+			if got != tt.want {
+				t.Errorf("expandHome(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

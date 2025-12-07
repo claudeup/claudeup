@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
 )
 
 // DockerRunner implements Runner using Docker
@@ -46,16 +44,6 @@ func (r *DockerRunner) Run(opts Options) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	// Handle signals to clean up container
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		// Docker handles SIGINT gracefully when attached to TTY
-		// Just let it propagate
-	}()
 
 	return cmd.Run()
 }
@@ -163,9 +151,19 @@ func ParseMount(s string) (Mount, error) {
 		return Mount{}, fmt.Errorf("invalid mount format: %s (expected host:container[:ro])", s)
 	}
 
+	host := expandHome(parts[0])
+	container := parts[1]
+
+	if host == "" {
+		return Mount{}, fmt.Errorf("invalid mount: host path cannot be empty")
+	}
+	if container == "" {
+		return Mount{}, fmt.Errorf("invalid mount: container path cannot be empty")
+	}
+
 	m := Mount{
-		Host:      parts[0],
-		Container: parts[1],
+		Host:      host,
+		Container: container,
 	}
 
 	if len(parts) == 3 {
@@ -177,4 +175,23 @@ func ParseMount(s string) (Mount, error) {
 	}
 
 	return m, nil
+}
+
+// expandHome expands ~ to the user's home directory
+func expandHome(path string) string {
+	if strings.HasPrefix(path, "~/") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return home + path[1:]
+	}
+	if path == "~" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return path
+		}
+		return home
+	}
+	return path
 }
