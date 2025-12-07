@@ -125,7 +125,9 @@ func ensureClaudeCLI() error {
 	// Auto-install with --yes, otherwise ask
 	if !config.YesFlag {
 		fmt.Println("Would you like to install it now using the official installer?")
-		fmt.Println("  (This will run: curl -fsSL https://claude.ai/install.sh | bash)")
+		fmt.Println()
+		fmt.Println("  ⚠️  Warning: This will download and execute code from the internet.")
+		fmt.Println("     Command: curl -fsSL https://claude.ai/install.sh | bash")
 		fmt.Println()
 		choice := promptChoice("Install Claude CLI?", "y")
 		if strings.ToLower(choice) != "y" && strings.ToLower(choice) != "yes" {
