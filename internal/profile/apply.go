@@ -139,11 +139,11 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 					case "1password":
 						value, _, resolveErr = secretChain.Resolve(source.Ref)
 					case "keychain":
-						ref := source.Service
+						keychainRef := source.Service
 						if source.Account != "" {
-							ref = source.Service + ":" + source.Account
+							keychainRef = source.Service + ":" + source.Account
 						}
-						value, _, resolveErr = secretChain.Resolve(ref)
+						value, _, resolveErr = secretChain.Resolve(keychainRef)
 					}
 					if resolveErr == nil && value != "" {
 						break
@@ -260,8 +260,7 @@ func DefaultClaudeDir() string {
 	if override := os.Getenv("CLAUDE_CONFIG_DIR"); override != "" {
 		return override
 	}
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".claude")
+	return filepath.Join(MustHomeDir(), ".claude")
 }
 
 // DefaultClaudeJSONPath returns the path to .claude.json
@@ -271,8 +270,7 @@ func DefaultClaudeJSONPath() string {
 	if override := os.Getenv("CLAUDE_CONFIG_DIR"); override != "" {
 		return filepath.Join(override, ".claude.json")
 	}
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".claude.json")
+	return filepath.Join(MustHomeDir(), ".claude.json")
 }
 
 func toSet(slice []string) map[string]struct{} {
@@ -281,4 +279,14 @@ func toSet(slice []string) map[string]struct{} {
 		set[item] = struct{}{}
 	}
 	return set
+}
+
+// MustHomeDir returns the user's home directory or panics if it cannot be determined.
+// This is appropriate because the tool cannot function without knowing the home directory.
+func MustHomeDir() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(fmt.Sprintf("cannot determine home directory: %v", err))
+	}
+	return homeDir
 }

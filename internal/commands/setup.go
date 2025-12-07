@@ -119,6 +119,25 @@ func ensureClaudeCLI() error {
 
 	fmt.Println("not found")
 	fmt.Println()
+	fmt.Println("Claude CLI is required but not installed.")
+	fmt.Println()
+
+	// Auto-install with --yes, otherwise ask
+	if !config.YesFlag {
+		fmt.Println("Would you like to install it now using the official installer?")
+		fmt.Println("  (This will run: curl -fsSL https://claude.ai/install.sh | bash)")
+		fmt.Println()
+		choice := promptChoice("Install Claude CLI?", "y")
+		if strings.ToLower(choice) != "y" && strings.ToLower(choice) != "yes" {
+			fmt.Println()
+			fmt.Println("To install manually, visit: https://docs.anthropic.com/en/docs/claude-code/getting-started")
+			fmt.Println()
+			fmt.Println("Then run 'claude-pm setup' again.")
+			return fmt.Errorf("Claude CLI not installed")
+		}
+	}
+
+	fmt.Println()
 	fmt.Println("Installing Claude CLI...")
 
 	cmd := exec.Command("bash", "-c", "curl -fsSL https://claude.ai/install.sh | bash")
@@ -143,8 +162,7 @@ func getClaudeVersion() string {
 }
 
 func getProfilesDir() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".claude-pm", "profiles")
+	return filepath.Join(profile.MustHomeDir(), ".claude-pm", "profiles")
 }
 
 func hasContent(p *profile.Profile) bool {
