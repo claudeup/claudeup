@@ -1,25 +1,25 @@
-# claude-pm
+# claudeup
 
 A CLI tool for managing Claude Code plugins, profiles, and sandboxed environments.
 
 ## Install
 
 ```bash
-# From source
-go install github.com/malston/claude-pm/cmd/claude-pm@latest
+# One-liner install (macOS/Linux)
+curl -fsSL https://claudeup.github.io/install.sh | bash
 
-# Or download from releases
-# https://github.com/malston/claude-pm/releases
+# Or from source
+go install github.com/claudeup/claudeup/cmd/claudeup@latest
 ```
 
 ## Get Started
 
 ```bash
 # First-time setup - installs Claude CLI and applies a profile
-claude-pm setup
+claudeup setup
 
 # Or setup with a specific profile
-claude-pm setup --profile frontend
+claudeup setup --profile frontend
 ```
 
 That's it. You now have a working Claude Code installation with your chosen plugins and MCP servers.
@@ -31,9 +31,9 @@ That's it. You now have a working Claude Code installation with your chosen plug
 Save and switch between different Claude configurations. Great for different projects or sharing setups across machines.
 
 ```bash
-claude-pm profile list              # See available profiles
-claude-pm profile create my-setup   # Save current config as a profile
-claude-pm profile use backend       # Switch to a different profile
+claudeup profile list              # See available profiles
+claudeup profile create my-setup   # Save current config as a profile
+claudeup profile use backend       # Switch to a different profile
 ```
 
 Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more →](docs/profiles.md)
@@ -43,8 +43,8 @@ Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more �
 Run Claude Code in an isolated Docker container for security.
 
 ```bash
-claude-pm sandbox                      # Ephemeral session
-claude-pm sandbox --profile untrusted  # Persistent sandboxed environment
+claudeup sandbox                      # Ephemeral session
+claudeup sandbox --profile untrusted  # Persistent sandboxed environment
 ```
 
 Protects your system from untrusted plugins while still letting Claude work on your projects. [Learn more →](docs/sandbox.md)
@@ -54,9 +54,9 @@ Protects your system from untrusted plugins while still letting Claude work on y
 Fine-grained control over what's enabled:
 
 ```bash
-claude-pm status                    # Overview of your installation
-claude-pm disable plugin@marketplace   # Disable a plugin
-claude-pm mcp disable plugin:server    # Disable just an MCP server
+claudeup status                    # Overview of your installation
+claudeup disable plugin@marketplace   # Disable a plugin
+claudeup mcp disable plugin:server    # Disable just an MCP server
 ```
 
 [Full command reference →](docs/commands.md)
@@ -64,9 +64,9 @@ claude-pm mcp disable plugin:server    # Disable just an MCP server
 ### Diagnostics & Maintenance
 
 ```bash
-claude-pm doctor   # Diagnose issues
-claude-pm cleanup  # Fix plugin path problems
-claude-pm update   # Check for updates
+claudeup doctor   # Diagnose issues
+claudeup cleanup  # Fix plugin path problems
+claudeup update   # Check for updates
 ```
 
 [Troubleshooting guide →](docs/troubleshooting.md)
@@ -81,9 +81,9 @@ claude-pm update   # Check for updates
 ## Development
 
 ```bash
-git clone https://github.com/malston/claude-pm.git
-cd claude-pm
-go build -o bin/claude-pm ./cmd/claude-pm
+git clone https://github.com/claudeup/claudeup.git
+cd claudeup
+go build -o bin/claudeup ./cmd/claudeup
 go test ./...
 ```
 
