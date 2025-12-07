@@ -34,3 +34,6 @@ Thumbs.db
 /claude-pm
 /claude-pm-*
 docker/claude-pm
+
+# Worktrees
+.worktrees/
