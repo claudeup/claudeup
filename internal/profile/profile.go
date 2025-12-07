@@ -18,6 +18,26 @@ type Profile struct {
 	Marketplaces []Marketplace `json:"marketplaces,omitempty"`
 	Plugins      []string      `json:"plugins,omitempty"`
 	Detect       DetectRules   `json:"detect,omitempty"`
+	Sandbox      SandboxConfig `json:"sandbox,omitempty"`
+}
+
+// SandboxConfig defines sandbox-specific settings for a profile
+type SandboxConfig struct {
+	// Secrets are secret names to resolve and inject into the sandbox
+	Secrets []string `json:"secrets,omitempty"`
+
+	// Mounts are additional host:container path mappings
+	Mounts []SandboxMount `json:"mounts,omitempty"`
+
+	// Env are static environment variables to set
+	Env map[string]string `json:"env,omitempty"`
+}
+
+// SandboxMount represents a host-to-container path mapping
+type SandboxMount struct {
+	Host      string `json:"host"`
+	Container string `json:"container"`
+	ReadOnly  bool   `json:"readonly,omitempty"`
 }
 
 // MCPServer represents an MCP server configuration
