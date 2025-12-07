@@ -175,6 +175,89 @@ This is useful for:
 
 **Note:** MCP server changes require restarting Claude Code to take effect.
 
+#### Setup
+
+First-time setup or reset of your Claude Code installation:
+
+```bash
+# Interactive setup with default profile
+claude-pm setup
+
+# Setup with a specific profile
+claude-pm setup --profile frontend
+
+# Non-interactive setup (for scripts)
+claude-pm setup --yes
+```
+
+The setup command:
+1. Installs Claude CLI if missing (with your permission)
+2. Creates the profiles directory with a default profile
+3. Detects existing installations and offers to save them as a profile
+4. Applies your chosen profile
+
+#### Profiles
+
+Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use them to:
+- Save your current setup for later
+- Switch between different configurations (e.g., frontend vs backend)
+- Share configurations between machines
+
+```bash
+# List available profiles
+claude-pm profile list
+
+# Show a profile's contents
+claude-pm profile show default
+
+# Create a profile from your current setup
+claude-pm profile create my-config
+
+# Apply a profile (replaces current config)
+claude-pm profile use frontend
+
+# Get a profile suggestion based on your project
+claude-pm profile suggest
+```
+
+**Profile Storage:**
+
+Profiles are stored in `~/.claude-pm/profiles/`:
+
+```json
+{
+  "name": "frontend",
+  "description": "Frontend development with React tooling",
+  "plugins": ["superpowers@superpowers-marketplace"],
+  "mcpServers": [{"name": "context7", "command": "npx", "args": ["-y", "@context7/mcp"]}],
+  "marketplaces": [{"source": "github", "repo": "anthropics/claude-code-plugins"}]
+}
+```
+
+**Secret Resolution:**
+
+MCP servers often need API keys. Profiles support multiple secret backends:
+
+```json
+"secrets": {
+  "API_KEY": {
+    "sources": [
+      {"type": "env", "key": "API_KEY"},
+      {"type": "1password", "ref": "op://Private/API Key/credential"},
+      {"type": "keychain", "service": "my-api", "account": "default"}
+    ]
+  }
+}
+```
+
+Resolution tries each source in order. First success wins.
+
+| Backend | Platform | Requirement |
+|---------|----------|-------------|
+| `env` | All | Environment variable set |
+| `1password` | All | `op` CLI installed |
+| `keychain` | macOS | Keychain item exists |
+
 #### Maintenance & Diagnostics
 
 Diagnose and fix common issues with your Claude installation:
@@ -354,7 +437,18 @@ claude-pm --claude-dir /custom/path status
 - ✅ `claude-pm cleanup` - Clean stale plugin entries
 - ✅ `claude-pm update` - Check and apply marketplace and plugin updates
 
-### Phase 4: Project-Level Config & Polish
+### Phase 4: Profiles & Setup ✅ (Complete)
+
+- ✅ `claude-pm setup` - First-time setup with profile selection
+- ✅ `claude-pm profile list` - List available profiles
+- ✅ `claude-pm profile show` - Display profile contents
+- ✅ `claude-pm profile create` - Snapshot current state as profile
+- ✅ `claude-pm profile use` - Apply a profile (replace strategy)
+- ✅ `claude-pm profile suggest` - Project-based profile detection
+- ✅ Secret resolution (env, 1Password, macOS Keychain)
+- ✅ Embedded default profile
+
+### Phase 5: Project-Level Config & Polish
 
 - `claude-pm init` - Initialize project config
 - `.claude-pm.json` - Project-specific configuration
@@ -373,7 +467,9 @@ claude-pm/
 │   ├── claude/             # Claude data structures (plugins, marketplaces)
 │   ├── mcp/                # MCP server discovery and management
 │   ├── commands/           # CLI commands
-│   ├── config/             # Configuration management (future)
+│   ├── config/             # Global configuration management
+│   ├── profile/            # Profile loading, saving, and application
+│   ├── secrets/            # Secret resolution (env, 1Password, Keychain)
 │   └── ui/                 # UI components (future)
 ```
 
