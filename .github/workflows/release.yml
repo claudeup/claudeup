@@ -33,21 +33,21 @@ jobs:
       env:
         VERSION: ${{ github.ref_name }}
       run: |
-        GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o bin/claude-pm-linux-amd64 ./cmd/claude-pm
-        GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=$VERSION" -o bin/claude-pm-linux-arm64 ./cmd/claude-pm
-        GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o bin/claude-pm-darwin-amd64 ./cmd/claude-pm
-        GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=$VERSION" -o bin/claude-pm-darwin-arm64 ./cmd/claude-pm
-        GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o bin/claude-pm-windows-amd64.exe ./cmd/claude-pm
+        GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o bin/claudeup-linux-amd64 ./cmd/claudeup
+        GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=$VERSION" -o bin/claudeup-linux-arm64 ./cmd/claudeup
+        GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o bin/claudeup-darwin-amd64 ./cmd/claudeup
+        GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.version=$VERSION" -o bin/claudeup-darwin-arm64 ./cmd/claudeup
+        GOOS=windows GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o bin/claudeup-windows-amd64.exe ./cmd/claudeup
         cd bin && sha256sum * > checksums.txt
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          bin/claude-pm-linux-amd64
-          bin/claude-pm-linux-arm64
-          bin/claude-pm-darwin-amd64
-          bin/claude-pm-darwin-arm64
-          bin/claude-pm-windows-amd64.exe
+          bin/claudeup-linux-amd64
+          bin/claudeup-linux-arm64
+          bin/claudeup-darwin-amd64
+          bin/claudeup-darwin-arm64
+          bin/claudeup-windows-amd64.exe
           bin/checksums.txt
         generate_release_notes: true
