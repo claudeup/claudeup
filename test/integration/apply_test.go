@@ -37,6 +37,17 @@ func (m *MockExecutor) Run(args ...string) error {
 	return nil
 }
 
+func (m *MockExecutor) RunWithOutput(args ...string) (string, error) {
+	m.Commands = append(m.Commands, args)
+
+	// Check if we should return an error
+	cmdKey := strings.Join(args[:min(3, len(args))], " ")
+	if err, ok := m.Errors[cmdKey]; ok {
+		return "", err
+	}
+	return "✔ Successfully uninstalled plugin\n", nil
+}
+
 func (m *MockExecutor) CommandCount() int {
 	return len(m.Commands)
 }

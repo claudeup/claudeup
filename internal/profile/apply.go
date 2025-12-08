@@ -15,6 +15,7 @@ import (
 // CommandExecutor runs claude CLI commands
 type CommandExecutor interface {
 	Run(args ...string) error
+	RunWithOutput(args ...string) (string, error)
 }
 
 // DefaultExecutor runs commands using the real claude CLI
@@ -23,6 +24,11 @@ type DefaultExecutor struct{}
 // Run executes the claude CLI with the given arguments
 func (e *DefaultExecutor) Run(args ...string) error {
 	return runClaude(args...)
+}
+
+// RunWithOutput executes the claude CLI and returns captured output
+func (e *DefaultExecutor) RunWithOutput(args ...string) (string, error) {
+	return runClaudeWithOutput(args...)
 }
 
 // ApplyResult contains the results of applying a profile
@@ -160,9 +166,18 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 
 	// Remove plugins
 	for _, plugin := range diff.PluginsToRemove {
-		if err := executor.Run("plugin", "uninstall", plugin); err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w", plugin, err))
+		output, err := executor.RunWithOutput("plugin", "uninstall", plugin)
+		if err != nil {
+			// Check if the error is just "already uninstalled" - treat as success
+			if strings.Contains(output, "already uninstalled") {
+				fmt.Printf("✔ Plugin %s was already uninstalled\n", plugin)
+				result.PluginsRemoved = append(result.PluginsRemoved, plugin)
+			} else {
+				fmt.Print(output) // Show the actual error output
+				result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w", plugin, err))
+			}
 		} else {
+			fmt.Print(output) // Show success message
 			result.PluginsRemoved = append(result.PluginsRemoved, plugin)
 		}
 	}
@@ -253,6 +268,19 @@ func runClaude(args ...string) error {
 	cmd.Stderr = os.Stderr
 
 	return cmd.Run()
+}
+
+// runClaudeWithOutput runs claude and captures combined output
+// Returns (output, error) - useful for checking error messages
+func runClaudeWithOutput(args ...string) (string, error) {
+	claudePath, err := exec.LookPath("claude")
+	if err != nil {
+		return "", fmt.Errorf("claude CLI not found: %w", err)
+	}
+
+	cmd := exec.Command(claudePath, args...)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
 }
 
 // DefaultClaudeDir returns the Claude configuration directory
