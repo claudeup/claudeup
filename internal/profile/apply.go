@@ -70,11 +70,12 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 		}
 	}
 
-	// Plugins to install (in profile but not in current)
+	// Plugins to install - always include ALL profile plugins to ensure
+	// they're properly registered with Claude CLI, even if they appear
+	// in the current state (they may be in a broken state where JSON
+	// shows them but Claude CLI doesn't recognize them)
 	for plugin := range profilePlugins {
-		if _, exists := currentPlugins[plugin]; !exists {
-			diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
-		}
+		diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
 	}
 
 	// MCP servers to remove/install
@@ -204,9 +205,18 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 
 	// Install plugins
 	for _, plugin := range diff.PluginsToInstall {
-		if err := executor.Run("plugin", "install", plugin); err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to install plugin %s: %w", plugin, err))
+		output, err := executor.RunWithOutput("plugin", "install", plugin)
+		if err != nil {
+			// Check if the error is just "already installed" - treat as success
+			if strings.Contains(output, "already installed") {
+				fmt.Printf("✔ Plugin %s is already installed\n", plugin)
+				result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+			} else {
+				fmt.Print(output) // Show the actual error output
+				result.Errors = append(result.Errors, fmt.Errorf("failed to install plugin %s: %w", plugin, err))
+			}
 		} else {
+			fmt.Print(output) // Show success message
 			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
 		}
 	}

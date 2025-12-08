@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -36,6 +37,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print header
 	printHeader("claudeup Status")
+
+	// Print active profile
+	cfg, _ := config.Load()
+	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+		fmt.Printf("\nActive Profile: %s\n", cfg.Preferences.ActiveProfile)
+	}
 
 	// Print marketplaces
 	fmt.Println("\nMarketplaces (" + fmt.Sprint(len(marketplaces)) + ")")

@@ -56,6 +56,12 @@ var profileSuggestCmd = &cobra.Command{
 	RunE:  runProfileSuggest,
 }
 
+var profileCurrentCmd = &cobra.Command{
+	Use:   "current",
+	Short: "Show the currently active profile",
+	RunE:  runProfileCurrent,
+}
+
 func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
@@ -63,6 +69,7 @@ func init() {
 	profileCmd.AddCommand(profileCreateCmd)
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileSuggestCmd)
+	profileCmd.AddCommand(profileCurrentCmd)
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
@@ -405,4 +412,42 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 
 	// Fall back to embedded profiles
 	return profile.GetEmbeddedProfile(name)
+}
+
+func runProfileCurrent(cmd *cobra.Command, args []string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	activeProfile := ""
+	if cfg != nil {
+		activeProfile = cfg.Preferences.ActiveProfile
+	}
+
+	if activeProfile == "" {
+		fmt.Println("No profile is currently active.")
+		fmt.Println("Use 'claudeup profile use <name>' to apply a profile.")
+		return nil
+	}
+
+	// Load the profile to show details
+	profilesDir := getProfilesDir()
+	p, err := loadProfileWithFallback(profilesDir, activeProfile)
+	if err != nil {
+		// Profile was set but can't be loaded - show just the name
+		fmt.Printf("Current profile: %s (details unavailable)\n", activeProfile)
+		return nil
+	}
+
+	fmt.Printf("Current profile: %s\n", p.Name)
+	if p.Description != "" {
+		fmt.Printf("  %s\n", p.Description)
+	}
+	fmt.Println()
+	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
+	fmt.Printf("  Plugins:      %d\n", len(p.Plugins))
+	fmt.Printf("  MCP Servers:  %d\n", len(p.MCPServers))
+
+	return nil
 }
