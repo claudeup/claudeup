@@ -78,6 +78,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	embeddedProfiles, embeddedErr := profile.ListEmbeddedProfiles()
 	if embeddedErr != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load built-in profiles: %v\n", embeddedErr)
+		embeddedProfiles = []*profile.Profile{} // Prevent nil slice panic
 	}
 
 	// Track which profiles exist on disk
