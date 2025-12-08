@@ -231,7 +231,11 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 func cleanupStalePlugins(claudeDir string) {
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
-		return // Silently fail - this is just cleanup
+		// Only warn if not a simple "file not found" - that's expected on fresh installs
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "  Warning: could not load plugins for cleanup: %v\n", err)
+		}
+		return
 	}
 
 	removed := 0
@@ -244,7 +248,9 @@ func cleanupStalePlugins(claudeDir string) {
 	}
 
 	if removed > 0 {
-		if err := claude.SavePlugins(claudeDir, plugins); err == nil {
+		if err := claude.SavePlugins(claudeDir, plugins); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: could not save cleaned plugins: %v\n", err)
+		} else {
 			fmt.Printf("  Cleaned up %d stale plugin entries\n", removed)
 		}
 	}
@@ -460,8 +466,8 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	p, err := loadProfileWithFallback(profilesDir, activeProfile)
 	if err != nil {
-		// Profile was set but can't be loaded - show just the name
-		fmt.Printf("Current profile: %s (details unavailable)\n", activeProfile)
+		// Profile was set but can't be loaded - show name and error
+		fmt.Printf("Current profile: %s (details unavailable: %v)\n", activeProfile, err)
 		return nil
 	}
 

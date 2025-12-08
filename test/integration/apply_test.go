@@ -512,6 +512,40 @@ func TestApplyAllProfilePluginsAttempted(t *testing.T) {
 	}
 }
 
+func TestApplyPluginInstallRealError(t *testing.T) {
+	env := setupApplyTestEnv(t)
+	defer env.cleanup()
+
+	// Profile: wants plugin-a
+	p := &profile.Profile{
+		Name:    "test",
+		Plugins: []string{"plugin-a@marketplace"},
+	}
+
+	executor := NewMockExecutor()
+	// Simulate a real installation failure (not "already installed")
+	executor.Errors["plugin install plugin-a@marketplace"] = fmt.Errorf("install failed")
+	executor.Outputs["plugin install plugin-a@marketplace"] = "Error: network timeout while downloading plugin"
+
+	chain := secrets.NewChain(secrets.NewEnvResolver())
+
+	result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Real errors should be tracked in Errors, not AlreadyPresent
+	if len(result.Errors) != 1 {
+		t.Errorf("Expected 1 error, got %d", len(result.Errors))
+	}
+	if len(result.PluginsAlreadyPresent) != 0 {
+		t.Errorf("Expected 0 plugins in AlreadyPresent, got %d", len(result.PluginsAlreadyPresent))
+	}
+	if len(result.PluginsInstalled) != 0 {
+		t.Errorf("Expected 0 plugins installed, got %d", len(result.PluginsInstalled))
+	}
+}
+
 // Test environment helpers
 
 type applyTestEnv struct {
