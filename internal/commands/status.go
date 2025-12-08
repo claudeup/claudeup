@@ -40,9 +40,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print active profile
 	cfg, _ := config.Load()
+	activeProfile := "none"
 	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
-		fmt.Printf("\nActive Profile: %s\n", cfg.Preferences.ActiveProfile)
+		activeProfile = cfg.Preferences.ActiveProfile
 	}
+	fmt.Printf("\nActive Profile: %s\n", activeProfile)
 
 	// Print marketplaces
 	fmt.Println("\nMarketplaces (" + fmt.Sprint(len(marketplaces)) + ")")
