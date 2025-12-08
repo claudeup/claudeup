@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/spf13/cobra"
@@ -56,6 +57,12 @@ var profileSuggestCmd = &cobra.Command{
 	RunE:  runProfileSuggest,
 }
 
+var profileCurrentCmd = &cobra.Command{
+	Use:   "current",
+	Short: "Show the currently active profile",
+	RunE:  runProfileCurrent,
+}
+
 func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
@@ -63,6 +70,7 @@ func init() {
 	profileCmd.AddCommand(profileCreateCmd)
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileSuggestCmd)
+	profileCmd.AddCommand(profileCurrentCmd)
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
@@ -209,10 +217,43 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  ⚠ Could not save active profile: %v\n", err)
 	}
 
+	// Silently clean up stale plugin entries
+	cleanupStalePlugins(claudeDir)
+
 	fmt.Println()
 	fmt.Println("✓ Profile applied!")
 
 	return nil
+}
+
+// cleanupStalePlugins removes plugin entries with invalid paths
+// This is called automatically after profile apply to clean up zombie entries
+func cleanupStalePlugins(claudeDir string) {
+	plugins, err := claude.LoadPlugins(claudeDir)
+	if err != nil {
+		// Only warn if not a simple "file not found" - that's expected on fresh installs
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "  Warning: could not load plugins for cleanup: %v\n", err)
+		}
+		return
+	}
+
+	removed := 0
+	for name, plugin := range plugins.Plugins {
+		if !plugin.PathExists() {
+			if plugins.DisablePlugin(name) {
+				removed++
+			}
+		}
+	}
+
+	if removed > 0 {
+		if err := claude.SavePlugins(claudeDir, plugins); err != nil {
+			fmt.Fprintf(os.Stderr, "  Warning: could not save cleaned plugins: %v\n", err)
+		} else {
+			fmt.Printf("  Cleaned up %d stale plugin entries\n", removed)
+		}
+	}
 }
 
 func runProfileCreate(cmd *cobra.Command, args []string) error {
@@ -405,4 +446,39 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 
 	// Fall back to embedded profiles
 	return profile.GetEmbeddedProfile(name)
+}
+
+func runProfileCurrent(cmd *cobra.Command, args []string) error {
+	// Use same pattern as runStatus - gracefully handle missing config
+	cfg, _ := config.Load()
+	activeProfile := ""
+	if cfg != nil {
+		activeProfile = cfg.Preferences.ActiveProfile
+	}
+
+	if activeProfile == "" {
+		fmt.Println("No profile is currently active.")
+		fmt.Println("Use 'claudeup profile use <name>' to apply a profile.")
+		return nil
+	}
+
+	// Load the profile to show details
+	profilesDir := getProfilesDir()
+	p, err := loadProfileWithFallback(profilesDir, activeProfile)
+	if err != nil {
+		// Profile was set but can't be loaded - show name and error
+		fmt.Printf("Current profile: %s (details unavailable: %v)\n", activeProfile, err)
+		return nil
+	}
+
+	fmt.Printf("Current profile: %s\n", p.Name)
+	if p.Description != "" {
+		fmt.Printf("  %s\n", p.Description)
+	}
+	fmt.Println()
+	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
+	fmt.Printf("  Plugins:      %d\n", len(p.Plugins))
+	fmt.Printf("  MCP Servers:  %d\n", len(p.MCPServers))
+
+	return nil
 }

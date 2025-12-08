@@ -4,6 +4,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,13 +17,15 @@ import (
 // MockExecutor records commands for verification
 type MockExecutor struct {
 	Commands [][]string
-	Errors   map[string]error // command prefix -> error to return
+	Errors   map[string]error  // command prefix -> error to return
+	Outputs  map[string]string // command prefix -> output to return
 }
 
 func NewMockExecutor() *MockExecutor {
 	return &MockExecutor{
 		Commands: [][]string{},
 		Errors:   make(map[string]error),
+		Outputs:  make(map[string]string),
 	}
 }
 
@@ -40,12 +43,16 @@ func (m *MockExecutor) Run(args ...string) error {
 func (m *MockExecutor) RunWithOutput(args ...string) (string, error) {
 	m.Commands = append(m.Commands, args)
 
-	// Check if we should return an error
+	// Check if we should return an error or custom output
 	cmdKey := strings.Join(args[:min(3, len(args))], " ")
-	if err, ok := m.Errors[cmdKey]; ok {
-		return "", err
+	output := "✔ Success\n"
+	if customOutput, ok := m.Outputs[cmdKey]; ok {
+		output = customOutput
 	}
-	return "✔ Successfully uninstalled plugin\n", nil
+	if err, ok := m.Errors[cmdKey]; ok {
+		return output, err
+	}
+	return output, nil
 }
 
 func (m *MockExecutor) CommandCount() int {
@@ -397,6 +404,145 @@ func TestApplyCommandOrder(t *testing.T) {
 	}
 	if marketplaceIdx > installIdx {
 		t.Error("Expected marketplace add before plugin install")
+	}
+}
+
+func TestApplyPluginAlreadyUninstalled(t *testing.T) {
+	env := setupApplyTestEnv(t)
+	defer env.cleanup()
+
+	// Current state: plugin-a in JSON but already uninstalled in Claude CLI
+	env.createPluginRegistry(map[string]interface{}{
+		"plugin-a@marketplace": map[string]interface{}{"version": "1.0"},
+	})
+
+	// Profile: empty (should remove plugin-a)
+	p := &profile.Profile{
+		Name:    "test",
+		Plugins: []string{},
+	}
+
+	executor := NewMockExecutor()
+	// Simulate Claude CLI returning "already uninstalled" error
+	executor.Errors["plugin uninstall plugin-a@marketplace"] = fmt.Errorf("uninstall failed")
+	executor.Outputs["plugin uninstall plugin-a@marketplace"] = "Error: plugin-a@marketplace is already uninstalled"
+
+	chain := secrets.NewChain(secrets.NewEnvResolver())
+
+	result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Should be tracked in AlreadyRemoved, not as an error
+	if len(result.PluginsAlreadyRemoved) != 1 {
+		t.Errorf("Expected 1 plugin in AlreadyRemoved, got %d", len(result.PluginsAlreadyRemoved))
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("Expected no errors for already uninstalled plugin, got: %v", result.Errors)
+	}
+}
+
+func TestApplyPluginAlreadyInstalled(t *testing.T) {
+	env := setupApplyTestEnv(t)
+	defer env.cleanup()
+
+	// Profile: wants plugin-a (which is already installed per Claude CLI)
+	p := &profile.Profile{
+		Name:    "test",
+		Plugins: []string{"plugin-a@marketplace"},
+	}
+
+	executor := NewMockExecutor()
+	// Simulate Claude CLI returning "already installed" error
+	executor.Errors["plugin install plugin-a@marketplace"] = fmt.Errorf("install failed")
+	executor.Outputs["plugin install plugin-a@marketplace"] = "Error: plugin-a@marketplace is already installed"
+
+	chain := secrets.NewChain(secrets.NewEnvResolver())
+
+	result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Should be tracked in AlreadyPresent, not as an error
+	if len(result.PluginsAlreadyPresent) != 1 {
+		t.Errorf("Expected 1 plugin in AlreadyPresent, got %d", len(result.PluginsAlreadyPresent))
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("Expected no errors for already installed plugin, got: %v", result.Errors)
+	}
+}
+
+func TestApplyAllProfilePluginsAttempted(t *testing.T) {
+	env := setupApplyTestEnv(t)
+	defer env.cleanup()
+
+	// Current state: plugin-a already in JSON
+	env.createPluginRegistry(map[string]interface{}{
+		"plugin-a@marketplace": map[string]interface{}{"version": "1.0"},
+	})
+
+	// Profile: wants plugin-a and plugin-b
+	// Both should be attempted to ensure proper CLI registration
+	p := &profile.Profile{
+		Name:    "test",
+		Plugins: []string{"plugin-a@marketplace", "plugin-b@marketplace"},
+	}
+
+	executor := NewMockExecutor()
+	chain := secrets.NewChain(secrets.NewEnvResolver())
+
+	result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Should have attempted to install both plugins
+	if !executor.HasCommand("plugin", "install", "plugin-a@marketplace") {
+		t.Error("Expected install attempt for plugin-a even though it's in JSON")
+	}
+	if !executor.HasCommand("plugin", "install", "plugin-b@marketplace") {
+		t.Error("Expected install attempt for plugin-b")
+	}
+
+	// Both should be in installed list (successful install)
+	if len(result.PluginsInstalled) != 2 {
+		t.Errorf("Expected 2 plugins installed, got %d", len(result.PluginsInstalled))
+	}
+}
+
+func TestApplyPluginInstallRealError(t *testing.T) {
+	env := setupApplyTestEnv(t)
+	defer env.cleanup()
+
+	// Profile: wants plugin-a
+	p := &profile.Profile{
+		Name:    "test",
+		Plugins: []string{"plugin-a@marketplace"},
+	}
+
+	executor := NewMockExecutor()
+	// Simulate a real installation failure (not "already installed")
+	executor.Errors["plugin install plugin-a@marketplace"] = fmt.Errorf("install failed")
+	executor.Outputs["plugin install plugin-a@marketplace"] = "Error: network timeout while downloading plugin"
+
+	chain := secrets.NewChain(secrets.NewEnvResolver())
+
+	result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Real errors should be tracked in Errors, not AlreadyPresent
+	if len(result.Errors) != 1 {
+		t.Errorf("Expected 1 error, got %d", len(result.Errors))
+	}
+	if len(result.PluginsAlreadyPresent) != 0 {
+		t.Errorf("Expected 0 plugins in AlreadyPresent, got %d", len(result.PluginsAlreadyPresent))
+	}
+	if len(result.PluginsInstalled) != 0 {
+		t.Errorf("Expected 0 plugins installed, got %d", len(result.PluginsInstalled))
 	}
 }
 

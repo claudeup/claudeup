@@ -43,9 +43,9 @@ func TestComputeDiffPlugins(t *testing.T) {
 		t.Errorf("Expected to remove plugin-a, got: %v", diff.PluginsToRemove)
 	}
 
-	// Should install C (in profile, not in current)
-	if len(diff.PluginsToInstall) != 1 || diff.PluginsToInstall[0] != "plugin-c@marketplace" {
-		t.Errorf("Expected to install plugin-c, got: %v", diff.PluginsToInstall)
+	// Should install ALL profile plugins (B and C) to ensure proper registration
+	if len(diff.PluginsToInstall) != 2 {
+		t.Errorf("Expected to install 2 plugins (all profile plugins), got: %v", diff.PluginsToInstall)
 	}
 }
 
@@ -263,12 +263,13 @@ func TestComputeDiffIdenticalStates(t *testing.T) {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
 
-	// Nothing should change
+	// Nothing should be removed
 	if len(diff.PluginsToRemove) != 0 {
 		t.Errorf("Expected no plugins to remove, got: %v", diff.PluginsToRemove)
 	}
-	if len(diff.PluginsToInstall) != 0 {
-		t.Errorf("Expected no plugins to install, got: %v", diff.PluginsToInstall)
+	// All profile plugins should be in install list (to ensure proper registration)
+	if len(diff.PluginsToInstall) != 1 {
+		t.Errorf("Expected 1 plugin to install (all profile plugins), got: %v", diff.PluginsToInstall)
 	}
 	if len(diff.MCPToRemove) != 0 {
 		t.Errorf("Expected no MCP servers to remove, got: %v", diff.MCPToRemove)

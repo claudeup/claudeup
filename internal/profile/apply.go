@@ -33,12 +33,14 @@ func (e *DefaultExecutor) RunWithOutput(args ...string) (string, error) {
 
 // ApplyResult contains the results of applying a profile
 type ApplyResult struct {
-	PluginsRemoved      []string
-	PluginsInstalled    []string
-	MCPServersRemoved   []string
-	MCPServersInstalled []string
-	MarketplacesAdded   []string
-	Errors              []error
+	PluginsRemoved        []string
+	PluginsInstalled      []string
+	PluginsAlreadyRemoved []string // Plugins that were already uninstalled
+	PluginsAlreadyPresent []string // Plugins that were already installed
+	MCPServersRemoved     []string
+	MCPServersInstalled   []string
+	MarketplacesAdded     []string
+	Errors                []error
 }
 
 // Diff represents what needs to change to apply a profile
@@ -70,11 +72,12 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 		}
 	}
 
-	// Plugins to install (in profile but not in current)
+	// Plugins to install - always include ALL profile plugins to ensure
+	// they're properly registered with Claude CLI, even if they appear
+	// in the current state (they may be in a broken state where JSON
+	// shows them but Claude CLI doesn't recognize them)
 	for plugin := range profilePlugins {
-		if _, exists := currentPlugins[plugin]; !exists {
-			diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
-		}
+		diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
 	}
 
 	// MCP servers to remove/install
@@ -170,14 +173,11 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 		if err != nil {
 			// Check if the error is just "already uninstalled" - treat as success
 			if strings.Contains(output, "already uninstalled") {
-				fmt.Printf("✔ Plugin %s was already uninstalled\n", plugin)
-				result.PluginsRemoved = append(result.PluginsRemoved, plugin)
+				result.PluginsAlreadyRemoved = append(result.PluginsAlreadyRemoved, plugin)
 			} else {
-				fmt.Print(output) // Show the actual error output
-				result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w", plugin, err))
+				result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w (output: %s)", plugin, err, output))
 			}
 		} else {
-			fmt.Print(output) // Show success message
 			result.PluginsRemoved = append(result.PluginsRemoved, plugin)
 		}
 	}
@@ -204,8 +204,14 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 
 	// Install plugins
 	for _, plugin := range diff.PluginsToInstall {
-		if err := executor.Run("plugin", "install", plugin); err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to install plugin %s: %w", plugin, err))
+		output, err := executor.RunWithOutput("plugin", "install", plugin)
+		if err != nil {
+			// Check if the error is just "already installed" - treat as success
+			if strings.Contains(output, "already installed") {
+				result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, plugin)
+			} else {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to install plugin %s: %w (output: %s)", plugin, err, output))
+			}
 		} else {
 			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
 		}
