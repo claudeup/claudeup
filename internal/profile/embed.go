@@ -5,6 +5,7 @@ package profile
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -89,6 +90,7 @@ func ListEmbeddedProfiles() ([]*Profile, error) {
 		profileName := strings.TrimSuffix(name, ".json")
 		p, err := GetEmbeddedProfile(profileName)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: skipping invalid embedded profile %q: %v\n", profileName, err)
 			continue
 		}
 		profiles = append(profiles, p)

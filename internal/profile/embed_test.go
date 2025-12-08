@@ -95,6 +95,41 @@ func TestGetEmbeddedFrontendFullProfile(t *testing.T) {
 	}
 }
 
+func TestAllEmbeddedProfilesAreValid(t *testing.T) {
+	profiles, err := ListEmbeddedProfiles()
+	if err != nil {
+		t.Fatalf("Failed to list embedded profiles: %v", err)
+	}
+
+	if len(profiles) == 0 {
+		t.Error("Expected at least one embedded profile")
+	}
+
+	names := make(map[string]bool)
+	for _, p := range profiles {
+		if p.Name == "" {
+			t.Error("Found profile with empty name")
+		}
+		if names[p.Name] {
+			t.Errorf("Duplicate profile name: %s", p.Name)
+		}
+		names[p.Name] = true
+
+		// Verify required fields
+		if p.Description == "" {
+			t.Errorf("Profile %q has empty description", p.Name)
+		}
+	}
+
+	// Verify expected profiles exist
+	expectedProfiles := []string{"default", "frontend", "frontend-full"}
+	for _, expected := range expectedProfiles {
+		if !names[expected] {
+			t.Errorf("Expected embedded profile %q not found", expected)
+		}
+	}
+}
+
 func TestEnsureDefaultProfiles(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilesDir := filepath.Join(tmpDir, "profiles")
