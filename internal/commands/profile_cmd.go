@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/spf13/cobra"
@@ -216,10 +217,37 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  ⚠ Could not save active profile: %v\n", err)
 	}
 
+	// Silently clean up stale plugin entries
+	cleanupStalePlugins()
+
 	fmt.Println()
 	fmt.Println("✓ Profile applied!")
 
 	return nil
+}
+
+// cleanupStalePlugins removes plugin entries with invalid paths
+// This is called automatically after profile apply to clean up zombie entries
+func cleanupStalePlugins() {
+	plugins, err := claude.LoadPlugins(claudeDir)
+	if err != nil {
+		return // Silently fail - this is just cleanup
+	}
+
+	removed := 0
+	for name, plugin := range plugins.Plugins {
+		if !plugin.PathExists() {
+			if plugins.DisablePlugin(name) {
+				removed++
+			}
+		}
+	}
+
+	if removed > 0 {
+		if err := claude.SavePlugins(claudeDir, plugins); err == nil {
+			fmt.Printf("  Cleaned up %d stale plugin entries\n", removed)
+		}
+	}
 }
 
 func runProfileCreate(cmd *cobra.Command, args []string) error {
