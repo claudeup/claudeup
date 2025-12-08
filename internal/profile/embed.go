@@ -5,8 +5,10 @@ package profile
 import (
 	"embed"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 //go:embed profiles/*.json
@@ -65,4 +67,34 @@ func GetEmbeddedProfile(name string) (*Profile, error) {
 	}
 
 	return &p, nil
+}
+
+// ListEmbeddedProfiles returns all embedded profiles
+func ListEmbeddedProfiles() ([]*Profile, error) {
+	entries, err := embeddedProfiles.ReadDir("profiles")
+	if err != nil {
+		return nil, err
+	}
+
+	var profiles []*Profile
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+
+		profileName := strings.TrimSuffix(name, ".json")
+		p, err := GetEmbeddedProfile(profileName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: skipping invalid embedded profile %q: %v\n", profileName, err)
+			continue
+		}
+		profiles = append(profiles, p)
+	}
+
+	return profiles, nil
 }

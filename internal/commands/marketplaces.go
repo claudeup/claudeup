@@ -1,4 +1,4 @@
-// ABOUTME: Marketplaces command implementation for listing installed marketplaces
+// ABOUTME: Marketplace command implementation for managing marketplaces
 // ABOUTME: Shows detailed information about Claude Code marketplace repositories
 package commands
 
@@ -10,18 +10,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var marketplacesCmd = &cobra.Command{
-	Use:   "marketplaces",
+var marketplaceCmd = &cobra.Command{
+	Use:   "marketplace",
+	Short: "Manage Claude Code marketplaces",
+	Long:  `Marketplaces are repositories containing Claude Code plugins.`,
+}
+
+var marketplaceListCmd = &cobra.Command{
+	Use:   "list",
 	Short: "List installed marketplaces",
 	Long:  `Display information about installed Claude Code marketplace repositories.`,
-	RunE:  runMarketplaces,
+	RunE:  runMarketplaceList,
 }
 
 func init() {
-	rootCmd.AddCommand(marketplacesCmd)
+	rootCmd.AddCommand(marketplaceCmd)
+	marketplaceCmd.AddCommand(marketplaceListCmd)
 }
 
-func runMarketplaces(cmd *cobra.Command, args []string) error {
+func runMarketplaceList(cmd *cobra.Command, args []string) error {
 	// Load marketplaces
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {

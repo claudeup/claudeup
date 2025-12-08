@@ -69,12 +69,12 @@ claudeup plugins           # Full list with details
 claudeup plugins --summary # Summary statistics only
 ```
 
-### marketplaces
+### marketplace
 
-List installed marketplace repositories.
+Manage marketplace repositories.
 
 ```bash
-claudeup marketplaces
+claudeup marketplace list          # List installed marketplaces
 ```
 
 ### mcp

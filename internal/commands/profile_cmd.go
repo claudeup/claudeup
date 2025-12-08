@@ -68,15 +68,23 @@ func init() {
 func runProfileList(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 
-	profiles, err := profile.List(profilesDir)
+	// Load user profiles from disk
+	userProfiles, err := profile.List(profilesDir)
 	if err != nil {
 		return fmt.Errorf("failed to list profiles: %w", err)
 	}
 
-	if len(profiles) == 0 {
-		fmt.Println("No profiles found.")
-		fmt.Println("Create one with: claudeup profile create <name>")
-		return nil
+	// Load embedded (built-in) profiles
+	embeddedProfiles, embeddedErr := profile.ListEmbeddedProfiles()
+	if embeddedErr != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load built-in profiles: %v\n", embeddedErr)
+		embeddedProfiles = []*profile.Profile{} // Prevent nil slice panic
+	}
+
+	// Track which profiles exist on disk
+	userProfileNames := make(map[string]bool)
+	for _, p := range userProfiles {
+		userProfileNames[p.Name] = true
 	}
 
 	// Get active profile from config
@@ -86,10 +94,45 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		activeProfile = cfg.Preferences.ActiveProfile
 	}
 
+	// Check if we have any profiles to show
+	hasBuiltIn := false
+	for _, p := range embeddedProfiles {
+		if !userProfileNames[p.Name] {
+			hasBuiltIn = true
+			break
+		}
+	}
+
+	if len(userProfiles) == 0 && !hasBuiltIn {
+		fmt.Println("No profiles found.")
+		fmt.Println("Create one with: claudeup profile create <name>")
+		return nil
+	}
+
 	fmt.Println("Available profiles:")
 	fmt.Println()
 
-	for _, p := range profiles {
+	// Show built-in profiles first (ones not yet extracted to disk)
+	for _, p := range embeddedProfiles {
+		if userProfileNames[p.Name] {
+			continue // Skip if user has customized this profile
+		}
+
+		marker := "  "
+		if p.Name == activeProfile {
+			marker = "* "
+		}
+
+		desc := p.Description
+		if desc == "" {
+			desc = "(no description)"
+		}
+
+		fmt.Printf("%s%-20s %s [built-in]\n", marker, p.Name, desc)
+	}
+
+	// Show user profiles
+	for _, p := range userProfiles {
 		marker := "  "
 		if p.Name == activeProfile {
 			marker = "* "
@@ -114,8 +157,8 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
-	// Load the profile
-	p, err := profile.Load(profilesDir, name)
+	// Load the profile (try disk first, then embedded)
+	p, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
 		return fmt.Errorf("profile %q not found: %w", name, err)
 	}
@@ -216,7 +259,8 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
-	p, err := profile.Load(profilesDir, name)
+	// Load the profile (try disk first, then embedded)
+	p, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
 		return fmt.Errorf("profile %q not found: %w", name, err)
 	}
@@ -348,4 +392,17 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 
 	fmt.Println("Cancelled.")
 	return nil
+}
+
+// loadProfileWithFallback tries to load a profile from disk first,
+// falling back to embedded profiles if not found
+func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error) {
+	// Try disk first
+	p, err := profile.Load(profilesDir, name)
+	if err == nil {
+		return p, nil
+	}
+
+	// Fall back to embedded profiles
+	return profile.GetEmbeddedProfile(name)
 }

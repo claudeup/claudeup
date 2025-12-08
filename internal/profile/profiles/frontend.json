@@ -1,0 +1,27 @@
+{
+  "name": "frontend",
+  "description": "Frontend development: Next.js, Tailwind, shadcn, Vercel",
+  "mcpServers": [],
+  "marketplaces": [
+    {"source": "github", "repo": "anthropics/claude-code"},
+    {"source": "github", "repo": "obra/superpowers-marketplace"},
+    {"source": "github", "repo": "malston/claude-code-templates"}
+  ],
+  "plugins": [
+    "frontend-design@claude-code-plugins",
+    "nextjs-vercel-pro@claude-code-templates",
+    "superpowers@superpowers-marketplace",
+    "episodic-memory@superpowers-marketplace",
+    "commit-commands@claude-code-plugins"
+  ],
+  "detect": {
+    "files": [
+      "next.config.js",
+      "next.config.ts",
+      "next.config.mjs",
+      "tailwind.config.js",
+      "tailwind.config.ts",
+      "components.json"
+    ]
+  }
+}
