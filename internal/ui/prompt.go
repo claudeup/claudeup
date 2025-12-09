@@ -4,13 +4,18 @@ package ui
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/claudeup/claudeup/internal/config"
 )
+
+// ErrUserCancelled is returned when user cancels a prompt with Ctrl+C
+var ErrUserCancelled = errors.New("cancelled by user")
 
 // SelectFromList prompts user to select items from a multi-select list
 // All items are selected by default; press enter to confirm, space to toggle
@@ -34,6 +39,9 @@ func SelectFromList(prompt string, items []string) ([]string, error) {
 
 	err := survey.AskOne(multiSelect, &selected)
 	if err != nil {
+		if err == terminal.InterruptErr {
+			return nil, ErrUserCancelled
+		}
 		return nil, err
 	}
 
