@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 // ClaudeJSON represents the ~/.claude.json file structure (relevant parts)
@@ -20,19 +22,6 @@ type ClaudeMCPServer struct {
 	Command string            `json:"command"`
 	Args    []string          `json:"args"`
 	Env     map[string]string `json:"env"`
-}
-
-// PluginRegistry represents installed_plugins.json (V2 format with arrays)
-type PluginRegistry struct {
-	Version int                         `json:"version"`
-	Plugins map[string][]PluginMetadata `json:"plugins"`
-}
-
-// PluginMetadata represents metadata for an installed plugin
-type PluginMetadata struct {
-	Scope       string `json:"scope"`
-	Version     string `json:"version"`
-	InstallPath string `json:"installPath"`
 }
 
 // MarketplaceRegistry represents known_marketplaces.json
@@ -78,20 +67,16 @@ func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
 }
 
 func readPlugins(claudeDir string) ([]string, error) {
-	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
-
-	data, err := os.ReadFile(pluginsPath)
+	// Use claude.LoadPlugins to get V1→V2 migration for free
+	registry, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
 		return nil, err
 	}
 
-	var registry PluginRegistry
-	if err := json.Unmarshal(data, &registry); err != nil {
-		return nil, err
-	}
-
-	var plugins []string
-	for name := range registry.Plugins {
+	// Extract plugin names using GetAllPlugins (returns user-scoped plugins)
+	allPlugins := registry.GetAllPlugins()
+	plugins := make([]string, 0, len(allPlugins))
+	for name := range allPlugins {
 		plugins = append(plugins, name)
 	}
 	sort.Strings(plugins)
