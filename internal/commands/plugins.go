@@ -33,9 +33,12 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
+	// Get all plugins (user-scoped)
+	allPlugins := plugins.GetAllPlugins()
+
 	// Sort plugin names for consistent output
-	names := make([]string, 0, len(plugins.Plugins))
-	for name := range plugins.Plugins {
+	names := make([]string, 0, len(allPlugins))
+	for name := range allPlugins {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -46,7 +49,7 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 	enabledCount := 0
 	staleCount := 0
 
-	for _, plugin := range plugins.Plugins {
+	for _, plugin := range allPlugins {
 		if plugin.IsLocal {
 			localCount++
 		} else {
@@ -79,7 +82,7 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 
 	// Print each plugin
 	for _, name := range names {
-		plugin := plugins.Plugins[name]
+		plugin := allPlugins[name]
 		status := "✓"
 		statusText := "enabled"
 

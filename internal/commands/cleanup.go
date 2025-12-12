@@ -127,9 +127,9 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 		if confirm {
 			for _, issue := range fixableIssues {
-				if plugin, exists := plugins.Plugins[issue.PluginName]; exists {
+				if plugin, exists := plugins.GetPlugin(issue.PluginName); exists {
 					plugin.InstallPath = issue.ExpectedPath
-					plugins.Plugins[issue.PluginName] = plugin
+					plugins.SetPlugin(issue.PluginName, plugin)
 					fixed++
 				}
 			}

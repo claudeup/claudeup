@@ -50,7 +50,7 @@ func runDisable(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if plugin exists
-	pluginMeta, exists := plugins.Plugins[pluginName]
+	pluginMeta, exists := plugins.GetPlugin(pluginName)
 	if !exists {
 		return fmt.Errorf("plugin not found: %s", pluginName)
 	}

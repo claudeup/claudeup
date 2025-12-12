@@ -39,7 +39,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			plugins = &claude.PluginRegistry{Plugins: make(map[string]claude.PluginMetadata)}
+			plugins = &claude.PluginRegistry{Plugins: make(map[string][]claude.PluginMetadata)}
 		} else {
 			return fmt.Errorf("failed to load plugins: %w", err)
 		}
@@ -138,7 +138,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	var issues []PathIssue
 
-	for name, plugin := range plugins.Plugins {
+	for name, plugin := range plugins.GetAllPlugins() {
 		if !plugin.PathExists() {
 			// Check if this is a fixable path issue
 			expectedPath := getExpectedPath(name, plugin.InstallPath)

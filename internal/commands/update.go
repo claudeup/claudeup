@@ -249,7 +249,7 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 func checkPluginUpdates(plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry) []PluginUpdate {
 	var updates []PluginUpdate
 
-	for name, plugin := range plugins.Plugins {
+	for name, plugin := range plugins.GetAllPlugins() {
 		// Skip if plugin path doesn't exist
 		if !plugin.PathExists() {
 			continue
@@ -305,7 +305,7 @@ func updateMarketplace(name, path string) error {
 }
 
 func updatePlugin(name string, plugins *claude.PluginRegistry) error {
-	plugin, exists := plugins.Plugins[name]
+	plugin, exists := plugins.GetPlugin(name)
 	if !exists {
 		return fmt.Errorf("plugin not found")
 	}
@@ -368,7 +368,7 @@ func updatePlugin(name string, plugins *claude.PluginRegistry) error {
 
 	// Update the gitCommitSha
 	plugin.GitCommitSha = latestCommit
-	plugins.Plugins[name] = plugin
+	plugins.SetPlugin(name, plugin)
 
 	return nil
 }
