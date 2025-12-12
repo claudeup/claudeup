@@ -62,11 +62,12 @@ func TestPluginPathExists(t *testing.T) {
 
 func TestDisablePlugin(t *testing.T) {
 	registry := &PluginRegistry{
-		Version: 1,
-		Plugins: map[string]PluginMetadata{
-			"test-plugin": {
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"test-plugin": {{
+				Scope:   "user",
 				Version: "1.0.0",
-			},
+			}},
 		},
 	}
 
@@ -76,7 +77,7 @@ func TestDisablePlugin(t *testing.T) {
 	}
 
 	// Verify plugin was removed
-	if _, exists := registry.Plugins["test-plugin"]; exists {
+	if _, exists := registry.GetPlugin("test-plugin"); exists {
 		t.Error("Plugin should be removed from registry after disable")
 	}
 
@@ -88,11 +89,12 @@ func TestDisablePlugin(t *testing.T) {
 
 func TestEnablePlugin(t *testing.T) {
 	registry := &PluginRegistry{
-		Version: 1,
-		Plugins: make(map[string]PluginMetadata),
+		Version: 2,
+		Plugins: make(map[string][]PluginMetadata),
 	}
 
 	metadata := PluginMetadata{
+		Scope:       "user",
 		Version:     "1.0.0",
 		InstallPath: "/test/path",
 	}
@@ -101,7 +103,7 @@ func TestEnablePlugin(t *testing.T) {
 	registry.EnablePlugin("test-plugin", metadata)
 
 	// Verify plugin was added
-	plugin, exists := registry.Plugins["test-plugin"]
+	plugin, exists := registry.GetPlugin("test-plugin")
 	if !exists {
 		t.Error("Plugin should exist after enable")
 	}
@@ -117,11 +119,12 @@ func TestEnablePlugin(t *testing.T) {
 
 func TestPluginExists(t *testing.T) {
 	registry := &PluginRegistry{
-		Version: 1,
-		Plugins: map[string]PluginMetadata{
-			"existing-plugin": {
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"existing-plugin": {{
+				Scope:   "user",
 				Version: "1.0.0",
-			},
+			}},
 		},
 	}
 
@@ -150,14 +153,15 @@ func TestLoadAndSavePlugins(t *testing.T) {
 
 	// Create test registry
 	registry := &PluginRegistry{
-		Version: 1,
-		Plugins: map[string]PluginMetadata{
-			"test-plugin@test-marketplace": {
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"test-plugin@test-marketplace": {{
+				Scope:        "user",
 				Version:      "1.0.0",
 				InstallPath:  "/test/path",
 				GitCommitSha: "abc123",
 				IsLocal:      true,
-			},
+			}},
 		},
 	}
 
@@ -179,11 +183,11 @@ func TestLoadAndSavePlugins(t *testing.T) {
 	}
 
 	// Verify loaded data
-	if loaded.Version != 1 {
-		t.Errorf("Expected version 1, got %d", loaded.Version)
+	if loaded.Version != 2 {
+		t.Errorf("Expected version 2, got %d", loaded.Version)
 	}
 
-	plugin, exists := loaded.Plugins["test-plugin@test-marketplace"]
+	plugin, exists := loaded.GetPlugin("test-plugin@test-marketplace")
 	if !exists {
 		t.Error("Plugin should exist in loaded registry")
 	}
@@ -207,8 +211,8 @@ func TestLoadPluginsNonExistent(t *testing.T) {
 
 func TestSavePluginsInvalidPath(t *testing.T) {
 	registry := &PluginRegistry{
-		Version: 1,
-		Plugins: make(map[string]PluginMetadata),
+		Version: 2,
+		Plugins: make(map[string][]PluginMetadata),
 	}
 
 	// Try to save to invalid path
@@ -220,14 +224,15 @@ func TestSavePluginsInvalidPath(t *testing.T) {
 
 func TestPluginRegistryJSONMarshaling(t *testing.T) {
 	registry := &PluginRegistry{
-		Version: 1,
-		Plugins: map[string]PluginMetadata{
-			"test-plugin": {
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"test-plugin": {{
+				Scope:        "user",
 				Version:      "1.0.0",
 				InstallPath:  "/test/path",
 				GitCommitSha: "abc123",
 				IsLocal:      false,
-			},
+			}},
 		},
 	}
 
@@ -252,8 +257,8 @@ func TestPluginRegistryJSONMarshaling(t *testing.T) {
 		t.Error("Plugin count mismatch after JSON round-trip")
 	}
 
-	plugin := loaded.Plugins["test-plugin"]
-	if plugin.Version != "1.0.0" {
+	plugin, exists := loaded.GetPlugin("test-plugin")
+	if !exists || plugin.Version != "1.0.0" {
 		t.Error("Plugin version mismatch after JSON round-trip")
 	}
 }

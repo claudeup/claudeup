@@ -35,7 +35,7 @@ type PluginMCPServers struct {
 func DiscoverMCPServers(pluginRegistry *claude.PluginRegistry) ([]PluginMCPServers, error) {
 	var results []PluginMCPServers
 
-	for name, plugin := range pluginRegistry.Plugins {
+	for name, plugin := range pluginRegistry.GetAllPlugins() {
 		// Skip plugins with non-existent paths
 		if !plugin.PathExists() {
 			continue

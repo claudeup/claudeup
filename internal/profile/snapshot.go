@@ -22,14 +22,15 @@ type ClaudeMCPServer struct {
 	Env     map[string]string `json:"env"`
 }
 
-// PluginRegistry represents installed_plugins.json
+// PluginRegistry represents installed_plugins.json (V2 format with arrays)
 type PluginRegistry struct {
-	Version int                       `json:"version"`
-	Plugins map[string]PluginMetadata `json:"plugins"`
+	Version int                         `json:"version"`
+	Plugins map[string][]PluginMetadata `json:"plugins"`
 }
 
 // PluginMetadata represents metadata for an installed plugin
 type PluginMetadata struct {
+	Scope       string `json:"scope"`
 	Version     string `json:"version"`
 	InstallPath string `json:"installPath"`
 }

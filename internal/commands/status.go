@@ -57,7 +57,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	disabledPlugins := []string{}
 	stalePlugins := []string{}
 
-	for name, plugin := range plugins.Plugins {
+	for name, plugin := range plugins.GetAllPlugins() {
 		if plugin.PathExists() {
 			enabledCount++
 		} else {
@@ -66,7 +66,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print plugins summary
-	fmt.Printf("\nPlugins (%d total)\n", len(plugins.Plugins))
+	fmt.Printf("\nPlugins (%d total)\n", len(plugins.GetAllPlugins()))
 	fmt.Printf("  ✓ %d enabled\n", enabledCount)
 	if len(disabledPlugins) > 0 {
 		fmt.Printf("  ✗ %d disabled\n", len(disabledPlugins))
