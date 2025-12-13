@@ -161,7 +161,10 @@ select_with_prompts() {
                 # Validate bounds before accessing array
                 if [[ "$input" -ge 1 && "$input" -le "$max_idx" ]]; then
                     local idx=$((input - 1))
-                    toggle_category "${ALL_CATEGORIES[$idx]}"
+                    # Double-check index is valid (defensive)
+                    if [[ $idx -ge 0 && $idx -lt ${#ALL_CATEGORIES[@]} ]]; then
+                        toggle_category "${ALL_CATEGORIES[$idx]}"
+                    fi
                 fi
                 ;;
             a|A)
