@@ -151,3 +151,80 @@ func List(profilesDir string) ([]*Profile, error) {
 
 	return profiles, nil
 }
+
+// Clone creates a deep copy of the profile with a new name
+func (p *Profile) Clone(newName string) *Profile {
+	clone := &Profile{
+		Name:        newName,
+		Description: p.Description,
+	}
+
+	// Deep copy MCPServers
+	if len(p.MCPServers) > 0 {
+		clone.MCPServers = make([]MCPServer, len(p.MCPServers))
+		for i, srv := range p.MCPServers {
+			clone.MCPServers[i] = MCPServer{
+				Name:    srv.Name,
+				Command: srv.Command,
+				Scope:   srv.Scope,
+			}
+			if len(srv.Args) > 0 {
+				clone.MCPServers[i].Args = make([]string, len(srv.Args))
+				copy(clone.MCPServers[i].Args, srv.Args)
+			}
+			if len(srv.Secrets) > 0 {
+				clone.MCPServers[i].Secrets = make(map[string]SecretRef)
+				for k, v := range srv.Secrets {
+					sources := make([]SecretSource, len(v.Sources))
+					copy(sources, v.Sources)
+					clone.MCPServers[i].Secrets[k] = SecretRef{
+						Description: v.Description,
+						Sources:     sources,
+					}
+				}
+			}
+		}
+	}
+
+	// Deep copy Marketplaces
+	if len(p.Marketplaces) > 0 {
+		clone.Marketplaces = make([]Marketplace, len(p.Marketplaces))
+		copy(clone.Marketplaces, p.Marketplaces)
+	}
+
+	// Deep copy Plugins
+	if len(p.Plugins) > 0 {
+		clone.Plugins = make([]string, len(p.Plugins))
+		copy(clone.Plugins, p.Plugins)
+	}
+
+	// Deep copy Detect
+	if len(p.Detect.Files) > 0 {
+		clone.Detect.Files = make([]string, len(p.Detect.Files))
+		copy(clone.Detect.Files, p.Detect.Files)
+	}
+	if len(p.Detect.Contains) > 0 {
+		clone.Detect.Contains = make(map[string]string)
+		for k, v := range p.Detect.Contains {
+			clone.Detect.Contains[k] = v
+		}
+	}
+
+	// Deep copy Sandbox
+	if len(p.Sandbox.Secrets) > 0 {
+		clone.Sandbox.Secrets = make([]string, len(p.Sandbox.Secrets))
+		copy(clone.Sandbox.Secrets, p.Sandbox.Secrets)
+	}
+	if len(p.Sandbox.Mounts) > 0 {
+		clone.Sandbox.Mounts = make([]SandboxMount, len(p.Sandbox.Mounts))
+		copy(clone.Sandbox.Mounts, p.Sandbox.Mounts)
+	}
+	if len(p.Sandbox.Env) > 0 {
+		clone.Sandbox.Env = make(map[string]string)
+		for k, v := range p.Sandbox.Env {
+			clone.Sandbox.Env[k] = v
+		}
+	}
+
+	return clone
+}

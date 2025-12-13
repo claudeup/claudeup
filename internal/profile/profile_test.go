@@ -179,3 +179,40 @@ func TestSecretSourcesInProfile(t *testing.T) {
 		t.Errorf("Expected 2 sources, got %d", len(ref.Sources))
 	}
 }
+
+func TestProfile_Clone(t *testing.T) {
+	original := &Profile{
+		Name:        "original",
+		Description: "Original description",
+		MCPServers: []MCPServer{
+			{Name: "server1", Command: "cmd1", Args: []string{"arg1"}},
+		},
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "org/repo"},
+		},
+		Plugins: []string{"plugin1", "plugin2"},
+	}
+
+	cloned := original.Clone("cloned")
+
+	// Verify name changed
+	if cloned.Name != "cloned" {
+		t.Errorf("Expected cloned name 'cloned', got %q", cloned.Name)
+	}
+
+	// Verify description copied
+	if cloned.Description != original.Description {
+		t.Errorf("Expected description %q, got %q", original.Description, cloned.Description)
+	}
+
+	// Verify deep copy - modifying clone doesn't affect original
+	cloned.Plugins[0] = "modified"
+	if original.Plugins[0] == "modified" {
+		t.Error("Clone should be a deep copy, but modifying clone affected original")
+	}
+
+	cloned.MCPServers[0].Name = "modified"
+	if original.MCPServers[0].Name == "modified" {
+		t.Error("Clone should deep copy MCPServers")
+	}
+}
