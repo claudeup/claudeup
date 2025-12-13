@@ -228,18 +228,38 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Prepare hook options and check if hook should run BEFORE applying
-	// This captures the pre-apply state for first-run detection
+	// Prepare hook options - extract scripts first so we can defer cleanup immediately
+	scriptDir := profile.GetEmbeddedProfileScriptDir(name)
+	if scriptDir != "" {
+		defer os.RemoveAll(scriptDir)
+	}
+
 	hookOpts := profile.HookOptions{
 		ForceSetup:    profileUseSetup,
 		NoInteractive: profileUseNoInteractive,
-		ScriptDir:     profile.GetEmbeddedProfileScriptDir(name),
+		ScriptDir:     scriptDir,
 	}
+
+	// Check if hook should run BEFORE applying (captures pre-apply state for first-run detection)
 	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
 
-	// Clean up extracted scripts when done
-	if hookOpts.ScriptDir != "" {
-		defer os.RemoveAll(hookOpts.ScriptDir)
+	// Security check: warn about hooks from non-embedded profiles
+	if shouldRunHook && p.PostApply != nil && !profile.IsEmbeddedProfile(name) {
+		fmt.Println()
+		fmt.Println("⚠ Security Warning: This profile contains a post-apply hook.")
+		fmt.Println("  Hooks execute arbitrary commands on your system.")
+		fmt.Println("  Only proceed if you trust the source of this profile.")
+		if p.PostApply.Script != "" {
+			fmt.Printf("  Script: %s\n", p.PostApply.Script)
+		}
+		if p.PostApply.Command != "" {
+			fmt.Printf("  Command: %s\n", p.PostApply.Command)
+		}
+		fmt.Println()
+		if !confirmProceed() {
+			fmt.Println("Cancelled.")
+			return nil
+		}
 	}
 
 	// Apply

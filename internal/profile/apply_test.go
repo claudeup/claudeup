@@ -610,3 +610,23 @@ func TestRunHookScriptTakesPrecedenceOverCommand(t *testing.T) {
 		t.Errorf("Script did not run - marker file not created")
 	}
 }
+
+func TestIsEmbeddedProfile(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected bool
+	}{
+		{"hobson", true},       // Known embedded profile
+		{"frontend", true},     // Known embedded profile
+		{"default", true},      // Known embedded profile
+		{"nonexistent", false}, // Not embedded
+		{"", false},            // Empty name
+	}
+
+	for _, tc := range tests {
+		result := IsEmbeddedProfile(tc.name)
+		if result != tc.expected {
+			t.Errorf("IsEmbeddedProfile(%q) = %v, want %v", tc.name, result, tc.expected)
+		}
+	}
+}

@@ -102,6 +102,12 @@ func ListEmbeddedProfiles() ([]*Profile, error) {
 	return profiles, nil
 }
 
+// IsEmbeddedProfile checks if a profile with the given name exists in embedded profiles
+func IsEmbeddedProfile(name string) bool {
+	_, err := embeddedProfiles.ReadFile("profiles/" + name + ".json")
+	return err == nil
+}
+
 // GetEmbeddedProfileScriptDir extracts embedded scripts for a profile to a temp directory
 // Returns empty string if no scripts exist or extraction fails
 func GetEmbeddedProfileScriptDir(profileName string) string {
@@ -115,6 +121,7 @@ func GetEmbeddedProfileScriptDir(profileName string) string {
 	// Create temp directory for scripts
 	tempDir, err := os.MkdirTemp("", "claudeup-scripts-"+profileName+"-")
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to create temp directory for profile scripts: %v\n", err)
 		return ""
 	}
 
@@ -127,11 +134,13 @@ func GetEmbeddedProfileScriptDir(profileName string) string {
 
 		data, err := embeddedScripts.ReadFile(scriptDir + "/" + entry.Name())
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to read embedded script %s: %v\n", entry.Name(), err)
 			continue
 		}
 
 		destPath := filepath.Join(tempDir, entry.Name())
 		if err := os.WriteFile(destPath, data, 0755); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to extract script %s: %v\n", entry.Name(), err)
 			continue
 		}
 		extractedCount++
