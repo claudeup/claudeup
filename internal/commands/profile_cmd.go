@@ -3,9 +3,12 @@
 package commands
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
@@ -50,6 +53,17 @@ If the profile exists, prompts for confirmation unless -y is used.`,
 	RunE: runProfileSave,
 }
 
+var profileCreateCmd = &cobra.Command{
+	Use:   "create <name>",
+	Short: "Create a new profile by copying an existing one",
+	Long: `Creates a new profile based on an existing profile.
+
+Use --from to specify the source profile, or select interactively.
+With -y flag, uses the currently active profile as the source.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileCreate,
+}
+
 var profileShowCmd = &cobra.Command{
 	Use:   "show <name>",
 	Short: "Display a profile's contents",
@@ -74,9 +88,12 @@ func init() {
 	profileCmd.AddCommand(profileListCmd)
 	profileCmd.AddCommand(profileUseCmd)
 	profileCmd.AddCommand(profileSaveCmd)
+	profileCmd.AddCommand(profileCreateCmd)
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileSuggestCmd)
 	profileCmd.AddCommand(profileCurrentCmd)
+
+	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
@@ -465,6 +482,139 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 
 	// Fall back to embedded profiles
 	return profile.GetEmbeddedProfile(name)
+}
+
+// getAllProfiles returns all available profiles (user + embedded), with user profiles taking precedence
+func getAllProfiles(profilesDir string) ([]*profile.Profile, error) {
+	// Load user profiles
+	userProfiles, err := profile.List(profilesDir)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to list user profiles: %w", err)
+	}
+
+	// Track user profile names
+	userNames := make(map[string]bool)
+	for _, p := range userProfiles {
+		userNames[p.Name] = true
+	}
+
+	// Load embedded profiles (skip ones that exist on disk)
+	embeddedProfiles, err := profile.ListEmbeddedProfiles()
+	if err != nil {
+		// Non-fatal - just use user profiles
+		return userProfiles, nil
+	}
+
+	// Combine: user profiles + embedded profiles not on disk
+	result := make([]*profile.Profile, 0, len(userProfiles)+len(embeddedProfiles))
+	result = append(result, userProfiles...)
+	for _, p := range embeddedProfiles {
+		if !userNames[p.Name] {
+			result = append(result, p)
+		}
+	}
+
+	return result, nil
+}
+
+// promptProfileSelection displays an interactive menu to select a profile
+func promptProfileSelection(profilesDir, newName string) (*profile.Profile, error) {
+	profiles, err := getAllProfiles(profilesDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(profiles) == 0 {
+		return nil, fmt.Errorf("no profiles available to copy from")
+	}
+
+	fmt.Printf("\nWhich profile should %q be based on?\n\n", newName)
+	for i, p := range profiles {
+		desc := p.Description
+		if desc == "" {
+			desc = "(no description)"
+		}
+		fmt.Printf("  %d) %-20s %s\n", i+1, p.Name, desc)
+	}
+	fmt.Println()
+
+	fmt.Print("Enter number or name: ")
+	reader := bufio.NewReader(os.Stdin)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	// Try as number first
+	if num, err := strconv.Atoi(input); err == nil {
+		if num >= 1 && num <= len(profiles) {
+			return profiles[num-1], nil
+		}
+		return nil, fmt.Errorf("invalid selection: %d (must be 1-%d)", num, len(profiles))
+	}
+
+	// Try as name
+	for _, p := range profiles {
+		if p.Name == input {
+			return p, nil
+		}
+	}
+
+	return nil, fmt.Errorf("profile %q not found", input)
+}
+
+func runProfileCreate(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	profilesDir := getProfilesDir()
+
+	// Check if target profile already exists
+	existingPath := filepath.Join(profilesDir, name+".json")
+	if _, err := os.Stat(existingPath); err == nil {
+		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
+	}
+
+	// Determine source profile
+	var sourceProfile *profile.Profile
+	var err error
+
+	if profileCreateFromFlag != "" {
+		// Explicit --from flag
+		sourceProfile, err = loadProfileWithFallback(profilesDir, profileCreateFromFlag)
+		if err != nil {
+			return fmt.Errorf("profile %q not found", profileCreateFromFlag)
+		}
+	} else if config.YesFlag {
+		// -y flag: use active profile
+		cfg, _ := config.Load()
+		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
+			return fmt.Errorf("no active profile. Use --from <profile> to specify base")
+		}
+		sourceProfile, err = loadProfileWithFallback(profilesDir, cfg.Preferences.ActiveProfile)
+		if err != nil {
+			return fmt.Errorf("active profile %q not found: %w", cfg.Preferences.ActiveProfile, err)
+		}
+		fmt.Printf("Using active profile: %s\n", cfg.Preferences.ActiveProfile)
+	} else {
+		// Interactive selection
+		sourceProfile, err = promptProfileSelection(profilesDir, name)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Clone the profile with the new name
+	newProfile := sourceProfile.Clone(name)
+
+	// Save
+	if err := profile.Save(profilesDir, newProfile); err != nil {
+		return fmt.Errorf("failed to save profile: %w", err)
+	}
+
+	fmt.Printf("✓ Created profile %q (based on %q)\n", name, sourceProfile.Name)
+	fmt.Println()
+	fmt.Printf("  MCP Servers:   %d\n", len(newProfile.MCPServers))
+	fmt.Printf("  Marketplaces:  %d\n", len(newProfile.Marketplaces))
+	fmt.Printf("  Plugins:       %d\n", len(newProfile.Plugins))
+
+	return nil
 }
 
 func runProfileCurrent(cmd *cobra.Command, args []string) error {
