@@ -98,17 +98,34 @@ This is useful for:
 
 var profileDeleteCmd = &cobra.Command{
 	Use:   "delete <name>",
-	Short: "Delete a user profile",
-	Long: `Deletes a user profile from disk.
+	Short: "Delete a custom user profile",
+	Long: `Permanently deletes a custom user profile from disk.
 
-For customized built-in profiles, this restores the original built-in version.
-For custom profiles, this removes the profile entirely.
+This command only works on custom profiles you've created. For customized
+built-in profiles, use 'profile restore' instead.
 
 Note: This only deletes the profile file. It does not uninstall any plugins
 or remove any configuration. Use 'profile reset' first if you want to
 remove the profile's installed components.`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileDelete,
+}
+
+var profileRestoreCmd = &cobra.Command{
+	Use:   "restore <name>",
+	Short: "Restore a built-in profile to its original state",
+	Long: `Removes your customizations from a built-in profile, restoring it to the
+original version embedded in claudeup.
+
+This command only works on built-in profiles that you've customized (shown
+with "(customized)" in the profile list). For custom profiles, use
+'profile delete' instead.
+
+Note: This only removes your customized profile file. It does not uninstall
+any plugins or remove any configuration. Use 'profile reset' first if you
+want to remove the profile's installed components.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileRestore,
 }
 
 // Flags for profile use command
@@ -128,6 +145,7 @@ func init() {
 	profileCmd.AddCommand(profileCurrentCmd)
 	profileCmd.AddCommand(profileResetCmd)
 	profileCmd.AddCommand(profileDeleteCmd)
+	profileCmd.AddCommand(profileRestoreCmd)
 
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
 
@@ -857,27 +875,26 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
+	// Check if it's a built-in profile
+	if profile.IsEmbeddedProfile(name) {
+		// Check if it has customizations
+		profilePath := filepath.Join(profilesDir, name+".json")
+		if _, err := os.Stat(profilePath); err == nil {
+			return fmt.Errorf("profile %q is a customized built-in profile. Use 'claudeup profile restore %s' instead", name, name)
+		}
+		return fmt.Errorf("profile %q is a built-in profile and cannot be deleted", name)
+	}
+
 	// Check if profile file exists on disk
 	profilePath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
-		// Check if it's a built-in profile
-		if profile.IsEmbeddedProfile(name) {
-			return fmt.Errorf("profile %q is a built-in profile with no customizations to delete", name)
-		}
 		return fmt.Errorf("profile %q not found", name)
 	}
 
 	// Show what we're about to do
-	isBuiltIn := profile.IsEmbeddedProfile(name)
-	if isBuiltIn {
-		fmt.Printf("Delete customized profile: %s\n", name)
-		fmt.Println()
-		fmt.Println("  This will restore the original built-in version.")
-	} else {
-		fmt.Printf("Delete profile: %s\n", name)
-		fmt.Println()
-		fmt.Println("  This will permanently remove this profile.")
-	}
+	fmt.Printf("Delete profile: %s\n", name)
+	fmt.Println()
+	fmt.Println("  This will permanently remove this profile.")
 	fmt.Println()
 
 	if !confirmProceed() {
@@ -899,11 +916,49 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if isBuiltIn {
-		fmt.Printf("✓ Restored built-in profile %q\n", name)
-	} else {
-		fmt.Printf("✓ Deleted profile %q\n", name)
+	fmt.Printf("✓ Deleted profile %q\n", name)
+
+	return nil
+}
+
+func runProfileRestore(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	profilesDir := getProfilesDir()
+
+	// Check if it's a built-in profile
+	if !profile.IsEmbeddedProfile(name) {
+		return fmt.Errorf("profile %q is not a built-in profile. Use 'claudeup profile delete %s' instead", name, name)
 	}
+
+	// Check if profile file exists on disk (customization)
+	profilePath := filepath.Join(profilesDir, name+".json")
+	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+		return fmt.Errorf("profile %q has no customizations to restore from", name)
+	}
+
+	// Show what we're about to do
+	fmt.Printf("Restore profile: %s\n", name)
+	fmt.Println()
+	fmt.Println("  This will remove your customizations and restore the original built-in version.")
+	fmt.Println()
+
+	if !confirmProceed() {
+		fmt.Println("Cancelled.")
+		return nil
+	}
+
+	// Delete the customization file
+	if err := os.Remove(profilePath); err != nil {
+		return fmt.Errorf("failed to restore profile: %w", err)
+	}
+
+	// Clear active profile if it matches (will use built-in now)
+	cfg, _ := config.Load()
+	if cfg != nil && cfg.Preferences.ActiveProfile == name {
+		// Keep the active profile set - it will now use the built-in version
+	}
+
+	fmt.Printf("✓ Restored built-in profile %q\n", name)
 
 	return nil
 }

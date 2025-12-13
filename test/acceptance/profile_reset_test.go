@@ -93,7 +93,7 @@ var _ = Describe("profile reset", func() {
 		})
 	})
 
-	Describe("reset vs delete distinction", func() {
+	Describe("reset vs restore distinction", func() {
 		BeforeEach(func() {
 			// Create a customized built-in profile
 			env.CreateProfile(&profile.Profile{
@@ -113,11 +113,11 @@ var _ = Describe("profile reset", func() {
 			Expect(env.ProfileExists("frontend")).To(BeTrue())
 		})
 
-		It("delete removes the profile file", func() {
+		It("restore removes the customization file", func() {
 			Expect(env.ProfileExists("frontend")).To(BeTrue())
 
-			// Delete SHOULD remove the profile file
-			result := env.Run("profile", "delete", "frontend", "-y")
+			// Restore SHOULD remove the profile file (customization)
+			result := env.Run("profile", "restore", "frontend", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(env.ProfileExists("frontend")).To(BeFalse())

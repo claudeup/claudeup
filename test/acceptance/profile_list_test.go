@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for profile list and delete commands
-// ABOUTME: Tests built-in vs user profile grouping, customization indicators, and profile deletion
+// ABOUTME: Acceptance tests for profile list, delete, and restore commands
+// ABOUTME: Tests built-in vs user profile grouping, customization indicators, deletion, and restoration
 package acceptance
 
 import (
@@ -181,26 +181,24 @@ var _ = Describe("profile delete", func() {
 		})
 	})
 
-	Context("deleting a customized built-in profile", func() {
-		BeforeEach(func() {
+	Context("trying to delete a built-in profile", func() {
+		It("returns error for unmodified built-in", func() {
+			result := env.Run("profile", "delete", "hobson")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot be deleted"))
+		})
+
+		It("suggests using restore for customized built-in", func() {
 			env.CreateProfile(&profile.Profile{
 				Name:        "frontend",
 				Description: "My customized frontend",
 			})
-		})
 
-		It("restores the built-in version", func() {
-			result := env.RunWithInput("y\n", "profile", "delete", "frontend")
+			result := env.Run("profile", "delete", "frontend")
 
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Restored built-in profile"))
-			Expect(env.ProfileExists("frontend")).To(BeFalse())
-		})
-
-		It("shows restore message", func() {
-			result := env.RunWithInput("n\n", "profile", "delete", "frontend")
-
-			Expect(result.Stdout).To(ContainSubstring("restore the original built-in"))
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("profile restore"))
 		})
 	})
 
@@ -210,13 +208,6 @@ var _ = Describe("profile delete", func() {
 
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("not found"))
-		})
-
-		It("returns error for unmodified built-in", func() {
-			result := env.Run("profile", "delete", "hobson")
-
-			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("no customizations to delete"))
 		})
 	})
 
@@ -234,6 +225,82 @@ var _ = Describe("profile delete", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Deleted profile"))
 			Expect(env.ProfileExists("auto-delete")).To(BeFalse())
+		})
+	})
+})
+
+var _ = Describe("profile restore", func() {
+	var env *helpers.TestEnv
+
+	BeforeEach(func() {
+		env = helpers.NewTestEnv(binaryPath)
+	})
+
+	Context("restoring a customized built-in profile", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "frontend",
+				Description: "My customized frontend",
+			})
+		})
+
+		It("removes the customization file", func() {
+			Expect(env.ProfileExists("frontend")).To(BeTrue())
+
+			result := env.RunWithInput("y\n", "profile", "restore", "frontend")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Restored built-in profile"))
+			Expect(env.ProfileExists("frontend")).To(BeFalse())
+		})
+
+		It("shows restore message", func() {
+			result := env.RunWithInput("n\n", "profile", "restore", "frontend")
+
+			Expect(result.Stdout).To(ContainSubstring("restore the original built-in"))
+		})
+	})
+
+	Context("trying to restore a non-built-in profile", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-custom",
+				Description: "A custom profile",
+			})
+		})
+
+		It("returns error and suggests delete", func() {
+			result := env.Run("profile", "restore", "my-custom")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("not a built-in profile"))
+			Expect(result.Stderr).To(ContainSubstring("profile delete"))
+		})
+	})
+
+	Context("restoring an unmodified built-in", func() {
+		It("returns error", func() {
+			result := env.Run("profile", "restore", "hobson")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("no customizations"))
+		})
+	})
+
+	Context("with -y flag", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "default",
+				Description: "My customized default",
+			})
+		})
+
+		It("skips confirmation prompt", func() {
+			result := env.Run("profile", "restore", "default", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Restored built-in profile"))
+			Expect(env.ProfileExists("default")).To(BeFalse())
 		})
 	})
 })

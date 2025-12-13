@@ -15,7 +15,8 @@ claudeup profile show <name>       # Show profile contents
 claudeup profile create <name>     # Save current setup as a profile
 claudeup profile use <name>        # Apply a profile (replaces current config)
 claudeup profile reset <name>      # Remove everything a profile installed
-claudeup profile delete <name>     # Delete a user profile (restore built-in if customized)
+claudeup profile delete <name>     # Delete a custom user profile
+claudeup profile restore <name>    # Restore a built-in profile to original state
 claudeup profile suggest           # Get profile suggestion based on project
 ```
 
@@ -317,37 +318,49 @@ Reset profile: hobson
 Proceed? [y]:
 ```
 
-## Deleting Profiles
+## Deleting and Restoring Profiles
 
-Use `profile delete` to remove a user profile:
+### Deleting Custom Profiles
+
+Use `profile delete` to permanently remove custom profiles you've created:
 
 ```bash
-# Delete a custom profile (permanent)
 claudeup profile delete my-workflow
-
-# Remove customizations from a built-in profile (restores original)
-claudeup profile delete frontend
 ```
+
+This command only works on custom profiles. Attempting to delete a built-in profile returns an error with guidance to use `restore` instead.
+
+### Restoring Built-in Profiles
+
+Use `profile restore` to remove your customizations from a built-in profile:
+
+```bash
+claudeup profile restore frontend
+```
+
+This removes your customization file, immediately revealing the original built-in version. The profile list shows customized built-ins with "(customized)" - use `restore` to revert them.
 
 ### Understanding Built-in vs Custom Profiles
 
-**Built-in profiles** (like `default`, `frontend`, `hobson`) are embedded in the claudeup binary. They always exist and cannot be deleted - only customized.
+**Built-in profiles** (like `default`, `frontend`, `hobson`) are embedded in the claudeup binary. They always exist and cannot be deleted.
 
-When you modify a built-in profile (e.g., by saving over it), a custom file is created in `~/.claudeup/profiles/` that shadows the built-in. The profile list shows these as "(customized)".
+When you modify a built-in profile (e.g., by saving over it), a custom file is created in `~/.claudeup/profiles/` that shadows the built-in.
 
-**Deleting profiles:**
-- **Custom profile** → permanently removes the profile
-- **Customized built-in** → removes your custom file, original built-in is immediately restored
-- **Unmodified built-in** → error (nothing to delete - it's embedded in the binary)
+| Profile Type | Delete | Restore |
+|--------------|--------|---------|
+| Custom profile | ✓ Permanently removes | ✗ Error (not built-in) |
+| Customized built-in | ✗ Error (use restore) | ✓ Removes customizations |
+| Unmodified built-in | ✗ Error (can't delete) | ✗ Error (nothing to restore) |
 
-### Reset vs Delete
+### Reset vs Delete vs Restore
 
 These commands serve different purposes:
 
 | Command | What it does |
 |---------|--------------|
-| `profile reset` | Uninstalls components (plugins, MCP servers, marketplaces) that a profile would install |
-| `profile delete` | Removes the profile file itself |
+| `profile reset` | Uninstalls components (plugins, MCP servers, marketplaces) |
+| `profile delete` | Permanently removes a custom profile file |
+| `profile restore` | Removes customizations from a built-in profile |
 
 **To fully restore a customized built-in profile:**
 ```bash
@@ -355,13 +368,13 @@ These commands serve different purposes:
 claudeup profile reset frontend
 
 # 2. Remove your customizations (restores original definition)
-claudeup profile delete frontend
+claudeup profile restore frontend
 
 # 3. Reinstall from the original built-in
 claudeup profile use frontend
 ```
 
-**Note:** If you only want to restore the profile definition without changing what's installed, just run `profile delete`.
+**Note:** If you only want to restore the profile definition without changing what's installed, just run `profile restore`.
 
 ## Sandbox Integration
 
