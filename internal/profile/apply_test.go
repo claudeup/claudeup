@@ -4,8 +4,10 @@ package profile
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -326,5 +328,323 @@ func writeTestJSON(t *testing.T, path string, data interface{}) {
 	}
 	if err := os.WriteFile(path, bytes, 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMarketplaceNameFromRepo(t *testing.T) {
+	tests := []struct {
+		repo     string
+		expected string
+	}{
+		{"wshobson/agents", "wshobson-agents"},
+		{"anthropics/claude-code", "anthropics-claude-code"},
+		{"", ""},
+		{"simple", "simple"},
+	}
+
+	for _, tc := range tests {
+		result := marketplaceNameFromRepo(tc.repo)
+		if result != tc.expected {
+			t.Errorf("marketplaceNameFromRepo(%q) = %q, want %q", tc.repo, result, tc.expected)
+		}
+	}
+}
+
+func TestIsFirstRun(t *testing.T) {
+	tests := []struct {
+		name            string
+		profileMarkets  []Marketplace
+		currentPlugins  []string
+		expectedResult  bool
+	}{
+		{
+			name:            "no plugins - first run",
+			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}},
+			currentPlugins:  []string{},
+			expectedResult:  true,
+		},
+		{
+			name:            "plugins from other marketplace - first run",
+			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}},
+			currentPlugins:  []string{"superpowers@superpowers-marketplace", "frontend@claude-code-plugins"},
+			expectedResult:  true,
+		},
+		{
+			name:            "plugins from same marketplace - not first run",
+			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}},
+			currentPlugins:  []string{"debugging-toolkit@wshobson-agents", "superpowers@superpowers-marketplace"},
+			expectedResult:  false,
+		},
+		{
+			name:            "multiple marketplaces - any match stops first run",
+			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}, {Repo: "other/marketplace"}},
+			currentPlugins:  []string{"something@other-marketplace"},
+			expectedResult:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			claudeDir := filepath.Join(tmpDir, ".claude")
+			pluginsDir := filepath.Join(claudeDir, "plugins")
+			os.MkdirAll(pluginsDir, 0755)
+
+			// Build current plugins JSON
+			pluginsMap := make(map[string]interface{})
+			for _, p := range tc.currentPlugins {
+				pluginsMap[p] = []map[string]interface{}{{"scope": "user", "version": "1.0"}}
+			}
+			currentPlugins := map[string]interface{}{
+				"version": 2,
+				"plugins": pluginsMap,
+			}
+			writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+			writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+			writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+			profile := &Profile{
+				Name:         "test",
+				Marketplaces: tc.profileMarkets,
+			}
+
+			result := isFirstRun(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+			if result != tc.expectedResult {
+				t.Errorf("isFirstRun() = %v, want %v", result, tc.expectedResult)
+			}
+		})
+	}
+}
+
+func TestShouldRunHook(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Empty current state
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	tests := []struct {
+		name     string
+		profile  *Profile
+		opts     HookOptions
+		expected bool
+	}{
+		{
+			name:     "no hook defined",
+			profile:  &Profile{Name: "test"},
+			opts:     HookOptions{},
+			expected: false,
+		},
+		{
+			name: "no-interactive skips hook",
+			profile: &Profile{
+				Name:      "test",
+				PostApply: &PostApplyHook{Script: "setup.sh", Condition: "always"},
+			},
+			opts:     HookOptions{NoInteractive: true},
+			expected: false,
+		},
+		{
+			name: "always condition runs hook",
+			profile: &Profile{
+				Name:      "test",
+				PostApply: &PostApplyHook{Script: "setup.sh", Condition: "always"},
+			},
+			opts:     HookOptions{},
+			expected: true,
+		},
+		{
+			name: "empty condition defaults to always",
+			profile: &Profile{
+				Name:      "test",
+				PostApply: &PostApplyHook{Script: "setup.sh"},
+			},
+			opts:     HookOptions{},
+			expected: true,
+		},
+		{
+			name: "force-setup overrides first-run check",
+			profile: &Profile{
+				Name:         "test",
+				Marketplaces: []Marketplace{{Repo: "wshobson/agents"}},
+				PostApply:    &PostApplyHook{Script: "setup.sh", Condition: "first-run"},
+			},
+			opts:     HookOptions{ForceSetup: true},
+			expected: true,
+		},
+		{
+			name: "first-run condition with fresh install",
+			profile: &Profile{
+				Name:         "test",
+				Marketplaces: []Marketplace{{Repo: "wshobson/agents"}},
+				PostApply:    &PostApplyHook{Script: "setup.sh", Condition: "first-run"},
+			},
+			opts:     HookOptions{},
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ShouldRunHook(tc.profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), tc.opts)
+			if result != tc.expected {
+				t.Errorf("ShouldRunHook() = %v, want %v", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestRunHookWithCommand(t *testing.T) {
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Command: "echo 'hook ran'",
+		},
+	}
+
+	// Should not error for a simple echo command
+	err := RunHook(profile, HookOptions{})
+	if err != nil {
+		t.Errorf("RunHook() unexpected error: %v", err)
+	}
+}
+
+func TestRunHookWithScript(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test script
+	scriptPath := filepath.Join(tmpDir, "test-setup.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/bash\necho 'script ran'\n"), 0755); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Script: "test-setup.sh",
+		},
+	}
+
+	err := RunHook(profile, HookOptions{ScriptDir: tmpDir})
+	if err != nil {
+		t.Errorf("RunHook() unexpected error: %v", err)
+	}
+}
+
+func TestRunHookNoHook(t *testing.T) {
+	profile := &Profile{Name: "test"}
+
+	// Should not error when no hook is defined
+	err := RunHook(profile, HookOptions{})
+	if err != nil {
+		t.Errorf("RunHook() unexpected error: %v", err)
+	}
+}
+
+func TestRunHookReturnsErrorOnFailure(t *testing.T) {
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Command: "exit 1", // Command that fails
+		},
+	}
+
+	err := RunHook(profile, HookOptions{})
+	if err == nil {
+		t.Error("RunHook() expected error for failing command, got nil")
+	}
+}
+
+func TestRunHookScriptFailureReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a script that fails
+	scriptPath := filepath.Join(tmpDir, "failing-setup.sh")
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/bash\nexit 42\n"), 0755); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Script: "failing-setup.sh",
+		},
+	}
+
+	err := RunHook(profile, HookOptions{ScriptDir: tmpDir})
+	if err == nil {
+		t.Error("RunHook() expected error for failing script, got nil")
+	}
+}
+
+func TestRunHookScriptTakesPrecedenceOverCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test script that creates a marker file
+	scriptPath := filepath.Join(tmpDir, "test-setup.sh")
+	markerPath := filepath.Join(tmpDir, "script-ran")
+	scriptContent := fmt.Sprintf("#!/bin/bash\ntouch %s\n", markerPath)
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	// Profile has both Script and Command - Script should take precedence
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Script:  "test-setup.sh",
+			Command: "echo 'command ran'", // This should NOT run
+		},
+	}
+
+	err := RunHook(profile, HookOptions{ScriptDir: tmpDir})
+	if err != nil {
+		t.Errorf("RunHook() unexpected error: %v", err)
+	}
+
+	// Verify script ran (marker file exists)
+	if _, err := os.Stat(markerPath); os.IsNotExist(err) {
+		t.Errorf("Script did not run - marker file not created")
+	}
+}
+
+func TestRunHookScriptNotFound(t *testing.T) {
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Script: "nonexistent-script.sh",
+		},
+	}
+
+	err := RunHook(profile, HookOptions{ScriptDir: t.TempDir()})
+	if err == nil {
+		t.Error("RunHook() expected error for missing script, got nil")
+	}
+	if !strings.Contains(err.Error(), "hook script not found") {
+		t.Errorf("Expected 'hook script not found' error, got: %v", err)
+	}
+}
+
+func TestIsEmbeddedProfile(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected bool
+	}{
+		{"hobson", true},       // Known embedded profile
+		{"frontend", true},     // Known embedded profile
+		{"default", true},      // Known embedded profile
+		{"nonexistent", false}, // Not embedded
+		{"", false},            // Empty name
+	}
+
+	for _, tc := range tests {
+		result := IsEmbeddedProfile(tc.name)
+		if result != tc.expected {
+			t.Errorf("IsEmbeddedProfile(%q) = %v, want %v", tc.name, result, tc.expected)
+		}
 	}
 }

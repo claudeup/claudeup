@@ -84,6 +84,43 @@ claudeup setup --profile frontend-full
 
 ---
 
+### hobson
+
+Full access to the [wshobson/agents](https://github.com/wshobson/agents) plugin marketplace with an interactive category-based setup wizard.
+
+```bash
+claudeup setup --profile hobson
+```
+
+**Marketplaces:**
+- `wshobson/agents` - Comprehensive plugin collection with 65+ plugins
+
+**Plugins:** Selected during interactive setup wizard
+
+**Categories available:**
+- Core Development - workflows, debugging, docs, refactoring
+- Quality & Testing - code review, testing, cleanup
+- AI & Machine Learning - LLM dev, agents, MLOps
+- Infrastructure & DevOps - K8s, cloud, CI/CD, monitoring
+- Security & Compliance - scanning, compliance, API security
+- Data & Databases - ETL, schema design, migrations
+- Languages - Python, JS/TS, Go, Rust, etc.
+- Business & Specialty - SEO, analytics, blockchain, gaming
+
+**Setup wizard:** On first use, an interactive wizard guides you through selecting which categories to enable. Use `--setup` to re-run the wizard, or `--no-interactive` to skip it.
+
+```bash
+# Re-run setup wizard
+claudeup profile use hobson --setup
+
+# Skip wizard (for CI/scripting)
+claudeup profile use hobson --no-interactive
+```
+
+**Use when:** Want access to a large plugin marketplace with guided setup.
+
+---
+
 Built-in profiles appear with `[built-in]` in the profile list:
 
 ```
@@ -93,6 +130,7 @@ Available profiles:
   default              Base Claude Code setup with essential marketplaces [built-in]
   frontend             Frontend development: Next.js, Tailwind, shadcn, Vercel [built-in]
   frontend-full        Complete frontend development with E2E testing... [built-in]
+  hobson               Full access to wshobson/agents with setup wizard [built-in]
 ```
 
 ## Profile Structure
@@ -198,6 +236,47 @@ claudeup setup --profile backend
 ```
 
 If an existing Claude installation is detected, setup offers to save it as a profile before applying the new one.
+
+## Post-Apply Hooks
+
+Profiles can include hooks that run after the profile is applied. This enables interactive setup wizards, custom configuration, and automation.
+
+```json
+{
+  "postApply": {
+    "script": "setup.sh",
+    "condition": "first-run"
+  }
+}
+```
+
+### Hook Fields
+
+| Field | Description |
+|-------|-------------|
+| `script` | Path to a bash script (relative to profile). Takes precedence over `command`. |
+| `command` | Direct bash command to run (used if `script` is not set). |
+| `condition` | When to run: `"always"` (default) or `"first-run"` (only if no plugins from the profile's marketplaces are enabled). |
+
+### Hook Flags
+
+```bash
+# Force the hook to run even if first-run detection would skip it
+claudeup profile use myprofile --setup
+
+# Skip the hook entirely (for CI/scripting)
+claudeup profile use myprofile --no-interactive
+```
+
+### Security Considerations
+
+**Hooks execute arbitrary shell commands.** Only use profiles from trusted sources.
+
+- **Built-in profiles** (like `hobson`, `frontend`, `default`) are safe - they're embedded in the claudeup binary and reviewed by maintainers.
+- **User-created profiles** with hooks should only be shared with or used by people who trust the source.
+- **Downloaded profiles** from unknown sources could contain malicious hooks. Review the profile JSON before applying.
+
+When applying a profile with hooks, claudeup does not prompt for confirmation. If you're unsure about a profile's contents, use `claudeup profile show <name>` to inspect it first.
 
 ## Sandbox Integration
 

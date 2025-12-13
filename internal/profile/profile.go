@@ -12,13 +12,32 @@ import (
 
 // Profile represents a Claude Code configuration profile
 type Profile struct {
-	Name         string        `json:"name"`
-	Description  string        `json:"description,omitempty"`
-	MCPServers   []MCPServer   `json:"mcpServers,omitempty"`
-	Marketplaces []Marketplace `json:"marketplaces,omitempty"`
-	Plugins      []string      `json:"plugins,omitempty"`
-	Detect       DetectRules   `json:"detect,omitempty"`
-	Sandbox      SandboxConfig `json:"sandbox,omitempty"`
+	Name         string         `json:"name"`
+	Description  string         `json:"description,omitempty"`
+	MCPServers   []MCPServer    `json:"mcpServers,omitempty"`
+	Marketplaces []Marketplace  `json:"marketplaces,omitempty"`
+	Plugins      []string       `json:"plugins,omitempty"`
+	Detect       DetectRules    `json:"detect,omitempty"`
+	Sandbox      SandboxConfig  `json:"sandbox,omitempty"`
+	PostApply    *PostApplyHook `json:"postApply,omitempty"`
+}
+
+// PostApplyHook defines a hook to run after a profile is applied.
+//
+// Execution order: Script takes precedence over Command. If both are set,
+// only Script will be executed.
+//
+// Condition types:
+//   - "always" (default): Hook runs every time the profile is applied
+//   - "first-run": Hook only runs if no plugins from the profile's marketplaces
+//     are currently enabled
+//
+// Security note: Hooks execute arbitrary shell commands. Only use profiles
+// from trusted sources.
+type PostApplyHook struct {
+	Script    string `json:"script,omitempty"`    // Script path relative to profile (takes precedence)
+	Command   string `json:"command,omitempty"`   // Direct command to run (used if Script is empty)
+	Condition string `json:"condition,omitempty"` // "always" (default) or "first-run"
 }
 
 // SandboxConfig defines sandbox-specific settings for a profile

@@ -325,3 +325,110 @@ func MustHomeDir() string {
 	}
 	return homeDir
 }
+
+// HookOptions controls post-apply hook behavior
+type HookOptions struct {
+	ForceSetup    bool   // Run hook even if first-run check would skip
+	NoInteractive bool   // Skip hook entirely (for CI/scripting)
+	ScriptDir     string // Directory containing hook scripts (for built-in profiles)
+}
+
+// ShouldRunHook checks if the post-apply hook should run based on condition and current state
+func ShouldRunHook(profile *Profile, claudeDir, claudeJSONPath string, opts HookOptions) bool {
+	if opts.NoInteractive {
+		return false
+	}
+
+	if profile.PostApply == nil {
+		return false
+	}
+
+	if opts.ForceSetup {
+		return true
+	}
+
+	// Check condition
+	switch profile.PostApply.Condition {
+	case "always", "":
+		return true
+	case "first-run":
+		return isFirstRun(profile, claudeDir, claudeJSONPath)
+	default:
+		return false
+	}
+}
+
+// isFirstRun checks if any plugins from the profile's marketplaces are enabled
+func isFirstRun(profile *Profile, claudeDir, claudeJSONPath string) bool {
+	current, err := Snapshot("current", claudeDir, claudeJSONPath)
+	if err != nil {
+		// Can't read current state - treat as first run
+		return true
+	}
+
+	// Build set of marketplace suffixes from profile
+	marketplaceSuffixes := make([]string, 0, len(profile.Marketplaces))
+	for _, m := range profile.Marketplaces {
+		// Extract marketplace name from repo (e.g., "wshobson/agents" -> "wshobson-agents")
+		name := marketplaceNameFromRepo(m.Repo)
+		if name != "" {
+			marketplaceSuffixes = append(marketplaceSuffixes, "@"+name)
+		}
+	}
+
+	// Check if any current plugins match these marketplaces
+	for _, plugin := range current.Plugins {
+		for _, suffix := range marketplaceSuffixes {
+			if strings.HasSuffix(plugin, suffix) {
+				return false // Found a plugin from this marketplace - not first run
+			}
+		}
+	}
+
+	return true
+}
+
+// marketplaceNameFromRepo extracts the marketplace name from a repo path
+func marketplaceNameFromRepo(repo string) string {
+	if repo == "" {
+		return ""
+	}
+	// "wshobson/agents" -> "wshobson-agents"
+	return strings.ReplaceAll(repo, "/", "-")
+}
+
+// RunHook executes the post-apply hook
+func RunHook(profile *Profile, opts HookOptions) error {
+	if profile.PostApply == nil {
+		return nil
+	}
+
+	hook := profile.PostApply
+
+	// Determine what to run
+	var cmd *exec.Cmd
+	if hook.Script != "" {
+		// Script path - resolve relative to ScriptDir
+		scriptPath := hook.Script
+		if opts.ScriptDir != "" && !filepath.IsAbs(scriptPath) {
+			scriptPath = filepath.Join(opts.ScriptDir, scriptPath)
+		}
+		// Verify script exists before attempting to run
+		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+			return fmt.Errorf("hook script not found: %s", scriptPath)
+		}
+		cmd = exec.Command("bash", scriptPath)
+	} else if hook.Command != "" {
+		// Direct command
+		cmd = exec.Command("bash", "-c", hook.Command)
+	} else {
+		return nil // Nothing to run
+	}
+
+	// Run interactively
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
+}

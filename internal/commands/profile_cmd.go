@@ -83,6 +83,12 @@ var profileCurrentCmd = &cobra.Command{
 	RunE:  runProfileCurrent,
 }
 
+// Flags for profile use command
+var (
+	profileUseSetup         bool
+	profileUseNoInteractive bool
+)
+
 func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
@@ -94,6 +100,10 @@ func init() {
 	profileCmd.AddCommand(profileCurrentCmd)
 
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
+
+	// Add flags to profile use command
+	profileUseCmd.Flags().BoolVar(&profileUseSetup, "setup", false, "Force post-apply setup wizard to run")
+	profileUseCmd.Flags().BoolVar(&profileUseNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
@@ -194,6 +204,26 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q not found: %w", name, err)
 	}
 
+	// Security check FIRST: warn about hooks from non-embedded profiles
+	// Users should know about hooks before seeing the diff
+	if p.PostApply != nil && !profile.IsEmbeddedProfile(name) {
+		fmt.Println()
+		fmt.Println("⚠ Security Warning: This profile contains a post-apply hook.")
+		fmt.Println("  Hooks execute arbitrary commands on your system.")
+		fmt.Println("  Only proceed if you trust the source of this profile.")
+		if p.PostApply.Script != "" {
+			fmt.Printf("  Script: %s\n", p.PostApply.Script)
+		}
+		if p.PostApply.Command != "" {
+			fmt.Printf("  Command: %s\n", p.PostApply.Command)
+		}
+		fmt.Println()
+		if !confirmProceed() {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+	}
+
 	claudeDir := profile.DefaultClaudeDir()
 	claudeJSONPath := profile.DefaultClaudeJSONPath()
 
@@ -217,6 +247,21 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		fmt.Println("Cancelled.")
 		return nil
 	}
+
+	// Prepare hook options - extract scripts first so we can defer cleanup immediately
+	scriptDir := profile.GetEmbeddedProfileScriptDir(name)
+	if scriptDir != "" {
+		defer os.RemoveAll(scriptDir)
+	}
+
+	hookOpts := profile.HookOptions{
+		ForceSetup:    profileUseSetup,
+		NoInteractive: profileUseNoInteractive,
+		ScriptDir:     scriptDir,
+	}
+
+	// Check if hook should run BEFORE applying (captures pre-apply state for first-run detection)
+	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
 
 	// Apply
 	fmt.Println()
@@ -245,6 +290,15 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Println("✓ Profile applied!")
+
+	// Run post-apply hook if applicable (decision was made before apply)
+	if shouldRunHook {
+		fmt.Println()
+		if err := profile.RunHook(p, hookOpts); err != nil {
+			fmt.Printf("  ✗ Post-apply hook failed: %v\n", err)
+			return fmt.Errorf("hook execution failed: %w", err)
+		}
+	}
 
 	return nil
 }

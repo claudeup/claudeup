@@ -131,3 +131,69 @@ func (e *TestEnv) CreateClaudeSettings() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
 }
+
+// RunWithEnv executes the CLI with additional environment variables
+func (e *TestEnv) RunWithEnv(extraEnv map[string]string, args ...string) *Result {
+	return e.RunWithEnvAndInput(extraEnv, "", args...)
+}
+
+// RunWithEnvAndInput executes the CLI with additional env vars and stdin input
+func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, args ...string) *Result {
+	cmd := exec.Command(e.Binary, args...)
+	cmd.Env = append(os.Environ(),
+		"HOME="+e.TempDir,
+	)
+
+	for k, v := range extraEnv {
+		cmd.Env = append(cmd.Env, k+"="+v)
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
+
+	err := cmd.Run()
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+
+	return &Result{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		ExitCode: exitCode,
+	}
+}
+
+// CreateInstalledPlugins creates a fake installed_plugins.json
+func (e *TestEnv) CreateInstalledPlugins(plugins map[string]interface{}) {
+	pluginsDir := filepath.Join(e.ClaudeDir, "plugins")
+	Expect(os.MkdirAll(pluginsDir, 0755)).To(Succeed())
+
+	data := map[string]interface{}{
+		"version": 2,
+		"plugins": plugins,
+	}
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), jsonData, 0644)).To(Succeed())
+}
+
+// CreateKnownMarketplaces creates a fake known_marketplaces.json
+func (e *TestEnv) CreateKnownMarketplaces(marketplaces map[string]interface{}) {
+	pluginsDir := filepath.Join(e.ClaudeDir, "plugins")
+	Expect(os.MkdirAll(pluginsDir, 0755)).To(Succeed())
+
+	jsonData, err := json.MarshalIndent(marketplaces, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(pluginsDir, "known_marketplaces.json"), jsonData, 0644)).To(Succeed())
+}
