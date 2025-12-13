@@ -4,6 +4,16 @@
 
 set -e
 
+# Verify bash version 4+ (required for associative arrays)
+if [[ "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+    echo "Error: This script requires bash 4.0 or later"
+    echo "Your version: $BASH_VERSION"
+    echo ""
+    echo "On macOS, install modern bash with: brew install bash"
+    echo "Then ensure /opt/homebrew/bin is before /bin in your PATH"
+    exit 1
+fi
+
 # Verify claudeup is available
 if ! command -v claudeup &> /dev/null; then
     echo "Error: claudeup command not found"
@@ -11,10 +21,15 @@ if ! command -v claudeup &> /dev/null; then
     exit 1
 fi
 
-# Check if gum is available for interactive UI
+# Check if gum is available AND can access a TTY for interactive UI
+# gum requires /dev/tty to work - it fails silently when unavailable
 HAS_GUM=false
 if command -v gum &> /dev/null; then
-    HAS_GUM=true
+    # Verify gum can actually open the TTY for interactive input
+    # gum choose requires /dev/tty - test with a simple selection that auto-confirms
+    if echo "" | gum choose "test" 2>/dev/null; then
+        HAS_GUM=true
+    fi
 fi
 
 # Marketplace suffix for plugins

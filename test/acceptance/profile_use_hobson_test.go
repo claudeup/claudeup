@@ -143,21 +143,21 @@ var _ = Describe("profile use hobson", func() {
 			))
 		})
 
-		It("handles empty selection gracefully", func() {
-			// When run without TTY, gum returns empty selection
+		It("falls back to prompt mode when gum cannot access TTY", func() {
+			// When gum cannot access a TTY, the script falls back to prompt-based selection
+			// Send 'q' to quit the fallback prompts
 			result := env.RunWithEnvAndInput(
 				map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
-				"", // Empty input - gum will return empty selection without TTY
+				"q\n", // Quit the prompt-based selection
 				"profile", "use", "hobson", "-y",
 			)
 
 			// Wizard should start
 			Expect(result.Stdout).To(ContainSubstring("Hobson Profile Setup"))
-			// And handle empty selection
-			Expect(result.Stdout).To(SatisfyAny(
-				ContainSubstring("No categories selected"),
-				ContainSubstring("Setup cancelled"),
-			))
+			// Should show prompt-based selection (fallback mode)
+			Expect(result.Stdout).To(ContainSubstring("Select development categories"))
+			// And handle quit gracefully
+			Expect(result.Stdout).To(ContainSubstring("Setup cancelled"))
 		})
 	})
 
