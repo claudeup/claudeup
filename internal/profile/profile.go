@@ -56,6 +56,14 @@ type Marketplace struct {
 	URL    string `json:"url,omitempty"`
 }
 
+// DisplayName returns the repo or URL for display purposes
+func (m Marketplace) DisplayName() string {
+	if m.Repo != "" {
+		return m.Repo
+	}
+	return m.URL
+}
+
 // SecretRef defines a secret requirement with multiple resolution sources
 type SecretRef struct {
 	Description string         `json:"description,omitempty"`

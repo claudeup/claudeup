@@ -35,7 +35,8 @@ type MarketplaceMetadata struct {
 // MarketplaceSource represents the source of a marketplace
 type MarketplaceSource struct {
 	Source string `json:"source"`
-	Repo   string `json:"repo"`
+	Repo   string `json:"repo,omitempty"`
+	URL    string `json:"url,omitempty"`
 }
 
 // Snapshot creates a Profile from the current Claude Code state
@@ -102,12 +103,21 @@ func readMarketplaces(claudeDir string) ([]Marketplace, error) {
 		marketplaces = append(marketplaces, Marketplace{
 			Source: meta.Source.Source,
 			Repo:   meta.Source.Repo,
+			URL:    meta.Source.URL,
 		})
 	}
 
-	// Sort by repo for consistent output
+	// Sort by repo (or URL for git sources) for consistent output
 	sort.Slice(marketplaces, func(i, j int) bool {
-		return marketplaces[i].Repo < marketplaces[j].Repo
+		keyI := marketplaces[i].Repo
+		if keyI == "" {
+			keyI = marketplaces[i].URL
+		}
+		keyJ := marketplaces[j].Repo
+		if keyJ == "" {
+			keyJ = marketplaces[j].URL
+		}
+		return keyI < keyJ
 	})
 
 	return marketplaces, nil

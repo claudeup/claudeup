@@ -122,6 +122,119 @@ func TestSnapshotEmptyState(t *testing.T) {
 	}
 }
 
+func TestSnapshotWithGitSourceMarketplace(t *testing.T) {
+	// Create temp directories
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create mock installed_plugins.json (empty)
+	pluginsData := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData)
+
+	// Create mock known_marketplaces.json with both github and git sources
+	marketplacesData := map[string]interface{}{
+		"claude-code-plugins": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "anthropics/claude-code",
+			},
+		},
+		"every-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "git",
+				"url":    "https://github.com/EveryInc/compound-engineering-plugin.git",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplacesData)
+
+	// Create mock ~/.claude.json (empty MCP servers)
+	claudeJSON := map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	}
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, claudeJSON)
+
+	// Create snapshot
+	p, err := Snapshot("test-git-url", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Verify profile
+	if len(p.Marketplaces) != 2 {
+		t.Fatalf("Expected 2 marketplaces, got %d", len(p.Marketplaces))
+	}
+
+	// Check that both marketplaces have proper display names
+	foundGithub := false
+	foundGit := false
+	for _, m := range p.Marketplaces {
+		displayName := m.DisplayName()
+		if displayName == "" {
+			t.Errorf("Marketplace has empty display name: source=%s repo=%s url=%s", m.Source, m.Repo, m.URL)
+		}
+		if m.Source == "github" && m.Repo == "anthropics/claude-code" {
+			foundGithub = true
+		}
+		if m.Source == "git" && m.URL == "https://github.com/EveryInc/compound-engineering-plugin.git" {
+			foundGit = true
+		}
+	}
+
+	if !foundGithub {
+		t.Error("GitHub marketplace not found in snapshot")
+	}
+	if !foundGit {
+		t.Error("Git URL marketplace not found in snapshot")
+	}
+}
+
+func TestMarketplaceDisplayName(t *testing.T) {
+	tests := []struct {
+		name     string
+		market   Marketplace
+		expected string
+	}{
+		{
+			name:     "github source uses repo",
+			market:   Marketplace{Source: "github", Repo: "anthropics/claude-code"},
+			expected: "anthropics/claude-code",
+		},
+		{
+			name:     "git source uses url",
+			market:   Marketplace{Source: "git", URL: "https://github.com/example/repo.git"},
+			expected: "https://github.com/example/repo.git",
+		},
+		{
+			name:     "both set prefers repo",
+			market:   Marketplace{Source: "github", Repo: "owner/repo", URL: "https://example.com"},
+			expected: "owner/repo",
+		},
+		{
+			name:     "empty returns empty",
+			market:   Marketplace{Source: "git"},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.market.DisplayName()
+			if got != tt.expected {
+				t.Errorf("DisplayName() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
 func writeJSON(t *testing.T, path string, data interface{}) {
 	t.Helper()
 	bytes, err := json.MarshalIndent(data, "", "  ")

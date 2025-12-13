@@ -328,7 +328,7 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	if len(p.Marketplaces) > 0 {
 		fmt.Println("Marketplaces:")
 		for _, m := range p.Marketplaces {
-			fmt.Printf("  - %s\n", m.Repo)
+			fmt.Printf("  - %s\n", m.DisplayName())
 		}
 		fmt.Println()
 	}
@@ -366,7 +366,7 @@ func showDiff(diff *profile.Diff) {
 	if len(diff.PluginsToInstall) > 0 || len(diff.MCPToInstall) > 0 || len(diff.MarketplacesToAdd) > 0 {
 		fmt.Println("  Install:")
 		for _, m := range diff.MarketplacesToAdd {
-			fmt.Printf("    + Marketplace: %s\n", m.Repo)
+			fmt.Printf("    + Marketplace: %s\n", m.DisplayName())
 		}
 		for _, p := range diff.PluginsToInstall {
 			fmt.Printf("    + %s\n", p)
