@@ -540,7 +540,10 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 
 	fmt.Print("Enter number or name: ")
 	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read input: %w", err)
+	}
 	input = strings.TrimSpace(input)
 
 	// Try as number first
