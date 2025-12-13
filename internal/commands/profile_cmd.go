@@ -328,7 +328,11 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	if len(p.Marketplaces) > 0 {
 		fmt.Println("Marketplaces:")
 		for _, m := range p.Marketplaces {
-			fmt.Printf("  - %s\n", m.Repo)
+			display := m.Repo
+			if display == "" {
+				display = m.URL
+			}
+			fmt.Printf("  - %s\n", display)
 		}
 		fmt.Println()
 	}
