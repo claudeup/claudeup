@@ -3,6 +3,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -421,6 +422,9 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 		return result, nil
 	}
 
+	// Build lookup from repo to marketplace name for removal
+	repoToName := buildRepoToNameLookup(claudeDir)
+
 	// Build marketplace suffixes to find matching plugins
 	marketplaceSuffixes := make(map[string]string) // suffix -> repo
 	for _, m := range profile.Marketplaces {
@@ -453,10 +457,16 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 		}
 	}
 
-	// Remove marketplaces
+	// Remove marketplaces using their registered name (not repo)
 	for _, m := range profile.Marketplaces {
 		if m.Repo != "" {
-			if err := executor.Run("plugin", "marketplace", "remove", m.Repo); err != nil {
+			// Look up the marketplace name from the registry
+			name, found := repoToName[m.Repo]
+			if !found {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: not found in registry", m.Repo))
+				continue
+			}
+			if err := executor.Run("plugin", "marketplace", "remove", name); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w", m.Repo, err))
 			} else {
 				result.MarketplacesRemoved = append(result.MarketplacesRemoved, m.Repo)
@@ -465,6 +475,33 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 	}
 
 	return result, nil
+}
+
+// buildRepoToNameLookup reads known_marketplaces.json and builds a map from repo to name
+func buildRepoToNameLookup(claudeDir string) map[string]string {
+	result := make(map[string]string)
+
+	marketplacesPath := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
+	data, err := os.ReadFile(marketplacesPath)
+	if err != nil {
+		return result
+	}
+
+	var registry MarketplaceRegistry
+	if err := json.Unmarshal(data, &registry); err != nil {
+		return result
+	}
+
+	for name, meta := range registry {
+		if meta.Source.Repo != "" {
+			result[meta.Source.Repo] = name
+		}
+		if meta.Source.URL != "" {
+			result[meta.Source.URL] = name
+		}
+	}
+
+	return result
 }
 
 // RunHook executes the post-apply hook

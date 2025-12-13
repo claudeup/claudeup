@@ -687,8 +687,17 @@ func TestResetRemovesPluginsFromMarketplace(t *testing.T) {
 			"superpowers@other-marketplace":     []map[string]interface{}{{"scope": "user", "version": "1.0"}},
 		},
 	}
+	// Marketplace registry maps repo to name
+	marketplaces := map[string]interface{}{
+		"wshobson-agents": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "wshobson/agents",
+			},
+		},
+	}
 	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
-	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
 	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
 
 	// Profile with wshobson/agents marketplace
@@ -777,6 +786,60 @@ func TestResetRemovesMCPServers(t *testing.T) {
 	}
 }
 
+func TestResetUsesMarketplaceNameNotRepo(t *testing.T) {
+	// Bug: Reset was using repo (wshobson/agents) instead of marketplace name
+	// (claude-code-workflows) when calling "claude plugin marketplace remove"
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: marketplace registered with name "claude-code-workflows"
+	// but source repo is "wshobson/agents"
+	marketplaces := map[string]interface{}{
+		"claude-code-workflows": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "wshobson/agents",
+			},
+			"installLocation": "/Users/test/.claude/plugins/marketplaces/claude-code-workflows",
+			"lastUpdated":     "2025-12-13T21:26:57.258Z",
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile uses repo "wshobson/agents"
+	profile := &Profile{
+		Name: "hobson",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "wshobson/agents"},
+		},
+	}
+
+	executor := &mockExecutor{}
+	_, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	if err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
+
+	// Find the marketplace remove command
+	var marketplaceRemoveArg string
+	for _, cmd := range executor.commands {
+		if len(cmd) >= 4 && cmd[0] == "plugin" && cmd[1] == "marketplace" && cmd[2] == "remove" {
+			marketplaceRemoveArg = cmd[3]
+			break
+		}
+	}
+
+	// The command should use the marketplace NAME (claude-code-workflows),
+	// NOT the repo (wshobson/agents)
+	if marketplaceRemoveArg != "claude-code-workflows" {
+		t.Errorf("Expected marketplace remove to use name 'claude-code-workflows', got: %q", marketplaceRemoveArg)
+	}
+}
+
 func TestResetHandlesErrors(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
@@ -790,8 +853,17 @@ func TestResetHandlesErrors(t *testing.T) {
 			"test-plugin@test-marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
 		},
 	}
+	// Marketplace registry maps repo to name
+	marketplaces := map[string]interface{}{
+		"test-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "test/marketplace",
+			},
+		},
+	}
 	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
-	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
 	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
 
 	profile := &Profile{
