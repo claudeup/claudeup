@@ -21,15 +21,10 @@ if ! command -v claudeup &> /dev/null; then
     exit 1
 fi
 
-# Check if gum is available AND can access a TTY for interactive UI
-# gum requires /dev/tty to work - it fails silently when unavailable
+# Check if gum is available AND stdin is a terminal (required for interactive UI)
 HAS_GUM=false
-if command -v gum &> /dev/null; then
-    # Verify gum can actually open the TTY for interactive input
-    # gum choose requires /dev/tty - test with a simple selection that auto-confirms
-    if echo "" | gum choose "test" 2>/dev/null; then
-        HAS_GUM=true
-    fi
+if command -v gum &> /dev/null && [ -t 0 ]; then
+    HAS_GUM=true
 fi
 
 # Marketplace suffix for plugins
