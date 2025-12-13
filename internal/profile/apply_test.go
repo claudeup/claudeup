@@ -4,6 +4,7 @@ package profile
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -540,5 +541,36 @@ func TestRunHookNoHook(t *testing.T) {
 	err := RunHook(profile, HookOptions{})
 	if err != nil {
 		t.Errorf("RunHook() unexpected error: %v", err)
+	}
+}
+
+func TestRunHookScriptTakesPrecedenceOverCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a test script that creates a marker file
+	scriptPath := filepath.Join(tmpDir, "test-setup.sh")
+	markerPath := filepath.Join(tmpDir, "script-ran")
+	scriptContent := fmt.Sprintf("#!/bin/bash\ntouch %s\n", markerPath)
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+		t.Fatalf("Failed to create test script: %v", err)
+	}
+
+	// Profile has both Script and Command - Script should take precedence
+	profile := &Profile{
+		Name: "test",
+		PostApply: &PostApplyHook{
+			Script:  "test-setup.sh",
+			Command: "echo 'command ran'", // This should NOT run
+		},
+	}
+
+	err := RunHook(profile, HookOptions{ScriptDir: tmpDir})
+	if err != nil {
+		t.Errorf("RunHook() unexpected error: %v", err)
+	}
+
+	// Verify script ran (marker file exists)
+	if _, err := os.Stat(markerPath); os.IsNotExist(err) {
+		t.Errorf("Script did not run - marker file not created")
 	}
 }

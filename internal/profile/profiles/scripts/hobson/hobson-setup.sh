@@ -4,6 +4,13 @@
 
 set -e
 
+# Verify claudeup is available
+if ! command -v claudeup &> /dev/null; then
+    echo "Error: claudeup command not found"
+    echo "Please ensure claudeup is installed and in your PATH"
+    exit 1
+fi
+
 # Check if gum is available for interactive UI
 HAS_GUM=false
 if command -v gum &> /dev/null; then
@@ -146,7 +153,7 @@ select_with_prompts() {
         echo "Commands: [1-8] Toggle category  [a] Select all  [n] Select none"
         echo "          [c] Customize plugins  [Enter] Continue  [q] Quit"
         echo ""
-        read -p "> " input
+        read -r -p "> " input
 
         case "$input" in
             [1-8])
