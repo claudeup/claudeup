@@ -18,11 +18,11 @@ CLI tool for managing Claude Code configurations, profiles, and sandboxed enviro
 
 **Design documents and implementation plans go in a separate repository:**
 
-```
+```sh
 https://github.com/claudeup/claudeup-superpowers.git
 ```
 
-Clone locally as `claudeup-feature-plans` or similar. When brainstorming features or creating implementation plans, save them there - not in this repository.
+Clone locally as `../claudeup-superpowers` or similar. When brainstorming features or creating implementation plans, save them there - not in this repository.
 
 ## Development
 
@@ -45,11 +45,13 @@ go test ./test/integration/... -v
 Tests use [Ginkgo](https://onsi.github.io/ginkgo/) BDD framework with [Gomega](https://onsi.github.io/gomega/) matchers.
 
 **Test types:**
+
 - **Acceptance tests** (`test/acceptance/`) - Execute the real `claudeup` binary in isolated temp directories. Test CLI behavior end-to-end.
 - **Integration tests** (`test/integration/`) - Test internal packages with fake Claude installations. No binary execution.
 - **Unit tests** (`internal/*/`) - Standard Go tests for individual functions.
 
 **Writing tests:**
+
 ```go
 var _ = Describe("feature", func() {
     var env *helpers.TestEnv
@@ -66,6 +68,7 @@ var _ = Describe("feature", func() {
 ```
 
 **Running with Ginkgo CLI (optional, nicer output):**
+
 ```bash
 go run github.com/onsi/ginkgo/v2/ginkgo -v ./test/...
 ```
