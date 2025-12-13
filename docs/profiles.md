@@ -14,6 +14,7 @@ claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
 claudeup profile create <name>     # Save current setup as a profile
 claudeup profile use <name>        # Apply a profile (replaces current config)
+claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile suggest           # Get profile suggestion based on project
 ```
 
@@ -121,16 +122,21 @@ claudeup profile use hobson --no-interactive
 
 ---
 
-Built-in profiles appear with `[built-in]` in the profile list:
+Built-in and user profiles are grouped separately in the list:
 
 ```
 $ claudeup profile list
-Available profiles:
+Built-in profiles:
 
-  default              Base Claude Code setup with essential marketplaces [built-in]
-  frontend             Frontend development: Next.js, Tailwind, shadcn, Vercel [built-in]
-  frontend-full        Complete frontend development with E2E testing... [built-in]
-  hobson               Full access to wshobson/agents with setup wizard [built-in]
+  default              Base Claude Code setup with essential marketplaces
+  frontend             Frontend development: Next.js, Tailwind, shadcn, Vercel
+  frontend-full        Complete frontend development with E2E testing...
+  hobson               Full access to wshobson/agents with setup wizard
+
+Your profiles:
+
+* my-setup             Custom configuration for my workflow
+  backend              Backend development profile
 ```
 
 ## Profile Structure
@@ -277,6 +283,38 @@ claudeup profile use myprofile --no-interactive
 - **Downloaded profiles** from unknown sources could contain malicious hooks. Review the profile JSON before applying.
 
 When applying a profile with hooks, claudeup does not prompt for confirmation. If you're unsure about a profile's contents, use `claudeup profile show <name>` to inspect it first.
+
+## Resetting Profiles
+
+Use `profile reset` to remove everything a profile installed:
+
+```bash
+# Remove all plugins, MCP servers, and marketplaces from a profile
+claudeup profile reset hobson
+```
+
+This removes:
+- All plugins installed from the profile's marketplaces
+- All MCP servers defined in the profile
+- All marketplaces added by the profile
+
+**Use cases:**
+- Testing a profile's setup wizard from scratch
+- Cleaning up before switching to a different profile
+- Removing a profile's effects without applying a new one
+
+The reset command shows what will be removed and prompts for confirmation:
+
+```
+Reset profile: hobson
+
+  Will remove:
+    - Plugin: debugging-toolkit@wshobson-agents
+    - Plugin: code-review-ai@wshobson-agents
+    - Marketplace: wshobson/agents
+
+Proceed? [y]:
+```
 
 ## Sandbox Integration
 

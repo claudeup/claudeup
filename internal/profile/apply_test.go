@@ -648,3 +648,172 @@ func TestIsEmbeddedProfile(t *testing.T) {
 		}
 	}
 }
+
+// mockExecutor records commands for testing
+type mockExecutor struct {
+	commands [][]string
+	failOn   map[string]bool // command prefixes that should fail
+}
+
+func (m *mockExecutor) Run(args ...string) error {
+	m.commands = append(m.commands, args)
+	// Check if this command should fail
+	if len(args) > 0 && m.failOn != nil {
+		key := strings.Join(args[:min(3, len(args))], " ")
+		if m.failOn[key] {
+			return fmt.Errorf("mock failure for: %s", key)
+		}
+	}
+	return nil
+}
+
+func (m *mockExecutor) RunWithOutput(args ...string) (string, error) {
+	m.commands = append(m.commands, args)
+	return "", nil
+}
+
+func TestResetRemovesPluginsFromMarketplace(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: plugins from wshobson-agents marketplace
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"debugging-toolkit@wshobson-agents": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"code-review-ai@wshobson-agents":    []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"superpowers@other-marketplace":     []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile with wshobson/agents marketplace
+	profile := &Profile{
+		Name: "hobson",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "wshobson/agents"},
+		},
+	}
+
+	executor := &mockExecutor{}
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	if err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
+
+	// Should have removed 2 plugins from wshobson-agents
+	if len(result.PluginsRemoved) != 2 {
+		t.Errorf("Expected 2 plugins removed, got %d: %v", len(result.PluginsRemoved), result.PluginsRemoved)
+	}
+
+	// Should have removed the marketplace
+	if len(result.MarketplacesRemoved) != 1 {
+		t.Errorf("Expected 1 marketplace removed, got %d: %v", len(result.MarketplacesRemoved), result.MarketplacesRemoved)
+	}
+
+	// Verify correct commands were issued
+	pluginUninstalls := 0
+	marketplaceRemoves := 0
+	for _, cmd := range executor.commands {
+		if len(cmd) >= 2 && cmd[0] == "plugin" && cmd[1] == "uninstall" {
+			pluginUninstalls++
+		}
+		if len(cmd) >= 3 && cmd[0] == "plugin" && cmd[1] == "marketplace" && cmd[2] == "remove" {
+			marketplaceRemoves++
+		}
+	}
+	if pluginUninstalls != 2 {
+		t.Errorf("Expected 2 plugin uninstall commands, got %d", pluginUninstalls)
+	}
+	if marketplaceRemoves != 1 {
+		t.Errorf("Expected 1 marketplace remove command, got %d", marketplaceRemoves)
+	}
+}
+
+func TestResetRemovesMCPServers(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Empty current state
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile with MCP servers
+	profile := &Profile{
+		Name: "test",
+		MCPServers: []MCPServer{
+			{Name: "server-a", Command: "cmd-a"},
+			{Name: "server-b", Command: "cmd-b"},
+		},
+	}
+
+	executor := &mockExecutor{}
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	if err != nil {
+		t.Fatalf("Reset failed: %v", err)
+	}
+
+	// Should have removed 2 MCP servers
+	if len(result.MCPServersRemoved) != 2 {
+		t.Errorf("Expected 2 MCP servers removed, got %d: %v", len(result.MCPServersRemoved), result.MCPServersRemoved)
+	}
+
+	// Verify correct commands were issued
+	mcpRemoves := 0
+	for _, cmd := range executor.commands {
+		if len(cmd) >= 2 && cmd[0] == "mcp" && cmd[1] == "remove" {
+			mcpRemoves++
+		}
+	}
+	if mcpRemoves != 2 {
+		t.Errorf("Expected 2 mcp remove commands, got %d", mcpRemoves)
+	}
+}
+
+func TestResetHandlesErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state with a plugin
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"test-plugin@test-marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	profile := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "test/marketplace"},
+		},
+	}
+
+	// Executor that fails on plugin uninstall
+	executor := &mockExecutor{
+		failOn: map[string]bool{
+			"plugin uninstall test-plugin@test-marketplace": true,
+		},
+	}
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	if err != nil {
+		t.Fatalf("Reset should not return error, but collect errors: %v", err)
+	}
+
+	// Should have recorded the error
+	if len(result.Errors) != 1 {
+		t.Errorf("Expected 1 error recorded, got %d", len(result.Errors))
+	}
+}

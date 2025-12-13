@@ -397,6 +397,76 @@ func marketplaceNameFromRepo(repo string) string {
 	return strings.ReplaceAll(repo, "/", "-")
 }
 
+// ResetResult contains the results of resetting a profile
+type ResetResult struct {
+	PluginsRemoved      []string
+	MCPServersRemoved   []string
+	MarketplacesRemoved []string
+	Errors              []error
+}
+
+// Reset removes everything a profile installed (plugins, MCP servers, marketplaces)
+func Reset(profile *Profile, claudeDir, claudeJSONPath string) (*ResetResult, error) {
+	return ResetWithExecutor(profile, claudeDir, claudeJSONPath, &DefaultExecutor{})
+}
+
+// ResetWithExecutor removes everything a profile installed using the provided executor
+func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, executor CommandExecutor) (*ResetResult, error) {
+	result := &ResetResult{}
+
+	// Get current state to find installed plugins
+	current, err := Snapshot("current", claudeDir, claudeJSONPath)
+	if err != nil {
+		// Can't read current state - nothing to remove
+		return result, nil
+	}
+
+	// Build marketplace suffixes to find matching plugins
+	marketplaceSuffixes := make(map[string]string) // suffix -> repo
+	for _, m := range profile.Marketplaces {
+		name := marketplaceNameFromRepo(m.Repo)
+		if name != "" {
+			marketplaceSuffixes["@"+name] = m.Repo
+		}
+	}
+
+	// Remove plugins that belong to profile's marketplaces
+	for _, plugin := range current.Plugins {
+		for suffix := range marketplaceSuffixes {
+			if strings.HasSuffix(plugin, suffix) {
+				if err := executor.Run("plugin", "uninstall", plugin); err != nil {
+					result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w", plugin, err))
+				} else {
+					result.PluginsRemoved = append(result.PluginsRemoved, plugin)
+				}
+				break
+			}
+		}
+	}
+
+	// Remove MCP servers defined in the profile
+	for _, mcp := range profile.MCPServers {
+		if err := executor.Run("mcp", "remove", mcp.Name); err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("failed to remove MCP server %s: %w", mcp.Name, err))
+		} else {
+			result.MCPServersRemoved = append(result.MCPServersRemoved, mcp.Name)
+		}
+	}
+
+	// Remove marketplaces
+	for _, m := range profile.Marketplaces {
+		if m.Repo != "" {
+			if err := executor.Run("plugin", "marketplace", "remove", m.Repo); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w", m.Repo, err))
+			} else {
+				result.MarketplacesRemoved = append(result.MarketplacesRemoved, m.Repo)
+			}
+		}
+	}
+
+	return result, nil
+}
+
 // RunHook executes the post-apply hook
 func RunHook(profile *Profile, opts HookOptions) error {
 	if profile.PostApply == nil {

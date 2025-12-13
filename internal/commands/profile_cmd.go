@@ -83,6 +83,19 @@ var profileCurrentCmd = &cobra.Command{
 	RunE:  runProfileCurrent,
 }
 
+var profileResetCmd = &cobra.Command{
+	Use:   "reset <name>",
+	Short: "Remove everything a profile installed",
+	Long: `Removes all plugins, MCP servers, and marketplaces that a profile would install.
+
+This is useful for:
+  - Testing a profile from scratch
+  - Cleaning up before switching to a different profile
+  - Removing a profile's effects without applying a new one`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileReset,
+}
+
 // Flags for profile use command
 var (
 	profileUseSetup         bool
@@ -98,6 +111,7 @@ func init() {
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileSuggestCmd)
 	profileCmd.AddCommand(profileCurrentCmd)
+	profileCmd.AddCommand(profileResetCmd)
 
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
 
@@ -150,44 +164,50 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println("Available profiles:")
-	fmt.Println()
-
-	// Show built-in profiles first (ones not yet extracted to disk)
+	// Collect built-in profiles (ones not customized by user)
+	var builtInToShow []*profile.Profile
 	for _, p := range embeddedProfiles {
-		if userProfileNames[p.Name] {
-			continue // Skip if user has customized this profile
+		if !userProfileNames[p.Name] {
+			builtInToShow = append(builtInToShow, p)
 		}
-
-		marker := "  "
-		if p.Name == activeProfile {
-			marker = "* "
-		}
-
-		desc := p.Description
-		if desc == "" {
-			desc = "(no description)"
-		}
-
-		fmt.Printf("%s%-20s %s [built-in]\n", marker, p.Name, desc)
 	}
 
-	// Show user profiles
-	for _, p := range userProfiles {
-		marker := "  "
-		if p.Name == activeProfile {
-			marker = "* "
+	// Show built-in profiles section
+	if len(builtInToShow) > 0 {
+		fmt.Println("Built-in profiles:")
+		fmt.Println()
+		for _, p := range builtInToShow {
+			marker := "  "
+			if p.Name == activeProfile {
+				marker = "* "
+			}
+			desc := p.Description
+			if desc == "" {
+				desc = "(no description)"
+			}
+			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
 		}
-
-		desc := p.Description
-		if desc == "" {
-			desc = "(no description)"
-		}
-
-		fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
+		fmt.Println()
 	}
 
-	fmt.Println()
+	// Show user profiles section
+	if len(userProfiles) > 0 {
+		fmt.Println("Your profiles:")
+		fmt.Println()
+		for _, p := range userProfiles {
+			marker := "  "
+			if p.Name == activeProfile {
+				marker = "* "
+			}
+			desc := p.Description
+			if desc == "" {
+				desc = "(no description)"
+			}
+			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
+		}
+		fmt.Println()
+	}
+
 	fmt.Println("Use 'claudeup profile show <name>' for details")
 	fmt.Println("Use 'claudeup profile use <name>' to apply a profile")
 
@@ -710,6 +730,106 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
 	fmt.Printf("  Plugins:      %d\n", len(p.Plugins))
 	fmt.Printf("  MCP Servers:  %d\n", len(p.MCPServers))
+
+	return nil
+}
+
+func runProfileReset(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	profilesDir := getProfilesDir()
+
+	// Load the profile
+	p, err := loadProfileWithFallback(profilesDir, name)
+	if err != nil {
+		return fmt.Errorf("profile %q not found: %w", name, err)
+	}
+
+	// Show what will be removed
+	fmt.Printf("Reset profile: %s\n", name)
+	fmt.Println()
+
+	claudeDir := profile.DefaultClaudeDir()
+	claudeJSONPath := profile.DefaultClaudeJSONPath()
+
+	// Get current state to show what plugins will be removed
+	current, _ := profile.Snapshot("current", claudeDir, claudeJSONPath)
+
+	// Find plugins that match profile's marketplaces
+	var pluginsToRemove []string
+	if current != nil {
+		for _, m := range p.Marketplaces {
+			suffix := "@" + strings.ReplaceAll(m.Repo, "/", "-")
+			for _, plugin := range current.Plugins {
+				if strings.HasSuffix(plugin, suffix) {
+					pluginsToRemove = append(pluginsToRemove, plugin)
+				}
+			}
+		}
+	}
+
+	hasChanges := len(pluginsToRemove) > 0 || len(p.MCPServers) > 0 || len(p.Marketplaces) > 0
+
+	if !hasChanges {
+		fmt.Println("Nothing to remove - profile has no installed components.")
+		return nil
+	}
+
+	fmt.Println("  Will remove:")
+	for _, plugin := range pluginsToRemove {
+		fmt.Printf("    - Plugin: %s\n", plugin)
+	}
+	for _, mcp := range p.MCPServers {
+		fmt.Printf("    - MCP: %s\n", mcp.Name)
+	}
+	for _, m := range p.Marketplaces {
+		fmt.Printf("    - Marketplace: %s\n", m.DisplayName())
+	}
+	fmt.Println()
+
+	if !confirmProceed() {
+		fmt.Println("Cancelled.")
+		return nil
+	}
+
+	// Execute reset
+	fmt.Println()
+	fmt.Println("Removing profile components...")
+
+	result, err := profile.Reset(p, claudeDir, claudeJSONPath)
+	if err != nil {
+		return fmt.Errorf("failed to reset profile: %w", err)
+	}
+
+	// Show results
+	if len(result.PluginsRemoved) > 0 {
+		fmt.Printf("  Removed %d plugins\n", len(result.PluginsRemoved))
+	}
+	if len(result.MCPServersRemoved) > 0 {
+		fmt.Printf("  Removed %d MCP servers\n", len(result.MCPServersRemoved))
+	}
+	if len(result.MarketplacesRemoved) > 0 {
+		fmt.Printf("  Removed %d marketplaces\n", len(result.MarketplacesRemoved))
+	}
+
+	if len(result.Errors) > 0 {
+		fmt.Println()
+		fmt.Println("Some errors occurred:")
+		for _, err := range result.Errors {
+			fmt.Printf("  ✗ %v\n", err)
+		}
+	}
+
+	// Clear active profile if it matches
+	cfg, _ := config.Load()
+	if cfg != nil && cfg.Preferences.ActiveProfile == name {
+		cfg.Preferences.ActiveProfile = ""
+		if err := config.Save(cfg); err != nil {
+			fmt.Printf("  ⚠ Could not clear active profile: %v\n", err)
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("✓ Profile reset complete!")
 
 	return nil
 }
