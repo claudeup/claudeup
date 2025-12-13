@@ -136,7 +136,8 @@ select_with_gum() {
 
     local selected
     # Read from /dev/tty explicitly to ensure clean terminal input
-    selected=$(gum choose --no-limit "${options[@]}" < /dev/tty 2>/dev/null || true)
+    # Note: don't suppress stderr as gum may need it for rendering
+    selected=$(gum choose --no-limit "${options[@]}" < /dev/tty) || true
 
     if [[ -z "$selected" ]]; then
         return 1
@@ -230,7 +231,7 @@ enable_plugins() {
     fi
 
     echo ""
-    echo "Enabling ${#plugins_to_enable[@]} plugins..."
+    echo "Installing ${#plugins_to_enable[@]} plugins..."
     echo ""
 
     local success=0
@@ -239,7 +240,7 @@ enable_plugins() {
     for plugin in "${plugins_to_enable[@]}"; do
         local full_name="${plugin}@${MARKETPLACE}"
         local error_output
-        if error_output=$(claudeup enable "$full_name" 2>&1); then
+        if error_output=$(claude plugin install "$full_name" 2>&1); then
             echo "  ✓ $full_name"
             ((success++))
         else
@@ -256,7 +257,7 @@ enable_plugins() {
 
     echo ""
     echo "Setup complete!"
-    echo "  Enabled: $success plugins"
+    echo "  Installed: $success plugins"
     if [[ $failed -gt 0 ]]; then
         echo "  Failed:  $failed plugins"
         echo ""
