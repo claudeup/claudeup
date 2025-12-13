@@ -3,6 +3,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -62,22 +63,25 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 
 	diff := &Diff{}
 
-	// Plugins to remove (in current but not in profile)
-	currentPlugins := toSet(current.Plugins)
-	profilePlugins := toSet(profile.Plugins)
+	// Skip plugin diff if profile opts out (e.g., wizard-managed plugins)
+	if !profile.SkipPluginDiff {
+		// Plugins to remove (in current but not in profile)
+		currentPlugins := toSet(current.Plugins)
+		profilePlugins := toSet(profile.Plugins)
 
-	for plugin := range currentPlugins {
-		if _, exists := profilePlugins[plugin]; !exists {
-			diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
+		for plugin := range currentPlugins {
+			if _, exists := profilePlugins[plugin]; !exists {
+				diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
+			}
 		}
-	}
 
-	// Plugins to install - always include ALL profile plugins to ensure
-	// they're properly registered with Claude CLI, even if they appear
-	// in the current state (they may be in a broken state where JSON
-	// shows them but Claude CLI doesn't recognize them)
-	for plugin := range profilePlugins {
-		diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+		// Plugins to install - always include ALL profile plugins to ensure
+		// they're properly registered with Claude CLI, even if they appear
+		// in the current state (they may be in a broken state where JSON
+		// shows them but Claude CLI doesn't recognize them)
+		for plugin := range profilePlugins {
+			diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+		}
 	}
 
 	// MCP servers to remove/install
@@ -421,6 +425,9 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 		return result, nil
 	}
 
+	// Build lookup from repo to marketplace name for removal
+	repoToName := BuildRepoToNameLookup(claudeDir)
+
 	// Build marketplace suffixes to find matching plugins
 	marketplaceSuffixes := make(map[string]string) // suffix -> repo
 	for _, m := range profile.Marketplaces {
@@ -453,10 +460,16 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 		}
 	}
 
-	// Remove marketplaces
+	// Remove marketplaces using their registered name (not repo)
 	for _, m := range profile.Marketplaces {
 		if m.Repo != "" {
-			if err := executor.Run("plugin", "marketplace", "remove", m.Repo); err != nil {
+			// Look up the marketplace name from the registry
+			name, found := repoToName[m.Repo]
+			if !found {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: not found in registry", m.Repo))
+				continue
+			}
+			if err := executor.Run("plugin", "marketplace", "remove", name); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w", m.Repo, err))
 			} else {
 				result.MarketplacesRemoved = append(result.MarketplacesRemoved, m.Repo)
@@ -465,6 +478,33 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 	}
 
 	return result, nil
+}
+
+// BuildRepoToNameLookup reads known_marketplaces.json and builds a map from repo to name
+func BuildRepoToNameLookup(claudeDir string) map[string]string {
+	result := make(map[string]string)
+
+	marketplacesPath := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
+	data, err := os.ReadFile(marketplacesPath)
+	if err != nil {
+		return result
+	}
+
+	var registry MarketplaceRegistry
+	if err := json.Unmarshal(data, &registry); err != nil {
+		return result
+	}
+
+	for name, meta := range registry {
+		if meta.Source.Repo != "" {
+			result[meta.Source.Repo] = name
+		}
+		if meta.Source.URL != "" {
+			result[meta.Source.URL] = name
+		}
+	}
+
+	return result
 }
 
 // RunHook executes the post-apply hook

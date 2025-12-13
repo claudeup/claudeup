@@ -791,6 +791,9 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	// Get current state to show what plugins will be removed
 	current, _ := profile.Snapshot("current", claudeDir, claudeJSONPath)
 
+	// Build lookup from repo to marketplace name
+	repoToName := profile.BuildRepoToNameLookup(claudeDir)
+
 	// Find plugins that match profile's marketplaces
 	var pluginsToRemove []string
 	if current != nil {
@@ -819,7 +822,12 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 		fmt.Printf("    - MCP: %s\n", mcp.Name)
 	}
 	for _, m := range p.Marketplaces {
-		fmt.Printf("    - Marketplace: %s\n", m.DisplayName())
+		// Show the registered marketplace name, falling back to repo if not found
+		displayName := m.DisplayName()
+		if name, found := repoToName[m.Repo]; found {
+			displayName = name
+		}
+		fmt.Printf("    - Marketplace: %s\n", displayName)
 	}
 	fmt.Println()
 
