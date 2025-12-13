@@ -1,5 +1,5 @@
 // ABOUTME: Profile subcommands for managing Claude Code profiles
-// ABOUTME: Implements list, use, create, and show operations
+// ABOUTME: Implements list, use, save, and show operations
 package commands
 
 import (
@@ -39,11 +39,15 @@ var profileUseCmd = &cobra.Command{
 	RunE:  runProfileUse,
 }
 
-var profileCreateCmd = &cobra.Command{
-	Use:   "create <name>",
-	Short: "Create a profile from current state",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runProfileCreate,
+var profileSaveCmd = &cobra.Command{
+	Use:   "save [name]",
+	Short: "Save current Claude Code state to a profile",
+	Long: `Saves your current Claude Code configuration (plugins, MCP servers, marketplaces) to a profile.
+
+If no name is given, saves to the currently active profile.
+If the profile exists, prompts for confirmation unless -y is used.`,
+	Args: cobra.MaximumNArgs(1),
+	RunE: runProfileSave,
 }
 
 var profileShowCmd = &cobra.Command{
@@ -69,7 +73,7 @@ func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
 	profileCmd.AddCommand(profileUseCmd)
-	profileCmd.AddCommand(profileCreateCmd)
+	profileCmd.AddCommand(profileSaveCmd)
 	profileCmd.AddCommand(profileShowCmd)
 	profileCmd.AddCommand(profileSuggestCmd)
 	profileCmd.AddCommand(profileCurrentCmd)
@@ -115,7 +119,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	if len(userProfiles) == 0 && !hasBuiltIn {
 		fmt.Println("No profiles found.")
-		fmt.Println("Create one with: claudeup profile create <name>")
+		fmt.Println("Create one with: claudeup profile save <name>")
 		return nil
 	}
 
@@ -258,9 +262,22 @@ func cleanupStalePlugins(claudeDir string) {
 	}
 }
 
-func runProfileCreate(cmd *cobra.Command, args []string) error {
-	name := args[0]
+func runProfileSave(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
+
+	// Determine profile name
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		// Use active profile name
+		cfg, _ := config.Load()
+		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
+			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile use <name>' first")
+		}
+		name = cfg.Preferences.ActiveProfile
+		fmt.Printf("Saving to active profile: %s\n", name)
+	}
 
 	// Check if profile already exists
 	existingPath := filepath.Join(profilesDir, name+".json")
@@ -289,7 +306,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	fmt.Printf("✓ Created profile %q\n", name)
+	fmt.Printf("✓ Saved profile %q\n", name)
 	fmt.Println()
 	fmt.Printf("  MCP Servers:   %d\n", len(p.MCPServers))
 	fmt.Printf("  Marketplaces:  %d\n", len(p.Marketplaces))
@@ -403,7 +420,7 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 
 	if len(profiles) == 0 {
 		fmt.Println("No profiles available.")
-		fmt.Println("Create one with: claudeup profile create <name>")
+		fmt.Println("Create one with: claudeup profile save <name>")
 		return nil
 	}
 
