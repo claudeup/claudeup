@@ -159,7 +159,8 @@ select_with_gum() {
 # Interactive selection using basic prompts (fallback)
 select_with_prompts() {
     while true; do
-        clear
+        # Only clear screen if we have a real terminal
+        [ -t 1 ] && clear
         print_header
         echo "Select development categories (enter numbers to toggle):"
         echo ""
