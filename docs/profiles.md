@@ -237,6 +237,47 @@ claudeup setup --profile backend
 
 If an existing Claude installation is detected, setup offers to save it as a profile before applying the new one.
 
+## Post-Apply Hooks
+
+Profiles can include hooks that run after the profile is applied. This enables interactive setup wizards, custom configuration, and automation.
+
+```json
+{
+  "postApply": {
+    "script": "setup.sh",
+    "condition": "first-run"
+  }
+}
+```
+
+### Hook Fields
+
+| Field | Description |
+|-------|-------------|
+| `script` | Path to a bash script (relative to profile). Takes precedence over `command`. |
+| `command` | Direct bash command to run (used if `script` is not set). |
+| `condition` | When to run: `"always"` (default) or `"first-run"` (only if no plugins from the profile's marketplaces are enabled). |
+
+### Hook Flags
+
+```bash
+# Force the hook to run even if first-run detection would skip it
+claudeup profile use myprofile --setup
+
+# Skip the hook entirely (for CI/scripting)
+claudeup profile use myprofile --no-interactive
+```
+
+### Security Considerations
+
+**Hooks execute arbitrary shell commands.** Only use profiles from trusted sources.
+
+- **Built-in profiles** (like `hobson`, `frontend`, `default`) are safe - they're embedded in the claudeup binary and reviewed by maintainers.
+- **User-created profiles** with hooks should only be shared with or used by people who trust the source.
+- **Downloaded profiles** from unknown sources could contain malicious hooks. Review the profile JSON before applying.
+
+When applying a profile with hooks, claudeup does not prompt for confirmation. If you're unsure about a profile's contents, use `claudeup profile show <name>` to inspect it first.
+
 ## Sandbox Integration
 
 Profiles can include sandbox-specific settings. See [Sandbox documentation](sandbox.md) for details.

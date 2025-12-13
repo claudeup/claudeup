@@ -150,15 +150,19 @@ select_with_prompts() {
         echo ""
         print_categories
         echo ""
-        echo "Commands: [1-8] Toggle category  [a] Select all  [n] Select none"
+        local max_idx=${#ALL_CATEGORIES[@]}
+        echo "Commands: [1-$max_idx] Toggle category  [a] Select all  [n] Select none"
         echo "          [c] Customize plugins  [Enter] Continue  [q] Quit"
         echo ""
         read -r -p "> " input
 
         case "$input" in
-            [1-8])
-                local idx=$((input - 1))
-                toggle_category "${ALL_CATEGORIES[$idx]}"
+            [1-9]|[1-9][0-9])
+                # Validate bounds before accessing array
+                if [[ "$input" -ge 1 && "$input" -le "$max_idx" ]]; then
+                    local idx=$((input - 1))
+                    toggle_category "${ALL_CATEGORIES[$idx]}"
+                fi
                 ;;
             a|A)
                 SELECTED_CATEGORIES_ARRAY=("${ALL_CATEGORIES[@]}")
