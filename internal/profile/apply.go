@@ -423,7 +423,7 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 	}
 
 	// Build lookup from repo to marketplace name for removal
-	repoToName := buildRepoToNameLookup(claudeDir)
+	repoToName := BuildRepoToNameLookup(claudeDir)
 
 	// Build marketplace suffixes to find matching plugins
 	marketplaceSuffixes := make(map[string]string) // suffix -> repo
@@ -477,8 +477,8 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 	return result, nil
 }
 
-// buildRepoToNameLookup reads known_marketplaces.json and builds a map from repo to name
-func buildRepoToNameLookup(claudeDir string) map[string]string {
+// BuildRepoToNameLookup reads known_marketplaces.json and builds a map from repo to name
+func BuildRepoToNameLookup(claudeDir string) map[string]string {
 	result := make(map[string]string)
 
 	marketplacesPath := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
