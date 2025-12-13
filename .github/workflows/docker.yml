@@ -36,11 +36,12 @@ jobs:
       with:
         go-version: '1.25.1'
 
-    - name: Build claudeup binary for Linux
+    - name: Build claudeup binaries for Linux (multi-arch)
       env:
         VERSION: ${{ github.ref_name }}
       run: |
-        GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o docker/claudeup ./cmd/claudeup
+        GOOS=linux GOARCH=amd64 go build -ldflags "-X main.version=$VERSION" -o docker/claudeup-amd64 ./cmd/claudeup
+        GOOS=linux GOARCH=arm64 go build -ldflags "-X main.version=$VERSION" -o docker/claudeup-arm64 ./cmd/claudeup
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -67,6 +68,7 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: ./docker
+        platforms: linux/amd64,linux/arm64
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}

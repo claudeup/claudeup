@@ -18,9 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://claude.ai/install.sh | bash \
     && ln -s /root/.local/bin/claude /usr/local/bin/claude
 
-# Copy claudeup binary (built for linux-amd64)
-# This is provided during the docker build via --build-arg or copied in
-COPY claudeup /usr/local/bin/claudeup
+# Copy claudeup binary for the target architecture
+ARG TARGETARCH
+COPY claudeup-${TARGETARCH} /usr/local/bin/claudeup
 RUN chmod +x /usr/local/bin/claudeup
 
 # Set up working directory
