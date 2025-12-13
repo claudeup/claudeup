@@ -27,8 +27,8 @@ if command -v gum &> /dev/null && [ -t 0 ]; then
     HAS_GUM=true
 fi
 
-# Marketplace suffix for plugins
-MARKETPLACE="wshobson-agents"
+# Marketplace suffix for plugins (from wshobson/agents manifest)
+MARKETPLACE="claude-code-workflows"
 
 # All available categories
 ALL_CATEGORIES=(
