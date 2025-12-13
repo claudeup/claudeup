@@ -96,6 +96,21 @@ This is useful for:
 	RunE: runProfileReset,
 }
 
+var profileDeleteCmd = &cobra.Command{
+	Use:   "delete <name>",
+	Short: "Delete a user profile",
+	Long: `Deletes a user profile from disk.
+
+For customized built-in profiles, this restores the original built-in version.
+For custom profiles, this removes the profile entirely.
+
+Note: This only deletes the profile file. It does not uninstall any plugins
+or remove any configuration. Use 'profile reset' first if you want to
+remove the profile's installed components.`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileDelete,
+}
+
 // Flags for profile use command
 var (
 	profileUseSetup         bool
@@ -112,6 +127,7 @@ func init() {
 	profileCmd.AddCommand(profileSuggestCmd)
 	profileCmd.AddCommand(profileCurrentCmd)
 	profileCmd.AddCommand(profileResetCmd)
+	profileCmd.AddCommand(profileDeleteCmd)
 
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
 
@@ -164,19 +180,11 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Collect built-in profiles (ones not customized by user)
-	var builtInToShow []*profile.Profile
-	for _, p := range embeddedProfiles {
-		if !userProfileNames[p.Name] {
-			builtInToShow = append(builtInToShow, p)
-		}
-	}
-
-	// Show built-in profiles section
-	if len(builtInToShow) > 0 {
+	// Show built-in profiles section (all of them, noting which are customized)
+	if len(embeddedProfiles) > 0 {
 		fmt.Println("Built-in profiles:")
 		fmt.Println()
-		for _, p := range builtInToShow {
+		for _, p := range embeddedProfiles {
 			marker := "  "
 			if p.Name == activeProfile {
 				marker = "* "
@@ -185,16 +193,27 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if desc == "" {
 				desc = "(no description)"
 			}
-			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
+			customized := ""
+			if userProfileNames[p.Name] {
+				customized = " (customized)"
+			}
+			fmt.Printf("%s%-20s %s%s\n", marker, p.Name, desc, customized)
 		}
 		fmt.Println()
 	}
 
-	// Show user profiles section
-	if len(userProfiles) > 0 {
+	// Show user profiles section (only ones that aren't customized built-ins)
+	var customProfiles []*profile.Profile
+	for _, p := range userProfiles {
+		if !profile.IsEmbeddedProfile(p.Name) {
+			customProfiles = append(customProfiles, p)
+		}
+	}
+
+	if len(customProfiles) > 0 {
 		fmt.Println("Your profiles:")
 		fmt.Println()
-		for _, p := range userProfiles {
+		for _, p := range customProfiles {
 			marker := "  "
 			if p.Name == activeProfile {
 				marker = "* "
@@ -830,6 +849,61 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 
 	fmt.Println()
 	fmt.Println("✓ Profile reset complete!")
+
+	return nil
+}
+
+func runProfileDelete(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	profilesDir := getProfilesDir()
+
+	// Check if profile file exists on disk
+	profilePath := filepath.Join(profilesDir, name+".json")
+	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+		// Check if it's a built-in profile
+		if profile.IsEmbeddedProfile(name) {
+			return fmt.Errorf("profile %q is a built-in profile with no customizations to delete", name)
+		}
+		return fmt.Errorf("profile %q not found", name)
+	}
+
+	// Show what we're about to do
+	isBuiltIn := profile.IsEmbeddedProfile(name)
+	if isBuiltIn {
+		fmt.Printf("Delete customized profile: %s\n", name)
+		fmt.Println()
+		fmt.Println("  This will restore the original built-in version.")
+	} else {
+		fmt.Printf("Delete profile: %s\n", name)
+		fmt.Println()
+		fmt.Println("  This will permanently remove this profile.")
+	}
+	fmt.Println()
+
+	if !confirmProceed() {
+		fmt.Println("Cancelled.")
+		return nil
+	}
+
+	// Delete the file
+	if err := os.Remove(profilePath); err != nil {
+		return fmt.Errorf("failed to delete profile: %w", err)
+	}
+
+	// Clear active profile if it matches
+	cfg, _ := config.Load()
+	if cfg != nil && cfg.Preferences.ActiveProfile == name {
+		cfg.Preferences.ActiveProfile = ""
+		if err := config.Save(cfg); err != nil {
+			fmt.Printf("  ⚠ Could not clear active profile: %v\n", err)
+		}
+	}
+
+	if isBuiltIn {
+		fmt.Printf("✓ Restored built-in profile %q\n", name)
+	} else {
+		fmt.Printf("✓ Deleted profile %q\n", name)
+	}
 
 	return nil
 }

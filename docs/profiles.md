@@ -15,6 +15,7 @@ claudeup profile show <name>       # Show profile contents
 claudeup profile create <name>     # Save current setup as a profile
 claudeup profile use <name>        # Apply a profile (replaces current config)
 claudeup profile reset <name>      # Remove everything a profile installed
+claudeup profile delete <name>     # Delete a user profile (restore built-in if customized)
 claudeup profile suggest           # Get profile suggestion based on project
 ```
 
@@ -315,6 +316,52 @@ Reset profile: hobson
 
 Proceed? [y]:
 ```
+
+## Deleting Profiles
+
+Use `profile delete` to remove a user profile:
+
+```bash
+# Delete a custom profile (permanent)
+claudeup profile delete my-workflow
+
+# Remove customizations from a built-in profile (restores original)
+claudeup profile delete frontend
+```
+
+### Understanding Built-in vs Custom Profiles
+
+**Built-in profiles** (like `default`, `frontend`, `hobson`) are embedded in the claudeup binary. They always exist and cannot be deleted - only customized.
+
+When you modify a built-in profile (e.g., by saving over it), a custom file is created in `~/.claudeup/profiles/` that shadows the built-in. The profile list shows these as "(customized)".
+
+**Deleting profiles:**
+- **Custom profile** → permanently removes the profile
+- **Customized built-in** → removes your custom file, original built-in is immediately restored
+- **Unmodified built-in** → error (nothing to delete - it's embedded in the binary)
+
+### Reset vs Delete
+
+These commands serve different purposes:
+
+| Command | What it does |
+|---------|--------------|
+| `profile reset` | Uninstalls components (plugins, MCP servers, marketplaces) that a profile would install |
+| `profile delete` | Removes the profile file itself |
+
+**To fully restore a customized built-in profile:**
+```bash
+# 1. Remove installed components
+claudeup profile reset frontend
+
+# 2. Remove your customizations (restores original definition)
+claudeup profile delete frontend
+
+# 3. Reinstall from the original built-in
+claudeup profile use frontend
+```
+
+**Note:** If you only want to restore the profile definition without changing what's installed, just run `profile delete`.
 
 ## Sandbox Integration
 
