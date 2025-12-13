@@ -131,8 +131,12 @@ select_with_gum() {
     echo "Select development categories (space to toggle, enter to confirm):"
     echo ""
 
+    # Drain any buffered input from previous prompts
+    while read -t 0.1 -n 1000 discard < /dev/tty 2>/dev/null; do :; done
+
     local selected
-    selected=$(gum choose --no-limit "${options[@]}" 2>/dev/null || true)
+    # Read from /dev/tty explicitly to ensure clean terminal input
+    selected=$(gum choose --no-limit "${options[@]}" < /dev/tty 2>/dev/null || true)
 
     if [[ -z "$selected" ]]; then
         return 1
