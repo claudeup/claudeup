@@ -546,6 +546,11 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 	}
 	input = strings.TrimSpace(input)
 
+	// Validate non-empty input
+	if input == "" {
+		return nil, fmt.Errorf("no selection made")
+	}
+
 	// Try as number first
 	if num, err := strconv.Atoi(input); err == nil {
 		if num >= 1 && num <= len(profiles) {
