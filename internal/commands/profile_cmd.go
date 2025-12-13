@@ -228,6 +228,20 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Prepare hook options and check if hook should run BEFORE applying
+	// This captures the pre-apply state for first-run detection
+	hookOpts := profile.HookOptions{
+		ForceSetup:    profileUseSetup,
+		NoInteractive: profileUseNoInteractive,
+		ScriptDir:     profile.GetEmbeddedProfileScriptDir(name),
+	}
+	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
+
+	// Clean up extracted scripts when done
+	if hookOpts.ScriptDir != "" {
+		defer os.RemoveAll(hookOpts.ScriptDir)
+	}
+
 	// Apply
 	fmt.Println()
 	fmt.Println("Applying profile...")
@@ -256,19 +270,8 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("✓ Profile applied!")
 
-	// Run post-apply hook if applicable
-	hookOpts := profile.HookOptions{
-		ForceSetup:    profileUseSetup,
-		NoInteractive: profileUseNoInteractive,
-		ScriptDir:     profile.GetEmbeddedProfileScriptDir(name),
-	}
-
-	// Clean up extracted scripts when done
-	if hookOpts.ScriptDir != "" {
-		defer os.RemoveAll(hookOpts.ScriptDir)
-	}
-
-	if profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts) {
+	// Run post-apply hook if applicable (decision was made before apply)
+	if shouldRunHook {
 		fmt.Println()
 		if err := profile.RunHook(p, hookOpts); err != nil {
 			fmt.Printf("  ✗ Post-apply hook failed: %v\n", err)
