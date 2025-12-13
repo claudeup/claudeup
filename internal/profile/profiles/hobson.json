@@ -4,7 +4,7 @@
   "marketplaces": [
     {"source": "github", "repo": "wshobson/agents"}
   ],
-  "plugins": [],
+  "skipPluginDiff": true,
   "postApply": {
     "script": "hobson-setup.sh",
     "condition": "first-run"

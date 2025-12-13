@@ -63,22 +63,25 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 
 	diff := &Diff{}
 
-	// Plugins to remove (in current but not in profile)
-	currentPlugins := toSet(current.Plugins)
-	profilePlugins := toSet(profile.Plugins)
+	// Skip plugin diff if profile opts out (e.g., wizard-managed plugins)
+	if !profile.SkipPluginDiff {
+		// Plugins to remove (in current but not in profile)
+		currentPlugins := toSet(current.Plugins)
+		profilePlugins := toSet(profile.Plugins)
 
-	for plugin := range currentPlugins {
-		if _, exists := profilePlugins[plugin]; !exists {
-			diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
+		for plugin := range currentPlugins {
+			if _, exists := profilePlugins[plugin]; !exists {
+				diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
+			}
 		}
-	}
 
-	// Plugins to install - always include ALL profile plugins to ensure
-	// they're properly registered with Claude CLI, even if they appear
-	// in the current state (they may be in a broken state where JSON
-	// shows them but Claude CLI doesn't recognize them)
-	for plugin := range profilePlugins {
-		diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+		// Plugins to install - always include ALL profile plugins to ensure
+		// they're properly registered with Claude CLI, even if they appear
+		// in the current state (they may be in a broken state where JSON
+		// shows them but Claude CLI doesn't recognize them)
+		for plugin := range profilePlugins {
+			diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+		}
 	}
 
 	// MCP servers to remove/install

@@ -12,14 +12,15 @@ import (
 
 // Profile represents a Claude Code configuration profile
 type Profile struct {
-	Name         string         `json:"name"`
-	Description  string         `json:"description,omitempty"`
-	MCPServers   []MCPServer    `json:"mcpServers,omitempty"`
-	Marketplaces []Marketplace  `json:"marketplaces,omitempty"`
-	Plugins      []string       `json:"plugins,omitempty"`
-	Detect       DetectRules    `json:"detect,omitempty"`
-	Sandbox      SandboxConfig  `json:"sandbox,omitempty"`
-	PostApply    *PostApplyHook `json:"postApply,omitempty"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description,omitempty"`
+	MCPServers     []MCPServer    `json:"mcpServers,omitempty"`
+	Marketplaces   []Marketplace  `json:"marketplaces,omitempty"`
+	Plugins        []string       `json:"plugins,omitempty"`
+	SkipPluginDiff bool           `json:"skipPluginDiff,omitempty"` // If true, don't add/remove plugins (managed externally e.g. by wizard)
+	Detect         DetectRules    `json:"detect,omitempty"`
+	Sandbox        SandboxConfig  `json:"sandbox,omitempty"`
+	PostApply      *PostApplyHook `json:"postApply,omitempty"`
 }
 
 // PostApplyHook defines a hook to run after a profile is applied.
