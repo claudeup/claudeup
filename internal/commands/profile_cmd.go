@@ -240,6 +240,11 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		ScriptDir:     profile.GetEmbeddedProfileScriptDir(name),
 	}
 
+	// Clean up extracted scripts when done
+	if hookOpts.ScriptDir != "" {
+		defer os.RemoveAll(hookOpts.ScriptDir)
+	}
+
 	if profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts) {
 		fmt.Println()
 		if err := profile.RunHook(p, hookOpts); err != nil {

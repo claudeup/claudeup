@@ -103,7 +103,7 @@ func ListEmbeddedProfiles() ([]*Profile, error) {
 }
 
 // GetEmbeddedProfileScriptDir extracts embedded scripts for a profile to a temp directory
-// Returns empty string if no scripts exist for the profile
+// Returns empty string if no scripts exist or extraction fails
 func GetEmbeddedProfileScriptDir(profileName string) string {
 	// Check if scripts directory exists for this profile
 	scriptDir := "profiles/scripts/" + profileName
@@ -118,7 +118,8 @@ func GetEmbeddedProfileScriptDir(profileName string) string {
 		return ""
 	}
 
-	// Extract scripts
+	// Extract scripts, tracking success
+	extractedCount := 0
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -133,6 +134,13 @@ func GetEmbeddedProfileScriptDir(profileName string) string {
 		if err := os.WriteFile(destPath, data, 0755); err != nil {
 			continue
 		}
+		extractedCount++
+	}
+
+	// If no scripts were extracted, clean up and return empty
+	if extractedCount == 0 {
+		os.RemoveAll(tempDir)
+		return ""
 	}
 
 	return tempDir

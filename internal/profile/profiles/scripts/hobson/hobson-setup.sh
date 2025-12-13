@@ -13,6 +13,18 @@ fi
 # Marketplace suffix for plugins
 MARKETPLACE="wshobson-agents"
 
+# All available categories
+ALL_CATEGORIES=(
+    "Core Development"
+    "Quality & Testing"
+    "AI & Machine Learning"
+    "Infrastructure & DevOps"
+    "Security & Compliance"
+    "Data & Databases"
+    "Languages"
+    "Business & Specialty"
+)
+
 # Category definitions - maps theme names to plugin lists
 declare -A CATEGORIES
 CATEGORIES["Core Development"]="code-documentation debugging-toolkit git-pr-workflows backend-development frontend-mobile-development full-stack-orchestration code-refactoring dependency-management error-debugging team-collaboration documentation-generation c4-architecture multi-platform-apps developer-essentials"
@@ -35,8 +47,8 @@ CATEGORY_DESCRIPTIONS["Data & Databases"]="ETL, schema design, migrations"
 CATEGORY_DESCRIPTIONS["Languages"]="Python, JS/TS, Go, Rust, etc."
 CATEGORY_DESCRIPTIONS["Business & Specialty"]="SEO, analytics, blockchain, gaming"
 
-# Selected categories (space-separated names)
-SELECTED_CATEGORIES=""
+# Selected categories (stored as array)
+declare -a SELECTED_CATEGORIES_ARRAY=()
 
 # Print header
 print_header() {
@@ -47,12 +59,23 @@ print_header() {
     echo ""
 }
 
+# Check if category is selected
+is_selected() {
+    local category="$1"
+    for selected in "${SELECTED_CATEGORIES_ARRAY[@]}"; do
+        if [[ "$selected" == "$category" ]]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Print category list with checkboxes
 print_categories() {
     local idx=1
-    for category in "Core Development" "Quality & Testing" "AI & Machine Learning" "Infrastructure & DevOps" "Security & Compliance" "Data & Databases" "Languages" "Business & Specialty"; do
+    for category in "${ALL_CATEGORIES[@]}"; do
         local marker="[ ]"
-        if [[ " $SELECTED_CATEGORIES " == *" $category "* ]]; then
+        if is_selected "$category"; then
             marker="[x]"
         fi
         local desc="${CATEGORY_DESCRIPTIONS[$category]}"
@@ -64,28 +87,26 @@ print_categories() {
 # Toggle category selection
 toggle_category() {
     local category="$1"
-    if [[ " $SELECTED_CATEGORIES " == *" $category "* ]]; then
+    if is_selected "$category"; then
         # Remove category
-        SELECTED_CATEGORIES="${SELECTED_CATEGORIES// $category / }"
-        SELECTED_CATEGORIES="${SELECTED_CATEGORIES/#$category /}"
-        SELECTED_CATEGORIES="${SELECTED_CATEGORIES/% $category/}"
-        SELECTED_CATEGORIES="${SELECTED_CATEGORIES/$category/}"
+        local new_array=()
+        for selected in "${SELECTED_CATEGORIES_ARRAY[@]}"; do
+            if [[ "$selected" != "$category" ]]; then
+                new_array+=("$selected")
+            fi
+        done
+        SELECTED_CATEGORIES_ARRAY=("${new_array[@]}")
     else
         # Add category
-        if [[ -z "$SELECTED_CATEGORIES" ]]; then
-            SELECTED_CATEGORIES="$category"
-        else
-            SELECTED_CATEGORIES="$SELECTED_CATEGORIES $category"
-        fi
+        SELECTED_CATEGORIES_ARRAY+=("$category")
     fi
 }
 
 # Interactive selection using gum
 select_with_gum() {
-    local categories=("Core Development" "Quality & Testing" "AI & Machine Learning" "Infrastructure & DevOps" "Security & Compliance" "Data & Databases" "Languages" "Business & Specialty")
     local options=()
 
-    for category in "${categories[@]}"; do
+    for category in "${ALL_CATEGORIES[@]}"; do
         local desc="${CATEGORY_DESCRIPTIONS[$category]}"
         options+=("$category ($desc)")
     done
@@ -101,16 +122,12 @@ select_with_gum() {
     fi
 
     # Parse selected options back to category names
-    SELECTED_CATEGORIES=""
+    SELECTED_CATEGORIES_ARRAY=()
     while IFS= read -r line; do
         # Extract category name before the parenthesis
         local cat_name="${line%% (*}"
         if [[ -n "$cat_name" ]]; then
-            if [[ -z "$SELECTED_CATEGORIES" ]]; then
-                SELECTED_CATEGORIES="$cat_name"
-            else
-                SELECTED_CATEGORIES="$SELECTED_CATEGORIES|$cat_name"
-            fi
+            SELECTED_CATEGORIES_ARRAY+=("$cat_name")
         fi
     done <<< "$selected"
 
@@ -119,8 +136,6 @@ select_with_gum() {
 
 # Interactive selection using basic prompts (fallback)
 select_with_prompts() {
-    local categories=("Core Development" "Quality & Testing" "AI & Machine Learning" "Infrastructure & DevOps" "Security & Compliance" "Data & Databases" "Languages" "Business & Specialty")
-
     while true; do
         clear
         print_header
@@ -136,16 +151,16 @@ select_with_prompts() {
         case "$input" in
             [1-8])
                 local idx=$((input - 1))
-                toggle_category "${categories[$idx]}"
+                toggle_category "${ALL_CATEGORIES[$idx]}"
                 ;;
             a|A)
-                SELECTED_CATEGORIES="Core Development Quality & Testing AI & Machine Learning Infrastructure & DevOps Security & Compliance Data & Databases Languages Business & Specialty"
+                SELECTED_CATEGORIES_ARRAY=("${ALL_CATEGORIES[@]}")
                 ;;
             n|N)
-                SELECTED_CATEGORIES=""
+                SELECTED_CATEGORIES_ARRAY=()
                 ;;
             c|C)
-                if [[ -z "$SELECTED_CATEGORIES" ]]; then
+                if [[ ${#SELECTED_CATEGORIES_ARRAY[@]} -eq 0 ]]; then
                     echo "Please select at least one category first."
                     sleep 1
                 else
@@ -157,7 +172,7 @@ select_with_prompts() {
                 exit 0
                 ;;
             "")
-                if [[ -z "$SELECTED_CATEGORIES" ]]; then
+                if [[ ${#SELECTED_CATEGORIES_ARRAY[@]} -eq 0 ]]; then
                     echo "Please select at least one category."
                     sleep 1
                 else
@@ -169,73 +184,23 @@ select_with_prompts() {
 }
 
 # Enable plugins for selected categories
+# Returns: 0 if all plugins enabled successfully, 1 if any failed
 enable_plugins() {
     local plugins_to_enable=()
 
     # Collect all plugins from selected categories
-    # Handle both space-separated (basic) and pipe-separated (gum) formats
-    local IFS_ORIG="$IFS"
-    if [[ "$SELECTED_CATEGORIES" == *"|"* ]]; then
-        IFS="|"
-    else
-        # For space-separated, we need to handle multi-word category names
-        # Convert to array manually
-        local temp_categories=()
-        for category in "Core Development" "Quality & Testing" "AI & Machine Learning" "Infrastructure & DevOps" "Security & Compliance" "Data & Databases" "Languages" "Business & Specialty"; do
-            if [[ " $SELECTED_CATEGORIES " == *"$category"* ]]; then
-                temp_categories+=("$category")
-            fi
-        done
-
-        for category in "${temp_categories[@]}"; do
-            local category_plugins="${CATEGORIES[$category]}"
-            for plugin in $category_plugins; do
-                plugins_to_enable+=("$plugin")
-            done
-        done
-
-        IFS="$IFS_ORIG"
-
-        # Enable the plugins
-        echo ""
-        echo "Enabling ${#plugins_to_enable[@]} plugins..."
-        echo ""
-
-        local success=0
-        local failed=0
-
-        for plugin in "${plugins_to_enable[@]}"; do
-            local full_name="${plugin}@${MARKETPLACE}"
-            if claudeup enable "$full_name" > /dev/null 2>&1; then
-                echo "  ✓ $full_name"
-                ((success++))
-            else
-                echo "  ✗ $full_name (failed)"
-                ((failed++))
-            fi
-        done
-
-        echo ""
-        echo "Setup complete!"
-        echo "  Enabled: $success plugins"
-        if [[ $failed -gt 0 ]]; then
-            echo "  Failed:  $failed plugins"
-        fi
-        echo ""
-        echo "Run 'claudeup status' to see your configuration."
-        return
-    fi
-
-    # For pipe-separated (from gum)
-    for category in $SELECTED_CATEGORIES; do
+    for category in "${SELECTED_CATEGORIES_ARRAY[@]}"; do
         local category_plugins="${CATEGORIES[$category]}"
         for plugin in $category_plugins; do
             plugins_to_enable+=("$plugin")
         done
     done
-    IFS="$IFS_ORIG"
 
-    # Enable the plugins
+    if [[ ${#plugins_to_enable[@]} -eq 0 ]]; then
+        echo "No plugins to enable."
+        return 0
+    fi
+
     echo ""
     echo "Enabling ${#plugins_to_enable[@]} plugins..."
     echo ""
@@ -259,34 +224,38 @@ enable_plugins() {
     echo "  Enabled: $success plugins"
     if [[ $failed -gt 0 ]]; then
         echo "  Failed:  $failed plugins"
+        echo ""
+        echo "Run 'claudeup status' to see your configuration."
+        return 1
     fi
     echo ""
     echo "Run 'claudeup status' to see your configuration."
+    return 0
 }
 
 # Main execution
 main() {
     print_header
 
+    local selection_result=0
+
     if [[ "$HAS_GUM" == "true" ]]; then
-        if select_with_gum; then
-            enable_plugins
-        else
+        if ! select_with_gum; then
             echo "No categories selected. Setup cancelled."
             exit 0
         fi
     else
-        local result
         select_with_prompts
-        result=$?
+        selection_result=$?
 
-        if [[ $result -eq 0 ]]; then
-            enable_plugins
-        elif [[ $result -eq 2 ]]; then
-            # TODO: Implement per-plugin customization
+        if [[ $selection_result -eq 2 ]]; then
             echo "Per-plugin customization coming soon..."
-            enable_plugins
         fi
+    fi
+
+    # Enable plugins and exit with appropriate code
+    if ! enable_plugins; then
+        exit 1
     fi
 }
 
