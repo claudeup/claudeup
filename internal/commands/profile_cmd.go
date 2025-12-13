@@ -587,7 +587,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		// Explicit --from flag
 		sourceProfile, err = loadProfileWithFallback(profilesDir, profileCreateFromFlag)
 		if err != nil {
-			return fmt.Errorf("profile %q not found", profileCreateFromFlag)
+			return fmt.Errorf("profile %q not found: %w", profileCreateFromFlag, err)
 		}
 	} else if config.YesFlag {
 		// -y flag: use active profile

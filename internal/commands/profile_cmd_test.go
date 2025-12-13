@@ -5,6 +5,7 @@ package commands
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/claudeup/claudeup/internal/profile"
@@ -134,5 +135,129 @@ func TestPromptProfileSelection_ReturnsErrorOnEmptyInput(t *testing.T) {
 	expectedErr := "no selection made"
 	if err.Error() != expectedErr {
 		t.Errorf("Expected error %q, got %q", expectedErr, err.Error())
+	}
+}
+
+func TestPromptProfileSelection_ReturnsErrorOnInvalidNumber(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	os.MkdirAll(profilesDir, 0755)
+
+	// Create a single profile
+	testProfile := &profile.Profile{
+		Name:        "test-profile",
+		Description: "Test profile",
+	}
+	if err := profile.Save(profilesDir, testProfile); err != nil {
+		t.Fatalf("Failed to save test profile: %v", err)
+	}
+
+	tests := []struct {
+		name        string
+		input       string
+		errContains string
+	}{
+		{"zero", "0\n", "invalid selection: 0"},
+		{"negative", "-1\n", "invalid selection: -1"},
+		{"too large", "999\n", "invalid selection: 999"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatalf("Failed to create pipe: %v", err)
+			}
+
+			w.WriteString(tt.input)
+			w.Close()
+
+			oldStdin := os.Stdin
+			os.Stdin = r
+			defer func() { os.Stdin = oldStdin }()
+
+			_, err = promptProfileSelection(profilesDir, "new-profile")
+			if err == nil {
+				t.Errorf("Expected error for input %q, got nil", tt.input)
+				return
+			}
+
+			if !strings.Contains(err.Error(), tt.errContains) {
+				t.Errorf("Expected error containing %q, got %q", tt.errContains, err.Error())
+			}
+		})
+	}
+}
+
+func TestPromptProfileSelection_ReturnsErrorOnInvalidName(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	os.MkdirAll(profilesDir, 0755)
+
+	// Create a profile
+	testProfile := &profile.Profile{
+		Name:        "test-profile",
+		Description: "Test profile",
+	}
+	if err := profile.Save(profilesDir, testProfile); err != nil {
+		t.Fatalf("Failed to save test profile: %v", err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+
+	w.WriteString("nonexistent-profile\n")
+	w.Close()
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	_, err = promptProfileSelection(profilesDir, "new-profile")
+	if err == nil {
+		t.Error("Expected error for nonexistent profile name, got nil")
+		return
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected error containing 'not found', got %q", err.Error())
+	}
+}
+
+func TestPromptProfileSelection_ReturnsErrorOnIOError(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	os.MkdirAll(profilesDir, 0755)
+
+	// Create a profile
+	testProfile := &profile.Profile{
+		Name:        "test-profile",
+		Description: "Test profile",
+	}
+	if err := profile.Save(profilesDir, testProfile); err != nil {
+		t.Fatalf("Failed to save test profile: %v", err)
+	}
+
+	// Create a pipe and close the write end immediately to simulate EOF
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	w.Close() // Close immediately - no data written
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	_, err = promptProfileSelection(profilesDir, "new-profile")
+	if err == nil {
+		t.Error("Expected error for EOF, got nil")
+		return
+	}
+
+	if !strings.Contains(err.Error(), "failed to read input") {
+		t.Errorf("Expected error containing 'failed to read input', got %q", err.Error())
 	}
 }
