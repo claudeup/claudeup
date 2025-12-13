@@ -23,11 +23,17 @@ jobs:
       with:
         go-version: '1.25.1'
 
+    - name: Install Ginkgo CLI
+      run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+
     - name: Run unit tests
       run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./internal/...
 
-    - name: Run integration tests
-      run: go test -v ./test/integration/...
+    - name: Run integration tests (Ginkgo)
+      run: ginkgo -v --race ./test/integration/...
+
+    - name: Run acceptance tests (Ginkgo)
+      run: ginkgo -v ./test/acceptance/...
 
     - name: Upload coverage
       uses: codecov/codecov-action@v4
