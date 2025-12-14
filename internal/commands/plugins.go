@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -65,50 +66,56 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 
 	// If summary only, just show stats
 	if pluginsSummary {
-		fmt.Println("=== Plugin Summary ===")
-		fmt.Printf("\nTotal:   %d plugins\n", len(names))
-		fmt.Printf("Enabled: %d\n", enabledCount)
+		fmt.Println(ui.RenderHeader("Plugin Summary"))
+		fmt.Println()
+		fmt.Println(ui.RenderDetail("Total", fmt.Sprintf("%d plugins", len(names))))
+		fmt.Println(ui.RenderDetail("Enabled", fmt.Sprintf("%d", enabledCount)))
 		if staleCount > 0 {
-			fmt.Printf("Stale:   %d\n", staleCount)
+			fmt.Println(ui.RenderDetail("Stale", fmt.Sprintf("%d", staleCount)))
 		}
-		fmt.Printf("\nBy Type:\n")
-		fmt.Printf("  Cached: %d (copied to ~/.claude/plugins/cache/)\n", cachedCount)
-		fmt.Printf("  Local:  %d (referenced from marketplace)\n", localCount)
+		fmt.Println()
+		fmt.Println(ui.Bold("By Type:"))
+		fmt.Println(ui.Indent(fmt.Sprintf("Cached: %d %s", cachedCount, ui.Muted("(copied to ~/.claude/plugins/cache/)")), 1))
+		fmt.Println(ui.Indent(fmt.Sprintf("Local:  %d %s", localCount, ui.Muted("(referenced from marketplace)")), 1))
 		return nil
 	}
 
 	// Print header
-	fmt.Printf("=== Installed Plugins (%d) ===\n\n", len(names))
+	fmt.Println(ui.RenderSection("Installed Plugins", len(names)))
+	fmt.Println()
 
 	// Print each plugin
 	for _, name := range names {
 		plugin := allPlugins[name]
-		status := "✓"
-		statusText := "enabled"
+		var statusSymbol, statusText string
 
-		if !plugin.PathExists() {
-			status = "✗"
-			statusText = "stale (path not found)"
-		}
-
-		fmt.Printf("%s %s\n", status, name)
-		fmt.Printf("   Version:    %s\n", plugin.Version)
-		fmt.Printf("   Status:     %s\n", statusText)
-		fmt.Printf("   Path:       %s\n", plugin.InstallPath)
-		fmt.Printf("   Installed:  %s\n", plugin.InstalledAt)
-		if plugin.IsLocal {
-			fmt.Printf("   Type:       local\n")
+		if plugin.PathExists() {
+			statusSymbol = ui.Success(ui.SymbolSuccess)
+			statusText = "enabled"
 		} else {
-			fmt.Printf("   Type:       cached\n")
+			statusSymbol = ui.Error(ui.SymbolError)
+			statusText = ui.Error("stale (path not found)")
 		}
+
+		fmt.Printf("%s %s\n", statusSymbol, ui.Bold(name))
+		fmt.Println(ui.Indent(ui.RenderDetail("Version", plugin.Version), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Status", statusText), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Path", ui.Muted(plugin.InstallPath)), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Installed", ui.Muted(plugin.InstalledAt)), 1))
+
+		pluginType := "cached"
+		if plugin.IsLocal {
+			pluginType = "local"
+		}
+		fmt.Println(ui.Indent(ui.RenderDetail("Type", pluginType), 1))
 		fmt.Println()
 	}
 
 	// Print summary at the end
-	fmt.Println("━━━ Summary ━━━")
+	fmt.Println(ui.RenderSection("Summary", -1))
 	fmt.Printf("Total: %d plugins (%d cached, %d local)\n", len(names), cachedCount, localCount)
 	if staleCount > 0 {
-		fmt.Printf("⚠ %d stale plugins detected\n", staleCount)
+		ui.PrintWarning(fmt.Sprintf("%d stale plugins detected", staleCount))
 	}
 
 	return nil
