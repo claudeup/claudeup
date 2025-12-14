@@ -85,7 +85,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 	})
 
 	// Print header
-	fmt.Println("=== MCP Servers by Plugin ===")
+	fmt.Println("MCP Servers by Plugin")
 
 	// Count total servers
 	totalServers := 0

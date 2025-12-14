@@ -44,7 +44,7 @@ func runMarketplaceList(cmd *cobra.Command, args []string) error {
 	sort.Strings(names)
 
 	// Print header
-	fmt.Printf("=== Installed Marketplaces (%d) ===\n\n", len(names))
+	fmt.Printf("Installed Marketplaces (%d)\n\n", len(names))
 
 	// Print each marketplace
 	for _, name := range names {
