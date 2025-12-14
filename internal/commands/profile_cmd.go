@@ -13,6 +13,7 @@ import (
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -292,7 +293,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	// Users should know about hooks before seeing the diff
 	if p.PostApply != nil && !profile.IsEmbeddedProfile(name) {
 		fmt.Println()
-		fmt.Println("⚠ Security Warning: This profile contains a post-apply hook.")
+		ui.PrintWarning("Security Warning: This profile contains a post-apply hook.")
 		fmt.Println("  Hooks execute arbitrary commands on your system.")
 		fmt.Println("  Only proceed if you trust the source of this profile.")
 		if p.PostApply.Script != "" {
@@ -366,20 +367,20 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	}
 	cfg.Preferences.ActiveProfile = name
 	if err := config.Save(cfg); err != nil {
-		fmt.Printf("  ⚠ Could not save active profile: %v\n", err)
+		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 	}
 
 	// Silently clean up stale plugin entries
 	cleanupStalePlugins(claudeDir)
 
 	fmt.Println()
-	fmt.Println("✓ Profile applied!")
+	ui.PrintSuccess("Profile applied!")
 
 	// Run post-apply hook if applicable (decision was made before apply)
 	if shouldRunHook {
 		fmt.Println()
 		if err := profile.RunHook(p, hookOpts); err != nil {
-			fmt.Printf("  ✗ Post-apply hook failed: %v\n", err)
+			ui.PrintError(fmt.Sprintf("Post-apply hook failed: %v", err))
 			return fmt.Errorf("hook execution failed: %w", err)
 		}
 	}
@@ -467,7 +468,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	fmt.Printf("✓ Saved profile %q\n", name)
+	ui.PrintSuccess(fmt.Sprintf("Saved profile %q", name))
 	fmt.Println()
 	fmt.Printf("  MCP Servers:   %d\n", len(p.MCPServers))
 	fmt.Printf("  Marketplaces:  %d\n", len(p.Marketplaces))
@@ -775,7 +776,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	fmt.Printf("✓ Created profile %q (based on %q)\n", name, sourceProfile.Name)
+	ui.PrintSuccess(fmt.Sprintf("Created profile %q (based on %q)", name, sourceProfile.Name))
 	fmt.Println()
 	fmt.Printf("  MCP Servers:   %d\n", len(newProfile.MCPServers))
 	fmt.Printf("  Marketplaces:  %d\n", len(newProfile.Marketplaces))
@@ -908,7 +909,7 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("Some errors occurred:")
 		for _, err := range result.Errors {
-			fmt.Printf("  ✗ %v\n", err)
+			ui.PrintError(fmt.Sprintf("%v", err))
 		}
 	}
 
@@ -917,12 +918,12 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile == name {
 		cfg.Preferences.ActiveProfile = ""
 		if err := config.Save(cfg); err != nil {
-			fmt.Printf("  ⚠ Could not clear active profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
 		}
 	}
 
 	fmt.Println()
-	fmt.Println("✓ Profile reset complete!")
+	ui.PrintSuccess("Profile reset complete!")
 
 	return nil
 }
@@ -968,11 +969,11 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile == name {
 		cfg.Preferences.ActiveProfile = ""
 		if err := config.Save(cfg); err != nil {
-			fmt.Printf("  ⚠ Could not clear active profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
 		}
 	}
 
-	fmt.Printf("✓ Deleted profile %q\n", name)
+	ui.PrintSuccess(fmt.Sprintf("Deleted profile %q", name))
 
 	return nil
 }
@@ -1014,7 +1015,7 @@ func runProfileRestore(cmd *cobra.Command, args []string) error {
 		// Keep the active profile set - it will now use the built-in version
 	}
 
-	fmt.Printf("✓ Restored built-in profile %q\n", name)
+	ui.PrintSuccess(fmt.Sprintf("Restored built-in profile %q", name))
 
 	return nil
 }
@@ -1079,11 +1080,11 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile == oldName {
 		cfg.Preferences.ActiveProfile = newName
 		if err := config.Save(cfg); err != nil {
-			fmt.Printf("  ⚠ Could not update active profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not update active profile: %v", err))
 		}
 	}
 
-	fmt.Printf("✓ Renamed profile %q to %q\n", oldName, newName)
+	ui.PrintSuccess(fmt.Sprintf("Renamed profile %q to %q", oldName, newName))
 
 	return nil
 }
