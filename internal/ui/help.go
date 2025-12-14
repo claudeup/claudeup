@@ -52,6 +52,7 @@ func SetupHelpTemplate(cmd *cobra.Command) {
 	cobra.AddTemplateFunc("styleDesc", styleDesc)
 	cobra.AddTemplateFunc("styleExample", styleExample)
 	cobra.AddTemplateFunc("styleError", styleError)
+	cobra.AddTemplateFunc("styleLong", styleLong)
 
 	// Set custom error message prefix with styling
 	cmd.SetErrPrefix(helpErrorStyle.Render("Error:"))
@@ -94,6 +95,33 @@ func styleError(s string) string {
 	return helpErrorStyle.Render(s)
 }
 
+func styleLong(s string) string {
+	// Style the long description with structure awareness
+	lines := strings.Split(s, "\n")
+	var styled []string
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if i == 0 && trimmed != "" {
+			// First non-empty line is the summary - style as title
+			styled = append(styled, helpTitleStyle.Render(line))
+		} else if strings.HasSuffix(trimmed, ":") && !strings.HasPrefix(trimmed, "-") {
+			// Lines ending with colon are sub-headings (e.g., "Shows:")
+			styled = append(styled, helpHeadingStyle.Render(line))
+		} else if strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "•") {
+			// Bullet points - keep muted
+			styled = append(styled, helpDescStyle.Render(line))
+		} else if trimmed == "" {
+			// Empty lines
+			styled = append(styled, line)
+		} else {
+			// Other text - muted
+			styled = append(styled, helpDescStyle.Render(line))
+		}
+	}
+	return strings.Join(styled, "\n")
+}
+
 func styleExample(s string) string {
 	// Indent and style example lines
 	lines := strings.Split(s, "\n")
@@ -125,7 +153,7 @@ func AddTemplateFuncs(cmd *cobra.Command) {
 	})
 }
 
-const helpTemplate = `{{if .Long}}{{.Long}}{{else}}{{.Short}}{{end}}
+const helpTemplate = `{{if .Long}}{{styleLong .Long}}{{else}}{{styleTitle .Short}}{{end}}
 
 {{styleHeading "Usage:"}}
   {{styleCommand .UseLine}}{{if .HasAvailableSubCommands}}
