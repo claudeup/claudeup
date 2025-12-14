@@ -225,27 +225,27 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(userProfiles) == 0 && !hasBuiltIn {
-		fmt.Println("No profiles found.")
-		fmt.Println("Create one with: claudeup profile save <name>")
+		ui.PrintInfo("No profiles found.")
+		fmt.Printf("  %s Create one with: claudeup profile save <name>\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
 	// Show built-in profiles section (all of them, noting which are customized)
 	if len(embeddedProfiles) > 0 {
-		fmt.Println("Built-in profiles:")
+		fmt.Println(ui.RenderSection("Built-in profiles", len(embeddedProfiles)))
 		fmt.Println()
 		for _, p := range embeddedProfiles {
 			marker := "  "
 			if p.Name == activeProfile {
-				marker = "* "
+				marker = ui.Success("* ")
 			}
 			desc := p.Description
 			if desc == "" {
-				desc = "(no description)"
+				desc = ui.Muted("(no description)")
 			}
 			customized := ""
 			if userProfileNames[p.Name] {
-				customized = " (customized)"
+				customized = ui.Info(" (customized)")
 			}
 			fmt.Printf("%s%-20s %s%s\n", marker, p.Name, desc, customized)
 		}
@@ -261,16 +261,16 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(customProfiles) > 0 {
-		fmt.Println("Your profiles:")
+		fmt.Println(ui.RenderSection("Your profiles", len(customProfiles)))
 		fmt.Println()
 		for _, p := range customProfiles {
 			marker := "  "
 			if p.Name == activeProfile {
-				marker = "* "
+				marker = ui.Success("* ")
 			}
 			desc := p.Description
 			if desc == "" {
-				desc = "(no description)"
+				desc = ui.Muted("(no description)")
 			}
 			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
 		}
@@ -279,13 +279,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Warn if user has a profile named "current" (now reserved)
 	if userProfileNames["current"] {
-		fmt.Println("Warning: Profile \"current\" uses a reserved name. Rename it with:")
+		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
 		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()
 	}
 
-	fmt.Println("Use 'claudeup profile show <name>' for details")
-	fmt.Println("Use 'claudeup profile use <name>' to apply a profile")
+	fmt.Printf("%s Use 'claudeup profile show <name>' for details\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile use <name>' to apply a profile\n", ui.Muted(ui.SymbolArrow))
 
 	return nil
 }
@@ -335,17 +335,17 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	}
 
 	if !hasDiffChanges(diff) {
-		fmt.Println("No changes needed - profile already matches current state.")
+		ui.PrintSuccess("No changes needed - profile already matches current state.")
 		return nil
 	}
 
-	fmt.Printf("Profile: %s\n", name)
+	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 	fmt.Println()
 	showDiff(diff)
 	fmt.Println()
 
 	if !confirmProceed() {
-		fmt.Println("Cancelled.")
+		ui.PrintMuted("Cancelled.")
 		return nil
 	}
 
@@ -366,7 +366,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 
 	// Apply
 	fmt.Println()
-	fmt.Println("Applying profile...")
+	ui.PrintInfo("Applying profile...")
 
 	chain := buildSecretChain()
 	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
@@ -454,17 +454,17 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile use <name>' first")
 		}
 		name = cfg.Preferences.ActiveProfile
-		fmt.Printf("Saving to active profile: %s\n", name)
+		ui.PrintInfo(fmt.Sprintf("Saving to active profile: %s", name))
 	}
 
 	// Check if profile already exists
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
 		if !config.YesFlag {
-			fmt.Printf("Profile %q already exists. Overwrite? [y/N]: ", name)
+			fmt.Printf("%s Profile %q already exists. Overwrite? [y/N]: ", ui.Warning(ui.SymbolWarning), name)
 			choice := promptChoice("", "n")
 			if choice != "y" && choice != "yes" {
-				fmt.Println("Cancelled.")
+				ui.PrintMuted("Cancelled.")
 				return nil
 			}
 		}
@@ -486,9 +486,9 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 
 	ui.PrintSuccess(fmt.Sprintf("Saved profile %q", name))
 	fmt.Println()
-	fmt.Printf("  MCP Servers:   %d\n", len(p.MCPServers))
-	fmt.Printf("  Marketplaces:  %d\n", len(p.Marketplaces))
-	fmt.Printf("  Plugins:       %d\n", len(p.Plugins))
+	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 
 	return nil
 }
@@ -810,8 +810,8 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	}
 
 	if activeProfile == "" {
-		fmt.Println("No profile is currently active.")
-		fmt.Println("Use 'claudeup profile use <name>' to apply a profile.")
+		ui.PrintInfo("No profile is currently active.")
+		fmt.Printf("  %s Use 'claudeup profile use <name>' to apply a profile.\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
@@ -820,18 +820,18 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	p, err := loadProfileWithFallback(profilesDir, activeProfile)
 	if err != nil {
 		// Profile was set but can't be loaded - show name and error
-		fmt.Printf("Current profile: %s (details unavailable: %v)\n", activeProfile, err)
+		ui.PrintWarning(fmt.Sprintf("Current profile: %s (details unavailable: %v)", activeProfile, err))
 		return nil
 	}
 
-	fmt.Printf("Current profile: %s\n", p.Name)
+	fmt.Println(ui.RenderDetail("Current profile", ui.Bold(p.Name)))
 	if p.Description != "" {
-		fmt.Printf("  %s\n", p.Description)
+		fmt.Printf("  %s\n", ui.Muted(p.Description))
 	}
 	fmt.Println()
-	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
-	fmt.Printf("  Plugins:      %d\n", len(p.Plugins))
-	fmt.Printf("  MCP Servers:  %d\n", len(p.MCPServers))
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 
 	return nil
 }
@@ -847,7 +847,7 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show what will be removed
-	fmt.Printf("Reset profile: %s\n", name)
+	fmt.Println(ui.RenderDetail("Reset profile", ui.Bold(name)))
 	fmt.Println()
 
 	claudeDir := profile.DefaultClaudeDir()
@@ -965,13 +965,13 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show what we're about to do
-	fmt.Printf("Delete profile: %s\n", name)
+	fmt.Println(ui.RenderDetail("Delete profile", ui.Bold(name)))
 	fmt.Println()
-	fmt.Println("  This will permanently remove this profile.")
+	ui.PrintWarning("This will permanently remove this profile.")
 	fmt.Println()
 
 	if !confirmProceed() {
-		fmt.Println("Cancelled.")
+		ui.PrintMuted("Cancelled.")
 		return nil
 	}
 
