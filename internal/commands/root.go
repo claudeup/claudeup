@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +38,9 @@ func SetVersion(version string) {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+
+	// Set up custom help template with lipgloss styling
+	ui.SetupHelpTemplate(rootCmd)
 
 	// Global flags - respect CLAUDE_CONFIG_DIR if set
 	defaultClaudeDir := os.Getenv("CLAUDE_CONFIG_DIR")
