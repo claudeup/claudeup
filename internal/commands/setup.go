@@ -39,7 +39,7 @@ func init() {
 }
 
 func runSetup(cmd *cobra.Command, args []string) error {
-	fmt.Println("━━━ Claude PM Setup ━━━")
+	fmt.Println(ui.RenderHeader("claudeup Setup"))
 	fmt.Println()
 
 	// Step 1: Check for Claude CLI
@@ -70,9 +70,9 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
 	}
 
-	fmt.Printf("Using profile: %s\n", p.Name)
+	fmt.Println(ui.RenderDetail("Using profile", ui.Bold(p.Name)))
 	if p.Description != "" {
-		fmt.Printf("  %s\n", p.Description)
+		fmt.Printf("  %s\n", ui.Muted(p.Description))
 	}
 	fmt.Println()
 
@@ -80,13 +80,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	// Step 6: Confirm (unless --yes)
 	if !confirmProceed() {
-		fmt.Println("Setup cancelled.")
+		ui.PrintMuted("Setup cancelled.")
 		return nil
 	}
 
 	// Step 7: Apply the profile
 	fmt.Println()
-	fmt.Println("Applying profile...")
+	ui.PrintInfo("Applying profile...")
 
 	chain := buildSecretChain()
 	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
@@ -99,7 +99,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	// Step 9: Run doctor
 	fmt.Println()
-	fmt.Println("Running health check...")
+	ui.PrintInfo("Running health check...")
 	if err := runDoctor(cmd, nil); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Health check encountered issues: %v", err))
 	}
@@ -120,20 +120,20 @@ func ensureClaudeCLI() error {
 	if _, err := exec.LookPath("claude"); err == nil {
 		version := getClaudeVersion()
 		if version != "unknown" && isVersionOutdated(version, minClaudeVersion) {
-			fmt.Printf("%s outdated (%s)\n", ui.SymbolWarning, version)
+			fmt.Printf("%s outdated (%s)\n", ui.Warning(ui.SymbolWarning), version)
 			fmt.Println()
-			fmt.Printf("Claude CLI version %s is installed, but version %s or newer is required.\n", version, minClaudeVersion)
+			ui.PrintWarning(fmt.Sprintf("Claude CLI version %s is installed, but version %s or newer is required.", version, minClaudeVersion))
 			fmt.Println("Older versions have known issues with terminal handling that cause setup to fail.")
 			fmt.Println()
 			return promptClaudeUpgrade(version)
 		}
-		fmt.Printf("%s found (%s)\n", ui.SymbolSuccess, version)
+		fmt.Printf("%s found (%s)\n", ui.Success(ui.SymbolSuccess), version)
 		return nil
 	}
 
-	fmt.Println("not found")
+	fmt.Printf("%s not found\n", ui.Warning(ui.SymbolWarning))
 	fmt.Println()
-	fmt.Println("Claude CLI is required but not installed.")
+	ui.PrintWarning("Claude CLI is required but not installed.")
 	fmt.Println()
 
 	// Auto-install with --yes, otherwise ask
@@ -154,7 +154,7 @@ func ensureClaudeCLI() error {
 	}
 
 	fmt.Println()
-	fmt.Println("Installing Claude CLI...")
+	ui.PrintInfo("Installing Claude CLI...")
 
 	if err := runClaudeInstaller(); err != nil {
 		return fmt.Errorf("failed to install Claude CLI: %w", err)
@@ -251,7 +251,7 @@ func promptClaudeUpgrade(currentVersion string) error {
 	}
 
 	fmt.Println()
-	fmt.Println("Upgrading Claude CLI...")
+	ui.PrintInfo("Upgrading Claude CLI...")
 
 	if err := runClaudeInstaller(); err != nil {
 		return fmt.Errorf("failed to upgrade Claude CLI: %w", err)
@@ -276,11 +276,11 @@ func hasContent(p *profile.Profile) bool {
 }
 
 func handleExistingInstallation(existing *profile.Profile, profilesDir string) error {
-	fmt.Println("Existing Claude Code installation detected:")
-	fmt.Printf("  → %d MCP servers, %d marketplaces, %d plugins\n",
-		len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
+	ui.PrintInfo("Existing Claude Code installation detected:")
+	fmt.Printf("  %s %d MCP servers, %d marketplaces, %d plugins\n",
+		ui.Muted(ui.SymbolArrow), len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
 	fmt.Println()
-	fmt.Println("Options:")
+	fmt.Println(ui.Bold("Options:"))
 	fmt.Println("  [s] Save current setup as a profile, then continue")
 	fmt.Println("  [c] Continue anyway (will replace current setup)")
 	fmt.Println("  [a] Abort")
@@ -311,23 +311,23 @@ func handleExistingInstallation(existing *profile.Profile, profilesDir string) e
 }
 
 func showProfileSummary(p *profile.Profile) {
-	fmt.Println("Profile contents:")
+	fmt.Println(ui.Bold("Profile contents:"))
 	if len(p.MCPServers) > 0 {
-		fmt.Printf("  MCP Servers:   %d\n", len(p.MCPServers))
+		fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 		for _, m := range p.MCPServers {
-			fmt.Printf("    - %s\n", m.Name)
+			fmt.Printf("    %s %s\n", ui.Muted(ui.SymbolBullet), m.Name)
 		}
 	}
 	if len(p.Marketplaces) > 0 {
-		fmt.Printf("  Marketplaces:  %d\n", len(p.Marketplaces))
+		fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
 		for _, m := range p.Marketplaces {
-			fmt.Printf("    - %s\n", m.Repo)
+			fmt.Printf("    %s %s\n", ui.Muted(ui.SymbolBullet), m.Repo)
 		}
 	}
 	if len(p.Plugins) > 0 {
-		fmt.Printf("  Plugins:       %d\n", len(p.Plugins))
+		fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 		for _, plug := range p.Plugins {
-			fmt.Printf("    - %s\n", plug)
+			fmt.Printf("    %s %s\n", ui.Muted(ui.SymbolBullet), plug)
 		}
 	}
 	fmt.Println()
@@ -384,32 +384,32 @@ func buildSecretChain() *secrets.Chain {
 
 func showApplyResults(result *profile.ApplyResult) {
 	if len(result.PluginsRemoved) > 0 {
-		fmt.Printf("  Removed %d plugins\n", len(result.PluginsRemoved))
+		fmt.Printf("  %s Removed %d plugins\n", ui.Success(ui.SymbolSuccess), len(result.PluginsRemoved))
 	}
 	if len(result.PluginsAlreadyRemoved) > 0 {
-		fmt.Printf("  %s %d plugins were already uninstalled\n", ui.SymbolSuccess, len(result.PluginsAlreadyRemoved))
+		fmt.Printf("  %s %d plugins were already uninstalled\n", ui.Muted(ui.SymbolSuccess), len(result.PluginsAlreadyRemoved))
 	}
 	if len(result.PluginsInstalled) > 0 {
-		fmt.Printf("  Installed %d plugins\n", len(result.PluginsInstalled))
+		fmt.Printf("  %s Installed %d plugins\n", ui.Success(ui.SymbolSuccess), len(result.PluginsInstalled))
 	}
 	if len(result.PluginsAlreadyPresent) > 0 {
-		fmt.Printf("  %s %d plugins were already installed\n", ui.SymbolSuccess, len(result.PluginsAlreadyPresent))
+		fmt.Printf("  %s %d plugins were already installed\n", ui.Muted(ui.SymbolSuccess), len(result.PluginsAlreadyPresent))
 	}
 	if len(result.MCPServersRemoved) > 0 {
-		fmt.Printf("  Removed %d MCP servers\n", len(result.MCPServersRemoved))
+		fmt.Printf("  %s Removed %d MCP servers\n", ui.Success(ui.SymbolSuccess), len(result.MCPServersRemoved))
 	}
 	if len(result.MCPServersInstalled) > 0 {
-		fmt.Printf("  Installed %d MCP servers\n", len(result.MCPServersInstalled))
+		fmt.Printf("  %s Installed %d MCP servers\n", ui.Success(ui.SymbolSuccess), len(result.MCPServersInstalled))
 	}
 	if len(result.MarketplacesAdded) > 0 {
-		fmt.Printf("  Added %d marketplaces\n", len(result.MarketplacesAdded))
+		fmt.Printf("  %s Added %d marketplaces\n", ui.Success(ui.SymbolSuccess), len(result.MarketplacesAdded))
 	}
 
 	if len(result.Errors) > 0 {
 		fmt.Println()
 		ui.PrintWarning("Some operations had errors:")
 		for _, err := range result.Errors {
-			fmt.Printf("    - %v\n", err)
+			fmt.Printf("    %s %v\n", ui.Error(ui.SymbolBullet), err)
 		}
 	}
 }
