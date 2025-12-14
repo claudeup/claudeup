@@ -69,10 +69,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	var outdatedMarketplaces []string
 	for _, update := range marketplaceUpdates {
 		if update.HasUpdate {
-			fmt.Printf("  ⚠ %s: Update available\n", update.Name)
+			fmt.Printf("  %s %s: Update available\n", ui.SymbolWarning, update.Name)
 			outdatedMarketplaces = append(outdatedMarketplaces, update.Name)
 		} else {
-			fmt.Printf("  ✓ %s: Up to date\n", update.Name)
+			fmt.Printf("  %s %s: Up to date\n", ui.SymbolSuccess, update.Name)
 		}
 	}
 
@@ -83,19 +83,19 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	var outdatedPlugins []string
 	for _, update := range pluginUpdates {
 		if update.HasUpdate {
-			fmt.Printf("  ⚠ %s: Update available\n", update.Name)
+			fmt.Printf("  %s %s: Update available\n", ui.SymbolWarning, update.Name)
 			outdatedPlugins = append(outdatedPlugins, update.Name)
 		}
 	}
 
 	if len(outdatedPlugins) == 0 {
-		fmt.Println("  ✓ All plugins up to date")
+		fmt.Printf("  %s All plugins up to date\n", ui.SymbolSuccess)
 	}
 
 	// Summary
 	fmt.Println("\n━━━ Summary ━━━")
 	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
-		fmt.Println("✓ Everything is up to date!")
+		ui.PrintSuccess("Everything is up to date!")
 		return nil
 	}
 
@@ -153,9 +153,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Println("\n━━━ Updating Marketplaces ━━━")
 		for _, name := range outdatedMarketplaces {
 			if err := updateMarketplace(name, marketplaces[name].InstallLocation); err != nil {
-				fmt.Printf("  ✗ %s: %v\n", name, err)
+				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
 			} else {
-				fmt.Printf("  ✓ %s: Updated\n", name)
+				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
 			}
 		}
 	}
@@ -165,9 +165,9 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		fmt.Println("\n━━━ Updating Plugins ━━━")
 		for _, name := range outdatedPlugins {
 			if err := updatePlugin(name, plugins); err != nil {
-				fmt.Printf("  ✗ %s: %v\n", name, err)
+				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
 			} else {
-				fmt.Printf("  ✓ %s: Updated\n", name)
+				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
 			}
 		}
 
@@ -177,7 +177,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Println("\n✓ Updates complete!")
+	fmt.Println()
+	ui.PrintSuccess("Updates complete!")
 
 	return nil
 }
