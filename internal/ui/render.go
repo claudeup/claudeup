@@ -9,6 +9,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const (
+	// HeaderWidth is the fixed width for header boxes
+	HeaderWidth = 42
+)
+
 var (
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
@@ -16,7 +21,7 @@ var (
 			Border(lipgloss.DoubleBorder()).
 			BorderForeground(ColorAccent).
 			Padding(0, 2).
-			Width(42).
+			Width(HeaderWidth).
 			Align(lipgloss.Center)
 
 	sectionStyle = lipgloss.NewStyle().
