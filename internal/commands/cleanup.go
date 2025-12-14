@@ -82,7 +82,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 
 	// Check if there's anything to do
 	if len(fixableIssues) == 0 && len(unfixableIssues) == 0 {
-		fmt.Println("✓ No issues found")
+		ui.PrintSuccess("No issues found")
 		return nil
 	}
 
@@ -162,10 +162,10 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Report results
 	fmt.Println()
 	if fixed > 0 {
-		fmt.Printf("✓ Fixed %d plugin paths\n", fixed)
+		ui.PrintSuccess(fmt.Sprintf("Fixed %d plugin paths", fixed))
 	}
 	if removed > 0 {
-		fmt.Printf("✓ Removed %d plugin entries\n", removed)
+		ui.PrintSuccess(fmt.Sprintf("Removed %d plugin entries", removed))
 	}
 
 	if cleanupReinstall && removed > 0 {
