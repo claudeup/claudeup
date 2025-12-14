@@ -81,8 +81,8 @@ func runDisable(cmd *cobra.Command, args []string) error {
 
 	ui.PrintSuccess(fmt.Sprintf("Disabled %s", pluginName))
 	fmt.Println()
-	fmt.Println("Plugin commands, agents, skills, and MCP servers are now unavailable")
-	fmt.Println("Run 'claudeup enable", pluginName+"' to re-enable")
+	ui.PrintInfo("Plugin commands, agents, skills, and MCP servers are now unavailable")
+	fmt.Printf("%s Run 'claudeup enable %s' to re-enable\n", ui.Muted(ui.SymbolArrow), pluginName)
 
 	return nil
 }

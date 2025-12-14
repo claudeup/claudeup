@@ -141,7 +141,7 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		if image == "" {
 			image = sandbox.DefaultImage()
 		}
-		fmt.Printf("Pulling sandbox image %s...\n", image)
+		ui.PrintInfo(fmt.Sprintf("Pulling sandbox image %s...", image))
 		if err := runner.PullImage(opts.Image); err != nil {
 			return fmt.Errorf("failed to pull image: %w", err)
 		}
@@ -198,7 +198,7 @@ func resolveSecrets(opts *sandbox.Options) error {
 
 		value, source, err := chain.Resolve(secretName)
 		if err != nil {
-			fmt.Printf("Warning: could not resolve secret %q: %v\n", secretName, err)
+			ui.PrintWarning(fmt.Sprintf("could not resolve secret %q: %v", secretName, err))
 			continue
 		}
 
@@ -210,22 +210,23 @@ func resolveSecrets(opts *sandbox.Options) error {
 }
 
 func printSandboxInfo(opts sandbox.Options) {
-	fmt.Println("━━━ Claude PM Sandbox ━━━")
+	fmt.Println(ui.RenderSection("Sandbox", -1))
+	fmt.Println()
 
 	if opts.Profile != "" {
-		fmt.Printf("Profile:  %s (persistent)\n", opts.Profile)
+		fmt.Println(ui.RenderDetail("Profile", ui.Bold(opts.Profile)+" "+ui.Muted("(persistent)")))
 	} else {
-		fmt.Println("Mode:     ephemeral")
+		fmt.Println(ui.RenderDetail("Mode", "ephemeral"))
 	}
 
 	if opts.WorkDir != "" {
-		fmt.Printf("Workdir:  %s → /workspace\n", opts.WorkDir)
+		fmt.Println(ui.RenderDetail("Workdir", fmt.Sprintf("%s %s /workspace", ui.Muted(opts.WorkDir), ui.SymbolArrow)))
 	} else {
-		fmt.Println("Workdir:  (none)")
+		fmt.Println(ui.RenderDetail("Workdir", ui.Muted("(none)")))
 	}
 
 	if len(opts.Mounts) > 0 {
-		fmt.Printf("Mounts:   %d additional\n", len(opts.Mounts))
+		fmt.Println(ui.RenderDetail("Mounts", fmt.Sprintf("%d additional", len(opts.Mounts))))
 	}
 
 	secretCount := 0
@@ -233,13 +234,13 @@ func printSandboxInfo(opts sandbox.Options) {
 		secretCount++
 	}
 	if secretCount > 0 {
-		fmt.Printf("Secrets:  %d injected\n", secretCount)
+		fmt.Println(ui.RenderDetail("Secrets", fmt.Sprintf("%d injected", secretCount)))
 	}
 
 	if opts.Shell {
-		fmt.Println("Entry:    bash")
+		fmt.Println(ui.RenderDetail("Entry", "bash"))
 	} else {
-		fmt.Println("Entry:    claude")
+		fmt.Println(ui.RenderDetail("Entry", "claude"))
 	}
 
 	fmt.Println()

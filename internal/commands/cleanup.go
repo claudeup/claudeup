@@ -89,32 +89,34 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Show what will be done
 	if len(fixableIssues) > 0 {
 		if cleanupDryRun {
-			fmt.Printf("Would fix %d path issues:\n\n", len(fixableIssues))
+			fmt.Println(ui.RenderSection("Would fix path issues", len(fixableIssues)))
 		} else {
-			fmt.Printf("Found %d fixable path issues:\n\n", len(fixableIssues))
+			fmt.Println(ui.RenderSection("Fixable path issues", len(fixableIssues)))
 		}
+		fmt.Println()
 		for _, issue := range fixableIssues {
-			fmt.Printf("  %s\n", issue.PluginName)
-			fmt.Printf("    %s → %s\n", issue.InstallPath, issue.ExpectedPath)
+			fmt.Printf("  %s %s\n", ui.Warning(ui.SymbolWarning), ui.Bold(issue.PluginName))
+			fmt.Println(ui.Indent(fmt.Sprintf("%s %s %s", ui.Muted(issue.InstallPath), ui.SymbolArrow, issue.ExpectedPath), 2))
 		}
 		fmt.Println()
 	}
 
 	if len(unfixableIssues) > 0 {
 		if cleanupDryRun {
-			fmt.Printf("Would remove %d broken plugin entries:\n\n", len(unfixableIssues))
+			fmt.Println(ui.RenderSection("Would remove broken entries", len(unfixableIssues)))
 		} else {
-			fmt.Printf("Found %d plugins to remove:\n\n", len(unfixableIssues))
+			fmt.Println(ui.RenderSection("Plugins to remove", len(unfixableIssues)))
 		}
+		fmt.Println()
 		for _, issue := range unfixableIssues {
-			fmt.Printf("  • %s\n", issue.PluginName)
-			fmt.Printf("    Path: %s\n", issue.InstallPath)
+			fmt.Printf("  %s %s\n", ui.Error(ui.SymbolError), ui.Bold(issue.PluginName))
+			fmt.Println(ui.Indent(ui.RenderDetail("Path", ui.Muted(issue.InstallPath)), 2))
 		}
 		fmt.Println()
 	}
 
 	if cleanupDryRun {
-		fmt.Println("Run without --dry-run to apply these changes")
+		ui.PrintInfo("Run without --dry-run to apply these changes")
 		return nil
 	}
 
@@ -169,14 +171,16 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	}
 
 	if cleanupReinstall && removed > 0 {
-		fmt.Println("\nTo reinstall these plugins, use:")
+		fmt.Println()
+		ui.PrintInfo("To reinstall these plugins, use:")
 		for _, issue := range removedIssues {
-			fmt.Printf("  claude plugin install %s\n", issue.PluginName)
+			fmt.Printf("  %s\n", ui.Muted("claude plugin install "+issue.PluginName))
 		}
 	}
 
 	if fixed > 0 || removed > 0 {
-		fmt.Println("\nRun 'claudeup status' to verify the changes")
+		fmt.Println()
+		fmt.Printf("%s Run 'claudeup status' to verify the changes\n", ui.Muted(ui.SymbolArrow))
 	}
 
 	return nil
