@@ -30,6 +30,7 @@ var setupCmd = &cobra.Command{
 Installs Claude CLI if missing, then applies the specified profile.
 If an existing installation is detected, offers to save current state
 as a profile before applying the new one.`,
+	Args: cobra.NoArgs,
 	RunE: runSetup,
 }
 

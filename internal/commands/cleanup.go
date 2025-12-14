@@ -38,6 +38,7 @@ Use --fix-only or --remove-only for granular control.`,
 
   # Show reinstall commands for removed plugins
   claudeup cleanup --reinstall`,
+	Args: cobra.NoArgs,
 	RunE: runCleanup,
 }
 

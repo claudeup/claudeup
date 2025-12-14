@@ -23,6 +23,7 @@ var mcpListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all MCP servers",
 	Long:  `Display MCP servers grouped by the plugin that provides them.`,
+	Args:  cobra.NoArgs,
 	RunE:  runMCPList,
 }
 

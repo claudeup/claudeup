@@ -24,6 +24,7 @@ Shows:
 
 For detailed plugin information, use 'claudeup plugins'.
 For diagnostics, use 'claudeup doctor'.`,
+	Args: cobra.NoArgs,
 	RunE: runStatus,
 }
 

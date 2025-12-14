@@ -20,8 +20,11 @@ var marketplaceCmd = &cobra.Command{
 var marketplaceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List installed marketplaces",
-	Long:  `Display information about installed Claude Code marketplace repositories.`,
-	RunE:  runMarketplaceList,
+	Long: `Display information about installed Claude Code marketplace repositories.
+
+Shows each marketplace's source, repository, install location, and last update time.`,
+	Args: cobra.NoArgs,
+	RunE: runMarketplaceList,
 }
 
 func init() {

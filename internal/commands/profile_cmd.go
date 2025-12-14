@@ -33,6 +33,7 @@ Use profiles to:
 var profileListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available profiles",
+	Args:  cobra.NoArgs,
 	RunE:  runProfileList,
 }
 
@@ -86,12 +87,14 @@ var profileShowCmd = &cobra.Command{
 var profileSuggestCmd = &cobra.Command{
 	Use:   "suggest",
 	Short: "Suggest a profile for the current directory",
+	Args:  cobra.NoArgs,
 	RunE:  runProfileSuggest,
 }
 
 var profileCurrentCmd = &cobra.Command{
 	Use:   "current",
 	Short: "Show the currently active profile",
+	Args:  cobra.NoArgs,
 	RunE:  runProfileCurrent,
 }
 

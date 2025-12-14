@@ -22,6 +22,7 @@ var pluginsCmd = &cobra.Command{
 
 Shows each plugin's version, status, install path, and type (cached or local).
 Use --summary for a quick overview without individual plugin details.`,
+	Args: cobra.NoArgs,
 	RunE: runPluginsList,
 }
 

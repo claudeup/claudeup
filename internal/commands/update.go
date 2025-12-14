@@ -30,6 +30,7 @@ Use --check-only to see what's available without making changes.`,
 
   # Only check what updates are available
   claudeup update --check-only`,
+	Args: cobra.NoArgs,
 	RunE: runUpdate,
 }
 

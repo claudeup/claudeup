@@ -25,6 +25,7 @@ Checks:
   - Fixable path issues vs truly broken entries
 
 Use 'claudeup cleanup' to fix any detected issues.`,
+	Args: cobra.NoArgs,
 	RunE: runDoctor,
 }
 
