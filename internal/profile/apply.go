@@ -5,6 +5,7 @@ package profile
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,11 +111,11 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 	// Marketplaces to add (we don't remove marketplaces - just add missing ones)
 	currentMarketplaces := make(map[string]bool)
 	for _, m := range current.Marketplaces {
-		currentMarketplaces[m.Repo] = true
+		currentMarketplaces[marketplaceKey(m)] = true
 	}
 
 	for _, m := range profile.Marketplaces {
-		if !currentMarketplaces[m.Repo] {
+		if !currentMarketplaces[marketplaceKey(m)] {
 			diff.MarketplacesToAdd = append(diff.MarketplacesToAdd, m)
 		}
 	}
@@ -197,11 +198,12 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 
 	// Add marketplaces
 	for _, m := range diff.MarketplacesToAdd {
-		if m.Repo != "" {
-			if err := executor.Run("plugin", "marketplace", "add", m.Repo); err != nil {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to add marketplace %s: %w", m.Repo, err))
+		key := marketplaceKey(m)
+		if key != "" {
+			if err := executor.Run("plugin", "marketplace", "add", key); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to add marketplace %s: %w", key, err))
 			} else {
-				result.MarketplacesAdded = append(result.MarketplacesAdded, m.Repo)
+				result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 			}
 		}
 	}
@@ -373,8 +375,8 @@ func isFirstRun(profile *Profile, claudeDir, claudeJSONPath string) bool {
 	// Build set of marketplace suffixes from profile
 	marketplaceSuffixes := make([]string, 0, len(profile.Marketplaces))
 	for _, m := range profile.Marketplaces {
-		// Extract marketplace name from repo (e.g., "wshobson/agents" -> "wshobson-agents")
-		name := marketplaceNameFromRepo(m.Repo)
+		// Extract marketplace name (e.g., "user/repo" -> "user-repo")
+		name := marketplaceName(m)
 		if name != "" {
 			marketplaceSuffixes = append(marketplaceSuffixes, "@"+name)
 		}
@@ -392,13 +394,40 @@ func isFirstRun(profile *Profile, claudeDir, claudeJSONPath string) bool {
 	return true
 }
 
-// marketplaceNameFromRepo extracts the marketplace name from a repo path
-func marketplaceNameFromRepo(repo string) string {
-	if repo == "" {
+// marketplaceKey returns the lookup key for a marketplace (Repo or URL)
+func marketplaceKey(m Marketplace) string {
+	if m.Repo != "" {
+		return m.Repo
+	}
+	return m.URL
+}
+
+// marketplaceName extracts the marketplace name from a repo path or URL
+func marketplaceName(m Marketplace) string {
+	key := m.Repo
+	if key == "" {
+		key = m.URL
+	}
+	if key == "" {
 		return ""
 	}
-	// "wshobson/agents" -> "wshobson-agents"
-	return strings.ReplaceAll(repo, "/", "-")
+
+	// Handle URLs by extracting the path portion
+	// e.g., "https://github.com/user/repo.git" -> "user/repo"
+	if strings.Contains(key, "://") {
+		parsed, err := url.Parse(key)
+		if err != nil {
+			// Fall back to treating as plain path
+			return strings.ReplaceAll(key, "/", "-")
+		}
+		// Get path and trim leading slash
+		key = strings.TrimPrefix(parsed.Path, "/")
+		// Remove .git suffix
+		key = strings.TrimSuffix(key, ".git")
+	}
+
+	// "user/repo" -> "user-repo"
+	return strings.ReplaceAll(key, "/", "-")
 }
 
 // ResetResult contains the results of resetting a profile
@@ -429,11 +458,11 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 	repoToName := BuildRepoToNameLookup(claudeDir)
 
 	// Build marketplace suffixes to find matching plugins
-	marketplaceSuffixes := make(map[string]string) // suffix -> repo
+	marketplaceSuffixes := make(map[string]string) // suffix -> key
 	for _, m := range profile.Marketplaces {
-		name := marketplaceNameFromRepo(m.Repo)
+		name := marketplaceName(m)
 		if name != "" {
-			marketplaceSuffixes["@"+name] = m.Repo
+			marketplaceSuffixes["@"+name] = marketplaceKey(m)
 		}
 	}
 
@@ -460,20 +489,27 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 		}
 	}
 
-	// Remove marketplaces using their registered name (not repo)
+	// Remove marketplaces using their registered name (not repo/url)
 	for _, m := range profile.Marketplaces {
-		if m.Repo != "" {
-			// Look up the marketplace name from the registry
-			name, found := repoToName[m.Repo]
-			if !found {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: not found in registry", m.Repo))
-				continue
-			}
-			if err := executor.Run("plugin", "marketplace", "remove", name); err != nil {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w", m.Repo, err))
-			} else {
-				result.MarketplacesRemoved = append(result.MarketplacesRemoved, m.Repo)
-			}
+		// Determine the lookup key (repo or url)
+		lookupKey := m.Repo
+		if lookupKey == "" {
+			lookupKey = m.URL
+		}
+		if lookupKey == "" {
+			continue
+		}
+
+		// Look up the marketplace name from the registry
+		name, found := repoToName[lookupKey]
+		if !found {
+			result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: not found in registry", lookupKey))
+			continue
+		}
+		if err := executor.Run("plugin", "marketplace", "remove", name); err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w", lookupKey, err))
+		} else {
+			result.MarketplacesRemoved = append(result.MarketplacesRemoved, lookupKey)
 		}
 	}
 

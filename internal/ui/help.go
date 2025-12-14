@@ -15,7 +15,7 @@ var (
 	// Help section styles
 	helpTitleStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(ColorAccent)
+			Foreground(ColorInfo)
 
 	helpHeadingStyle = lipgloss.NewStyle().
 				Bold(true).
@@ -25,7 +25,7 @@ var (
 				Foreground(ColorSuccess)
 
 	helpFlagStyle = lipgloss.NewStyle().
-			Foreground(ColorInfo)
+			Foreground(ColorFlags)
 
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted)
@@ -53,6 +53,8 @@ func SetupHelpTemplate(cmd *cobra.Command) {
 	cobra.AddTemplateFunc("styleExample", styleExample)
 	cobra.AddTemplateFunc("styleError", styleError)
 	cobra.AddTemplateFunc("styleLong", styleLong)
+	cobra.AddTemplateFunc("styleFlagUsages", styleFlagUsages)
+	cobra.AddTemplateFunc("styleUseLine", styleUseLine)
 
 	// Set custom error message prefix with styling
 	cmd.SetErrPrefix(helpErrorStyle.Render("Error:"))
@@ -140,6 +142,63 @@ func styleExample(s string) string {
 	return strings.Join(styled, "\n")
 }
 
+func styleUseLine(s string) string {
+	// Style the usage line, making [flags] muted like [command]
+	if strings.HasSuffix(s, " [flags]") {
+		cmdPart := s[:len(s)-len(" [flags]")]
+		return helpCommandStyle.Render(cmdPart) + " " + helpDescStyle.Render("[flags]")
+	}
+	return helpCommandStyle.Render(s)
+}
+
+func styleFlagUsages(s string) string {
+	// Style flag usage lines from Cobra's FlagUsages output
+	// Format: "  -f, --flag type   Description text"
+	lines := strings.Split(s, "\n")
+	var styled []string
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			styled = append(styled, line)
+			continue
+		}
+
+		// Find where the description starts (after multiple spaces following the flag)
+		// Flags start with spaces, then -, the description follows after 2+ spaces
+		trimmed := strings.TrimLeft(line, " ")
+		indent := line[:len(line)-len(trimmed)]
+
+		// Find the split point: look for 2+ consecutive spaces after the flag definition
+		splitIdx := -1
+		inSpaces := false
+		spaceStart := 0
+		for i, c := range trimmed {
+			if c == ' ' {
+				if !inSpaces {
+					inSpaces = true
+					spaceStart = i
+				}
+				if i-spaceStart >= 2 {
+					splitIdx = spaceStart
+					break
+				}
+			} else {
+				inSpaces = false
+			}
+		}
+
+		if splitIdx > 0 {
+			flagPart := trimmed[:splitIdx]
+			descPart := strings.TrimLeft(trimmed[splitIdx:], " ")
+			styled = append(styled, indent+helpFlagStyle.Render(flagPart)+"  "+helpDescStyle.Render(descPart))
+		} else {
+			// No description found, just style the whole line as a flag
+			styled = append(styled, indent+helpFlagStyle.Render(trimmed))
+		}
+	}
+	return strings.Join(styled, "\n")
+}
+
 // AddTemplateFuncs adds our custom template functions to a command
 func AddTemplateFuncs(cmd *cobra.Command) {
 	tmpl := template.New("help")
@@ -156,7 +215,7 @@ func AddTemplateFuncs(cmd *cobra.Command) {
 const helpTemplate = `{{if .Long}}{{styleLong .Long}}{{else}}{{styleTitle .Short}}{{end}}
 
 {{styleHeading "Usage:"}}
-  {{styleCommand .UseLine}}{{if .HasAvailableSubCommands}}
+  {{styleUseLine .UseLine}}{{if .HasAvailableSubCommands}}
   {{styleCommand .CommandPath}} {{styleDesc "[command]"}}{{end}}{{if gt (len .Aliases) 0}}
 
 {{styleHeading "Aliases:"}}
@@ -175,10 +234,10 @@ const helpTemplate = `{{if .Long}}{{styleLong .Long}}{{else}}{{styleTitle .Short
   {{styleCommand (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 {{styleHeading "Flags:"}}
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces | styleFlagUsages}}{{end}}{{if .HasAvailableInheritedFlags}}
 
 {{styleHeading "Global Flags:"}}
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces | styleFlagUsages}}{{end}}{{if .HasHelpSubCommands}}
 
 {{styleHeading "Additional help topics:"}}{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
   {{styleCommand (rpad .CommandPath .CommandPathPadding)}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}

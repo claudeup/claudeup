@@ -56,9 +56,14 @@ func runMarketplaceList(cmd *cobra.Command, args []string) error {
 
 		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), ui.Bold(name))
 		fmt.Println(ui.Indent(ui.RenderDetail("Source", marketplace.Source.Source), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Repo", marketplace.Source.Repo), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Location", ui.Muted(marketplace.InstallLocation)), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Updated", ui.Muted(marketplace.LastUpdated)), 1))
+		if marketplace.Source.Repo != "" {
+			fmt.Println(ui.Indent(ui.RenderDetail("Repo", marketplace.Source.Repo), 1))
+		}
+		if marketplace.Source.URL != "" {
+			fmt.Println(ui.Indent(ui.RenderDetail("URL", marketplace.Source.URL), 1))
+		}
+		fmt.Println(ui.Indent(ui.RenderDetail("Location", marketplace.InstallLocation), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Updated", marketplace.LastUpdated), 1))
 		fmt.Println()
 	}
 

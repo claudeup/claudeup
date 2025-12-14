@@ -331,22 +331,54 @@ func writeTestJSON(t *testing.T, path string, data interface{}) {
 	}
 }
 
-func TestMarketplaceNameFromRepo(t *testing.T) {
+func TestMarketplaceKey(t *testing.T) {
 	tests := []struct {
-		repo     string
-		expected string
+		name        string
+		marketplace Marketplace
+		expected    string
 	}{
-		{"wshobson/agents", "wshobson-agents"},
-		{"anthropics/claude-code", "anthropics-claude-code"},
-		{"", ""},
-		{"simple", "simple"},
+		{"repo only", Marketplace{Repo: "user/repo"}, "user/repo"},
+		{"url only", Marketplace{URL: "https://github.com/user/repo.git"}, "https://github.com/user/repo.git"},
+		{"both prefers repo", Marketplace{Repo: "user/repo", URL: "https://example.com"}, "user/repo"},
+		{"empty", Marketplace{}, ""},
 	}
 
 	for _, tc := range tests {
-		result := marketplaceNameFromRepo(tc.repo)
-		if result != tc.expected {
-			t.Errorf("marketplaceNameFromRepo(%q) = %q, want %q", tc.repo, result, tc.expected)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			result := marketplaceKey(tc.marketplace)
+			if result != tc.expected {
+				t.Errorf("marketplaceKey(%+v) = %q, want %q", tc.marketplace, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMarketplaceName(t *testing.T) {
+	tests := []struct {
+		name        string
+		marketplace Marketplace
+		expected    string
+	}{
+		{"repo path", Marketplace{Repo: "wshobson/agents"}, "wshobson-agents"},
+		{"repo path with org", Marketplace{Repo: "anthropics/claude-code"}, "anthropics-claude-code"},
+		{"empty", Marketplace{}, ""},
+		{"simple repo", Marketplace{Repo: "simple"}, "simple"},
+		{"https url", Marketplace{URL: "https://github.com/user/repo.git"}, "user-repo"},
+		{"https url no .git", Marketplace{URL: "https://github.com/user/repo"}, "user-repo"},
+		{"git url", Marketplace{URL: "git://example.com/org/project.git"}, "org-project"},
+		{"self-hosted single path", Marketplace{URL: "https://git.example.com/repo"}, "repo"},
+		{"self-hosted with org", Marketplace{URL: "https://gitlab.corp.com/team/project.git"}, "team-project"},
+		{"deep path", Marketplace{URL: "https://github.com/org/group/subgroup/repo.git"}, "org-group-subgroup-repo"},
+		{"url with port", Marketplace{URL: "https://git.example.com:8443/user/repo.git"}, "user-repo"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := marketplaceName(tc.marketplace)
+			if result != tc.expected {
+				t.Errorf("marketplaceName(%+v) = %q, want %q", tc.marketplace, result, tc.expected)
+			}
+		})
 	}
 }
 
