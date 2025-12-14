@@ -24,8 +24,7 @@ var (
 			Foreground(ColorInfo)
 
 	labelStyle = lipgloss.NewStyle().
-			Foreground(ColorMuted).
-			Width(12)
+			Foreground(ColorMuted)
 
 	valueStyle = lipgloss.NewStyle()
 )
