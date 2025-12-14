@@ -255,6 +255,11 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
+	// "current" is reserved as a keyword for the active profile
+	if name == "current" {
+		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile show current' to see the active profile")
+	}
+
 	// Load the profile (try disk first, then embedded)
 	p, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
@@ -397,8 +402,14 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	var name string
 	if len(args) > 0 {
 		name = args[0]
+		// "current" is reserved as a keyword for the active profile
+		// Only check when explicitly passed as argument (not when resolved from active profile)
+		if name == "current" {
+			return fmt.Errorf("'current' is a reserved name. Use a different profile name")
+		}
 	} else {
 		// Use active profile name
+		// Error ignored: missing/corrupt config is handled same as no active profile
 		cfg, _ := config.Load()
 		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
 			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile use <name>' first")
@@ -446,6 +457,16 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 func runProfileShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
+
+	// Handle "current" as a special keyword for the active profile
+	if name == "current" {
+		// Error ignored: missing/corrupt config is handled same as no active profile
+		cfg, _ := config.Load()
+		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
+			return fmt.Errorf("no active profile set. Use 'claudeup profile use <name>' to apply a profile")
+		}
+		name = cfg.Preferences.ActiveProfile
+	}
 
 	// Load the profile (try disk first, then embedded)
 	p, err := loadProfileWithFallback(profilesDir, name)
@@ -683,6 +704,11 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 func runProfileCreate(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
+
+	// "current" is reserved as a keyword for the active profile
+	if name == "current" {
+		return fmt.Errorf("'current' is a reserved name. Use a different profile name")
+	}
 
 	// Check if target profile already exists
 	existingPath := filepath.Join(profilesDir, name+".json")

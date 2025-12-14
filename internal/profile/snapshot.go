@@ -100,11 +100,16 @@ func readMarketplaces(claudeDir string) ([]Marketplace, error) {
 
 	var marketplaces []Marketplace
 	for _, meta := range registry {
-		marketplaces = append(marketplaces, Marketplace{
+		m := Marketplace{
 			Source: meta.Source.Source,
 			Repo:   meta.Source.Repo,
 			URL:    meta.Source.URL,
-		})
+		}
+		// Filter out invalid marketplaces (no repo or url)
+		if m.DisplayName() == "" {
+			continue
+		}
+		marketplaces = append(marketplaces, m)
 	}
 
 	// Sort by repo (or URL for git sources) for consistent output
