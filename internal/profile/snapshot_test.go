@@ -235,6 +235,70 @@ func TestMarketplaceDisplayName(t *testing.T) {
 	}
 }
 
+func TestSnapshotFiltersInvalidMarketplaces(t *testing.T) {
+	// Create temp directories
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create mock installed_plugins.json (empty)
+	pluginsData := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData)
+
+	// Create mock known_marketplaces.json with one valid and one invalid marketplace
+	// This reproduces the bug where a "git" source has no url field
+	marketplacesData := map[string]interface{}{
+		"valid-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "anthropics/claude-code",
+			},
+		},
+		"invalid-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "git",
+				// Missing both repo and url - this is invalid data
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplacesData)
+
+	// Create mock ~/.claude.json (empty MCP servers)
+	claudeJSON := map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	}
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, claudeJSON)
+
+	// Create snapshot
+	p, err := Snapshot("test-invalid-filter", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Should only have 1 marketplace (the valid one)
+	if len(p.Marketplaces) != 1 {
+		t.Errorf("Expected 1 marketplace (invalid one should be filtered), got %d", len(p.Marketplaces))
+		for i, m := range p.Marketplaces {
+			t.Logf("  marketplace[%d]: source=%s repo=%q url=%q", i, m.Source, m.Repo, m.URL)
+		}
+	}
+
+	// Verify the remaining marketplace is the valid one
+	if len(p.Marketplaces) > 0 {
+		m := p.Marketplaces[0]
+		if m.Repo != "anthropics/claude-code" {
+			t.Errorf("Expected valid marketplace with repo 'anthropics/claude-code', got repo=%q url=%q", m.Repo, m.URL)
+		}
+	}
+}
+
 func writeJSON(t *testing.T, path string, data interface{}) {
 	t.Helper()
 	bytes, err := json.MarshalIndent(data, "", "  ")
