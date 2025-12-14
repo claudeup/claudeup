@@ -22,8 +22,8 @@ var _ = Describe("profile list", func() {
 				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Built-in profiles:"))
-				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles:"))
+				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
+				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles"))
 				// Should show built-in profiles without (customized)
 				Expect(result.Stdout).To(ContainSubstring("default"))
 				Expect(result.Stdout).To(ContainSubstring("frontend"))
@@ -43,8 +43,8 @@ var _ = Describe("profile list", func() {
 				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Built-in profiles:"))
-				Expect(result.Stdout).To(ContainSubstring("Your profiles:"))
+				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
+				Expect(result.Stdout).To(ContainSubstring("Your profiles"))
 				Expect(result.Stdout).To(ContainSubstring("my-custom-profile"))
 			})
 
@@ -53,8 +53,8 @@ var _ = Describe("profile list", func() {
 
 				// Custom profile should be in Your profiles, not Built-in
 				lines := splitLines(result.Stdout)
-				yourProfilesIdx := findLineContaining(lines, "Your profiles:")
-				builtInIdx := findLineContaining(lines, "Built-in profiles:")
+				yourProfilesIdx := findLineContaining(lines, "Your profiles")
+				builtInIdx := findLineContaining(lines, "Built-in profiles")
 
 				customIdx := findLineContaining(lines, "my-custom-profile")
 				Expect(customIdx).To(BeNumerically(">", yourProfilesIdx))
@@ -84,8 +84,8 @@ var _ = Describe("profile list", func() {
 
 				// Should only have Built-in section since frontend is the only profile
 				// and it's a customized built-in
-				Expect(result.Stdout).To(ContainSubstring("Built-in profiles:"))
-				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles:"))
+				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
+				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles"))
 			})
 		})
 
@@ -115,7 +115,7 @@ var _ = Describe("profile list", func() {
 				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Your profiles:"))
+				Expect(result.Stdout).To(ContainSubstring("Your profiles"))
 				Expect(result.Stdout).To(ContainSubstring("my-workflow"))
 			})
 
@@ -123,8 +123,8 @@ var _ = Describe("profile list", func() {
 				result := env.Run("profile", "list")
 
 				lines := splitLines(result.Stdout)
-				builtInIdx := findLineContaining(lines, "Built-in profiles:")
-				yourIdx := findLineContaining(lines, "Your profiles:")
+				builtInIdx := findLineContaining(lines, "Built-in profiles")
+				yourIdx := findLineContaining(lines, "Your profiles")
 
 				Expect(builtInIdx).To(BeNumerically("<", yourIdx))
 			})
