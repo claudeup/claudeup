@@ -387,13 +387,13 @@ func showApplyResults(result *profile.ApplyResult) {
 		fmt.Printf("  Removed %d plugins\n", len(result.PluginsRemoved))
 	}
 	if len(result.PluginsAlreadyRemoved) > 0 {
-		fmt.Printf("  ✓ %d plugins were already uninstalled\n", len(result.PluginsAlreadyRemoved))
+		fmt.Printf("  %s %d plugins were already uninstalled\n", ui.SymbolSuccess, len(result.PluginsAlreadyRemoved))
 	}
 	if len(result.PluginsInstalled) > 0 {
 		fmt.Printf("  Installed %d plugins\n", len(result.PluginsInstalled))
 	}
 	if len(result.PluginsAlreadyPresent) > 0 {
-		fmt.Printf("  ✓ %d plugins were already installed\n", len(result.PluginsAlreadyPresent))
+		fmt.Printf("  %s %d plugins were already installed\n", ui.SymbolSuccess, len(result.PluginsAlreadyPresent))
 	}
 	if len(result.MCPServersRemoved) > 0 {
 		fmt.Printf("  Removed %d MCP servers\n", len(result.MCPServersRemoved))

@@ -10,6 +10,7 @@ import (
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/sandbox"
 	"github.com/claudeup/claudeup/internal/secrets"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -76,7 +77,7 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		if err := sandbox.CleanState(claudePMDir, sandboxProfile); err != nil {
 			return err
 		}
-		fmt.Printf("✓ Cleaned sandbox state for profile %q\n", sandboxProfile)
+		ui.PrintSuccess(fmt.Sprintf("Cleaned sandbox state for profile %q", sandboxProfile))
 		return nil
 	}
 
