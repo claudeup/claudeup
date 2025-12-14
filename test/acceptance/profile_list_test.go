@@ -147,6 +147,42 @@ var _ = Describe("profile list", func() {
 			Expect(result.Stdout).To(MatchRegexp(`\*\s+my-profile`))
 		})
 	})
+
+	Describe("reserved name warning", func() {
+		Context("when a profile named 'current' exists", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{
+					Name:        "current",
+					Description: "Old profile with reserved name",
+				})
+			})
+
+			It("shows a warning about the reserved name", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("current"))
+				Expect(result.Stdout).To(ContainSubstring("reserved"))
+				Expect(result.Stdout).To(ContainSubstring("profile rename"))
+			})
+		})
+
+		Context("when no profile named 'current' exists", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{
+					Name:        "my-profile",
+					Description: "Normal profile",
+				})
+			})
+
+			It("does not show a warning", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("reserved"))
+			})
+		})
+	})
 })
 
 var _ = Describe("profile delete", func() {
