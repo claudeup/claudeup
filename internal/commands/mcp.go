@@ -84,18 +84,19 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return mcpServers[i].PluginName < mcpServers[j].PluginName
 	})
 
-	// Print header
-	fmt.Println("MCP Servers by Plugin")
-
 	// Count total servers
 	totalServers := 0
 	for _, pluginServers := range mcpServers {
 		totalServers += len(pluginServers.Servers)
 	}
 
+	// Print header
+	fmt.Println(ui.RenderSection("MCP Servers", totalServers))
+	fmt.Println()
+
 	// Print each plugin's MCP servers
 	for _, pluginServers := range mcpServers {
-		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), pluginServers.PluginName)
+		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), ui.Bold(pluginServers.PluginName))
 
 		// Sort server names
 		serverNames := make([]string, 0, len(pluginServers.Servers))
@@ -107,13 +108,13 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		// Print each server
 		for _, serverName := range serverNames {
 			server := pluginServers.Servers[serverName]
-			fmt.Printf("   %s %s\n", ui.Success(ui.SymbolSuccess), serverName)
-			fmt.Printf("      Command: %s\n", server.Command)
+			fmt.Println(ui.Indent(fmt.Sprintf("%s %s", ui.Success(ui.SymbolSuccess), ui.Bold(serverName)), 1))
+			fmt.Println(ui.Indent(ui.RenderDetail("Command", server.Command), 2))
 			if len(server.Args) > 0 {
-				fmt.Printf("      Args:    %v\n", server.Args)
+				fmt.Println(ui.Indent(ui.RenderDetail("Args", fmt.Sprintf("%v", server.Args)), 2))
 			}
 			if len(server.Env) > 0 {
-				fmt.Printf("      Env:     %d variables\n", len(server.Env))
+				fmt.Println(ui.Indent(ui.RenderDetail("Env", fmt.Sprintf("%d variables", len(server.Env))), 2))
 			}
 		}
 		fmt.Println()

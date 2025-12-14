@@ -36,7 +36,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print header
-	fmt.Println("claudeup Status")
+	fmt.Println(ui.RenderSection("claudeup Status", -1))
 
 	// Print active profile
 	cfg, _ := config.Load()
@@ -44,10 +44,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
 		activeProfile = cfg.Preferences.ActiveProfile
 	}
-	fmt.Printf("\nActive Profile: %s\n", activeProfile)
+	fmt.Println()
+	fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
 
 	// Print marketplaces
-	fmt.Printf("\nMarketplaces (%d)\n", len(marketplaces))
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Marketplaces", len(marketplaces)))
 	for name := range marketplaces {
 		fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
 	}
@@ -65,24 +67,27 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Print plugins summary
-	fmt.Printf("\nPlugins (%d total)\n", len(plugins.GetAllPlugins()))
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Plugins", len(plugins.GetAllPlugins())))
 	fmt.Printf("  %s %d enabled\n", ui.Success(ui.SymbolSuccess), enabledCount)
 	if len(stalePlugins) > 0 {
 		fmt.Printf("  %s %d stale\n", ui.Warning(ui.SymbolWarning), len(stalePlugins))
 	}
 
 	// Print MCP servers placeholder
-	fmt.Println("\nMCP Servers")
-	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.SymbolArrow)
+	fmt.Println()
+	fmt.Println(ui.RenderSection("MCP Servers", -1))
+	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.Muted(ui.SymbolArrow))
 
 	// Print issues if any
 	if len(stalePlugins) > 0 {
-		fmt.Println("\nIssues Detected")
+		fmt.Println()
+		fmt.Println(ui.RenderSection("Issues Detected", -1))
 		fmt.Printf("  %s %d plugins have stale paths\n", ui.Warning(ui.SymbolWarning), len(stalePlugins))
 		for _, name := range stalePlugins {
 			fmt.Printf("    - %s\n", name)
 		}
-		fmt.Printf("  %s Run 'claudeup doctor' for details\n", ui.SymbolArrow)
+		fmt.Printf("  %s Run 'claudeup doctor' for details\n", ui.Muted(ui.SymbolArrow))
 	}
 
 	return nil

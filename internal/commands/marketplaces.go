@@ -44,17 +44,18 @@ func runMarketplaceList(cmd *cobra.Command, args []string) error {
 	sort.Strings(names)
 
 	// Print header
-	fmt.Printf("Installed Marketplaces (%d)\n\n", len(names))
+	fmt.Println(ui.RenderSection("Installed Marketplaces", len(names)))
+	fmt.Println()
 
 	// Print each marketplace
 	for _, name := range names {
 		marketplace := marketplaces[name]
 
-		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), name)
-		fmt.Printf("   Source:     %s\n", marketplace.Source.Source)
-		fmt.Printf("   Repo:       %s\n", marketplace.Source.Repo)
-		fmt.Printf("   Location:   %s\n", ui.Muted(marketplace.InstallLocation))
-		fmt.Printf("   Updated:    %s\n", marketplace.LastUpdated)
+		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), ui.Bold(name))
+		fmt.Println(ui.Indent(ui.RenderDetail("Source", marketplace.Source.Source), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Repo", marketplace.Source.Repo), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Location", ui.Muted(marketplace.InstallLocation)), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Updated", ui.Muted(marketplace.LastUpdated)), 1))
 		fmt.Println()
 	}
 
