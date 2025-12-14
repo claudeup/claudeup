@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"text/template"
 
@@ -28,6 +29,10 @@ var (
 
 	helpDescStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted)
+
+	helpErrorStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(ColorError)
 )
 
 // SetupHelpTemplate configures custom help templates for the root command
@@ -46,6 +51,23 @@ func SetupHelpTemplate(cmd *cobra.Command) {
 	cobra.AddTemplateFunc("styleFlag", styleFlag)
 	cobra.AddTemplateFunc("styleDesc", styleDesc)
 	cobra.AddTemplateFunc("styleExample", styleExample)
+	cobra.AddTemplateFunc("styleError", styleError)
+
+	// Set custom error message prefix with styling
+	cmd.SetErrPrefix(helpErrorStyle.Render("Error:"))
+
+	// Silence the default error printing - we'll handle it ourselves
+	cmd.SilenceErrors = true
+
+	// Set custom flag error function for styled flag errors
+	cmd.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
+		return fmt.Errorf("%s", err.Error())
+	})
+}
+
+// FormatError returns a styled error message for CLI output
+func FormatError(err error) string {
+	return helpErrorStyle.Render("Error:") + " " + err.Error()
 }
 
 func styleTitle(s string) string {
@@ -66,6 +88,10 @@ func styleFlag(s string) string {
 
 func styleDesc(s string) string {
 	return helpDescStyle.Render(s)
+}
+
+func styleError(s string) string {
+	return helpErrorStyle.Render(s)
 }
 
 func styleExample(s string) string {
