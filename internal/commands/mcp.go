@@ -9,6 +9,7 @@ import (
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/mcp"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +23,7 @@ var mcpListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all MCP servers",
 	Long:  `Display MCP servers grouped by the plugin that provides them.`,
+	Args:  cobra.NoArgs,
 	RunE:  runMCPList,
 }
 
@@ -30,11 +32,9 @@ var mcpDisableCmd = &cobra.Command{
 	Short: "Disable a specific MCP server",
 	Long: `Disable a specific MCP server without disabling the entire plugin.
 
-The server reference must be in the format: plugin-name:server-name
-
-Example:
-  claudeup mcp disable compound-engineering@every-marketplace:playwright
-  claudeup mcp disable superpowers-chrome@superpowers-marketplace:chrome`,
+The server reference must be in the format: plugin-name:server-name`,
+	Example: `  claudeup mcp disable my-plugin@acme-marketplace:database
+  claudeup mcp disable tools@example-marketplace:browser`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPDisable,
 }
@@ -44,11 +44,9 @@ var mcpEnableCmd = &cobra.Command{
 	Short: "Enable a previously disabled MCP server",
 	Long: `Enable a specific MCP server that was previously disabled.
 
-The server reference must be in the format: plugin-name:server-name
-
-Example:
-  claudeup mcp enable compound-engineering@every-marketplace:playwright
-  claudeup mcp enable superpowers-chrome@superpowers-marketplace:chrome`,
+The server reference must be in the format: plugin-name:server-name`,
+	Example: `  claudeup mcp enable my-plugin@acme-marketplace:database
+  claudeup mcp enable tools@example-marketplace:browser`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPEnable,
 }
@@ -83,18 +81,19 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return mcpServers[i].PluginName < mcpServers[j].PluginName
 	})
 
-	// Print header
-	fmt.Println("=== MCP Servers by Plugin ===")
-
 	// Count total servers
 	totalServers := 0
 	for _, pluginServers := range mcpServers {
 		totalServers += len(pluginServers.Servers)
 	}
 
+	// Print header
+	fmt.Println(ui.RenderSection("MCP Servers", totalServers))
+	fmt.Println()
+
 	// Print each plugin's MCP servers
 	for _, pluginServers := range mcpServers {
-		fmt.Printf("✓ %s\n", pluginServers.PluginName)
+		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), ui.Bold(pluginServers.PluginName))
 
 		// Sort server names
 		serverNames := make([]string, 0, len(pluginServers.Servers))
@@ -106,13 +105,13 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		// Print each server
 		for _, serverName := range serverNames {
 			server := pluginServers.Servers[serverName]
-			fmt.Printf("   ✓ %s\n", serverName)
-			fmt.Printf("      Command: %s\n", server.Command)
+			fmt.Println(ui.Indent(fmt.Sprintf("%s %s", ui.Success(ui.SymbolSuccess), ui.Bold(serverName)), 1))
+			fmt.Println(ui.Indent(ui.RenderDetail("Command", server.Command), 2))
 			if len(server.Args) > 0 {
-				fmt.Printf("      Args:    %v\n", server.Args)
+				fmt.Println(ui.Indent(ui.RenderDetail("Args", fmt.Sprintf("%v", server.Args)), 2))
 			}
 			if len(server.Env) > 0 {
-				fmt.Printf("      Env:     %d variables\n", len(server.Env))
+				fmt.Println(ui.Indent(ui.RenderDetail("Env", fmt.Sprintf("%d variables", len(server.Env))), 2))
 			}
 		}
 		fmt.Println()
@@ -134,7 +133,7 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 
 	// Check if already disabled
 	if cfg.IsMCPServerDisabled(serverRef) {
-		fmt.Printf("✓ MCP server %s is already disabled\n", serverRef)
+		ui.PrintSuccess(fmt.Sprintf("MCP server %s is already disabled", serverRef))
 		return nil
 	}
 
@@ -146,7 +145,8 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("✓ Disabled MCP server %s\n\n", serverRef)
+	ui.PrintSuccess(fmt.Sprintf("Disabled MCP server %s", serverRef))
+	fmt.Println()
 	fmt.Println("This MCP server will no longer be loaded")
 	fmt.Printf("Run 'claudeup mcp enable %s' to re-enable\n", serverRef)
 	fmt.Println("\nNote: You may need to restart Claude Code for changes to take effect")
@@ -165,7 +165,7 @@ func runMCPEnable(cmd *cobra.Command, args []string) error {
 
 	// Check if it's disabled
 	if !cfg.IsMCPServerDisabled(serverRef) {
-		fmt.Printf("✓ MCP server %s is already enabled\n", serverRef)
+		ui.PrintSuccess(fmt.Sprintf("MCP server %s is already enabled", serverRef))
 		return nil
 	}
 
@@ -177,7 +177,8 @@ func runMCPEnable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("✓ Enabled MCP server %s\n\n", serverRef)
+	ui.PrintSuccess(fmt.Sprintf("Enabled MCP server %s", serverRef))
+	fmt.Println()
 	fmt.Println("This MCP server will now be loaded")
 	fmt.Printf("Run 'claudeup mcp disable %s' to disable again\n", serverRef)
 	fmt.Println("\nNote: You may need to restart Claude Code for changes to take effect")

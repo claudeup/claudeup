@@ -25,6 +25,12 @@ var updateCmd = &cobra.Command{
 
 By default, checks for updates and prompts to install them.
 Use --check-only to see what's available without making changes.`,
+	Example: `  # Check for updates and interactively select which to apply
+  claudeup update
+
+  # Only check what updates are available
+  claudeup update --check-only`,
+	Args: cobra.NoArgs,
 	RunE: runUpdate,
 }
 
@@ -48,7 +54,7 @@ type PluginUpdate struct {
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
-	fmt.Println("Checking for updates...")
+	ui.PrintInfo("Checking for updates...")
 
 	// Load marketplaces
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
@@ -63,56 +69,62 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check marketplace updates
-	fmt.Println("━━━ Checking Marketplaces ━━━")
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Checking Marketplaces", len(marketplaces)))
 	marketplaceUpdates := checkMarketplaceUpdates(marketplaces)
 
 	var outdatedMarketplaces []string
 	for _, update := range marketplaceUpdates {
 		if update.HasUpdate {
-			fmt.Printf("  ⚠ %s: Update available\n", update.Name)
+			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
 			outdatedMarketplaces = append(outdatedMarketplaces, update.Name)
 		} else {
-			fmt.Printf("  ✓ %s: Up to date\n", update.Name)
+			fmt.Printf("  %s %s: %s\n", ui.Success(ui.SymbolSuccess), update.Name, ui.Muted("Up to date"))
 		}
 	}
 
 	// Check plugin updates
-	fmt.Println("\n━━━ Checking Plugins ━━━")
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Checking Plugins", len(plugins.GetAllPlugins())))
 	pluginUpdates := checkPluginUpdates(plugins, marketplaces)
 
 	var outdatedPlugins []string
 	for _, update := range pluginUpdates {
 		if update.HasUpdate {
-			fmt.Printf("  ⚠ %s: Update available\n", update.Name)
+			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
 			outdatedPlugins = append(outdatedPlugins, update.Name)
 		}
 	}
 
 	if len(outdatedPlugins) == 0 {
-		fmt.Println("  ✓ All plugins up to date")
+		fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 	}
 
 	// Summary
-	fmt.Println("\n━━━ Summary ━━━")
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Summary", -1))
 	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
-		fmt.Println("✓ Everything is up to date!")
+		ui.PrintSuccess("Everything is up to date!")
 		return nil
 	}
 
 	if updateCheckOnly {
 		if len(outdatedMarketplaces) > 0 {
-			fmt.Println("\nMarketplace updates available:")
+			fmt.Println()
+			ui.PrintWarning(fmt.Sprintf("%d marketplace updates available:", len(outdatedMarketplaces)))
 			for _, name := range outdatedMarketplaces {
-				fmt.Printf("  • %s\n", name)
+				fmt.Printf("  %s %s\n", ui.SymbolBullet, name)
 			}
 		}
 		if len(outdatedPlugins) > 0 {
-			fmt.Println("\nPlugin updates available:")
+			fmt.Println()
+			ui.PrintWarning(fmt.Sprintf("%d plugin updates available:", len(outdatedPlugins)))
 			for _, name := range outdatedPlugins {
-				fmt.Printf("  • %s\n", name)
+				fmt.Printf("  %s %s\n", ui.SymbolBullet, name)
 			}
 		}
-		fmt.Println("\nRun without --check-only to apply updates")
+		fmt.Println()
+		fmt.Printf("%s Run without --check-only to apply updates\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
@@ -144,30 +156,32 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 
 	// Check if user selected anything
 	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
-		fmt.Println("No updates selected")
+		ui.PrintInfo("No updates selected")
 		return nil
 	}
 
 	// Apply marketplace updates
 	if len(outdatedMarketplaces) > 0 {
-		fmt.Println("\n━━━ Updating Marketplaces ━━━")
+		fmt.Println()
+		fmt.Println(ui.RenderSection("Updating Marketplaces", len(outdatedMarketplaces)))
 		for _, name := range outdatedMarketplaces {
 			if err := updateMarketplace(name, marketplaces[name].InstallLocation); err != nil {
-				fmt.Printf("  ✗ %s: %v\n", name, err)
+				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
 			} else {
-				fmt.Printf("  ✓ %s: Updated\n", name)
+				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
 			}
 		}
 	}
 
 	// Apply plugin updates
 	if len(outdatedPlugins) > 0 {
-		fmt.Println("\n━━━ Updating Plugins ━━━")
+		fmt.Println()
+		fmt.Println(ui.RenderSection("Updating Plugins", len(outdatedPlugins)))
 		for _, name := range outdatedPlugins {
 			if err := updatePlugin(name, plugins); err != nil {
-				fmt.Printf("  ✗ %s: %v\n", name, err)
+				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
 			} else {
-				fmt.Printf("  ✓ %s: Updated\n", name)
+				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
 			}
 		}
 
@@ -177,7 +191,8 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	fmt.Println("\n✓ Updates complete!")
+	fmt.Println()
+	ui.PrintSuccess("Updates complete!")
 
 	return nil
 }

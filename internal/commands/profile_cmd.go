@@ -13,6 +13,7 @@ import (
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -32,14 +33,26 @@ Use profiles to:
 var profileListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available profiles",
+	Args:  cobra.NoArgs,
 	RunE:  runProfileList,
 }
 
 var profileUseCmd = &cobra.Command{
 	Use:   "use <name>",
 	Short: "Apply a profile to Claude Code",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runProfileUse,
+	Long: `Apply a profile's configuration to your Claude Code installation.
+
+Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
+	Example: `  # Apply a profile interactively
+  claudeup profile use my-profile
+
+  # Apply without prompts
+  claudeup profile use my-profile -y
+
+  # Force the post-apply setup wizard to run
+  claudeup profile use my-profile --setup`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileUse,
 }
 
 var profileSaveCmd = &cobra.Command{
@@ -73,25 +86,32 @@ var profileShowCmd = &cobra.Command{
 
 var profileSuggestCmd = &cobra.Command{
 	Use:   "suggest",
-	Short: "Suggest a profile based on current directory",
+	Short: "Suggest a profile for the current directory",
+	Args:  cobra.NoArgs,
 	RunE:  runProfileSuggest,
 }
 
 var profileCurrentCmd = &cobra.Command{
 	Use:   "current",
 	Short: "Show the currently active profile",
+	Args:  cobra.NoArgs,
 	RunE:  runProfileCurrent,
 }
 
 var profileResetCmd = &cobra.Command{
 	Use:   "reset <name>",
-	Short: "Remove everything a profile installed",
+	Short: "Remove all components installed by a profile",
 	Long: `Removes all plugins, MCP servers, and marketplaces that a profile would install.
 
 This is useful for:
   - Testing a profile from scratch
   - Cleaning up before switching to a different profile
   - Removing a profile's effects without applying a new one`,
+	Example: `  # Remove everything installed by a profile
+  claudeup profile reset my-profile
+
+  # Reset without confirmation prompts
+  claudeup profile reset my-profile -y`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileReset,
 }
@@ -208,27 +228,27 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(userProfiles) == 0 && !hasBuiltIn {
-		fmt.Println("No profiles found.")
-		fmt.Println("Create one with: claudeup profile save <name>")
+		ui.PrintInfo("No profiles found.")
+		fmt.Printf("  %s Create one with: claudeup profile save <name>\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
 	// Show built-in profiles section (all of them, noting which are customized)
 	if len(embeddedProfiles) > 0 {
-		fmt.Println("Built-in profiles:")
+		fmt.Println(ui.RenderSection("Built-in profiles", len(embeddedProfiles)))
 		fmt.Println()
 		for _, p := range embeddedProfiles {
 			marker := "  "
 			if p.Name == activeProfile {
-				marker = "* "
+				marker = ui.Success("* ")
 			}
 			desc := p.Description
 			if desc == "" {
-				desc = "(no description)"
+				desc = ui.Muted("(no description)")
 			}
 			customized := ""
 			if userProfileNames[p.Name] {
-				customized = " (customized)"
+				customized = ui.Info(" (customized)")
 			}
 			fmt.Printf("%s%-20s %s%s\n", marker, p.Name, desc, customized)
 		}
@@ -244,16 +264,16 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(customProfiles) > 0 {
-		fmt.Println("Your profiles:")
+		fmt.Println(ui.RenderSection("Your profiles", len(customProfiles)))
 		fmt.Println()
 		for _, p := range customProfiles {
 			marker := "  "
 			if p.Name == activeProfile {
-				marker = "* "
+				marker = ui.Success("* ")
 			}
 			desc := p.Description
 			if desc == "" {
-				desc = "(no description)"
+				desc = ui.Muted("(no description)")
 			}
 			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
 		}
@@ -262,13 +282,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Warn if user has a profile named "current" (now reserved)
 	if userProfileNames["current"] {
-		fmt.Println("Warning: Profile \"current\" uses a reserved name. Rename it with:")
+		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
 		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()
 	}
 
-	fmt.Println("Use 'claudeup profile show <name>' for details")
-	fmt.Println("Use 'claudeup profile use <name>' to apply a profile")
+	fmt.Printf("%s Use 'claudeup profile show <name>' for details\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile use <name>' to apply a profile\n", ui.Muted(ui.SymbolArrow))
 
 	return nil
 }
@@ -292,7 +312,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	// Users should know about hooks before seeing the diff
 	if p.PostApply != nil && !profile.IsEmbeddedProfile(name) {
 		fmt.Println()
-		fmt.Println("⚠ Security Warning: This profile contains a post-apply hook.")
+		ui.PrintWarning("Security Warning: This profile contains a post-apply hook.")
 		fmt.Println("  Hooks execute arbitrary commands on your system.")
 		fmt.Println("  Only proceed if you trust the source of this profile.")
 		if p.PostApply.Script != "" {
@@ -318,17 +338,17 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	}
 
 	if !hasDiffChanges(diff) {
-		fmt.Println("No changes needed - profile already matches current state.")
+		ui.PrintSuccess("No changes needed - profile already matches current state.")
 		return nil
 	}
 
-	fmt.Printf("Profile: %s\n", name)
+	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 	fmt.Println()
 	showDiff(diff)
 	fmt.Println()
 
 	if !confirmProceed() {
-		fmt.Println("Cancelled.")
+		ui.PrintMuted("Cancelled.")
 		return nil
 	}
 
@@ -349,7 +369,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 
 	// Apply
 	fmt.Println()
-	fmt.Println("Applying profile...")
+	ui.PrintInfo("Applying profile...")
 
 	chain := buildSecretChain()
 	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
@@ -366,20 +386,20 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	}
 	cfg.Preferences.ActiveProfile = name
 	if err := config.Save(cfg); err != nil {
-		fmt.Printf("  ⚠ Could not save active profile: %v\n", err)
+		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 	}
 
 	// Silently clean up stale plugin entries
 	cleanupStalePlugins(claudeDir)
 
 	fmt.Println()
-	fmt.Println("✓ Profile applied!")
+	ui.PrintSuccess("Profile applied!")
 
 	// Run post-apply hook if applicable (decision was made before apply)
 	if shouldRunHook {
 		fmt.Println()
 		if err := profile.RunHook(p, hookOpts); err != nil {
-			fmt.Printf("  ✗ Post-apply hook failed: %v\n", err)
+			ui.PrintError(fmt.Sprintf("Post-apply hook failed: %v", err))
 			return fmt.Errorf("hook execution failed: %w", err)
 		}
 	}
@@ -437,17 +457,17 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile use <name>' first")
 		}
 		name = cfg.Preferences.ActiveProfile
-		fmt.Printf("Saving to active profile: %s\n", name)
+		ui.PrintInfo(fmt.Sprintf("Saving to active profile: %s", name))
 	}
 
 	// Check if profile already exists
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
 		if !config.YesFlag {
-			fmt.Printf("Profile %q already exists. Overwrite? [y/N]: ", name)
+			fmt.Printf("%s Profile %q already exists. Overwrite? [y/N]: ", ui.Warning(ui.SymbolWarning), name)
 			choice := promptChoice("", "n")
 			if choice != "y" && choice != "yes" {
-				fmt.Println("Cancelled.")
+				ui.PrintMuted("Cancelled.")
 				return nil
 			}
 		}
@@ -467,11 +487,11 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	fmt.Printf("✓ Saved profile %q\n", name)
+	ui.PrintSuccess(fmt.Sprintf("Saved profile %q", name))
 	fmt.Println()
-	fmt.Printf("  MCP Servers:   %d\n", len(p.MCPServers))
-	fmt.Printf("  Marketplaces:  %d\n", len(p.Marketplaces))
-	fmt.Printf("  Plugins:       %d\n", len(p.Plugins))
+	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 
 	return nil
 }
@@ -775,7 +795,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	fmt.Printf("✓ Created profile %q (based on %q)\n", name, sourceProfile.Name)
+	ui.PrintSuccess(fmt.Sprintf("Created profile %q (based on %q)", name, sourceProfile.Name))
 	fmt.Println()
 	fmt.Printf("  MCP Servers:   %d\n", len(newProfile.MCPServers))
 	fmt.Printf("  Marketplaces:  %d\n", len(newProfile.Marketplaces))
@@ -793,8 +813,8 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	}
 
 	if activeProfile == "" {
-		fmt.Println("No profile is currently active.")
-		fmt.Println("Use 'claudeup profile use <name>' to apply a profile.")
+		ui.PrintInfo("No profile is currently active.")
+		fmt.Printf("  %s Use 'claudeup profile use <name>' to apply a profile.\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
@@ -803,18 +823,18 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	p, err := loadProfileWithFallback(profilesDir, activeProfile)
 	if err != nil {
 		// Profile was set but can't be loaded - show name and error
-		fmt.Printf("Current profile: %s (details unavailable: %v)\n", activeProfile, err)
+		ui.PrintWarning(fmt.Sprintf("Current profile: %s (details unavailable: %v)", activeProfile, err))
 		return nil
 	}
 
-	fmt.Printf("Current profile: %s\n", p.Name)
+	fmt.Println(ui.RenderDetail("Current profile", ui.Bold(p.Name)))
 	if p.Description != "" {
-		fmt.Printf("  %s\n", p.Description)
+		fmt.Printf("  %s\n", ui.Muted(p.Description))
 	}
 	fmt.Println()
-	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
-	fmt.Printf("  Plugins:      %d\n", len(p.Plugins))
-	fmt.Printf("  MCP Servers:  %d\n", len(p.MCPServers))
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 
 	return nil
 }
@@ -830,7 +850,7 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show what will be removed
-	fmt.Printf("Reset profile: %s\n", name)
+	fmt.Println(ui.RenderDetail("Reset profile", ui.Bold(name)))
 	fmt.Println()
 
 	claudeDir := profile.DefaultClaudeDir()
@@ -908,7 +928,7 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("Some errors occurred:")
 		for _, err := range result.Errors {
-			fmt.Printf("  ✗ %v\n", err)
+			ui.PrintError(fmt.Sprintf("%v", err))
 		}
 	}
 
@@ -917,12 +937,12 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile == name {
 		cfg.Preferences.ActiveProfile = ""
 		if err := config.Save(cfg); err != nil {
-			fmt.Printf("  ⚠ Could not clear active profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
 		}
 	}
 
 	fmt.Println()
-	fmt.Println("✓ Profile reset complete!")
+	ui.PrintSuccess("Profile reset complete!")
 
 	return nil
 }
@@ -948,13 +968,13 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show what we're about to do
-	fmt.Printf("Delete profile: %s\n", name)
+	fmt.Println(ui.RenderDetail("Delete profile", ui.Bold(name)))
 	fmt.Println()
-	fmt.Println("  This will permanently remove this profile.")
+	ui.PrintWarning("This will permanently remove this profile.")
 	fmt.Println()
 
 	if !confirmProceed() {
-		fmt.Println("Cancelled.")
+		ui.PrintMuted("Cancelled.")
 		return nil
 	}
 
@@ -968,11 +988,11 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile == name {
 		cfg.Preferences.ActiveProfile = ""
 		if err := config.Save(cfg); err != nil {
-			fmt.Printf("  ⚠ Could not clear active profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
 		}
 	}
 
-	fmt.Printf("✓ Deleted profile %q\n", name)
+	ui.PrintSuccess(fmt.Sprintf("Deleted profile %q", name))
 
 	return nil
 }
@@ -1014,7 +1034,7 @@ func runProfileRestore(cmd *cobra.Command, args []string) error {
 		// Keep the active profile set - it will now use the built-in version
 	}
 
-	fmt.Printf("✓ Restored built-in profile %q\n", name)
+	ui.PrintSuccess(fmt.Sprintf("Restored built-in profile %q", name))
 
 	return nil
 }
@@ -1079,11 +1099,11 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile == oldName {
 		cfg.Preferences.ActiveProfile = newName
 		if err := config.Save(cfg); err != nil {
-			fmt.Printf("  ⚠ Could not update active profile: %v\n", err)
+			ui.PrintWarning(fmt.Sprintf("Could not update active profile: %v", err))
 		}
 	}
 
-	fmt.Printf("✓ Renamed profile %q to %q\n", oldName, newName)
+	ui.PrintSuccess(fmt.Sprintf("Renamed profile %q to %q", oldName, newName))
 
 	return nil
 }

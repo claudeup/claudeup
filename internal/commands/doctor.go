@@ -10,14 +10,23 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Diagnose common issues with Claude Code installation",
-	Long:  `Run diagnostics to identify and explain issues with plugins, marketplaces, and paths.`,
-	RunE:  runDoctor,
+	Long: `Run diagnostics to identify and explain issues with plugins, marketplaces, and paths.
+
+Checks:
+  - Marketplace directories exist
+  - Plugin paths are valid
+  - Fixable path issues vs truly broken entries
+
+Use 'claudeup cleanup' to fix any detected issues.`,
+	Args: cobra.NoArgs,
+	RunE: runDoctor,
 }
 
 func init() {
@@ -33,7 +42,7 @@ type PathIssue struct {
 }
 
 func runDoctor(cmd *cobra.Command, args []string) error {
-	fmt.Println("Running diagnostics...")
+	ui.PrintInfo("Running diagnostics...")
 
 	// Load plugins (gracefully handle fresh installs with no plugins)
 	plugins, err := claude.LoadPlugins(claudeDir)
@@ -56,27 +65,28 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check marketplaces
-	fmt.Println("━━━ Checking Marketplaces ━━━")
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Checking Marketplaces", len(marketplaces)))
 	marketplaceIssues := 0
 	for name, marketplace := range marketplaces {
 		if _, err := os.Stat(marketplace.InstallLocation); os.IsNotExist(err) {
-			fmt.Printf("  ✗ %s: Directory not found at %s\n", name, marketplace.InstallLocation)
+			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+" "+name+": Directory not found at "+marketplace.InstallLocation, 1))
 			marketplaceIssues++
 		} else {
-			fmt.Printf("  ✓ %s\n", name)
+			fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" "+name, 1))
 		}
 	}
 	if marketplaceIssues == 0 {
-		fmt.Println("  All marketplaces OK")
+		fmt.Println(ui.Indent(ui.Success("All marketplaces OK"), 1))
 	}
 	fmt.Println()
 
 	// Analyze path issues
-	fmt.Println("━━━ Analyzing Plugin Paths ━━━")
+	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
 
 	if len(pathIssues) == 0 {
-		fmt.Println("  ✓ All plugin paths are valid")
+		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All plugin paths are valid", 1))
 	} else {
 		// Group by issue type
 		byType := make(map[string][]PathIssue)
@@ -86,11 +96,11 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 		// Report fixable issues
 		if fixable, ok := byType["missing_subdirectory"]; ok {
-			fmt.Printf("  ⚠ %d plugins with fixable path issues:\n", len(fixable))
+			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d plugins with fixable path issues:", len(fixable)), 1))
 			for _, issue := range fixable {
-				fmt.Printf("    - %s\n", issue.PluginName)
-				fmt.Printf("      Current:  %s\n", issue.InstallPath)
-				fmt.Printf("      Expected: %s\n", issue.ExpectedPath)
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
+				fmt.Println(ui.Indent(ui.RenderDetail("Current", issue.InstallPath), 3))
+				fmt.Println(ui.Indent(ui.RenderDetail("Expected", issue.ExpectedPath), 3))
 			}
 		}
 
@@ -99,37 +109,39 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			if len(byType["missing_subdirectory"]) > 0 {
 				fmt.Println()
 			}
-			fmt.Printf("  ✗ %d plugins with missing directories:\n", len(missing))
+			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugins with missing directories:", len(missing)), 1))
 			for _, issue := range missing {
-				fmt.Printf("    - %s\n", issue.PluginName)
-				fmt.Printf("      Path: %s\n", issue.InstallPath)
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
+				fmt.Println(ui.Indent(ui.RenderDetail("Path", issue.InstallPath), 3))
 			}
 		}
 
 		// Unified recommendation
-		fmt.Println("\n  → Run 'claudeup cleanup' to fix and remove these issues")
-		fmt.Println("     (use --fix-only or --remove-only for granular control)")
+		fmt.Println()
+		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Run 'claudeup cleanup' to fix and remove these issues"), 1))
+		fmt.Println(ui.Indent(ui.Muted("(use --fix-only or --remove-only for granular control)"), 2))
 	}
 	fmt.Println()
 
 	// Summary
-	fmt.Println("━━━ Summary ━━━")
-	fmt.Printf("  Marketplaces: %d installed", len(marketplaces))
+	fmt.Println(ui.RenderSection("Summary", -1))
+	marketplaceSummary := fmt.Sprintf("%d installed", len(marketplaces))
 	if marketplaceIssues > 0 {
-		fmt.Printf(", %d issues", marketplaceIssues)
+		marketplaceSummary += fmt.Sprintf(", %d issues", marketplaceIssues)
 	}
-	fmt.Println()
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", marketplaceSummary), 1))
 
-	fmt.Printf("  Plugins:      %d installed", len(plugins.Plugins))
+	pluginSummary := fmt.Sprintf("%d installed", len(plugins.Plugins))
 	if len(pathIssues) > 0 {
-		fmt.Printf(", %d issues", len(pathIssues))
+		pluginSummary += fmt.Sprintf(", %d issues", len(pathIssues))
 	}
-	fmt.Println()
+	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", pluginSummary), 1))
 
+	fmt.Println()
 	if len(pathIssues) > 0 || marketplaceIssues > 0 {
-		fmt.Println("\nRun the suggested commands to fix these issues.")
+		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {
-		fmt.Println("\n✓ No issues detected!")
+		ui.PrintSuccess("No issues detected!")
 	}
 
 	return nil

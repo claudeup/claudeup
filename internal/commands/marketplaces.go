@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -19,8 +20,11 @@ var marketplaceCmd = &cobra.Command{
 var marketplaceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List installed marketplaces",
-	Long:  `Display information about installed Claude Code marketplace repositories.`,
-	RunE:  runMarketplaceList,
+	Long: `Display information about installed Claude Code marketplace repositories.
+
+Shows each marketplace's source, repository, install location, and last update time.`,
+	Args: cobra.NoArgs,
+	RunE: runMarketplaceList,
 }
 
 func init() {
@@ -43,17 +47,18 @@ func runMarketplaceList(cmd *cobra.Command, args []string) error {
 	sort.Strings(names)
 
 	// Print header
-	fmt.Printf("=== Installed Marketplaces (%d) ===\n\n", len(names))
+	fmt.Println(ui.RenderSection("Installed Marketplaces", len(names)))
+	fmt.Println()
 
 	// Print each marketplace
 	for _, name := range names {
 		marketplace := marketplaces[name]
 
-		fmt.Printf("✓ %s\n", name)
-		fmt.Printf("   Source:     %s\n", marketplace.Source.Source)
-		fmt.Printf("   Repo:       %s\n", marketplace.Source.Repo)
-		fmt.Printf("   Location:   %s\n", marketplace.InstallLocation)
-		fmt.Printf("   Updated:    %s\n", marketplace.LastUpdated)
+		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), ui.Bold(name))
+		fmt.Println(ui.Indent(ui.RenderDetail("Source", marketplace.Source.Source), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Repo", marketplace.Source.Repo), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Location", ui.Muted(marketplace.InstallLocation)), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Updated", ui.Muted(marketplace.LastUpdated)), 1))
 		fmt.Println()
 	}
 

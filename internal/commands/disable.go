@@ -7,19 +7,18 @@ import (
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var disableCmd = &cobra.Command{
 	Use:   "disable <plugin-name>",
-	Short: "Disable a plugin",
+	Short: "Disable a plugin without uninstalling",
 	Long: `Disable a plugin by removing it from the installed plugins registry.
 
-The plugin's metadata is saved so it can be re-enabled later without reinstalling.
-
-Example:
-  claudeup disable hookify@claude-code-plugins
-  claudeup disable compound-engineering`,
+The plugin's metadata is saved so it can be re-enabled later without reinstalling.`,
+	Example: `  claudeup disable my-plugin@acme-marketplace
+  claudeup disable another-plugin`,
 	Args: cobra.ExactArgs(1),
 	RunE: runDisable,
 }
@@ -39,7 +38,7 @@ func runDisable(cmd *cobra.Command, args []string) error {
 
 	// Check if already disabled
 	if cfg.IsPluginDisabled(pluginName) {
-		fmt.Printf("✓ Plugin %s is already disabled\n", pluginName)
+		ui.PrintSuccess(fmt.Sprintf("Plugin %s is already disabled", pluginName))
 		return nil
 	}
 
@@ -78,9 +77,10 @@ func runDisable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save plugins: %w", err)
 	}
 
-	fmt.Printf("✓ Disabled %s\n\n", pluginName)
-	fmt.Println("Plugin commands, agents, skills, and MCP servers are now unavailable")
-	fmt.Println("Run 'claudeup enable", pluginName+"' to re-enable")
+	ui.PrintSuccess(fmt.Sprintf("Disabled %s", pluginName))
+	fmt.Println()
+	ui.PrintInfo("Plugin commands, agents, skills, and MCP servers are now unavailable")
+	fmt.Printf("%s Run 'claudeup enable %s' to re-enable\n", ui.Muted(ui.SymbolArrow), pluginName)
 
 	return nil
 }

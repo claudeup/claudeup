@@ -7,6 +7,7 @@ import (
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -16,11 +17,9 @@ var enableCmd = &cobra.Command{
 	Long: `Enable a plugin by restoring it to the installed plugins registry.
 
 This only works for plugins that were disabled using 'claudeup disable'.
-If the plugin was never installed, you'll need to install it first using the claude CLI.
-
-Example:
-  claudeup enable hookify@claude-code-plugins
-  claudeup enable compound-engineering`,
+If the plugin was never installed, you'll need to install it first using the claude CLI.`,
+	Example: `  claudeup enable my-plugin@acme-marketplace
+  claudeup enable another-plugin`,
 	Args: cobra.ExactArgs(1),
 	RunE: runEnable,
 }
@@ -75,9 +74,10 @@ func runEnable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save plugins: %w", err)
 	}
 
-	fmt.Printf("✓ Enabled %s\n\n", pluginName)
-	fmt.Println("Plugin commands, agents, skills, and MCP servers are now available")
-	fmt.Println("Run 'claudeup disable", pluginName+"' to disable again")
+	ui.PrintSuccess(fmt.Sprintf("Enabled %s", pluginName))
+	fmt.Println()
+	ui.PrintInfo("Plugin commands, agents, skills, and MCP servers are now available")
+	fmt.Printf("%s Run 'claudeup disable %s' to disable again\n", ui.Muted(ui.SymbolArrow), pluginName)
 
 	return nil
 }

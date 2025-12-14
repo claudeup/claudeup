@@ -41,6 +41,11 @@ func NewTestEnv(binary string) *TestEnv {
 	// Create directory structure
 	Expect(os.MkdirAll(env.ClaudeDir, 0755)).To(Succeed())
 	Expect(os.MkdirAll(env.ProfilesDir, 0755)).To(Succeed())
+	Expect(os.MkdirAll(filepath.Join(env.ClaudeDir, "plugins"), 0755)).To(Succeed())
+
+	// Create empty marketplace and plugin registries so commands don't fail
+	env.CreateKnownMarketplaces(map[string]interface{}{})
+	env.CreateInstalledPlugins(map[string]interface{}{})
 
 	return env
 }
