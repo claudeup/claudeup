@@ -112,3 +112,14 @@ func TestRenderDetailEmptyValue(t *testing.T) {
 		t.Errorf("RenderDetail should contain label even with empty value, got: %s", result)
 	}
 }
+
+func TestGetHeaderWidthReturnsWithinBounds(t *testing.T) {
+	width := getHeaderWidth()
+
+	if width < HeaderMinWidth {
+		t.Errorf("getHeaderWidth should return at least %d, got: %d", HeaderMinWidth, width)
+	}
+	if width > HeaderMaxWidth {
+		t.Errorf("getHeaderWidth should return at most %d, got: %d", HeaderMaxWidth, width)
+	}
+}

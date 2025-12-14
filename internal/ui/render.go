@@ -4,24 +4,27 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 )
 
 const (
-	// HeaderWidth is the fixed width for header boxes
-	HeaderWidth = 42
+	// HeaderMinWidth is the minimum width for header boxes
+	HeaderMinWidth = 42
+	// HeaderMaxWidth is the maximum width for header boxes (for readability)
+	HeaderMaxWidth = 80
 )
 
 var (
-	headerStyle = lipgloss.NewStyle().
+	headerBaseStyle = lipgloss.NewStyle().
 			Bold(true).
 			Foreground(ColorAccent).
 			Border(lipgloss.DoubleBorder()).
 			BorderForeground(ColorAccent).
 			Padding(0, 2).
-			Width(HeaderWidth).
 			Align(lipgloss.Center)
 
 	sectionStyle = lipgloss.NewStyle().
@@ -35,8 +38,26 @@ var (
 )
 
 // RenderHeader returns a styled header box with the given title
+// Width adapts to terminal size, capped between HeaderMinWidth and HeaderMaxWidth
 func RenderHeader(title string) string {
-	return headerStyle.Render(title)
+	width := getHeaderWidth()
+	return headerBaseStyle.Width(width).Render(title)
+}
+
+// getHeaderWidth returns appropriate header width based on terminal size
+func getHeaderWidth() int {
+	width, _, err := term.GetSize(os.Stdout.Fd())
+	if err != nil || width <= 0 {
+		return HeaderMinWidth
+	}
+	// Clamp between min and max
+	if width < HeaderMinWidth {
+		return HeaderMinWidth
+	}
+	if width > HeaderMaxWidth {
+		return HeaderMaxWidth
+	}
+	return width
 }
 
 // RenderSection returns a styled section header with optional count
