@@ -95,7 +95,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 
 	// Print each plugin's MCP servers
 	for _, pluginServers := range mcpServers {
-		fmt.Printf("%s %s\n", ui.SymbolSuccess, pluginServers.PluginName)
+		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), pluginServers.PluginName)
 
 		// Sort server names
 		serverNames := make([]string, 0, len(pluginServers.Servers))
@@ -107,7 +107,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		// Print each server
 		for _, serverName := range serverNames {
 			server := pluginServers.Servers[serverName]
-			fmt.Printf("   %s %s\n", ui.SymbolSuccess, serverName)
+			fmt.Printf("   %s %s\n", ui.Success(ui.SymbolSuccess), serverName)
 			fmt.Printf("      Command: %s\n", server.Command)
 			if len(server.Args) > 0 {
 				fmt.Printf("      Args:    %v\n", server.Args)

@@ -62,10 +62,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	marketplaceIssues := 0
 	for name, marketplace := range marketplaces {
 		if _, err := os.Stat(marketplace.InstallLocation); os.IsNotExist(err) {
-			fmt.Println(ui.Indent(ui.SymbolError+" "+name+": Directory not found at "+marketplace.InstallLocation, 1))
+			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+" "+name+": Directory not found at "+marketplace.InstallLocation, 1))
 			marketplaceIssues++
 		} else {
-			fmt.Println(ui.Indent(ui.SymbolSuccess+" "+name, 1))
+			fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" "+name, 1))
 		}
 	}
 	if marketplaceIssues == 0 {
@@ -78,7 +78,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	pathIssues := analyzePathIssues(plugins)
 
 	if len(pathIssues) == 0 {
-		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess+" All plugin paths are valid"), 1))
+		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All plugin paths are valid", 1))
 	} else {
 		// Group by issue type
 		byType := make(map[string][]PathIssue)
@@ -88,7 +88,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 		// Report fixable issues
 		if fixable, ok := byType["missing_subdirectory"]; ok {
-			fmt.Println(ui.Indent(ui.Warning(fmt.Sprintf("%s %d plugins with fixable path issues:", ui.SymbolWarning, len(fixable))), 1))
+			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d plugins with fixable path issues:", len(fixable)), 1))
 			for _, issue := range fixable {
 				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
 				fmt.Println(ui.Indent(ui.RenderDetail("Current", issue.InstallPath), 3))
@@ -101,7 +101,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			if len(byType["missing_subdirectory"]) > 0 {
 				fmt.Println()
 			}
-			fmt.Println(ui.Indent(ui.Error(fmt.Sprintf("%s %d plugins with missing directories:", ui.SymbolError, len(missing))), 1))
+			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugins with missing directories:", len(missing)), 1))
 			for _, issue := range missing {
 				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
 				fmt.Println(ui.Indent(ui.RenderDetail("Path", issue.InstallPath), 3))

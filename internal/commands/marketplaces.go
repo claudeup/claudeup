@@ -50,7 +50,7 @@ func runMarketplaceList(cmd *cobra.Command, args []string) error {
 	for _, name := range names {
 		marketplace := marketplaces[name]
 
-		fmt.Printf("%s %s\n", ui.SymbolSuccess, name)
+		fmt.Printf("%s %s\n", ui.Success(ui.SymbolSuccess), name)
 		fmt.Printf("   Source:     %s\n", marketplace.Source.Source)
 		fmt.Printf("   Repo:       %s\n", marketplace.Source.Repo)
 		fmt.Printf("   Location:   %s\n", ui.Muted(marketplace.InstallLocation))
