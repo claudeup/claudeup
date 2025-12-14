@@ -128,6 +128,20 @@ want to remove the profile's installed components.`,
 	RunE: runProfileRestore,
 }
 
+var profileRenameCmd = &cobra.Command{
+	Use:   "rename <old-name> <new-name>",
+	Short: "Rename a custom user profile",
+	Long: `Renames a custom user profile.
+
+This command only works on custom profiles you've created. Built-in profiles
+cannot be renamed.
+
+If the profile being renamed is currently active, the active profile config
+will be updated to point to the new name.`,
+	Args: cobra.ExactArgs(2),
+	RunE: runProfileRename,
+}
+
 // Flags for profile use command
 var (
 	profileUseSetup         bool
@@ -146,6 +160,7 @@ func init() {
 	profileCmd.AddCommand(profileResetCmd)
 	profileCmd.AddCommand(profileDeleteCmd)
 	profileCmd.AddCommand(profileRestoreCmd)
+	profileCmd.AddCommand(profileRenameCmd)
 
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
 
@@ -242,6 +257,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
 		}
+		fmt.Println()
+	}
+
+	// Warn if user has a profile named "current" (now reserved)
+	if userProfileNames["current"] {
+		fmt.Println("Warning: Profile \"current\" uses a reserved name. Rename it with:")
+		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()
 	}
 
@@ -993,6 +1015,75 @@ func runProfileRestore(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("✓ Restored built-in profile %q\n", name)
+
+	return nil
+}
+
+func runProfileRename(cmd *cobra.Command, args []string) error {
+	oldName := args[0]
+	newName := args[1]
+	profilesDir := getProfilesDir()
+
+	// "current" is reserved as a keyword for the active profile
+	if newName == "current" {
+		return fmt.Errorf("'current' is a reserved name. Use a different profile name")
+	}
+
+	// Check if it's a built-in profile
+	if profile.IsEmbeddedProfile(oldName) {
+		return fmt.Errorf("profile %q is a built-in profile and cannot be renamed", oldName)
+	}
+
+	// Check if source profile exists on disk
+	oldPath := filepath.Join(profilesDir, oldName+".json")
+	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
+		return fmt.Errorf("profile %q not found", oldName)
+	}
+
+	// Check if target profile already exists
+	newPath := filepath.Join(profilesDir, newName+".json")
+	if _, err := os.Stat(newPath); err == nil {
+		if !config.YesFlag {
+			return fmt.Errorf("profile %q already exists. Use -y to overwrite", newName)
+		}
+		// Remove existing target profile
+		if err := os.Remove(newPath); err != nil {
+			return fmt.Errorf("failed to remove existing profile: %w", err)
+		}
+	}
+
+	// Load the profile
+	p, err := profile.Load(profilesDir, oldName)
+	if err != nil {
+		return fmt.Errorf("failed to load profile: %w", err)
+	}
+
+	// Update the name
+	p.Name = newName
+
+	// Save with new name
+	if err := profile.Save(profilesDir, p); err != nil {
+		return fmt.Errorf("failed to save renamed profile: %w", err)
+	}
+
+	// Remove old profile file
+	if err := os.Remove(oldPath); err != nil {
+		// Rollback: remove the new file we just created to avoid inconsistent state
+		os.Remove(newPath)
+		return fmt.Errorf("failed to remove old profile: %w", err)
+	}
+
+	// Update active profile if it matches
+	// Error ignored: missing/corrupt config means no active profile to update
+	cfg, _ := config.Load()
+	if cfg != nil && cfg.Preferences.ActiveProfile == oldName {
+		cfg.Preferences.ActiveProfile = newName
+		if err := config.Save(cfg); err != nil {
+			fmt.Printf("  ⚠ Could not update active profile: %v\n", err)
+		}
+	}
+
+	fmt.Printf("✓ Renamed profile %q to %q\n", oldName, newName)
 
 	return nil
 }
