@@ -7,6 +7,7 @@ import (
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +40,7 @@ func runDisable(cmd *cobra.Command, args []string) error {
 
 	// Check if already disabled
 	if cfg.IsPluginDisabled(pluginName) {
-		fmt.Printf("✓ Plugin %s is already disabled\n", pluginName)
+		ui.PrintSuccess(fmt.Sprintf("Plugin %s is already disabled", pluginName))
 		return nil
 	}
 
@@ -78,7 +79,8 @@ func runDisable(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save plugins: %w", err)
 	}
 
-	fmt.Printf("✓ Disabled %s\n\n", pluginName)
+	ui.PrintSuccess(fmt.Sprintf("Disabled %s", pluginName))
+	fmt.Println()
 	fmt.Println("Plugin commands, agents, skills, and MCP servers are now unavailable")
 	fmt.Println("Run 'claudeup enable", pluginName+"' to re-enable")
 
