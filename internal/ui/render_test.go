@@ -62,3 +62,53 @@ func TestIndent(t *testing.T) {
 		t.Errorf("Indent should preserve content, got: %s", result)
 	}
 }
+
+func TestIndentZeroLevel(t *testing.T) {
+	result := Indent("hello", 0)
+
+	if result != "hello" {
+		t.Errorf("Indent(0) should return unchanged string, got: %q", result)
+	}
+}
+
+func TestRenderHeaderLongTitle(t *testing.T) {
+	// Test with a title longer than the fixed width of 42
+	longTitle := "This is a very long title that exceeds the header width"
+	result := RenderHeader(longTitle)
+
+	if result == "" {
+		t.Error("RenderHeader should handle long titles")
+	}
+	// Long titles should still be present (lipgloss handles truncation/wrapping)
+	if !strings.Contains(result, "This is a very long title") {
+		t.Errorf("RenderHeader should contain the title text, got: %s", result)
+	}
+}
+
+func TestRenderHeaderEmptyTitle(t *testing.T) {
+	result := RenderHeader("")
+
+	// Should still render the header box even with empty title
+	if result == "" {
+		t.Error("RenderHeader should render even with empty title")
+	}
+}
+
+func TestRenderSectionZeroCount(t *testing.T) {
+	result := RenderSection("Empty", 0)
+
+	if !strings.Contains(result, "Empty") {
+		t.Errorf("RenderSection should contain title, got: %s", result)
+	}
+	if !strings.Contains(result, "(0)") {
+		t.Errorf("RenderSection should show zero count, got: %s", result)
+	}
+}
+
+func TestRenderDetailEmptyValue(t *testing.T) {
+	result := RenderDetail("Label", "")
+
+	if !strings.Contains(result, "Label") {
+		t.Errorf("RenderDetail should contain label even with empty value, got: %s", result)
+	}
+}
