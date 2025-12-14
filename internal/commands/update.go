@@ -25,6 +25,11 @@ var updateCmd = &cobra.Command{
 
 By default, checks for updates and prompts to install them.
 Use --check-only to see what's available without making changes.`,
+	Example: `  # Check for updates and interactively select which to apply
+  claudeup update
+
+  # Only check what updates are available
+  claudeup update --check-only`,
 	RunE: runUpdate,
 }
 

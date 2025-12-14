@@ -13,14 +13,12 @@ import (
 
 var disableCmd = &cobra.Command{
 	Use:   "disable <plugin-name>",
-	Short: "Disable a plugin",
+	Short: "Disable a plugin without uninstalling",
 	Long: `Disable a plugin by removing it from the installed plugins registry.
 
-The plugin's metadata is saved so it can be re-enabled later without reinstalling.
-
-Example:
-  claudeup disable hookify@claude-code-plugins
-  claudeup disable compound-engineering`,
+The plugin's metadata is saved so it can be re-enabled later without reinstalling.`,
+	Example: `  claudeup disable my-plugin@acme-marketplace
+  claudeup disable another-plugin`,
 	Args: cobra.ExactArgs(1),
 	RunE: runDisable,
 }

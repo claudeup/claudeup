@@ -19,7 +19,7 @@ var (
 
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
-	Short: "Fix and remove plugin issues",
+	Short: "Fix plugin path issues and remove stale entries",
 	Long: `Fix plugin path issues and remove entries that can't be fixed.
 
 By default, this command:
@@ -27,6 +27,17 @@ By default, this command:
   2. Removes plugin entries that are truly broken (no valid path found)
 
 Use --fix-only or --remove-only for granular control.`,
+	Example: `  # Preview changes without applying them
+  claudeup cleanup --dry-run
+
+  # Only fix path issues, don't remove entries
+  claudeup cleanup --fix-only
+
+  # Only remove stale entries, don't fix paths
+  claudeup cleanup --remove-only
+
+  # Show reinstall commands for removed plugins
+  claudeup cleanup --reinstall`,
 	RunE: runCleanup,
 }
 

@@ -13,9 +13,18 @@ import (
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show overview of Claude Code installation",
-	Long:  `Display status of marketplaces, plugins, MCP servers, and any detected issues.`,
-	RunE:  runStatus,
+	Short: "Show an overview of Claude Code installation",
+	Long: `Display the current state of your Claude Code installation.
+
+Shows:
+  - Active profile
+  - Installed marketplaces
+  - Plugin counts and status
+  - Any detected issues
+
+For detailed plugin information, use 'claudeup plugins'.
+For diagnostics, use 'claudeup doctor'.`,
+	RunE: runStatus,
 }
 
 func init() {

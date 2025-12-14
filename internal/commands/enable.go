@@ -17,11 +17,9 @@ var enableCmd = &cobra.Command{
 	Long: `Enable a plugin by restoring it to the installed plugins registry.
 
 This only works for plugins that were disabled using 'claudeup disable'.
-If the plugin was never installed, you'll need to install it first using the claude CLI.
-
-Example:
-  claudeup enable hookify@claude-code-plugins
-  claudeup enable compound-engineering`,
+If the plugin was never installed, you'll need to install it first using the claude CLI.`,
+	Example: `  claudeup enable my-plugin@acme-marketplace
+  claudeup enable another-plugin`,
 	Args: cobra.ExactArgs(1),
 	RunE: runEnable,
 }

@@ -17,8 +17,15 @@ import (
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Diagnose common issues with Claude Code installation",
-	Long:  `Run diagnostics to identify and explain issues with plugins, marketplaces, and paths.`,
-	RunE:  runDoctor,
+	Long: `Run diagnostics to identify and explain issues with plugins, marketplaces, and paths.
+
+Checks:
+  - Marketplace directories exist
+  - Plugin paths are valid
+  - Fixable path issues vs truly broken entries
+
+Use 'claudeup cleanup' to fix any detected issues.`,
+	RunE: runDoctor,
 }
 
 func init() {

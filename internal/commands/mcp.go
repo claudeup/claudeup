@@ -31,11 +31,9 @@ var mcpDisableCmd = &cobra.Command{
 	Short: "Disable a specific MCP server",
 	Long: `Disable a specific MCP server without disabling the entire plugin.
 
-The server reference must be in the format: plugin-name:server-name
-
-Example:
-  claudeup mcp disable compound-engineering@every-marketplace:playwright
-  claudeup mcp disable superpowers-chrome@superpowers-marketplace:chrome`,
+The server reference must be in the format: plugin-name:server-name`,
+	Example: `  claudeup mcp disable my-plugin@acme-marketplace:database
+  claudeup mcp disable tools@example-marketplace:browser`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPDisable,
 }
@@ -45,11 +43,9 @@ var mcpEnableCmd = &cobra.Command{
 	Short: "Enable a previously disabled MCP server",
 	Long: `Enable a specific MCP server that was previously disabled.
 
-The server reference must be in the format: plugin-name:server-name
-
-Example:
-  claudeup mcp enable compound-engineering@every-marketplace:playwright
-  claudeup mcp enable superpowers-chrome@superpowers-marketplace:chrome`,
+The server reference must be in the format: plugin-name:server-name`,
+	Example: `  claudeup mcp enable my-plugin@acme-marketplace:database
+  claudeup mcp enable tools@example-marketplace:browser`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMCPEnable,
 }

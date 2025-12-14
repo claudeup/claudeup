@@ -39,8 +39,19 @@ var profileListCmd = &cobra.Command{
 var profileUseCmd = &cobra.Command{
 	Use:   "use <name>",
 	Short: "Apply a profile to Claude Code",
-	Args:  cobra.ExactArgs(1),
-	RunE:  runProfileUse,
+	Long: `Apply a profile's configuration to your Claude Code installation.
+
+Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
+	Example: `  # Apply a profile interactively
+  claudeup profile use my-profile
+
+  # Apply without prompts
+  claudeup profile use my-profile -y
+
+  # Force the post-apply setup wizard to run
+  claudeup profile use my-profile --setup`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileUse,
 }
 
 var profileSaveCmd = &cobra.Command{
@@ -74,7 +85,7 @@ var profileShowCmd = &cobra.Command{
 
 var profileSuggestCmd = &cobra.Command{
 	Use:   "suggest",
-	Short: "Suggest a profile based on current directory",
+	Short: "Suggest a profile for the current directory",
 	RunE:  runProfileSuggest,
 }
 
@@ -86,13 +97,18 @@ var profileCurrentCmd = &cobra.Command{
 
 var profileResetCmd = &cobra.Command{
 	Use:   "reset <name>",
-	Short: "Remove everything a profile installed",
+	Short: "Remove all components installed by a profile",
 	Long: `Removes all plugins, MCP servers, and marketplaces that a profile would install.
 
 This is useful for:
   - Testing a profile from scratch
   - Cleaning up before switching to a different profile
   - Removing a profile's effects without applying a new one`,
+	Example: `  # Remove everything installed by a profile
+  claudeup profile reset my-profile
+
+  # Reset without confirmation prompts
+  claudeup profile reset my-profile -y`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileReset,
 }

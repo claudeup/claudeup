@@ -18,8 +18,11 @@ var (
 var pluginsCmd = &cobra.Command{
 	Use:   "plugins",
 	Short: "List installed plugins",
-	Long:  `Display detailed information about all installed plugins.`,
-	RunE:  runPluginsList,
+	Long: `Display detailed information about all installed plugins.
+
+Shows each plugin's version, status, install path, and type (cached or local).
+Use --summary for a quick overview without individual plugin details.`,
+	RunE: runPluginsList,
 }
 
 func init() {
