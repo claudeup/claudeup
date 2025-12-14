@@ -14,6 +14,7 @@ import (
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/secrets"
+	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -100,11 +101,11 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Running health check...")
 	if err := runDoctor(cmd, nil); err != nil {
-		fmt.Printf("  ⚠ Health check encountered issues: %v\n", err)
+		ui.PrintWarning(fmt.Sprintf("Health check encountered issues: %v", err))
 	}
 
 	fmt.Println()
-	fmt.Println("✓ Setup complete!")
+	ui.PrintSuccess("Setup complete!")
 
 	return nil
 }
@@ -119,14 +120,14 @@ func ensureClaudeCLI() error {
 	if _, err := exec.LookPath("claude"); err == nil {
 		version := getClaudeVersion()
 		if version != "unknown" && isVersionOutdated(version, minClaudeVersion) {
-			fmt.Printf("⚠ outdated (%s)\n", version)
+			fmt.Printf("%s outdated (%s)\n", ui.SymbolWarning, version)
 			fmt.Println()
 			fmt.Printf("Claude CLI version %s is installed, but version %s or newer is required.\n", version, minClaudeVersion)
 			fmt.Println("Older versions have known issues with terminal handling that cause setup to fail.")
 			fmt.Println()
 			return promptClaudeUpgrade(version)
 		}
-		fmt.Printf("✓ found (%s)\n", version)
+		fmt.Printf("%s found (%s)\n", ui.SymbolSuccess, version)
 		return nil
 	}
 
@@ -139,7 +140,7 @@ func ensureClaudeCLI() error {
 	if !config.YesFlag {
 		fmt.Println("Would you like to install it now using the official installer?")
 		fmt.Println()
-		fmt.Println("  ⚠️  Warning: This will download and execute code from the internet.")
+		ui.PrintWarning("Warning: This will download and execute code from the internet.")
 		fmt.Println("     Command: curl -fsSL https://claude.ai/install.sh | bash")
 		fmt.Println()
 		choice := promptChoice("Install Claude CLI?", "y")
@@ -159,7 +160,7 @@ func ensureClaudeCLI() error {
 		return fmt.Errorf("failed to install Claude CLI: %w", err)
 	}
 
-	fmt.Println("  ✓ Claude CLI installed")
+	ui.PrintSuccess("Claude CLI installed")
 	return nil
 }
 
@@ -235,7 +236,7 @@ func promptClaudeUpgrade(currentVersion string) error {
 	if !config.YesFlag {
 		fmt.Println("Would you like to upgrade Claude CLI now using the official installer?")
 		fmt.Println()
-		fmt.Println("  ⚠️  Warning: This will download and execute code from the internet.")
+		ui.PrintWarning("Warning: This will download and execute code from the internet.")
 		fmt.Println("     Command: curl -fsSL https://claude.ai/install.sh | bash")
 		fmt.Println()
 		choice := promptChoice("Upgrade Claude CLI?", "y")
@@ -262,7 +263,7 @@ func promptClaudeUpgrade(currentVersion string) error {
 		return fmt.Errorf("Claude CLI upgrade did not resolve version issue (still %s, need %s)", newVersion, minClaudeVersion)
 	}
 
-	fmt.Printf("  ✓ Claude CLI upgraded to %s\n", newVersion)
+	ui.PrintSuccess(fmt.Sprintf("Claude CLI upgraded to %s", newVersion))
 	return nil
 }
 
@@ -295,7 +296,7 @@ func handleExistingInstallation(existing *profile.Profile, profilesDir string) e
 		if err := profile.Save(profilesDir, existing); err != nil {
 			return fmt.Errorf("failed to save profile: %w", err)
 		}
-		fmt.Printf("  ✓ Saved as '%s'\n", name)
+		ui.PrintSuccess(fmt.Sprintf("Saved as '%s'", name))
 		fmt.Println()
 	case "c":
 		fmt.Println("  Continuing without saving...")
@@ -406,7 +407,7 @@ func showApplyResults(result *profile.ApplyResult) {
 
 	if len(result.Errors) > 0 {
 		fmt.Println()
-		fmt.Println("  ⚠ Some operations had errors:")
+		ui.PrintWarning("Some operations had errors:")
 		for _, err := range result.Errors {
 			fmt.Printf("    - %v\n", err)
 		}
