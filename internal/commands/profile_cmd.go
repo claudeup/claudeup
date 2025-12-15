@@ -367,30 +367,15 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 			ui.PrintSuccess("No configuration changes needed.")
 			fmt.Println()
 
-			// If profile has a post-apply hook (wizard), offer to run it
-			if p.PostApply != nil && !profileUseNoInteractive {
+			// If profile has a post-apply hook (wizard), show instructions
+			if p.PostApply != nil {
 				ui.PrintInfo("This profile uses an interactive wizard to configure plugins.")
-				fmt.Print("Run setup wizard now? [Y/n]: ")
-
-				var response string
-				fmt.Scanln(&response)
-
-				if response == "" || response == "y" || response == "Y" {
-					// Re-run with setup enabled
-					hookOpts.ForceSetup = true
-					shouldRunHook = true
-					// Don't return - continue to hook execution below
-				} else {
-					ui.PrintInfo("Skipped setup wizard.")
-					fmt.Println()
-					ui.PrintMuted("Tip: Use --setup to run the wizard later, or --no-interactive to skip this prompt.")
-					return nil
-				}
+				fmt.Printf("  Run: %s\n", ui.Bold(fmt.Sprintf("claudeup profile use %s --setup", name)))
 			} else {
 				ui.PrintInfo("Note: This profile does not manage plugins.")
 				fmt.Println("      Your existing plugins will remain unchanged.")
-				return nil
 			}
+			return nil
 		} else {
 			ui.PrintSuccess("No changes needed - profile already matches current state.")
 			return nil
