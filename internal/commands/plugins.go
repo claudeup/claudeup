@@ -104,8 +104,8 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%s %s\n", statusSymbol, ui.Bold(name))
 		fmt.Println(ui.Indent(ui.RenderDetail("Version", plugin.Version), 1))
 		fmt.Println(ui.Indent(ui.RenderDetail("Status", statusText), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Path", ui.Muted(plugin.InstallPath)), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Installed", ui.Muted(plugin.InstalledAt)), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Path", plugin.InstallPath), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Installed", plugin.InstalledAt), 1))
 
 		pluginType := "cached"
 		if plugin.IsLocal {

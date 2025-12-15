@@ -21,7 +21,8 @@ type MarketplaceMetadata struct {
 // MarketplaceSource represents the source of a marketplace
 type MarketplaceSource struct {
 	Source string `json:"source"`
-	Repo   string `json:"repo"`
+	Repo   string `json:"repo,omitempty"`
+	URL    string `json:"url,omitempty"`
 }
 
 // LoadMarketplaces reads and parses the known_marketplaces.json file

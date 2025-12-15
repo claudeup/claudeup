@@ -16,7 +16,8 @@ var (
 	ColorWarning = lipgloss.Color("#eab308") // Yellow
 	ColorInfo    = lipgloss.Color("#06b6d4") // Cyan
 	ColorMuted   = lipgloss.Color("#6b7280") // Gray
-	ColorAccent  = lipgloss.Color("#8b5cf6") // Purple
+	ColorAccent  = lipgloss.Color("#096becff") // Blue
+	ColorFlags  = lipgloss.Color("#ffffff") // White
 )
 
 // Symbol definitions
