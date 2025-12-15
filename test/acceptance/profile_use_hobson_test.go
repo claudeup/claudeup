@@ -99,6 +99,44 @@ var _ = Describe("profile use hobson", func() {
 				Expect(result.Stdout).To(ContainSubstring("Hobson Profile Setup"))
 			})
 		})
+
+		Context("with marketplace already installed (no configuration changes)", func() {
+			BeforeEach(func() {
+				// Pre-install the hobson marketplace AND plugins
+				env.CreateKnownMarketplaces(map[string]interface{}{
+					"claude-code-workflows": map[string]interface{}{
+						"source": map[string]interface{}{
+							"source": "github",
+							"repo":   "wshobson/agents",
+						},
+						"installLocation": filepath.Join(env.ClaudeDir, "plugins", "marketplaces", "claude-code-workflows"),
+						"lastUpdated":     "2024-01-01T00:00:00Z",
+					},
+				})
+
+				env.CreateInstalledPlugins(map[string]interface{}{
+					"debugging-toolkit@wshobson-agents": []map[string]interface{}{
+						{"scope": "user", "version": "1.0"},
+					},
+				})
+			})
+
+			It("runs the hook even when there are no config changes", func() {
+				// This tests the fix for: when there are no diff changes (marketplace exists,
+				// no plugins to install/remove because skipPluginDiff=true), the --setup flag
+				// should still cause the hook to run
+				result := env.RunWithEnvAndInput(
+					map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
+					"q\n",
+					"profile", "use", "hobson", "--setup",
+				)
+
+				// Should NOT say "No changes needed" and exit
+				// Should run the wizard
+				Expect(result.Stdout).To(ContainSubstring("Hobson Profile Setup"))
+				Expect(result.Stdout).NotTo(ContainSubstring("No changes needed - profile already matches current state"))
+			})
+		})
 	})
 
 	Describe("wizard execution", func() {
