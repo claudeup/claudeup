@@ -338,6 +338,16 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	}
 
 	if !hasDiffChanges(diff) {
+		// Update active profile in config even when no changes needed
+		cfg, err := config.Load()
+		if err != nil {
+			cfg = config.DefaultConfig()
+		}
+		cfg.Preferences.ActiveProfile = name
+		if err := config.Save(cfg); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+		}
+
 		ui.PrintSuccess("No changes needed - profile already matches current state.")
 		return nil
 	}
