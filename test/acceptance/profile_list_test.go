@@ -146,6 +146,38 @@ var _ = Describe("profile list", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(MatchRegexp(`\*\s+my-profile`))
 		})
+
+		It("updates active profile marker even when no changes needed", func() {
+			// Create two empty profiles (same content)
+			env.CreateProfile(&profile.Profile{
+				Name:        "profile-a",
+				Description: "Empty profile A",
+			})
+			env.CreateProfile(&profile.Profile{
+				Name:        "profile-b",
+				Description: "Empty profile B",
+			})
+
+			// Set profile-a as active
+			env.SetActiveProfile("profile-a")
+
+			// Verify profile-a is marked as active
+			result := env.Run("profile", "list")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(MatchRegexp(`\*\s+profile-a`))
+			Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+profile-b`))
+
+			// Use profile-b (should say "No changes needed" since both are empty)
+			result = env.RunWithInput("y\n", "profile", "use", "profile-b")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("No changes needed"))
+
+			// Verify active profile marker moved to profile-b
+			result = env.Run("profile", "list")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(MatchRegexp(`\*\s+profile-b`))
+			Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+profile-a`))
+		})
 	})
 
 	Describe("reserved name warning", func() {
