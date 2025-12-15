@@ -337,7 +337,22 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to compute changes: %w", err)
 	}
 
-	if !hasDiffChanges(diff) {
+	// Check if we need to run the hook (before early return)
+	scriptDir := profile.GetEmbeddedProfileScriptDir(name)
+	if scriptDir != "" {
+		defer os.RemoveAll(scriptDir)
+	}
+
+	hookOpts := profile.HookOptions{
+		ForceSetup:    profileUseSetup,
+		NoInteractive: profileUseNoInteractive,
+		ScriptDir:     scriptDir,
+	}
+
+	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
+
+	// If no changes and no hook to run, we're done
+	if !hasDiffChanges(diff) && !shouldRunHook {
 		// Update active profile in config even when no changes needed
 		cfg, err := config.Load()
 		if err != nil {
@@ -359,32 +374,29 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
-	fmt.Println()
-	showDiff(diff)
-	fmt.Println()
+	// Show diff and confirm if there are changes
+	if hasDiffChanges(diff) {
+		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
+		fmt.Println()
+		showDiff(diff)
+		fmt.Println()
 
-	if !confirmProceed() {
-		ui.PrintMuted("Cancelled.")
-		return nil
+		if !confirmProceed() {
+			ui.PrintMuted("Cancelled.")
+			return nil
+		}
+	} else {
+		// No changes, but hook needs to run
+		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
+		fmt.Println()
+		ui.PrintInfo("No configuration changes needed.")
+		if profileUseSetup {
+			fmt.Println("Running setup wizard...")
+		}
+		fmt.Println()
 	}
 
-	// Prepare hook options - extract scripts first so we can defer cleanup immediately
-	scriptDir := profile.GetEmbeddedProfileScriptDir(name)
-	if scriptDir != "" {
-		defer os.RemoveAll(scriptDir)
-	}
-
-	hookOpts := profile.HookOptions{
-		ForceSetup:    profileUseSetup,
-		NoInteractive: profileUseNoInteractive,
-		ScriptDir:     scriptDir,
-	}
-
-	// Check if hook should run BEFORE applying (captures pre-apply state for first-run detection)
-	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
-
-	// Apply
+	// Apply (hook decision was already made above)
 	fmt.Println()
 	ui.PrintInfo("Applying profile...")
 
