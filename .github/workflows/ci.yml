@@ -35,6 +35,11 @@ jobs:
     - name: Run integration tests (Ginkgo)
       run: ginkgo -v --race ./test/integration/...
 
+    - name: Install Claude CLI
+      run: |
+        curl -fsSL https://claude.ai/install.sh | bash
+        echo "$HOME/.claude/local/bin" >> $GITHUB_PATH
+
     - name: Run acceptance tests (Ginkgo)
       run: ginkgo -v ./test/acceptance/...
 
