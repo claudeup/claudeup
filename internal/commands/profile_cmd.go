@@ -328,8 +328,8 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	claudeDir := profile.DefaultClaudeDir()
-	claudeJSONPath := profile.DefaultClaudeJSONPath()
+	// Use the global claudeDir from root.go (set via --claude-dir flag)
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Compute and show diff
 	diff, err := profile.ComputeDiff(p, claudeDir, claudeJSONPath)
@@ -473,8 +473,8 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	claudeDir := profile.DefaultClaudeDir()
-	claudeJSONPath := profile.DefaultClaudeJSONPath()
+	// Use the global claudeDir from root.go (set via --claude-dir flag)
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Create snapshot
 	p, err := profile.Snapshot(name, claudeDir, claudeJSONPath)
@@ -853,8 +853,8 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderDetail("Reset profile", ui.Bold(name)))
 	fmt.Println()
 
-	claudeDir := profile.DefaultClaudeDir()
-	claudeJSONPath := profile.DefaultClaudeJSONPath()
+	// Use the global claudeDir from root.go (set via --claude-dir flag)
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Get current state to show what plugins will be removed
 	current, _ := profile.Snapshot("current", claudeDir, claudeJSONPath)

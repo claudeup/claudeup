@@ -701,6 +701,13 @@ func (m *mockExecutor) Run(args ...string) error {
 
 func (m *mockExecutor) RunWithOutput(args ...string) (string, error) {
 	m.commands = append(m.commands, args)
+	// Check if this command should fail
+	if len(args) > 0 && m.failOn != nil {
+		key := strings.Join(args[:min(3, len(args))], " ")
+		if m.failOn[key] {
+			return "mock failure output", fmt.Errorf("mock failure for: %s", key)
+		}
+	}
 	return "", nil
 }
 

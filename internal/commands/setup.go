@@ -48,15 +48,21 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Step 2: Ensure profiles directory and default profiles exist
+	// Step 2: Check if claude directory exists
+	if err := ensureClaudeDir(); err != nil {
+		return err
+	}
+
+	// Step 3: Ensure profiles directory and default profiles exist
 	profilesDir := getProfilesDir()
 	if err := profile.EnsureDefaultProfiles(profilesDir); err != nil {
 		return fmt.Errorf("failed to set up profiles: %w", err)
 	}
 
 	// Step 4: Check for existing installation
-	claudeDir := profile.DefaultClaudeDir()
-	claudeJSONPath := profile.DefaultClaudeJSONPath()
+	// Use the global claudeDir from root.go (set via --claude-dir flag)
+	// Derive claudeJSONPath: when using custom dir, .claude.json is inside it
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	existing, err := profile.Snapshot("existing", claudeDir, claudeJSONPath)
 	if err == nil && hasContent(existing) {
@@ -106,8 +112,42 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	ui.PrintSuccess("Setup complete!")
+	if len(result.Errors) > 0 {
+		ui.PrintWarning("Setup completed with errors. Review the issues above.")
+	} else {
+		ui.PrintSuccess("Setup complete!")
+	}
 
+	return nil
+}
+
+// ensureClaudeDir checks if the claude directory exists and prompts to create it if not
+func ensureClaudeDir() error {
+	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+		ui.PrintWarning(fmt.Sprintf("Directory %s does not exist.", claudeDir))
+		fmt.Println()
+		fmt.Println(ui.Bold("Options:"))
+		fmt.Println("  [c] Create it and continue")
+		fmt.Println("  [a] Abort")
+		fmt.Println()
+
+		choice := promptChoice("Choice", "c")
+
+		switch strings.ToLower(choice) {
+		case "c":
+			// Create the directory structure
+			if err := os.MkdirAll(filepath.Join(claudeDir, "plugins"), 0755); err != nil {
+				return fmt.Errorf("failed to create directory: %w", err)
+			}
+			ui.PrintSuccess(fmt.Sprintf("Created %s", claudeDir))
+			fmt.Println()
+		case "a":
+			fmt.Println("Setup aborted.")
+			return fmt.Errorf("setup aborted by user")
+		default:
+			return fmt.Errorf("invalid choice: %s", choice)
+		}
+	}
 	return nil
 }
 
@@ -283,6 +323,7 @@ func handleExistingInstallation(existing *profile.Profile, profilesDir string) e
 	fmt.Println()
 	fmt.Println(ui.Bold("Options:"))
 	fmt.Println("  [s] Save current setup as a profile, then continue")
+	fmt.Println("  [b] Create backup of directory, then continue")
 	fmt.Println("  [c] Continue anyway (will replace current setup)")
 	fmt.Println("  [a] Abort")
 	fmt.Println()
@@ -299,6 +340,13 @@ func handleExistingInstallation(existing *profile.Profile, profilesDir string) e
 		}
 		ui.PrintSuccess(fmt.Sprintf("Saved as '%s'", name))
 		fmt.Println()
+	case "b":
+		backupPath, err := createBackup(claudeDir)
+		if err != nil {
+			return fmt.Errorf("failed to create backup: %w", err)
+		}
+		ui.PrintSuccess(fmt.Sprintf("Created backup at %s", backupPath))
+		fmt.Println()
 	case "c":
 		fmt.Println("  Continuing without saving...")
 		fmt.Println()
@@ -309,6 +357,31 @@ func handleExistingInstallation(existing *profile.Profile, profilesDir string) e
 	}
 
 	return nil
+}
+
+// createBackup creates a backup copy of the claude directory
+// Returns the path to the backup directory
+func createBackup(srcDir string) (string, error) {
+	// Find an available backup path
+	backupBase := srcDir + ".backup"
+	backupPath := backupBase
+
+	// If backup already exists, add a number suffix
+	counter := 1
+	for {
+		if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+			break
+		}
+		backupPath = fmt.Sprintf("%s.%d", backupBase, counter)
+		counter++
+	}
+
+	// Copy the directory recursively
+	if err := copyDir(srcDir, backupPath); err != nil {
+		return "", err
+	}
+
+	return backupPath, nil
 }
 
 func showProfileSummary(p *profile.Profile) {
