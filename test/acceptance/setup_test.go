@@ -4,6 +4,7 @@ package acceptance
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/claudeup/claudeup/test/helpers"
@@ -15,6 +16,12 @@ var _ = Describe("setup", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
+		// Skip setup tests if claude CLI is not installed
+		// These tests require the real claude CLI to be present
+		if _, err := exec.LookPath("claude"); err != nil {
+			Skip("claude CLI not installed, skipping setup tests")
+		}
+
 		env = helpers.NewTestEnv(binaryPath)
 		env.CreateClaudeSettings()
 	})
