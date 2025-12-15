@@ -193,7 +193,7 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 	for _, mcp := range diff.MCPToRemove {
 		output, err := executor.RunWithOutput("mcp", "remove", mcp)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to remove MCP server %s: %w\n%s", mcp, err, strings.TrimSpace(output)))
+			result.Errors = append(result.Errors, fmt.Errorf("failed to remove MCP server %s: %w\n  Output: %s", mcp, err, strings.TrimSpace(output)))
 		} else {
 			result.MCPServersRemoved = append(result.MCPServersRemoved, mcp)
 		}
@@ -209,7 +209,7 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 				if strings.Contains(output, "already installed") {
 					result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 				} else {
-					result.Errors = append(result.Errors, fmt.Errorf("failed to add marketplace %s: %w\n%s", key, err, strings.TrimSpace(output)))
+					result.Errors = append(result.Errors, fmt.Errorf("failed to add marketplace %s: %w\n  Output: %s", key, err, strings.TrimSpace(output)))
 				}
 			} else {
 				result.MarketplacesAdded = append(result.MarketplacesAdded, key)
@@ -237,7 +237,7 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 		args := buildMCPAddArgs(mcp, resolvedMCP[mcp.Name])
 		output, err := executor.RunWithOutput(args...)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to add MCP server %s: %w\n%s", mcp.Name, err, strings.TrimSpace(output)))
+			result.Errors = append(result.Errors, fmt.Errorf("failed to add MCP server %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
 		} else {
 			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
 		}
@@ -493,7 +493,7 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 			if strings.HasSuffix(plugin, suffix) {
 				output, err := executor.RunWithOutput("plugin", "uninstall", plugin)
 				if err != nil {
-					result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w\n%s", plugin, err, strings.TrimSpace(output)))
+					result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w\n  Output: %s", plugin, err, strings.TrimSpace(output)))
 				} else {
 					result.PluginsRemoved = append(result.PluginsRemoved, plugin)
 				}
@@ -506,7 +506,7 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 	for _, mcp := range profile.MCPServers {
 		output, err := executor.RunWithOutput("mcp", "remove", mcp.Name)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to remove MCP server %s: %w\n%s", mcp.Name, err, strings.TrimSpace(output)))
+			result.Errors = append(result.Errors, fmt.Errorf("failed to remove MCP server %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
 		} else {
 			result.MCPServersRemoved = append(result.MCPServersRemoved, mcp.Name)
 		}
@@ -531,7 +531,7 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 		}
 		output, err := executor.RunWithOutput("plugin", "marketplace", "remove", name)
 		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w\n%s", lookupKey, err, strings.TrimSpace(output)))
+			result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w\n  Output: %s", lookupKey, err, strings.TrimSpace(output)))
 		} else {
 			result.MarketplacesRemoved = append(result.MarketplacesRemoved, lookupKey)
 		}

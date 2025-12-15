@@ -367,13 +367,17 @@ func createBackup(srcDir string) (string, error) {
 	backupPath := backupBase
 
 	// If backup already exists, add a number suffix
+	const maxBackups = 100
 	counter := 1
-	for {
+	for counter <= maxBackups {
 		if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 			break
 		}
 		backupPath = fmt.Sprintf("%s.%d", backupBase, counter)
 		counter++
+	}
+	if counter > maxBackups {
+		return "", fmt.Errorf("too many existing backups (max %d), please clean up old backups", maxBackups)
 	}
 
 	// Copy the directory recursively

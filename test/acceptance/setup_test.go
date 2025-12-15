@@ -46,6 +46,12 @@ var _ = Describe("setup", func() {
 		})
 
 		It("creates backup when user chooses 'b'", func() {
+			// Clean up any pre-existing backup directories to ensure test isolation
+			existingBackups, _ := filepath.Glob(filepath.Join(env.TempDir, ".claude.backup*"))
+			for _, backup := range existingBackups {
+				os.RemoveAll(backup)
+			}
+
 			// Create an existing installation with content
 			env.CreateInstalledPlugins(map[string]interface{}{
 				"backup-test-plugin@test-marketplace": []map[string]interface{}{
@@ -58,24 +64,17 @@ var _ = Describe("setup", func() {
 
 			Expect(result.Stdout).To(ContainSubstring("Created backup"))
 
-			// Check that a backup directory was created
-			// Backup should be at ~/.claude.backup or ~/.claude.backup.1, etc.
+			// Check that exactly one backup directory was created
 			entries, err := filepath.Glob(filepath.Join(env.TempDir, ".claude.backup*"))
 			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).NotTo(BeEmpty(), "Expected backup directory to be created")
+			Expect(entries).To(HaveLen(1), "Expected exactly one backup directory to be created")
 
 			// Verify backup contains the original plugin data
-			for _, entry := range entries {
-				info, err := os.Stat(entry)
-				if err == nil && info.IsDir() {
-					backupPlugins := filepath.Join(entry, "plugins", "installed_plugins.json")
-					data, err := os.ReadFile(backupPlugins)
-					if err == nil {
-						Expect(string(data)).To(ContainSubstring("backup-test-plugin"))
-						break
-					}
-				}
-			}
+			backupDir := entries[0]
+			backupPlugins := filepath.Join(backupDir, "plugins", "installed_plugins.json")
+			data, err := os.ReadFile(backupPlugins)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(data)).To(ContainSubstring("backup-test-plugin"))
 		})
 	})
 
