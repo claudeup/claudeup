@@ -65,14 +65,20 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
-	// Discover MCP servers
-	mcpServers, err := mcp.DiscoverMCPServers(plugins)
+	// Load settings to filter by enabled plugins
+	settings, err := claude.LoadSettings(claudeDir)
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+
+	// Discover MCP servers from enabled plugins only
+	mcpServers, err := mcp.DiscoverEnabledMCPServers(plugins, settings)
 	if err != nil {
 		return fmt.Errorf("failed to discover MCP servers: %w", err)
 	}
 
 	if len(mcpServers) == 0 {
-		fmt.Println("No MCP servers found in installed plugins.")
+		fmt.Println("No MCP servers found in enabled plugins.")
 		return nil
 	}
 

@@ -33,39 +33,59 @@ type PluginMCPServers struct {
 
 // DiscoverMCPServers scans all plugins and discovers their MCP servers
 func DiscoverMCPServers(pluginRegistry *claude.PluginRegistry) ([]PluginMCPServers, error) {
+	return discoverMCPServers(pluginRegistry, nil)
+}
+
+// DiscoverEnabledMCPServers scans plugins and discovers MCP servers from enabled plugins only
+func DiscoverEnabledMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.Settings) ([]PluginMCPServers, error) {
+	return discoverMCPServers(pluginRegistry, settings)
+}
+
+// discoverMCPServers is the internal implementation that optionally filters by enabled plugins
+func discoverMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.Settings) ([]PluginMCPServers, error) {
 	var results []PluginMCPServers
 
 	for name, plugin := range pluginRegistry.GetAllPlugins() {
+		// If settings provided, skip disabled plugins
+		if settings != nil && !settings.IsPluginEnabled(name) {
+			continue
+		}
+
 		// Skip plugins with non-existent paths
 		if !plugin.PathExists() {
 			continue
 		}
 
-		// Check for plugin.json in the .claude-plugin directory
-		pluginJSONPath := filepath.Join(plugin.InstallPath, ".claude-plugin", "plugin.json")
-		if _, err := os.Stat(pluginJSONPath); os.IsNotExist(err) {
-			continue
+		var mcpServers map[string]ServerDefinition
+
+		// Try .mcp.json first (newer format)
+		mcpJSONPath := filepath.Join(plugin.InstallPath, ".mcp.json")
+		if data, err := os.ReadFile(mcpJSONPath); err == nil {
+			var mcpFile struct {
+				MCPServers map[string]ServerDefinition `json:"mcpServers"`
+			}
+			if err := json.Unmarshal(data, &mcpFile); err == nil && len(mcpFile.MCPServers) > 0 {
+				mcpServers = mcpFile.MCPServers
+			}
 		}
 
-		// Read and parse plugin.json
-		data, err := os.ReadFile(pluginJSONPath)
-		if err != nil {
-			// Skip plugins where we can't read plugin.json
-			continue
-		}
-
-		var pluginJSON PluginJSON
-		if err := json.Unmarshal(data, &pluginJSON); err != nil {
-			// Skip plugins with invalid plugin.json
-			continue
+		// Fall back to plugin.json (older format)
+		if mcpServers == nil {
+			pluginJSONPath := filepath.Join(plugin.InstallPath, ".claude-plugin", "plugin.json")
+			if data, err := os.ReadFile(pluginJSONPath); err == nil {
+				var pluginJSON PluginJSON
+				if err := json.Unmarshal(data, &pluginJSON); err == nil && len(pluginJSON.MCPServers) > 0 {
+					mcpServers = pluginJSON.MCPServers
+				}
+			}
 		}
 
 		// Only add if the plugin actually has MCP servers
-		if len(pluginJSON.MCPServers) > 0 {
+		if len(mcpServers) > 0 {
 			results = append(results, PluginMCPServers{
 				PluginName: name,
 				PluginPath: plugin.InstallPath,
-				Servers:    pluginJSON.MCPServers,
+				Servers:    mcpServers,
 			})
 		}
 	}
