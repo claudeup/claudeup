@@ -348,7 +348,14 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 		}
 
-		ui.PrintSuccess("No changes needed - profile already matches current state.")
+		if p.SkipPluginDiff {
+			ui.PrintSuccess("No changes needed.")
+			fmt.Println()
+			ui.PrintInfo("Note: This profile does not manage plugins.")
+			fmt.Println("      Your existing plugins will remain unchanged.")
+		} else {
+			ui.PrintSuccess("No changes needed - profile already matches current state.")
+		}
 		return nil
 	}
 
