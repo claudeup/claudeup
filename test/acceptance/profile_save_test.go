@@ -25,6 +25,13 @@ var _ = Describe("profile save", func() {
 			Expect(result.Stdout).To(ContainSubstring("Saved profile"))
 			Expect(env.ProfileExists("my-profile")).To(BeTrue())
 		})
+
+		It("marks the saved profile as active", func() {
+			result := env.Run("profile", "save", "my-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(Equal("my-profile"))
+		})
 	})
 
 	Context("with an existing profile name", func() {
@@ -55,6 +62,13 @@ var _ = Describe("profile save", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Saved profile"))
 		})
+
+		It("marks the overwritten profile as active", func() {
+			result := env.RunWithInput("y\n", "profile", "save", "existing")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(Equal("existing"))
+		})
 	})
 
 	Context("without a profile name", func() {
@@ -70,6 +84,13 @@ var _ = Describe("profile save", func() {
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Saving to active profile"))
 				Expect(result.Stdout).To(ContainSubstring("active-one"))
+			})
+
+			It("keeps the profile as active", func() {
+				result := env.Run("profile", "save")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(env.GetActiveProfile()).To(Equal("active-one"))
 			})
 		})
 

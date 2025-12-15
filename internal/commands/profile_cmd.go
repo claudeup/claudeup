@@ -524,6 +524,16 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
+	// Update active profile in config
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = config.DefaultConfig()
+	}
+	cfg.Preferences.ActiveProfile = name
+	if err := config.Save(cfg); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+	}
+
 	ui.PrintSuccess(fmt.Sprintf("Saved profile %q", name))
 	fmt.Println()
 	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))

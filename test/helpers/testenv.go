@@ -126,6 +126,27 @@ func (e *TestEnv) SetActiveProfile(name string) {
 	Expect(os.WriteFile(e.ConfigFile, data, 0644)).To(Succeed())
 }
 
+// GetActiveProfile returns the active profile name from config
+func (e *TestEnv) GetActiveProfile() string {
+	data, err := os.ReadFile(e.ConfigFile)
+	if err != nil {
+		return ""
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		return ""
+	}
+
+	if prefs, ok := config["preferences"].(map[string]interface{}); ok {
+		if activeProfile, ok := prefs["activeProfile"].(string); ok {
+			return activeProfile
+		}
+	}
+
+	return ""
+}
+
 // CreateClaudeSettings creates a fake claude.json settings file
 func (e *TestEnv) CreateClaudeSettings() {
 	settingsPath := filepath.Join(e.TempDir, ".claude.json")
