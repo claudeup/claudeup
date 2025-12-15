@@ -76,6 +76,36 @@ var _ = Describe("setup", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(data)).To(ContainSubstring("backup-test-plugin"))
 		})
+
+		It("prevents overwriting embedded profiles when saving existing installation", func() {
+			// Create an existing installation with content
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"test-plugin@test-marketplace": []map[string]interface{}{
+					{"scope": "user", "version": "1.0"},
+				},
+			})
+
+			// Try to save with "default" (embedded profile), then "my-setup" (valid), then abort
+			result := env.RunWithInput("s\ndefault\nmy-setup\na\n", "setup")
+
+			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
+			Expect(result.Stdout).To(ContainSubstring("Cannot overwrite built-in profile"))
+			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
+		})
+
+		It("defaults profile name to 'saved' not 'current'", func() {
+			// Create an existing installation with content
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"test-plugin@test-marketplace": []map[string]interface{}{
+					{"scope": "user", "version": "1.0"},
+				},
+			})
+
+			// Choose save option, press enter to accept default, then abort
+			result := env.RunWithInput("s\n\na\n", "setup")
+
+			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
+		})
 	})
 
 	Describe("--claude-dir flag", func() {

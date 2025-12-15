@@ -18,6 +18,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// stdinReader is a shared bufio.Reader for os.Stdin to avoid buffering issues
+// when multiple prompts are used in sequence
+var stdinReader = bufio.NewReader(os.Stdin)
+
 var (
 	setupProfile string
 )
@@ -332,7 +336,7 @@ func handleExistingInstallation(existing *profile.Profile, profilesDir string) e
 
 	switch strings.ToLower(choice) {
 	case "s":
-		name := promptString("Profile name", "current")
+		name := promptProfileName("Profile name", "saved")
 		existing.Name = name
 		existing.Description = "Saved from existing installation"
 		if err := profile.Save(profilesDir, existing); err != nil {
@@ -426,8 +430,7 @@ func promptChoice(prompt, defaultValue string) string {
 	}
 
 	fmt.Printf("%s [%s]: ", prompt, defaultValue)
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
+	input, _ := stdinReader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
 	if input == "" {
@@ -442,14 +445,29 @@ func promptString(prompt, defaultValue string) string {
 	}
 
 	fmt.Printf("%s [%s]: ", prompt, defaultValue)
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
+	input, _ := stdinReader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
 	if input == "" {
 		return defaultValue
 	}
 	return input
+}
+
+// promptProfileName prompts for a profile name and validates that it doesn't conflict with embedded profiles
+func promptProfileName(prompt, defaultValue string) string {
+	for {
+		name := promptString(prompt, defaultValue)
+
+		// Check if this is an embedded profile
+		if profile.IsEmbeddedProfile(name) {
+			ui.PrintError(fmt.Sprintf("Cannot overwrite built-in profile '%s'", name))
+			fmt.Println()
+			continue
+		}
+
+		return name
+	}
 }
 
 func buildSecretChain() *secrets.Chain {
