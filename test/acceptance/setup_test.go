@@ -106,6 +106,26 @@ var _ = Describe("setup", func() {
 
 			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
 		})
+
+		It("validates profile exists before prompting to save existing installation", func() {
+			// Create an existing installation with content
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"test-plugin@test-marketplace": []map[string]interface{}{
+					{"scope": "user", "version": "1.0"},
+				},
+			})
+
+			// Try to setup with non-existent profile
+			result := env.Run("setup", "--profile", "nonexistent")
+
+			// Should fail immediately without prompting
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("profile \"nonexistent\" does not exist"))
+			Expect(result.Stderr).To(ContainSubstring("claudeup profile list"))
+			// Should NOT have prompted for saving
+			Expect(result.Stdout).NotTo(ContainSubstring("Save current setup"))
+			Expect(result.Stdout).NotTo(ContainSubstring("Profile name"))
+		})
 	})
 
 	Describe("--claude-dir flag", func() {
