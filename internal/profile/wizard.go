@@ -161,3 +161,124 @@ func fallbackMarketplaceSelection(available []Marketplace) ([]Marketplace, error
 
 	return selected, nil
 }
+
+// SelectPluginsForMarketplace prompts user to select plugins from a marketplace
+// Uses category-based selection if marketplace has categories, otherwise flat list
+func SelectPluginsForMarketplace(marketplace Marketplace) ([]string, error) {
+	if HasCategories(marketplace.Repo) {
+		return selectPluginsByCategory(marketplace)
+	}
+	return selectPluginsFlat(marketplace)
+}
+
+// selectPluginsByCategory shows category selection, then collects plugins from selected categories
+func selectPluginsByCategory(marketplace Marketplace) ([]string, error) {
+	categories := GetCategories(marketplace.Repo)
+	if len(categories) == 0 {
+		return selectPluginsFlat(marketplace)
+	}
+
+	// Select categories using gum
+	selectedCategories, err := selectCategories(categories)
+	if err != nil {
+		return nil, err
+	}
+
+	// Collect plugins from selected categories
+	pluginSet := make(map[string]bool)
+	for _, cat := range selectedCategories {
+		for _, plugin := range cat.Plugins {
+			pluginSet[plugin] = true
+		}
+	}
+
+	plugins := make([]string, 0, len(pluginSet))
+	for plugin := range pluginSet {
+		plugins = append(plugins, plugin)
+	}
+
+	return plugins, nil
+}
+
+// selectCategories prompts user to select categories
+func selectCategories(categories []Category) ([]Category, error) {
+	// Check if gum is available
+	if _, err := exec.LookPath("gum"); err != nil {
+		return fallbackCategorySelection(categories)
+	}
+
+	// Build gum command
+	args := []string{"choose", "--no-limit", "--header=Select plugin categories:"}
+	for _, cat := range categories {
+		args = append(args, cat.Name)
+	}
+
+	cmd := exec.Command("gum", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("category selection cancelled")
+	}
+
+	// Parse selected category names
+	selectedNames := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	// Map back to Category structs
+	selected := make([]Category, 0)
+	for _, name := range selectedNames {
+		for _, cat := range categories {
+			if cat.Name == name {
+				selected = append(selected, cat)
+				break
+			}
+		}
+	}
+
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("no categories selected")
+	}
+
+	return selected, nil
+}
+
+// fallbackCategorySelection provides numbered menu when gum unavailable
+func fallbackCategorySelection(categories []Category) ([]Category, error) {
+	fmt.Println("\nSelect categories (enter numbers separated by commas, or 'q' to skip):")
+	for i, cat := range categories {
+		fmt.Printf("  %d) %s - %s\n", i+1, cat.Name, cat.Description)
+	}
+	fmt.Print("\nYour selection: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read input: %w", err)
+	}
+
+	input = strings.TrimSpace(input)
+	if input == "" || input == "q" {
+		// Allow skipping category selection (empty plugin list is valid)
+		return []Category{}, nil
+	}
+
+	parts := strings.Split(input, ",")
+	selected := make([]Category, 0)
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		idx, err := strconv.Atoi(part)
+		if err != nil || idx < 1 || idx > len(categories) {
+			return nil, fmt.Errorf("invalid selection: %s", part)
+		}
+		selected = append(selected, categories[idx-1])
+	}
+
+	return selected, nil
+}
+
+// selectPluginsFlat shows flat plugin list for marketplaces without categories
+func selectPluginsFlat(marketplace Marketplace) ([]string, error) {
+	// TODO: Implement flat plugin selection
+	// For now, return empty list (no plugins selected)
+	// This will be implemented when we have a way to list all plugins from a marketplace
+	return []string{}, nil
+}
