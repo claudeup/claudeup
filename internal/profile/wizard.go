@@ -84,6 +84,39 @@ func GetAvailableMarketplaces() []Marketplace {
 	return []Marketplace{}
 }
 
+// installedPluginsFile represents the structure of installed_plugins.json
+type installedPluginsFile struct {
+	Version int                                `json:"version"`
+	Plugins map[string][]map[string]any `json:"plugins"`
+}
+
+// getInstalledPlugins returns a set of currently installed plugin names
+// Plugin names are in format: plugin-name@marketplace-name
+func getInstalledPlugins() map[string]bool {
+	claudeDir := DefaultClaudeDir()
+	installedFile := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
+
+	data, err := os.ReadFile(installedFile)
+	if err != nil {
+		// File doesn't exist or can't be read - return empty set
+		return make(map[string]bool)
+	}
+
+	var installed installedPluginsFile
+	if err := json.Unmarshal(data, &installed); err != nil {
+		// Parse error - return empty set
+		return make(map[string]bool)
+	}
+
+	// Build set of installed plugin names
+	installedSet := make(map[string]bool, len(installed.Plugins))
+	for pluginName := range installed.Plugins {
+		installedSet[pluginName] = true
+	}
+
+	return installedSet
+}
+
 // PromptForName prompts the user to enter a profile name
 // Returns the validated name or an error
 func PromptForName() (string, error) {
@@ -226,7 +259,7 @@ func selectPluginsByCategory(marketplace Marketplace) ([]string, error) {
 		return nil, err
 	}
 
-	// Collect plugins from selected categories
+	// Collect unique plugins from selected categories
 	pluginSet := make(map[string]bool)
 	for _, cat := range selectedCategories {
 		for _, plugin := range cat.Plugins {
@@ -234,12 +267,17 @@ func selectPluginsByCategory(marketplace Marketplace) ([]string, error) {
 		}
 	}
 
-	plugins := make([]string, 0, len(pluginSet))
+	// Convert to slice for refinement
+	availablePlugins := make([]string, 0, len(pluginSet))
 	for plugin := range pluginSet {
-		plugins = append(plugins, plugin)
+		availablePlugins = append(availablePlugins, plugin)
 	}
 
-	return plugins, nil
+	// Get installed plugins for pre-selection
+	installed := getInstalledPlugins()
+
+	// Let user refine plugin selection with installed ones pre-selected
+	return refinePluginSelection(marketplace, availablePlugins, installed)
 }
 
 // selectCategories prompts user to select categories
@@ -320,6 +358,149 @@ func fallbackCategorySelection(categories []Category) ([]Category, error) {
 		}
 		seen[idx] = true
 		selected = append(selected, categories[idx-1])
+	}
+
+	return selected, nil
+}
+
+// refinePluginSelection allows user to select/deselect plugins from available list
+// Installed plugins are pre-selected by default
+func refinePluginSelection(marketplace Marketplace, availablePlugins []string, installed map[string]bool) ([]string, error) {
+	if len(availablePlugins) == 0 {
+		return []string{}, nil
+	}
+
+	// Build full plugin names with marketplace suffix for checking installation
+	marketplaceName := marketplace.DisplayName()
+
+	// Check if gum is available
+	if _, err := exec.LookPath("gum"); err != nil {
+		return fallbackPluginRefinement(availablePlugins, installed, marketplaceName)
+	}
+
+	// Build gum command with plugin choices
+	args := []string{"choose", "--no-limit", "--header=Select plugins (installed plugins are pre-selected):"}
+
+	// Add selected flag for each installed plugin
+	preselected := make([]string, 0)
+	for _, plugin := range availablePlugins {
+		// Check if plugin is installed
+		// Plugin format in installed_plugins.json: plugin-name@marketplace-suffix
+		// Check if any installed key starts with this plugin name
+		isInstalled := false
+		for installedKey := range installed {
+			if strings.HasPrefix(installedKey, plugin+"@") {
+				isInstalled = true
+				break
+			}
+		}
+		if isInstalled {
+			preselected = append(preselected, plugin)
+		}
+	}
+
+	// Add pre-selected plugins
+	for _, plugin := range preselected {
+		args = append(args, "--selected="+plugin)
+	}
+
+	// Add all plugins as choices
+	args = append(args, availablePlugins...)
+
+	cmd := exec.Command("gum", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
+	if err != nil {
+		// User cancelled or gum error - return pre-selected plugins
+		return preselected, nil
+	}
+
+	// Parse selected plugins
+	selected := strings.Split(strings.TrimSpace(string(output)), "\n")
+	result := make([]string, 0, len(selected))
+	for _, plugin := range selected {
+		plugin = strings.TrimSpace(plugin)
+		if plugin != "" {
+			result = append(result, plugin)
+		}
+	}
+
+	return result, nil
+}
+
+// fallbackPluginRefinement provides simple plugin selection when gum unavailable
+func fallbackPluginRefinement(availablePlugins []string, installed map[string]bool, marketplaceName string) ([]string, error) {
+	fmt.Println("\nSelect plugins (enter numbers separated by commas, or press Enter to select all pre-selected):")
+
+	preselected := make([]int, 0)
+	for i, plugin := range availablePlugins {
+		// Check if plugin is installed
+		isInstalled := false
+		// Simple heuristic: check if any key contains this plugin name
+		for key := range installed {
+			if strings.HasPrefix(key, plugin+"@") {
+				isInstalled = true
+				break
+			}
+		}
+
+		marker := " "
+		if isInstalled {
+			marker = "*"
+			preselected = append(preselected, i+1)
+		}
+		fmt.Printf(" %s %d) %s\n", marker, i+1, plugin)
+	}
+
+	if len(preselected) > 0 {
+		preselectedNums := make([]string, len(preselected))
+		for i, num := range preselected {
+			preselectedNums[i] = fmt.Sprintf("%d", num)
+		}
+		fmt.Printf("\n* = installed (pre-selected: %s)\n", strings.Join(preselectedNums, ","))
+	}
+	fmt.Print("\nYour selection: ")
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		// On error, return pre-selected plugins
+		result := make([]string, len(preselected))
+		for i, idx := range preselected {
+			result[i] = availablePlugins[idx-1]
+		}
+		return result, nil
+	}
+
+	input = strings.TrimSpace(input)
+
+	// Empty input means accept pre-selected
+	if input == "" {
+		result := make([]string, len(preselected))
+		for i, idx := range preselected {
+			result[i] = availablePlugins[idx-1]
+		}
+		return result, nil
+	}
+
+	// Parse comma-separated numbers
+	parts := strings.Split(input, ",")
+	selected := make([]string, 0)
+	seen := make(map[int]bool)
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		idx, err := strconv.Atoi(part)
+		if err != nil || idx < 1 || idx > len(availablePlugins) {
+			return nil, fmt.Errorf("invalid selection: %s", part)
+		}
+		// Skip duplicates
+		if seen[idx] {
+			continue
+		}
+		seen[idx] = true
+		selected = append(selected, availablePlugins[idx-1])
 	}
 
 	return selected, nil
