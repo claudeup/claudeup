@@ -17,7 +17,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var profileCreateFromFlag string
+var (
+	profileCreateFromFlag   string
+	profileSaveDescription  string
+	profileCreateDescription string
+)
 
 var profileCmd = &cobra.Command{
 	Use:   "profile",
@@ -183,6 +187,9 @@ func init() {
 	profileCmd.AddCommand(profileRenameCmd)
 
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
+	profileCreateCmd.Flags().StringVar(&profileCreateDescription, "description", "", "Custom description for the profile")
+
+	profileSaveCmd.Flags().StringVar(&profileSaveDescription, "description", "", "Custom description for the profile")
 
 	// Add flags to profile use command
 	profileUseCmd.Flags().BoolVar(&profileUseSetup, "setup", false, "Force post-apply setup wizard to run")
@@ -519,6 +526,24 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
 
+	// Handle description: preserve existing custom descriptions, update generic ones
+	if profileSaveDescription != "" {
+		// User provided explicit description via flag
+		p.Description = profileSaveDescription
+	} else {
+		// Check if existing profile has custom description
+		existingProfile, err := profile.Load(profilesDir, name)
+		if err == nil {
+			// Profile exists - preserve custom descriptions
+			if existingProfile.Description != "" && existingProfile.Description != "Snapshot of current Claude Code configuration" {
+				// Has custom description, preserve it
+				p.Description = existingProfile.Description
+			}
+			// Otherwise use auto-generated description (already set by Snapshot)
+		}
+		// If profile doesn't exist, use auto-generated description (already set by Snapshot)
+	}
+
 	// Save
 	if err := profile.Save(profilesDir, p); err != nil {
 		return fmt.Errorf("failed to save profile: %w", err)
@@ -836,6 +861,16 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 	// Clone the profile with the new name
 	newProfile := sourceProfile.Clone(name)
+
+	// Handle description
+	if profileCreateDescription != "" {
+		// User provided explicit description via flag
+		newProfile.Description = profileCreateDescription
+	} else if newProfile.Description == "Snapshot of current Claude Code configuration" {
+		// Source has old generic description, replace with auto-generated
+		newProfile.Description = newProfile.GenerateDescription()
+	}
+	// Otherwise preserve source's custom description
 
 	// Save
 	if err := profile.Save(profilesDir, newProfile); err != nil {

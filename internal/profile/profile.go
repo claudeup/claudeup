@@ -4,6 +4,7 @@ package profile
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -247,4 +248,48 @@ func (p *Profile) Clone(newName string) *Profile {
 	}
 
 	return clone
+}
+
+// GenerateDescription creates a human-readable description of the profile contents
+func (p *Profile) GenerateDescription() string {
+	var parts []string
+
+	marketplaceCount := len(p.Marketplaces)
+	pluginCount := len(p.Plugins)
+	mcpCount := len(p.MCPServers)
+
+	if marketplaceCount > 0 {
+		if marketplaceCount == 1 {
+			parts = append(parts, "1 marketplace")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d marketplaces", marketplaceCount))
+		}
+	}
+
+	if pluginCount > 0 {
+		if pluginCount == 1 {
+			parts = append(parts, "1 plugin")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d plugins", pluginCount))
+		}
+	}
+
+	if mcpCount > 0 {
+		if mcpCount == 1 {
+			parts = append(parts, "1 MCP server")
+		} else {
+			parts = append(parts, fmt.Sprintf("%d MCP servers", mcpCount))
+		}
+	}
+
+	if len(parts) == 0 {
+		return "Empty profile"
+	}
+
+	// Join with commas: "1 marketplace, 3 plugins, 2 MCP servers"
+	result := parts[0]
+	for i := 1; i < len(parts); i++ {
+		result += ", " + parts[i]
+	}
+	return result
 }

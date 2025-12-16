@@ -216,3 +216,62 @@ func TestProfile_Clone(t *testing.T) {
 		t.Error("Clone should deep copy MCPServers")
 	}
 }
+
+func TestProfile_GenerateDescription(t *testing.T) {
+	tests := []struct {
+		name     string
+		profile  *Profile
+		expected string
+	}{
+		{
+			name: "all components",
+			profile: &Profile{
+				Name:         "test",
+				Marketplaces: []Marketplace{{Source: "github", Repo: "org/repo"}},
+				Plugins:      []string{"plugin1", "plugin2", "plugin3"},
+				MCPServers:   []MCPServer{{Name: "server1"}, {Name: "server2"}},
+			},
+			expected: "1 marketplace, 3 plugins, 2 MCP servers",
+		},
+		{
+			name: "multiple marketplaces",
+			profile: &Profile{
+				Name:         "test",
+				Marketplaces: []Marketplace{{Source: "github"}, {Source: "github"}},
+				Plugins:      []string{"plugin1"},
+				MCPServers:   []MCPServer{{Name: "server1"}},
+			},
+			expected: "2 marketplaces, 1 plugin, 1 MCP server",
+		},
+		{
+			name: "only plugins",
+			profile: &Profile{
+				Name:    "test",
+				Plugins: []string{"plugin1", "plugin2"},
+			},
+			expected: "2 plugins",
+		},
+		{
+			name: "only MCP servers",
+			profile: &Profile{
+				Name:       "test",
+				MCPServers: []MCPServer{{Name: "server1"}},
+			},
+			expected: "1 MCP server",
+		},
+		{
+			name:     "empty profile",
+			profile:  &Profile{Name: "test"},
+			expected: "Empty profile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.profile.GenerateDescription()
+			if got != tt.expected {
+				t.Errorf("GenerateDescription() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}

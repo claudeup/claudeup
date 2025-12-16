@@ -42,8 +42,7 @@ type MarketplaceSource struct {
 // Snapshot creates a Profile from the current Claude Code state
 func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
 	p := &Profile{
-		Name:        name,
-		Description: "Snapshot of current Claude Code configuration",
+		Name: name,
 	}
 
 	// Read plugins
@@ -63,6 +62,9 @@ func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
 	if err == nil {
 		p.MCPServers = mcpServers
 	}
+
+	// Auto-generate description based on contents
+	p.Description = p.GenerateDescription()
 
 	return p, nil
 }
