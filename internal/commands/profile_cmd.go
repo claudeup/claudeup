@@ -229,7 +229,12 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Check if active profile has unsaved changes
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-	activeProfileModified := profile.IsActiveProfileModified(activeProfile, profilesDir, claudeDir, claudeJSONPath)
+	activeProfileModified, comparisonErr := profile.IsActiveProfileModified(activeProfile, profilesDir, claudeDir, claudeJSONPath)
+
+	if comparisonErr != nil {
+		// Comparison failed - show subtle note
+		ui.PrintMuted(fmt.Sprintf("Note: Could not check for profile changes (%v)", comparisonErr))
+	}
 
 	// Check if we have any profiles to show
 	hasBuiltIn := false
