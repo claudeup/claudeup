@@ -105,11 +105,16 @@ func SelectMarketplaces(available []Marketplace) ([]Marketplace, error) {
 	// Map selected names back to Marketplace structs
 	selected := make([]Marketplace, 0)
 	for _, name := range selectedNames {
+		found := false
 		for _, m := range available {
 			if m.DisplayName() == name {
 				selected = append(selected, m)
+				found = true
 				break
 			}
+		}
+		if !found {
+			return nil, fmt.Errorf("selected marketplace not found: %s", name)
 		}
 	}
 
@@ -138,6 +143,7 @@ func fallbackMarketplaceSelection(available []Marketplace) ([]Marketplace, error
 
 	parts := strings.Split(input, ",")
 	selected := make([]Marketplace, 0)
+	seen := make(map[int]bool)
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -145,6 +151,11 @@ func fallbackMarketplaceSelection(available []Marketplace) ([]Marketplace, error
 		if err != nil || idx < 1 || idx > len(available) {
 			return nil, fmt.Errorf("invalid selection: %s", part)
 		}
+		// Skip duplicates
+		if seen[idx] {
+			continue
+		}
+		seen[idx] = true
 		selected = append(selected, available[idx-1])
 	}
 
