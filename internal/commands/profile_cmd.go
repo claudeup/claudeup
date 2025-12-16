@@ -461,7 +461,8 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		showDiff(diff)
 		fmt.Println()
 
-		if !confirmProceed() {
+		// Skip confirmation if using --force flag
+		if !profileUseForce && !confirmProceed() {
 			ui.PrintMuted("Cancelled.")
 			return nil
 		}
@@ -908,7 +909,6 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 	// Welcome message
 	fmt.Println(ui.RenderDetail("Creating profile", ui.Bold(name)))
-	fmt.Println()
 
 	// Step 2: Select marketplaces
 	availableMarketplaces := profile.GetAvailableMarketplaces()
