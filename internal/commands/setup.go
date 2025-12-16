@@ -427,8 +427,16 @@ func confirmProceed() bool {
 		return true
 	}
 
-	choice := promptChoice("Proceed?", "y")
-	return strings.ToLower(choice) == "y" || strings.ToLower(choice) == "yes"
+	fmt.Print("Proceed? [Y/n]: ")
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return false
+	}
+
+	choice := strings.TrimSpace(strings.ToLower(input))
+	// Empty (Enter) or 'y'/'yes' means proceed
+	return choice == "" || choice == "y" || choice == "yes"
 }
 
 func promptChoice(prompt, defaultValue string) string {
