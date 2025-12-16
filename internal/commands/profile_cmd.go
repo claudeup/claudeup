@@ -29,8 +29,10 @@ var profileCmd = &cobra.Command{
 	Long: `Profiles are saved configurations of plugins, MCP servers, and marketplaces.
 
 Use profiles to:
-  - Save your current setup for later
-  - Switch between different configurations
+  - Create custom profiles with the interactive wizard (create)
+  - Clone existing profiles (clone)
+  - Save your current setup for later (save)
+  - Switch between different configurations (use)
   - Share configurations between machines`,
 }
 
@@ -75,8 +77,18 @@ var profileCreateCmd = &cobra.Command{
 	Short: "Create a new profile with interactive wizard",
 	Long: `Interactive wizard for creating custom profiles.
 
-Guides you through selecting marketplaces and plugins to build a custom profile.
+Guides you through:
+  1. Selecting marketplaces
+  2. Choosing plugins (by category or individually)
+  3. Setting a description
+  4. Optionally applying the profile
+
 If name is not provided, you'll be prompted to enter one.`,
+	Example: `  # Create profile with wizard
+  claudeup profile create my-profile
+
+  # Create profile, wizard prompts for name
+  claudeup profile create`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileCreate,
 }
@@ -84,10 +96,18 @@ If name is not provided, you'll be prompted to enter one.`,
 var profileCloneCmd = &cobra.Command{
 	Use:   "clone <name>",
 	Short: "Clone an existing profile",
-	Long: `Creates a new profile based on an existing profile.
+	Long: `Creates a new profile by copying an existing one.
 
 Use --from to specify the source profile, or select interactively.
 With -y flag, uses the currently active profile as the source.`,
+	Example: `  # Clone from specific profile
+  claudeup profile clone new-profile --from existing-profile
+
+  # Clone from active profile
+  claudeup profile clone new-profile -y
+
+  # Interactive selection
+  claudeup profile clone new-profile`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileClone,
 }
