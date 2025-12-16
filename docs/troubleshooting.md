@@ -74,7 +74,7 @@ MCP server changes require restarting Claude Code to take effect.
 Check if it's in the disabled list:
 
 ```bash
-cat ~/.claudeup/config.json | grep disabledPlugins
+jq -r '.disabledPlugins' < ~/.claudeup/config.json
 ```
 
 Re-enable with:
