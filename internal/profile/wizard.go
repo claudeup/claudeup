@@ -7,6 +7,9 @@ import (
 	"regexp"
 )
 
+// validNameRegex matches valid profile names: alphanumeric, hyphens, underscores
+var validNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+
 // ValidateName checks if a profile name is valid
 func ValidateName(name string) error {
 	if name == "" {
@@ -17,9 +20,7 @@ func ValidateName(name string) error {
 		return fmt.Errorf("'current' is a reserved name")
 	}
 
-	// Valid names: alphanumeric, hyphens, underscores
-	validName := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-	if !validName.MatchString(name) {
+	if !validNameRegex.MatchString(name) {
 		return fmt.Errorf("profile name contains invalid characters (use letters, numbers, hyphens, underscores only)")
 	}
 
