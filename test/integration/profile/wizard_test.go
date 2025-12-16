@@ -50,4 +50,10 @@ var _ = Describe("Wizard", func() {
 			}
 		})
 	})
+
+	Describe("PromptForName", func() {
+		It("validates input", func() {
+			Skip("Requires stdin simulation - tested via acceptance tests")
+		})
+	})
 })
