@@ -228,17 +228,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if active profile has unsaved changes
-	activeProfileModified := false
-	if activeProfile != "" {
-		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-		activeProf, err := loadProfileWithFallback(profilesDir, activeProfile)
-		if err == nil {
-			diff, err := profile.CompareWithCurrent(activeProf, claudeDir, claudeJSONPath)
-			if err == nil && diff.HasChanges() {
-				activeProfileModified = true
-			}
-		}
-	}
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+	activeProfileModified := profile.IsActiveProfileModified(activeProfile, profilesDir, claudeDir, claudeJSONPath)
 
 	// Check if we have any profiles to show
 	hasBuiltIn := false

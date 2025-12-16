@@ -64,27 +64,35 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
 		homeDir, _ := os.UserHomeDir()
 		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
-		profilePath := filepath.Join(profilesDir, cfg.Preferences.ActiveProfile+".json")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-		// Check if profile file exists
-		if _, err := os.Stat(profilePath); os.IsNotExist(err) {
-			// Auto-clear missing profile
+		// Check if profile file exists (both disk and embedded)
+		_, diskErr := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
+		_, embeddedErr := profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+
+		if diskErr != nil && embeddedErr != nil {
+			// Profile doesn't exist anywhere - auto-clear
 			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found. Clearing active profile.", cfg.Preferences.ActiveProfile))
 			cfg.Preferences.ActiveProfile = ""
 			if err := config.Save(cfg); err != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
 			}
 		} else {
-			// Load and compare
-			savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
-			if err == nil {
-				diff, err := profile.CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
-				if err == nil && diff.HasChanges() {
-					fmt.Println()
-					ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", cfg.Preferences.ActiveProfile))
-					ui.PrintInfo("  • " + diff.Summary())
-					ui.PrintInfo("Run 'claudeup profile save' to persist them.")
+			// Check for modifications using helper
+			if profile.IsActiveProfileModified(cfg.Preferences.ActiveProfile, profilesDir, claudeDir, claudeJSONPath) {
+				// Load profile again to get diff details for summary
+				savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
+				if err != nil {
+					savedProfile, err = profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+				}
+				if err == nil {
+					diff, err := profile.CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
+					if err == nil && diff.HasChanges() {
+						fmt.Println()
+						ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", cfg.Preferences.ActiveProfile))
+						ui.PrintInfo("  • " + diff.Summary())
+						ui.PrintInfo("Run 'claudeup profile save' to persist them.")
+					}
 				}
 			}
 		}
