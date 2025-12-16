@@ -21,56 +21,71 @@ func HasCategories(marketplaceRepo string) bool {
 // GetCategories returns available categories for a marketplace
 func GetCategories(marketplaceRepo string) []Category {
 	// V1: Hardcoded categories for wshobson/agents
+	// Source: internal/profile/profiles/scripts/hobson/hobson-setup.sh
 	if marketplaceRepo == "wshobson/agents" {
 		return []Category{
 			{
-				Name:        "Backend Development",
-				Description: "API design, architecture, GraphQL, Temporal workflows",
-				Plugins: []string{
-					"backend-development:backend-architect",
-					"backend-development:graphql-architect",
-					"backend-development:temporal-python-pro",
-					"backend-development:tdd-orchestrator",
-				},
+				Name:        "Core Development",
+				Description: "workflows, debugging, docs, refactoring",
+				Plugins:     parsePlugins("code-documentation debugging-toolkit git-pr-workflows backend-development frontend-mobile-development full-stack-orchestration code-refactoring dependency-management error-debugging team-collaboration documentation-generation c4-architecture multi-platform-apps developer-essentials"),
 			},
 			{
-				Name:        "Frontend Development",
-				Description: "React, mobile, UI/UX design",
-				Plugins: []string{
-					"frontend-mobile-development:frontend-developer",
-					"frontend-mobile-development:mobile-developer",
-				},
+				Name:        "Quality & Testing",
+				Description: "code review, testing, cleanup",
+				Plugins:     parsePlugins("unit-testing tdd-workflows code-review-ai comprehensive-review performance-testing-review framework-migration codebase-cleanup"),
 			},
 			{
-				Name:        "Full Stack Orchestration",
-				Description: "Deployment, performance, security, testing",
-				Plugins: []string{
-					"full-stack-orchestration:deployment-engineer",
-					"full-stack-orchestration:performance-engineer",
-					"full-stack-orchestration:security-auditor",
-					"full-stack-orchestration:test-automator",
-				},
+				Name:        "AI & Machine Learning",
+				Description: "LLM dev, agents, MLOps",
+				Plugins:     parsePlugins("llm-application-dev agent-orchestration context-management machine-learning-ops"),
 			},
 			{
-				Name:        "Code Quality",
-				Description: "Code review, refactoring, documentation",
-				Plugins: []string{
-					"code-refactoring:code-reviewer",
-					"code-refactoring:legacy-modernizer",
-					"code-documentation:docs-architect",
-					"code-documentation:tutorial-engineer",
-				},
+				Name:        "Infrastructure & DevOps",
+				Description: "K8s, cloud, CI/CD, monitoring",
+				Plugins:     parsePlugins("deployment-strategies deployment-validation kubernetes-operations cloud-infrastructure cicd-automation incident-response error-diagnostics distributed-debugging observability-monitoring"),
 			},
 			{
-				Name:        "Debugging",
-				Description: "Error debugging, systematic debugging",
-				Plugins: []string{
-					"debugging-toolkit:debugger",
-					"error-debugging:error-detective",
-				},
+				Name:        "Security & Compliance",
+				Description: "scanning, compliance, API security",
+				Plugins:     parsePlugins("security-scanning security-compliance backend-api-security frontend-mobile-security"),
+			},
+			{
+				Name:        "Data & Databases",
+				Description: "ETL, schema design, migrations",
+				Plugins:     parsePlugins("data-engineering data-validation-suite database-design database-migrations application-performance database-cloud-optimization"),
+			},
+			{
+				Name:        "Languages",
+				Description: "Python, JS/TS, Go, Rust, etc.",
+				Plugins:     parsePlugins("python-development javascript-typescript systems-programming jvm-languages web-scripting functional-programming julia-development arm-cortex-microcontrollers shell-scripting"),
+			},
+			{
+				Name:        "Business & Specialty",
+				Description: "SEO, analytics, blockchain, gaming",
+				Plugins:     parsePlugins("api-scaffolding api-testing-observability seo-content-creation seo-technical-optimization seo-analysis-monitoring business-analytics hr-legal-compliance customer-sales-automation content-marketing blockchain-web3 quantitative-trading payment-processing game-development accessibility-compliance"),
 			},
 		}
 	}
 
 	return []Category{}
+}
+
+// parsePlugins converts space-separated plugin string to slice
+func parsePlugins(s string) []string {
+	var result []string
+	current := ""
+	for _, r := range s {
+		if r == ' ' {
+			if current != "" {
+				result = append(result, current)
+				current = ""
+			}
+		} else {
+			current += string(r)
+		}
+	}
+	if current != "" {
+		result = append(result, current)
+	}
+	return result
 }
