@@ -62,14 +62,8 @@ var _ = Describe("'current' keyword handling", func() {
 	})
 
 	Describe("profile create current", func() {
-		BeforeEach(func() {
-			env.CreateProfile(&profile.Profile{
-				Name: "source-profile",
-			})
-		})
-
 		It("rejects 'current' as a reserved name", func() {
-			result := env.Run("profile", "create", "current", "--from", "source-profile")
+			result := env.Run("profile", "create", "current")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("reserved"))
