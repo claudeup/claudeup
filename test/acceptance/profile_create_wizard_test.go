@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -16,19 +17,30 @@ var _ = Describe("profile create wizard", func() {
 		env.CreateClaudeSettings()
 	})
 
-	Context("when name not provided as argument", func() {
-		It("prompts for profile name", func() {
-			Skip("Interactive test - requires gum or manual testing")
-			// This will be tested manually since it requires gum interaction
+	Context("validation", func() {
+		It("rejects empty profile name", func() {
+			Skip("Requires stdin simulation for name prompt")
+		})
+
+		It("rejects reserved name 'current'", func() {
+			// Wizard will validate the name even if provided as arg
+			result := env.Run("profile", "create", "current")
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("reserved"))
+		})
+
+		It("rejects existing profile name", func() {
+			env.CreateProfile(&profile.Profile{Name: "existing"})
+
+			result := env.Run("profile", "create", "existing")
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("already exists"))
 		})
 	})
 
-	Context("when name provided as argument", func() {
-		It("uses the provided name without prompting", func() {
-			// Start with a basic test that just checks the command exists
-			result := env.Run("profile", "create", "--help")
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("create"))
+	Context("interactive mode", func() {
+		It("requires gum or fallback prompts", func() {
+			Skip("Full wizard test requires gum interaction - test manually")
 		})
 	})
 })
