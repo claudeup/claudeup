@@ -220,9 +220,16 @@ func compareMCPServers(saved, current []MCPServer) (added, removed, modified []M
 	return added, removed, modified
 }
 
-// mcpServersEqual checks if two MCP servers are equal (same command and args)
+// mcpServersEqual checks if two MCP servers are equal
+// Compares: command, args, scope, and secrets
 func mcpServersEqual(a, b MCPServer) bool {
+	// Compare command
 	if a.Command != b.Command {
+		return false
+	}
+
+	// Compare scope
+	if a.Scope != b.Scope {
 		return false
 	}
 
@@ -232,6 +239,39 @@ func mcpServersEqual(a, b MCPServer) bool {
 	}
 	for i := range a.Args {
 		if a.Args[i] != b.Args[i] {
+			return false
+		}
+	}
+
+	// Compare secrets
+	if len(a.Secrets) != len(b.Secrets) {
+		return false
+	}
+	for key, aSecret := range a.Secrets {
+		bSecret, exists := b.Secrets[key]
+		if !exists {
+			return false
+		}
+		if !secretRefsEqual(aSecret, bSecret) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// secretRefsEqual compares two SecretRef values
+func secretRefsEqual(a, b SecretRef) bool {
+	if a.Description != b.Description {
+		return false
+	}
+
+	if len(a.Sources) != len(b.Sources) {
+		return false
+	}
+
+	for i := range a.Sources {
+		if a.Sources[i] != b.Sources[i] {
 			return false
 		}
 	}

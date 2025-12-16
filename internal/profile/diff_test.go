@@ -218,6 +218,84 @@ var _ = Describe("ProfileDiff", func() {
 			Expect(diff.MCPServersModified).To(HaveLen(1))
 			Expect(diff.MCPServersModified[0].Name).To(Equal("server1"))
 		})
+
+		It("detects MCP servers modified when scope changes", func() {
+			saved := &Profile{
+				MCPServers: []MCPServer{{Name: "server1", Command: "cmd", Scope: "user"}},
+			}
+			current := &Profile{
+				MCPServers: []MCPServer{{Name: "server1", Command: "cmd", Scope: "workspace"}},
+			}
+
+			diff := compare(saved, current)
+			Expect(diff.MCPServersModified).To(HaveLen(1))
+			Expect(diff.MCPServersModified[0].Name).To(Equal("server1"))
+		})
+
+		It("detects MCP servers modified when secrets change", func() {
+			saved := &Profile{
+				MCPServers: []MCPServer{{
+					Name:    "server1",
+					Command: "cmd",
+					Secrets: map[string]SecretRef{
+						"API_KEY": {
+							Description: "API Key",
+							Sources:     []SecretSource{{Type: "env", Key: "API_KEY"}},
+						},
+					},
+				}},
+			}
+			current := &Profile{
+				MCPServers: []MCPServer{{
+					Name:    "server1",
+					Command: "cmd",
+					Secrets: map[string]SecretRef{
+						"API_KEY": {
+							Description: "API Key Updated",
+							Sources:     []SecretSource{{Type: "env", Key: "API_KEY"}},
+						},
+					},
+				}},
+			}
+
+			diff := compare(saved, current)
+			Expect(diff.MCPServersModified).To(HaveLen(1))
+			Expect(diff.MCPServersModified[0].Name).To(Equal("server1"))
+		})
+
+		It("does not detect modification when MCP servers are identical including scope and secrets", func() {
+			saved := &Profile{
+				MCPServers: []MCPServer{{
+					Name:    "server1",
+					Command: "cmd",
+					Args:    []string{"arg1"},
+					Scope:   "user",
+					Secrets: map[string]SecretRef{
+						"API_KEY": {
+							Description: "API Key",
+							Sources:     []SecretSource{{Type: "env", Key: "API_KEY"}},
+						},
+					},
+				}},
+			}
+			current := &Profile{
+				MCPServers: []MCPServer{{
+					Name:    "server1",
+					Command: "cmd",
+					Args:    []string{"arg1"},
+					Scope:   "user",
+					Secrets: map[string]SecretRef{
+						"API_KEY": {
+							Description: "API Key",
+							Sources:     []SecretSource{{Type: "env", Key: "API_KEY"}},
+						},
+					},
+				}},
+			}
+
+			diff := compare(saved, current)
+			Expect(diff.MCPServersModified).To(BeEmpty())
+		})
 	})
 
 	Describe("Summary", func() {
