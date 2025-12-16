@@ -985,7 +985,30 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {
 		// Apply the profile by calling runProfileUse
-		return runProfileUse(cmd, []string{name})
+		if err := runProfileUse(cmd, []string{name}); err != nil {
+			return err
+		}
+
+		// Save snapshot after applying to sync profile with actual installed state
+		// This prevents the profile from showing as "modified" immediately after creation
+		fmt.Println()
+		ui.PrintInfo("Saving profile snapshot...")
+		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+		snapshot, err := profile.Snapshot(name, claudeDir, claudeJSONPath)
+		if err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save snapshot: %v", err))
+			return nil
+		}
+
+		// Preserve the wizard-created description
+		snapshot.Description = newProfile.Description
+
+		if err := profile.Save(profilesDir, snapshot); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to save snapshot: %v", err))
+			return nil
+		}
+
+		return nil
 	}
 
 	fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile use %s", name)))
