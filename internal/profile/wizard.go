@@ -71,7 +71,7 @@ func loadKnownMarketplaces() ([]Marketplace, error) {
 }
 
 // GetAvailableMarketplaces returns all available marketplaces for selection
-// Loads from ~/.claude/plugins/known_marketplaces.json
+// Loads from ~/.claude/plugins/known_marketplaces.json, falling back to embedded profiles
 func GetAvailableMarketplaces() []Marketplace {
 	// Try to load from known_marketplaces.json
 	marketplaces, err := loadKnownMarketplaces()
@@ -79,9 +79,26 @@ func GetAvailableMarketplaces() []Marketplace {
 		return marketplaces
 	}
 
-	// Fallback to empty list if file doesn't exist or is empty
-	// User likely hasn't added any marketplaces yet
-	return []Marketplace{}
+	// Fallback to marketplaces from embedded profiles
+	embeddedProfiles, err := ListEmbeddedProfiles()
+	if err != nil {
+		return []Marketplace{}
+	}
+
+	// Collect unique marketplaces from embedded profiles
+	seen := make(map[string]bool)
+	result := make([]Marketplace, 0)
+	for _, p := range embeddedProfiles {
+		for _, m := range p.Marketplaces {
+			key := m.Source + ":" + m.Repo + m.URL
+			if !seen[key] {
+				seen[key] = true
+				result = append(result, m)
+			}
+		}
+	}
+
+	return result
 }
 
 // installedPluginsFile represents the structure of installed_plugins.json
