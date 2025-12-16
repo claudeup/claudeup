@@ -506,15 +506,103 @@ func fallbackPluginRefinement(availablePlugins []string, installed map[string]bo
 	return selected, nil
 }
 
+// marketplaceMetadata represents the structure of .claude-plugin/marketplace.json
+type marketplaceMetadata struct {
+	Plugins []struct {
+		Name        string `json:"name"`
+		Description string `json:"description,omitempty"`
+		Version     string `json:"version,omitempty"`
+	} `json:"plugins"`
+}
+
+// listPluginsFromMarketplace reads marketplace.json and returns available plugin names
+func listPluginsFromMarketplace(marketplace Marketplace) ([]string, error) {
+	claudeDir := DefaultClaudeDir()
+
+	// Load known_marketplaces.json to find the install location
+	marketplacesFile := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
+	data, err := os.ReadFile(marketplacesFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read known_marketplaces.json: %w", err)
+	}
+
+	var knownMarketplaces map[string]struct {
+		Source struct {
+			Source string `json:"source"`
+			Repo   string `json:"repo,omitempty"`
+			URL    string `json:"url,omitempty"`
+		} `json:"source"`
+		InstallLocation string `json:"installLocation"`
+	}
+
+	if err := json.Unmarshal(data, &knownMarketplaces); err != nil {
+		return nil, fmt.Errorf("failed to parse known_marketplaces.json: %w", err)
+	}
+
+	// Find matching marketplace by comparing source details
+	var marketplacePath string
+	for _, entry := range knownMarketplaces {
+		if entry.Source.Source == marketplace.Source {
+			match := false
+			if marketplace.Repo != "" && entry.Source.Repo == marketplace.Repo {
+				match = true
+			} else if marketplace.URL != "" && entry.Source.URL == marketplace.URL {
+				match = true
+			}
+
+			if match {
+				marketplacePath = entry.InstallLocation
+				break
+			}
+		}
+	}
+
+	if marketplacePath == "" {
+		return nil, fmt.Errorf("marketplace not found in known_marketplaces.json")
+	}
+
+	// Read marketplace.json from the install location
+	metadataPath := filepath.Join(marketplacePath, ".claude-plugin", "marketplace.json")
+	metadataData, err := os.ReadFile(metadataPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read marketplace.json: %w", err)
+	}
+
+	var metadata marketplaceMetadata
+	if err := json.Unmarshal(metadataData, &metadata); err != nil {
+		return nil, fmt.Errorf("failed to parse marketplace.json: %w", err)
+	}
+
+	// Extract plugin names
+	plugins := make([]string, 0, len(metadata.Plugins))
+	for _, plugin := range metadata.Plugins {
+		plugins = append(plugins, plugin.Name)
+	}
+
+	return plugins, nil
+}
+
 // selectPluginsFlat shows flat plugin list for marketplaces without categories
 func selectPluginsFlat(marketplace Marketplace) ([]string, error) {
-	// TODO: Implement flat plugin selection
-	// For now, warn user and return empty list (no plugins selected)
-	// This will be implemented when we have a way to list all plugins from a marketplace
-	fmt.Printf("Warning: Plugin selection not yet supported for marketplace %q\n", marketplace.Source)
-	fmt.Println("Profile will be created without any plugins.")
-	fmt.Println()
-	return []string{}, nil
+	// List available plugins from marketplace metadata
+	availablePlugins, err := listPluginsFromMarketplace(marketplace)
+	if err != nil {
+		fmt.Printf("Warning: Failed to list plugins from marketplace %q: %v\n", marketplace.DisplayName(), err)
+		fmt.Println("Profile will be created without any plugins from this marketplace.")
+		fmt.Println()
+		return []string{}, nil
+	}
+
+	if len(availablePlugins) == 0 {
+		fmt.Printf("No plugins found in marketplace %q\n", marketplace.DisplayName())
+		return []string{}, nil
+	}
+
+	// Get installed plugins for pre-selection
+	installed := getInstalledPlugins()
+
+	// Let user select plugins with installed ones pre-selected
+	return refinePluginSelection(marketplace, availablePlugins, installed)
 }
 
 // GenerateWizardDescription creates description based on wizard selections
