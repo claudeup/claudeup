@@ -227,6 +227,19 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		activeProfile = cfg.Preferences.ActiveProfile
 	}
 
+	// Check if active profile has unsaved changes
+	activeProfileModified := false
+	if activeProfile != "" {
+		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+		activeProf, err := loadProfileWithFallback(profilesDir, activeProfile)
+		if err == nil {
+			diff, err := profile.CompareWithCurrent(activeProf, claudeDir, claudeJSONPath)
+			if err == nil && diff.HasChanges() {
+				activeProfileModified = true
+			}
+		}
+	}
+
 	// Check if we have any profiles to show
 	hasBuiltIn := false
 	for _, p := range embeddedProfiles {
@@ -259,7 +272,11 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if userProfileNames[p.Name] {
 				customized = ui.Info(" (customized)")
 			}
-			fmt.Printf("%s%-20s %s%s\n", marker, p.Name, desc, customized)
+			modified := ""
+			if p.Name == activeProfile && activeProfileModified {
+				modified = ui.Warning(" (modified)")
+			}
+			fmt.Printf("%s%-20s %s%s%s\n", marker, p.Name, desc, customized, modified)
 		}
 		fmt.Println()
 	}
@@ -284,7 +301,11 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
-			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
+			modified := ""
+			if p.Name == activeProfile && activeProfileModified {
+				modified = ui.Warning(" (modified)")
+			}
+			fmt.Printf("%s%-20s %s%s\n", marker, p.Name, desc, modified)
 		}
 		fmt.Println()
 	}
