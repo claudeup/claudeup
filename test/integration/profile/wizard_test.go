@@ -56,4 +56,12 @@ var _ = Describe("Wizard", func() {
 			Skip("Requires stdin simulation - tested via acceptance tests")
 		})
 	})
+
+	Describe("SelectMarketplaces", func() {
+		It("returns error if no marketplaces available", func() {
+			selected, err := profile.SelectMarketplaces([]profile.Marketplace{})
+			Expect(err).To(MatchError("no marketplaces available"))
+			Expect(selected).To(BeNil())
+		})
+	})
 })
