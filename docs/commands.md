@@ -24,11 +24,19 @@ claudeup setup --yes              # Non-interactive
 Manage configuration profiles.
 
 ```bash
-claudeup profile list             # List available profiles
-claudeup profile show <name>      # Display profile contents
-claudeup profile create <name>    # Save current setup as profile
-claudeup profile use <name>       # Apply a profile
-claudeup profile suggest          # Suggest profile for current project
+claudeup profile list                        # List available profiles
+claudeup profile show <name>                 # Display profile contents
+claudeup profile save [name]                 # Save current setup as profile
+claudeup profile create <name>               # Create profile from existing one
+claudeup profile use <name>                  # Apply a profile
+claudeup profile suggest                     # Suggest profile for current project
+claudeup profile delete <name>               # Delete a custom profile
+claudeup profile restore <name>              # Restore a built-in profile
+claudeup profile reset <name>                # Remove everything a profile installed
+
+# With description flag
+claudeup profile save my-work --description "My work setup"
+claudeup profile create home --from work --description "Home setup"
 ```
 
 ## Sandbox

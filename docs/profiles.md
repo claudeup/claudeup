@@ -12,7 +12,8 @@ Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use
 ```bash
 claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
-claudeup profile create <name>     # Save current setup as a profile
+claudeup profile save [name]       # Save current setup as a profile
+claudeup profile create <name>     # Create a profile by copying an existing one
 claudeup profile use <name>        # Apply a profile (replaces current config)
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile delete <name>     # Delete a custom user profile
@@ -141,6 +142,54 @@ Your profiles:
   backend              Backend development profile
 ```
 
+## Creating and Managing Profiles
+
+### Saving Your Current Setup
+
+Use `profile save` to capture your current Claude Code configuration as a profile:
+
+```bash
+# Save with auto-generated description
+claudeup profile save my-work
+# Description: "2 marketplaces, 5 plugins, 3 MCP servers"
+
+# Save with custom description
+claudeup profile save my-work --description "TAS development setup"
+
+# Update existing profile (preserves custom description)
+claudeup profile save my-work
+```
+
+**Auto-generated descriptions:**
+- Profiles automatically get meaningful descriptions based on their contents
+- Example: "2 marketplaces, 5 plugins" or "1 marketplace, 10 plugins, 2 MCP servers"
+- Empty profiles show "Empty profile"
+
+**Description preservation:**
+- Custom descriptions (set via `--description`) are preserved when re-saving
+- Old generic "Snapshot of current Claude Code configuration" descriptions are automatically updated to auto-generated ones
+- Use `--description` flag to override at any time
+
+### Creating Profiles from Existing Ones
+
+Use `profile create` to copy an existing profile with a new name:
+
+```bash
+# Interactive selection
+claudeup profile create home-setup
+
+# Copy from specific profile
+claudeup profile create home-setup --from work
+
+# Copy with custom description
+claudeup profile create home-setup --from work --description "Personal development"
+
+# Copy from active profile (with -y flag)
+claudeup profile create backup -y
+```
+
+Like `profile save`, created profiles inherit the source's description (if custom) or get an auto-generated one (if the source had the old generic description).
+
 ## Profile Structure
 
 Profiles are stored in `~/.claudeup/profiles/` as JSON files:
@@ -148,7 +197,7 @@ Profiles are stored in `~/.claudeup/profiles/` as JSON files:
 ```json
 {
   "name": "frontend",
-  "description": "Frontend development with React tooling",
+  "description": "1 marketplace, 2 plugins, 1 MCP server",
   "plugins": [
     "superpowers@superpowers-marketplace",
     "frontend-design@claude-code-plugins"

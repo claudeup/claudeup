@@ -32,7 +32,7 @@ Save and switch between different Claude configurations. Great for different pro
 
 ```bash
 claudeup profile list              # See available profiles
-claudeup profile create my-setup   # Save current config as a profile
+claudeup profile save my-setup     # Save current config as a profile
 claudeup profile use backend       # Switch to a different profile
 ```
 
