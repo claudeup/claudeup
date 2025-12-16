@@ -170,6 +170,7 @@ will be updated to point to the new name.`,
 var (
 	profileUseSetup         bool
 	profileUseNoInteractive bool
+	profileUseForce         bool
 )
 
 func init() {
@@ -194,6 +195,7 @@ func init() {
 	// Add flags to profile use command
 	profileUseCmd.Flags().BoolVar(&profileUseSetup, "setup", false, "Force post-apply setup wizard to run")
 	profileUseCmd.Flags().BoolVar(&profileUseNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
+	profileUseCmd.Flags().BoolVarP(&profileUseForce, "force", "f", false, "Force reapply even with unsaved changes")
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
@@ -315,6 +317,20 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q not found: %w", name, err)
 	}
 
+	// Check if reapplying active profile with unsaved changes
+	cfg, _ := config.Load()
+	isAlreadyActive := cfg != nil && cfg.Preferences.ActiveProfile == name
+
+	if isAlreadyActive && !profileUseForce {
+		// Check for unsaved changes
+		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+		diff, err := profile.CompareWithCurrent(p, claudeDir, claudeJSONPath)
+
+		if err == nil && diff.HasChanges() {
+			return fmt.Errorf("profile '%s' is already active with unsaved changes.\nUse 'claudeup profile save' to persist changes, or 'claudeup profile use %s --force' to discard them", name, name)
+		}
+	}
+
 	// Security check FIRST: warn about hooks from non-embedded profiles
 	// Users should know about hooks before seeing the diff
 	if p.PostApply != nil && !profile.IsEmbeddedProfile(name) {
@@ -361,7 +377,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	// If no changes and no hook to run, we're done
 	if !hasDiffChanges(diff) && !shouldRunHook {
 		// Update active profile in config even when no changes needed
-		cfg, err := config.Load()
+		cfg, err = config.Load()
 		if err != nil {
 			cfg = config.DefaultConfig()
 		}
@@ -424,7 +440,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	showApplyResults(result)
 
 	// Update active profile in config
-	cfg, err := config.Load()
+	cfg, err = config.Load()
 	if err != nil {
 		cfg = config.DefaultConfig()
 	}
