@@ -4,9 +4,12 @@ package commands
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -56,6 +59,36 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 	fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
+
+	// Check for unsaved profile changes
+	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+		homeDir, _ := os.UserHomeDir()
+		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
+		profilePath := filepath.Join(profilesDir, cfg.Preferences.ActiveProfile+".json")
+		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+
+		// Check if profile file exists
+		if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+			// Auto-clear missing profile
+			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found. Clearing active profile.", cfg.Preferences.ActiveProfile))
+			cfg.Preferences.ActiveProfile = ""
+			if err := config.Save(cfg); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
+			}
+		} else {
+			// Load and compare
+			savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
+			if err == nil {
+				diff, err := profile.CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
+				if err == nil && diff.HasChanges() {
+					fmt.Println()
+					ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", cfg.Preferences.ActiveProfile))
+					ui.PrintInfo("  • " + diff.Summary())
+					ui.PrintInfo("Run 'claudeup profile save' to persist them.")
+				}
+			}
+		}
+	}
 
 	// Print marketplaces
 	fmt.Println()
