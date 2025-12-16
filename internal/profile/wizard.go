@@ -4,9 +4,11 @@ package profile
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -32,14 +34,54 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// GetAvailableMarketplaces returns all available marketplaces for selection
-// Currently returns only embedded marketplaces (wshobson/agents)
-func GetAvailableMarketplaces() []Marketplace {
-	// For V1, return hardcoded list of known marketplaces
-	// Future: could load from registry or config
-	return []Marketplace{
-		{Source: "github", Repo: "wshobson/agents"},
+// knownMarketplaceEntry represents a marketplace entry in known_marketplaces.json
+type knownMarketplaceEntry struct {
+	Source struct {
+		Source string `json:"source"`
+		Repo   string `json:"repo,omitempty"`
+		URL    string `json:"url,omitempty"`
+	} `json:"source"`
+}
+
+// loadKnownMarketplaces reads marketplaces from ~/.claude/plugins/known_marketplaces.json
+func loadKnownMarketplaces() ([]Marketplace, error) {
+	claudeDir := DefaultClaudeDir()
+	marketplacesFile := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
+
+	data, err := os.ReadFile(marketplacesFile)
+	if err != nil {
+		return nil, err
 	}
+
+	var entries map[string]knownMarketplaceEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		return nil, fmt.Errorf("failed to parse known_marketplaces.json: %w", err)
+	}
+
+	marketplaces := make([]Marketplace, 0, len(entries))
+	for _, entry := range entries {
+		marketplaces = append(marketplaces, Marketplace{
+			Source: entry.Source.Source,
+			Repo:   entry.Source.Repo,
+			URL:    entry.Source.URL,
+		})
+	}
+
+	return marketplaces, nil
+}
+
+// GetAvailableMarketplaces returns all available marketplaces for selection
+// Loads from ~/.claude/plugins/known_marketplaces.json
+func GetAvailableMarketplaces() []Marketplace {
+	// Try to load from known_marketplaces.json
+	marketplaces, err := loadKnownMarketplaces()
+	if err == nil && len(marketplaces) > 0 {
+		return marketplaces
+	}
+
+	// Fallback to empty list if file doesn't exist or is empty
+	// User likely hasn't added any marketplaces yet
+	return []Marketplace{}
 }
 
 // PromptForName prompts the user to enter a profile name
