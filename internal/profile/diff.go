@@ -100,14 +100,14 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 		// Try embedded profile
 		savedProfile, err = GetEmbeddedProfile(activeProfileName)
 		if err != nil {
-			return false, fmt.Errorf("failed to load profile: %w", err)
+			return false, fmt.Errorf("failed to load profile %q: %w", activeProfileName, err)
 		}
 	}
 
 	// Compare with current state
 	diff, err := CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
 	if err != nil {
-		return false, fmt.Errorf("failed to compare profile: %w", err)
+		return false, fmt.Errorf("failed to compare profile %q: %w", activeProfileName, err)
 	}
 
 	return diff.HasChanges(), nil
