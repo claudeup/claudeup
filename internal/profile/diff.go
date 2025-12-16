@@ -85,11 +85,13 @@ func CompareWithCurrent(savedProfile *Profile, claudeDir, claudeJSONPath string)
 }
 
 // IsActiveProfileModified checks if the active profile has unsaved changes
-// Returns true if the active profile exists and has been modified, false otherwise
-// Gracefully returns false on any errors (missing profile, read failures, etc)
-func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJSONPath string) bool {
+// Returns (hasChanges, comparisonError)
+// - hasChanges: true if profile exists and has modifications
+// - comparisonError: non-nil if comparison failed (file read error, corrupt data, etc.)
+// Gracefully returns (false, err) on any errors
+func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJSONPath string) (bool, error) {
 	if activeProfileName == "" {
-		return false
+		return false, nil
 	}
 
 	// Try to load the profile (disk first, then embedded)
@@ -98,17 +100,17 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 		// Try embedded profile
 		savedProfile, err = GetEmbeddedProfile(activeProfileName)
 		if err != nil {
-			return false
+			return false, fmt.Errorf("failed to load profile %q: %w", activeProfileName, err)
 		}
 	}
 
 	// Compare with current state
 	diff, err := CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("failed to compare profile %q: %w", activeProfileName, err)
 	}
 
-	return diff.HasChanges()
+	return diff.HasChanges(), nil
 }
 
 // compare compares a saved profile with current state and returns differences

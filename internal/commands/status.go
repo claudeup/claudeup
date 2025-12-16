@@ -79,7 +79,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 		} else {
 			// Check for modifications using helper
-			if profile.IsActiveProfileModified(cfg.Preferences.ActiveProfile, profilesDir, claudeDir, claudeJSONPath) {
+			modified, comparisonErr := profile.IsActiveProfileModified(cfg.Preferences.ActiveProfile, profilesDir, claudeDir, claudeJSONPath)
+
+			if comparisonErr != nil {
+				// Subtle warning for debugging - don't alarm users
+				ui.PrintMuted(fmt.Sprintf("Note: Could not check for profile changes (%v)", comparisonErr))
+			}
+
+			if modified {
 				// Load profile again to get diff details for summary
 				savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
 				if err != nil {
