@@ -2,6 +2,8 @@
 // ABOUTME: Hardcoded support for known marketplaces (wshobson/agents)
 package profile
 
+import "strings"
+
 // Category represents a plugin category in a marketplace
 type Category struct {
 	Name        string
@@ -72,20 +74,5 @@ func GetCategories(marketplaceRepo string) []Category {
 
 // parsePlugins converts space-separated plugin string to slice
 func parsePlugins(s string) []string {
-	var result []string
-	current := ""
-	for _, r := range s {
-		if r == ' ' {
-			if current != "" {
-				result = append(result, current)
-				current = ""
-			}
-		} else {
-			current += string(r)
-		}
-	}
-	if current != "" {
-		result = append(result, current)
-	}
-	return result
+	return strings.Fields(s)
 }

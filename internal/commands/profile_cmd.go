@@ -972,7 +972,12 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	// Step 8: Prompt to apply
 	fmt.Print("Apply this profile now? [Y/n]: ")
 	reader := bufio.NewReader(os.Stdin)
-	applyInput, _ := reader.ReadString('\n')
+	applyInput, err := reader.ReadString('\n')
+	if err != nil {
+		// Default to not applying on error
+		fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile use %s", name)))
+		return nil
+	}
 	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
 
 	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {

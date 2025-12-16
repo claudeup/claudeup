@@ -43,7 +43,7 @@ func TestGenerateWizardDescription(t *testing.T) {
 			name:             "single marketplace single plugin",
 			marketplaceCount: 1,
 			pluginCount:      1,
-			want:             "Custom profile with 1 plugins from 1 marketplaces",
+			want:             "Custom profile with 1 plugin from 1 marketplace",
 		},
 		{
 			name:             "multiple marketplaces multiple plugins",

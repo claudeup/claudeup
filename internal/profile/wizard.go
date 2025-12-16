@@ -286,14 +286,26 @@ func fallbackCategorySelection(categories []Category) ([]Category, error) {
 // selectPluginsFlat shows flat plugin list for marketplaces without categories
 func selectPluginsFlat(marketplace Marketplace) ([]string, error) {
 	// TODO: Implement flat plugin selection
-	// For now, return empty list (no plugins selected)
+	// For now, warn user and return empty list (no plugins selected)
 	// This will be implemented when we have a way to list all plugins from a marketplace
+	fmt.Printf("Warning: Plugin selection not yet supported for marketplace %q\n", marketplace.Source)
+	fmt.Println("Profile will be created without any plugins.")
+	fmt.Println()
 	return []string{}, nil
 }
 
 // GenerateWizardDescription creates description based on wizard selections
 func GenerateWizardDescription(marketplaceCount, pluginCount int) string {
-	return fmt.Sprintf("Custom profile with %d plugins from %d marketplaces", pluginCount, marketplaceCount)
+	pluginWord := "plugins"
+	if pluginCount == 1 {
+		pluginWord = "plugin"
+	}
+	marketplaceWord := "marketplaces"
+	if marketplaceCount == 1 {
+		marketplaceWord = "marketplace"
+	}
+	return fmt.Sprintf("Custom profile with %d %s from %d %s",
+		pluginCount, pluginWord, marketplaceCount, marketplaceWord)
 }
 
 // PromptForDescription shows auto-generated description and allows editing
