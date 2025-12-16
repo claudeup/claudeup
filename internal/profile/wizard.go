@@ -54,6 +54,7 @@ func PromptForName() (string, error) {
 
 		name := strings.TrimSpace(input)
 		if name == "" {
+			fmt.Println("Error: profile name cannot be empty")
 			continue // Re-prompt on empty input
 		}
 
