@@ -214,6 +214,8 @@ func selectCategories(categories []Category) ([]Category, error) {
 	}
 
 	cmd := exec.Command("gum", args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("category selection cancelled")
@@ -262,6 +264,7 @@ func fallbackCategorySelection(categories []Category) ([]Category, error) {
 
 	parts := strings.Split(input, ",")
 	selected := make([]Category, 0)
+	seen := make(map[int]bool)
 
 	for _, part := range parts {
 		part = strings.TrimSpace(part)
@@ -269,6 +272,11 @@ func fallbackCategorySelection(categories []Category) ([]Category, error) {
 		if err != nil || idx < 1 || idx > len(categories) {
 			return nil, fmt.Errorf("invalid selection: %s", part)
 		}
+		// Skip duplicates
+		if seen[idx] {
+			continue
+		}
+		seen[idx] = true
 		selected = append(selected, categories[idx-1])
 	}
 
