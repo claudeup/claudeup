@@ -18,11 +18,9 @@ import (
 )
 
 var (
-	profileCreateFromFlag    string
-	profileSaveDescription   string
-	profileCreateDescription string
-	profileCloneFromFlag     string
-	profileCloneDescription  string
+	profileSaveDescription  string
+	profileCloneFromFlag    string
+	profileCloneDescription string
 )
 
 var profileCmd = &cobra.Command{
@@ -73,13 +71,13 @@ If the profile exists, prompts for confirmation unless -y is used.`,
 }
 
 var profileCreateCmd = &cobra.Command{
-	Use:   "create <name>",
-	Short: "Create a new profile by copying an existing one",
-	Long: `Creates a new profile based on an existing profile.
+	Use:   "create [name]",
+	Short: "Create a new profile with interactive wizard",
+	Long: `Interactive wizard for creating custom profiles.
 
-Use --from to specify the source profile, or select interactively.
-With -y flag, uses the currently active profile as the source.`,
-	Args: cobra.ExactArgs(1),
+Guides you through selecting marketplaces and plugins to build a custom profile.
+If name is not provided, you'll be prompted to enter one.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileCreate,
 }
 
@@ -200,9 +198,6 @@ func init() {
 	profileCmd.AddCommand(profileDeleteCmd)
 	profileCmd.AddCommand(profileRestoreCmd)
 	profileCmd.AddCommand(profileRenameCmd)
-
-	profileCreateCmd.Flags().StringVar(&profileCreateFromFlag, "from", "", "Source profile to copy from")
-	profileCreateCmd.Flags().StringVar(&profileCreateDescription, "description", "", "Custom description for the profile")
 
 	profileCloneCmd.Flags().StringVar(&profileCloneFromFlag, "from", "", "Source profile to copy from")
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
@@ -866,74 +861,34 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 }
 
 func runProfileCreate(cmd *cobra.Command, args []string) error {
-	name := args[0]
-	profilesDir := getProfilesDir()
-
-	// "current" is reserved as a keyword for the active profile
-	if name == "current" {
-		return fmt.Errorf("'current' is a reserved name. Use a different profile name")
+	// Get profile name (from args or prompt)
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		promptedName, err := profile.PromptForName()
+		if err != nil {
+			return fmt.Errorf("failed to get profile name: %w", err)
+		}
+		name = promptedName
 	}
 
-	// Check if target profile already exists
+	// Validate name
+	if err := profile.ValidateName(name); err != nil {
+		return err
+	}
+
+	profilesDir := getProfilesDir()
+
+	// Check if profile already exists
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 
-	// Determine source profile
-	var sourceProfile *profile.Profile
-	var err error
-
-	if profileCreateFromFlag != "" {
-		// Explicit --from flag
-		sourceProfile, err = loadProfileWithFallback(profilesDir, profileCreateFromFlag)
-		if err != nil {
-			return fmt.Errorf("profile %q not found: %w", profileCreateFromFlag, err)
-		}
-	} else if config.YesFlag {
-		// -y flag: use active profile
-		cfg, _ := config.Load()
-		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
-			return fmt.Errorf("no active profile. Use --from <profile> to specify base")
-		}
-		sourceProfile, err = loadProfileWithFallback(profilesDir, cfg.Preferences.ActiveProfile)
-		if err != nil {
-			return fmt.Errorf("active profile %q not found: %w", cfg.Preferences.ActiveProfile, err)
-		}
-		fmt.Printf("Using active profile: %s\n", cfg.Preferences.ActiveProfile)
-	} else {
-		// Interactive selection
-		sourceProfile, err = promptProfileSelection(profilesDir, name)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Clone the profile with the new name
-	newProfile := sourceProfile.Clone(name)
-
-	// Handle description
-	if profileCreateDescription != "" {
-		// User provided explicit description via flag
-		newProfile.Description = profileCreateDescription
-	} else if newProfile.Description == "Snapshot of current Claude Code configuration" {
-		// Source has old generic description, replace with auto-generated
-		newProfile.Description = newProfile.GenerateDescription()
-	}
-	// Otherwise preserve source's custom description
-
-	// Save
-	if err := profile.Save(profilesDir, newProfile); err != nil {
-		return fmt.Errorf("failed to save profile: %w", err)
-	}
-
-	ui.PrintSuccess(fmt.Sprintf("Created profile %q (based on %q)", name, sourceProfile.Name))
-	fmt.Println()
-	fmt.Printf("  MCP Servers:   %d\n", len(newProfile.MCPServers))
-	fmt.Printf("  Marketplaces:  %d\n", len(newProfile.Marketplaces))
-	fmt.Printf("  Plugins:       %d\n", len(newProfile.Plugins))
-
-	return nil
+	// TODO: Rest of wizard implementation
+	// For now, return error saying wizard is not yet implemented
+	return fmt.Errorf("wizard implementation in progress - use 'claudeup profile clone' for now")
 }
 
 func runProfileClone(cmd *cobra.Command, args []string) error {

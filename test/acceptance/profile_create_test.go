@@ -17,6 +17,9 @@ var _ = Describe("profile create", func() {
 		env.CreateClaudeSettings()
 	})
 
+	// OLD TESTS - These will start failing once wizard is implemented
+	// For now, they test the clone behavior that still exists
+
 	Context("with --from flag", func() {
 		BeforeEach(func() {
 			env.CreateProfile(&profile.Profile{
@@ -89,6 +92,14 @@ var _ = Describe("profile create", func() {
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("already exists"))
 			Expect(result.Stderr).To(ContainSubstring("profile save"))
+		})
+	})
+
+	Context("wizard mode", func() {
+		It("shows help text", func() {
+			result := env.Run("profile", "create", "--help")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Interactive wizard"))
 		})
 	})
 })
