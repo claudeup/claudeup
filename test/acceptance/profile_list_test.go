@@ -295,6 +295,37 @@ var _ = Describe("profile delete", func() {
 			Expect(env.ProfileExists("auto-delete")).To(BeFalse())
 		})
 	})
+
+	Context("deleting the currently active profile", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "active-profile",
+				Description: "Currently active",
+			})
+			env.SetActiveProfile("active-profile")
+		})
+
+		It("shows special warning about deleting active profile", func() {
+			result := env.RunWithInput("y\n", "profile", "delete", "active-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("currently active"))
+		})
+
+		It("tells user to run 'profile use' after deletion", func() {
+			result := env.RunWithInput("y\n", "profile", "delete", "active-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("profile use"))
+		})
+
+		It("clears the active profile from config", func() {
+			result := env.RunWithInput("y\n", "profile", "delete", "active-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
+	})
 })
 
 var _ = Describe("profile restore", func() {

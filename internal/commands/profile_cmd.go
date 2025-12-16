@@ -1014,10 +1014,17 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q not found", name)
 	}
 
+	// Check if this is the currently active profile
+	cfg, _ := config.Load()
+	isActive := cfg != nil && cfg.Preferences.ActiveProfile == name
+
 	// Show what we're about to do
 	fmt.Println(ui.RenderDetail("Delete profile", ui.Bold(name)))
 	fmt.Println()
 	ui.PrintWarning("This will permanently remove this profile.")
+	if isActive {
+		ui.PrintWarning("This profile is currently active.")
+	}
 	fmt.Println()
 
 	if !confirmProceed() {
@@ -1031,8 +1038,7 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	// Clear active profile if it matches
-	cfg, _ := config.Load()
-	if cfg != nil && cfg.Preferences.ActiveProfile == name {
+	if isActive {
 		cfg.Preferences.ActiveProfile = ""
 		if err := config.Save(cfg); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
@@ -1040,6 +1046,12 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Deleted profile %q", name))
+
+	// If we deleted the active profile, tell user to select a new one
+	if isActive {
+		fmt.Println()
+		fmt.Println(ui.Muted("→ Run 'claudeup profile use <name>' to select a new active profile"))
+	}
 
 	return nil
 }
