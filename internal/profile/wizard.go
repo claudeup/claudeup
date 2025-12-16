@@ -26,3 +26,13 @@ func ValidateName(name string) error {
 
 	return nil
 }
+
+// GetAvailableMarketplaces returns all available marketplaces for selection
+// Currently returns only embedded marketplaces (wshobson/agents)
+func GetAvailableMarketplaces() []Marketplace {
+	// For V1, return hardcoded list of known marketplaces
+	// Future: could load from registry or config
+	return []Marketplace{
+		{Source: "github", Repo: "wshobson/agents"},
+	}
+}

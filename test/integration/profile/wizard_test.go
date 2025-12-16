@@ -6,6 +6,7 @@ import (
 	"github.com/claudeup/claudeup/internal/profile"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gstruct"
 )
 
 var _ = Describe("Wizard", func() {
@@ -28,6 +29,25 @@ var _ = Describe("Wizard", func() {
 		It("rejects names with invalid characters", func() {
 			err := profile.ValidateName("my profile!")
 			Expect(err).To(MatchError(ContainSubstring("invalid characters")))
+		})
+	})
+
+	Describe("GetAvailableMarketplaces", func() {
+		It("returns embedded marketplaces", func() {
+			marketplaces := profile.GetAvailableMarketplaces()
+
+			Expect(marketplaces).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Source": Equal("github"),
+				"Repo":   Equal("wshobson/agents"),
+			})))
+		})
+
+		It("includes marketplace display names", func() {
+			marketplaces := profile.GetAvailableMarketplaces()
+
+			for _, m := range marketplaces {
+				Expect(m.DisplayName()).NotTo(BeEmpty())
+			}
 		})
 	})
 })
