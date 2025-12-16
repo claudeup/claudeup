@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for profile create command
-// ABOUTME: Tests CLI behavior for creating profiles by copying existing ones
+// ABOUTME: Tests CLI behavior for interactive wizard to create new profiles
 package acceptance
 
 import (
@@ -10,6 +10,10 @@ import (
 )
 
 var _ = Describe("profile create", func() {
+	// Note: Old tests that expected `create` to clone profiles have been removed.
+	// The clone functionality now lives in `profile clone` command.
+	// These tests now verify the interactive wizard behavior.
+
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
