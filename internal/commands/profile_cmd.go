@@ -861,7 +861,9 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 }
 
 func runProfileCreate(cmd *cobra.Command, args []string) error {
-	// Get profile name (from args or prompt)
+	profilesDir := getProfilesDir()
+
+	// Step 1: Get profile name
 	var name string
 	if len(args) > 0 {
 		name = args[0]
@@ -878,17 +880,88 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	profilesDir := getProfilesDir()
-
 	// Check if profile already exists
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 
-	// TODO: Rest of wizard implementation
-	// For now, return error saying wizard is not yet implemented
-	return fmt.Errorf("wizard implementation in progress - use 'claudeup profile clone' for now")
+	// Welcome message
+	fmt.Println()
+	fmt.Println(ui.RenderDetail("Creating profile", ui.Bold(name)))
+	fmt.Println()
+
+	// Step 2: Select marketplaces
+	availableMarketplaces := profile.GetAvailableMarketplaces()
+	selectedMarketplaces, err := profile.SelectMarketplaces(availableMarketplaces)
+	if err != nil {
+		return fmt.Errorf("failed to select marketplaces: %w", err)
+	}
+
+	if len(selectedMarketplaces) == 0 {
+		return fmt.Errorf("no marketplaces selected (at least one required)")
+	}
+
+	// Step 3: Select plugins for each marketplace
+	allPlugins := make([]string, 0)
+	for _, marketplace := range selectedMarketplaces {
+		fmt.Println()
+		fmt.Printf("Selecting plugins from %s...\n", marketplace.DisplayName())
+
+		plugins, err := profile.SelectPluginsForMarketplace(marketplace)
+		if err != nil {
+			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
+		}
+
+		allPlugins = append(allPlugins, plugins...)
+	}
+
+	// Step 4: Generate and edit description
+	autoDesc := profile.GenerateWizardDescription(len(selectedMarketplaces), len(allPlugins))
+	description, err := profile.PromptForDescription(autoDesc)
+	if err != nil {
+		return fmt.Errorf("failed to get description: %w", err)
+	}
+
+	// Step 5: Create profile
+	newProfile := &profile.Profile{
+		Name:         name,
+		Description:  description,
+		Marketplaces: selectedMarketplaces,
+		Plugins:      allPlugins,
+		MCPServers:   []profile.MCPServer{},
+	}
+
+	// Step 6: Show summary
+	fmt.Println()
+	fmt.Println(ui.RenderDetail("Profile summary", ""))
+	fmt.Println(ui.Indent(ui.RenderDetail("Name", name), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Description", description), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(selectedMarketplaces))), 1))
+	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(allPlugins))), 1))
+	fmt.Println()
+
+	// Step 7: Save profile
+	if err := profile.Save(profilesDir, newProfile); err != nil {
+		return fmt.Errorf("failed to save profile: %w", err)
+	}
+
+	ui.PrintSuccess(fmt.Sprintf("Saved profile %q", name))
+	fmt.Println()
+
+	// Step 8: Prompt to apply
+	fmt.Print("Apply this profile now? [Y/n]: ")
+	reader := bufio.NewReader(os.Stdin)
+	applyInput, _ := reader.ReadString('\n')
+	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
+
+	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {
+		// Apply the profile by calling runProfileUse
+		return runProfileUse(cmd, []string{name})
+	}
+
+	fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile use %s", name)))
+	return nil
 }
 
 func runProfileClone(cmd *cobra.Command, args []string) error {

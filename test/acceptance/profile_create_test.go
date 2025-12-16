@@ -17,15 +17,13 @@ var _ = Describe("profile create", func() {
 		env.CreateClaudeSettings()
 	})
 
-	// Wizard stub tests - these test the current stub implementation
-	// Once wizard is fully implemented, these will need to be rewritten
-
-	Context("wizard stub behavior", func() {
-		It("shows wizard stub message", func() {
+	Context("wizard behavior", func() {
+		It("starts wizard and fails gracefully in non-interactive mode", func() {
 			result := env.Run("profile", "create", "new-profile")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("wizard implementation in progress"))
+			// Wizard starts but fails due to lack of TTY
+			Expect(result.Stderr).To(ContainSubstring("failed to select marketplaces"))
 		})
 	})
 
