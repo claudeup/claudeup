@@ -907,7 +907,6 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Welcome message
-	fmt.Println()
 	fmt.Println(ui.RenderDetail("Creating profile", ui.Bold(name)))
 	fmt.Println()
 
@@ -937,7 +936,6 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 4: Generate and edit description
-	fmt.Println()
 	autoDesc := profile.GenerateWizardDescription(len(selectedMarketplaces), len(allPlugins))
 	description, err := profile.PromptForDescription(autoDesc)
 	if err != nil {
