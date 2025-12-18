@@ -4,6 +4,7 @@ package claude
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -29,9 +30,21 @@ type PluginMetadata struct {
 // LoadPlugins reads and parses the installed_plugins.json file
 // Supports both V1 (single objects) and V2 (arrays with scopes) formats
 func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
-	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
+	// Check if Claude directory exists
+	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
+	}
 
+	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
 	data, err := os.ReadFile(pluginsPath)
+	if os.IsNotExist(err) {
+		// Claude installed but file missing - suspicious
+		return nil, &PathNotFoundError{
+			Component:    "plugin registry",
+			ExpectedPath: pluginsPath,
+			ClaudeDir:    claudeDir,
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -40,6 +53,10 @@ func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 	var registry PluginRegistry
 	err = json.Unmarshal(data, &registry)
 	if err == nil && registry.Version == 2 {
+		// Validate V2 format
+		if err := validatePluginRegistry(&registry); err != nil {
+			return nil, err
+		}
 		return &registry, nil
 	}
 
@@ -77,6 +94,11 @@ func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 			GitCommitSha: metaV1.GitCommitSha,
 			IsLocal:      metaV1.IsLocal,
 		}}
+	}
+
+	// Validate converted registry
+	if err := validatePluginRegistry(&registry); err != nil {
+		return nil, err
 	}
 
 	return &registry, nil
