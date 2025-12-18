@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Run smoke tests if Claude-related code changed
+if git diff --cached --name-only | grep -q "internal/claude/"; then
+    echo "🔍 Running Claude CLI compatibility smoke tests..."
+    go test ./test/integration/claude/... -v
+    if [ $? -ne 0 ]; then
+        echo "❌ Smoke tests failed - Claude CLI format may have changed"
+        echo "   Review test failures and update validation if needed"
+        exit 1
+    fi
+    echo "✅ Smoke tests passed"
+fi
+
+exit 0
