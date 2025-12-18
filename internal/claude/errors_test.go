@@ -50,7 +50,7 @@ func TestPathNotFoundError(t *testing.T) {
 	if !strings.Contains(msg, "installed_plugins.json") {
 		t.Error("Error message should contain expected path")
 	}
-	if !strings.Contains(msg, "ls -R ~/.claude") {
+	if !strings.Contains(msg, "ls -R /Users/test/.claude") {
 		t.Error("Error message should contain diagnostic command")
 	}
 	if !strings.Contains(msg, "github.com/claudeup/claudeup/issues") {

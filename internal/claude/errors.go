@@ -49,6 +49,6 @@ To diagnose:
   ls -la %s
 
 Please report at https://github.com/claudeup/claudeup/issues
-Include the output of: ls -R ~/.claude`,
-		e.Component, e.ExpectedPath, e.ClaudeDir, e.ClaudeDir)
+Include the output of: ls -R %s`,
+		e.Component, e.ExpectedPath, e.ClaudeDir, e.ClaudeDir, e.ClaudeDir)
 }
