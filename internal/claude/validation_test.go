@@ -119,12 +119,11 @@ func TestValidateSettings(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "nil EnabledPlugins map",
+			name: "nil EnabledPlugins map gets initialized",
 			settings: &Settings{
 				EnabledPlugins: nil,
 			},
-			wantErr: true,
-			errMsg:  "EnabledPlugins map is nil",
+			wantErr: false,
 		},
 	}
 
@@ -137,6 +136,10 @@ func TestValidateSettings(t *testing.T) {
 			}
 			if tt.wantErr && !strings.Contains(err.Error(), tt.errMsg) {
 				t.Errorf("validateSettings() error = %v, should contain %q", err, tt.errMsg)
+			}
+			// Verify nil map was initialized to empty map
+			if tt.name == "nil EnabledPlugins map gets initialized" && tt.settings.EnabledPlugins == nil {
+				t.Error("Expected EnabledPlugins to be initialized, but it's still nil")
 			}
 		})
 	}
