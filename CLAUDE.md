@@ -80,3 +80,29 @@ Feature development uses git worktrees in `.worktrees/` directory (already in .g
 ## Embedded Profiles
 
 Built-in profiles are embedded from `internal/profile/profiles/*.json` using Go's embed directive.
+
+## Claude CLI Format Compatibility
+
+claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `settings.json`). To protect against format changes:
+
+### Runtime Protection
+
+- **Schema validation** - All JSON parsing includes validation that fails loudly on unknown formats
+- **Structured errors** - Clear error messages guide users to update or report issues
+- **Path detection** - Distinguishes between "Claude not installed" and "file paths changed"
+
+### Development Protection
+
+- **Smoke tests** - `test/integration/claude/format_compatibility_test.go` tests against your real `~/.claude/` directory
+- **Pre-commit hook** - Optional hook runs smoke tests when `internal/claude/` changes
+- **Early detection** - Catch format changes during development, not from user reports
+
+### When Claude CLI Format Changes
+
+1. **Smoke tests fail** - You'll see failures when your local Claude updates
+2. **Investigate changes** - Examine actual file structure: `cat ~/.claude/plugins/installed_plugins.json | jq .`
+3. **Update validation** - Add new version support in `internal/claude/validation.go`
+4. **Update migration** - Extend `LoadPlugins()` to handle new version
+5. **Update error messages** - Change supported version range in validation
+
+See `plans/2025-12-17-claude-format-resilience-design.md` for full architecture details.
