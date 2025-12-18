@@ -93,3 +93,51 @@ func TestValidatePluginRegistry(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		settings *Settings
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid settings with enabled plugins",
+			settings: &Settings{
+				EnabledPlugins: map[string]bool{
+					"plugin1": true,
+					"plugin2": false,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid settings with no plugins",
+			settings: &Settings{
+				EnabledPlugins: map[string]bool{},
+			},
+			wantErr: false,
+		},
+		{
+			name: "nil EnabledPlugins map",
+			settings: &Settings{
+				EnabledPlugins: nil,
+			},
+			wantErr: true,
+			errMsg:  "EnabledPlugins map is nil",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateSettings(tt.settings)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validateSettings() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("validateSettings() error = %v, should contain %q", err, tt.errMsg)
+			}
+		})
+	}
+}

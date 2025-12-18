@@ -33,3 +33,12 @@ func validatePluginRegistry(r *PluginRegistry) error {
 
 	return nil
 }
+
+// validateSettings checks if settings has valid structure
+// Settings format doesn't have explicit versioning yet, so we just check basic structure
+func validateSettings(s *Settings) error {
+	if s.EnabledPlugins == nil {
+		return fmt.Errorf("invalid settings format: EnabledPlugins map is nil (format may have changed)")
+	}
+	return nil
+}
