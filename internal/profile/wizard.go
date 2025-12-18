@@ -34,6 +34,15 @@ func ValidateName(name string) error {
 	return nil
 }
 
+// sanitizeForGum validates that a string is safe to pass to gum
+// Rejects strings with newlines or null bytes that could confuse output parsing
+func sanitizeForGum(s string) error {
+	if strings.ContainsAny(s, "\n\r\x00") {
+		return fmt.Errorf("invalid characters in name: %q", s)
+	}
+	return nil
+}
+
 // knownMarketplaceEntry represents a marketplace entry in known_marketplaces.json
 type knownMarketplaceEntry struct {
 	Source struct {
@@ -176,7 +185,13 @@ func SelectMarketplaces(available []Marketplace) ([]Marketplace, error) {
 	// Build gum command with marketplace choices
 	args := []string{"choose", "--no-limit", "--header=Select marketplaces:"}
 	for _, m := range available {
-		args = append(args, m.DisplayName())
+		name := m.DisplayName()
+		if err := sanitizeForGum(name); err != nil {
+			// Skip marketplaces with invalid names rather than failing
+			// This protects against malicious marketplace names
+			continue
+		}
+		args = append(args, name)
 	}
 
 	cmd := exec.Command("gum", args...)
@@ -307,6 +322,10 @@ func selectCategories(categories []Category) ([]Category, error) {
 	// Build gum command
 	args := []string{"choose", "--no-limit", "--header=Select plugin categories:"}
 	for _, cat := range categories {
+		if err := sanitizeForGum(cat.Name); err != nil {
+			// Skip categories with invalid names
+			continue
+		}
 		args = append(args, cat.Name)
 	}
 
@@ -398,20 +417,29 @@ func refinePluginSelection(marketplace Marketplace, availablePlugins []string, i
 	// Build gum command with plugin choices
 	args := []string{"choose", "--no-limit", "--header=Select plugins (installed plugins are pre-selected):"}
 
+	// Build index of installed plugin prefixes for O(1) lookup
+	// Plugin format in installed_plugins.json: plugin-name@marketplace-suffix
+	installedPrefixes := make(map[string]bool)
+	for installedKey := range installed {
+		// Extract plugin name before '@'
+		if idx := strings.Index(installedKey, "@"); idx != -1 {
+			prefix := installedKey[:idx]
+			installedPrefixes[prefix] = true
+		}
+	}
+
 	// Add selected flag for each installed plugin
 	preselected := make([]string, 0)
+	validPlugins := make([]string, 0, len(availablePlugins))
 	for _, plugin := range availablePlugins {
-		// Check if plugin is installed
-		// Plugin format in installed_plugins.json: plugin-name@marketplace-suffix
-		// Check if any installed key starts with this plugin name
-		isInstalled := false
-		for installedKey := range installed {
-			if strings.HasPrefix(installedKey, plugin+"@") {
-				isInstalled = true
-				break
-			}
+		// Skip plugins with invalid names
+		if err := sanitizeForGum(plugin); err != nil {
+			continue
 		}
-		if isInstalled {
+		validPlugins = append(validPlugins, plugin)
+
+		// Check if plugin is installed using O(1) map lookup
+		if installedPrefixes[plugin] {
 			preselected = append(preselected, plugin)
 		}
 	}
@@ -421,8 +449,8 @@ func refinePluginSelection(marketplace Marketplace, availablePlugins []string, i
 		args = append(args, "--selected="+plugin)
 	}
 
-	// Add all plugins as choices
-	args = append(args, availablePlugins...)
+	// Add all valid plugins as choices
+	args = append(args, validPlugins...)
 
 	cmd := exec.Command("gum", args...)
 	cmd.Stdin = os.Stdin
