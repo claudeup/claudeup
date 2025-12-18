@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for profile create command
-// ABOUTME: Tests CLI behavior for creating profiles by copying existing ones
+// ABOUTME: Tests CLI behavior for interactive wizard to create new profiles
 package acceptance
 
 import (
@@ -10,6 +10,10 @@ import (
 )
 
 var _ = Describe("profile create", func() {
+	// Note: Old tests that expected `create` to clone profiles have been removed.
+	// The clone functionality now lives in `profile clone` command.
+	// These tests now verify the interactive wizard behavior.
+
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
@@ -17,78 +21,36 @@ var _ = Describe("profile create", func() {
 		env.CreateClaudeSettings()
 	})
 
-	Context("with --from flag", func() {
-		BeforeEach(func() {
-			env.CreateProfile(&profile.Profile{
-				Name:        "source",
-				Description: "Source profile",
-				Plugins:     []string{"plugin-a", "plugin-b"},
-			})
-		})
-
-		It("creates a copy of the source profile", func() {
-			result := env.Run("profile", "create", "new-profile", "--from", "source")
-
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Created profile"))
-			Expect(result.Stdout).To(ContainSubstring("based on"))
-
-			created := env.LoadProfile("new-profile")
-			Expect(created.Name).To(Equal("new-profile"))
-			Expect(created.Plugins).To(Equal([]string{"plugin-a", "plugin-b"}))
-		})
-
-		It("errors when source profile doesn't exist", func() {
-			result := env.Run("profile", "create", "new-profile", "--from", "nonexistent")
+	Context("wizard behavior", func() {
+		It("starts wizard and fails gracefully in non-interactive mode", func() {
+			result := env.Run("profile", "create", "new-profile")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("not found"))
+			// Wizard starts but fails due to lack of TTY
+			Expect(result.Stderr).To(ContainSubstring("failed to select marketplaces"))
 		})
 	})
 
-	Context("with -y flag", func() {
-		Context("when active profile is set", func() {
-			BeforeEach(func() {
-				env.CreateProfile(&profile.Profile{
-					Name:    "active-source",
-					Plugins: []string{"active-plugin"},
-				})
-				env.SetActiveProfile("active-source")
-			})
-
-			It("uses the active profile as source", func() {
-				result := env.Run("profile", "create", "new-from-active", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Using active profile"))
-
-				created := env.LoadProfile("new-from-active")
-				Expect(created.Plugins).To(Equal([]string{"active-plugin"}))
-			})
-		})
-
-		Context("when no active profile is set", func() {
-			It("returns an error", func() {
-				result := env.Run("profile", "create", "new-profile", "-y")
-
-				Expect(result.ExitCode).NotTo(Equal(0))
-				Expect(result.Stderr).To(ContainSubstring("no active profile"))
-			})
-		})
-	})
 
 	Context("when target profile already exists", func() {
 		BeforeEach(func() {
 			env.CreateProfile(&profile.Profile{Name: "existing"})
-			env.CreateProfile(&profile.Profile{Name: "source"})
 		})
 
 		It("returns an error suggesting profile save", func() {
-			result := env.Run("profile", "create", "existing", "--from", "source")
+			result := env.Run("profile", "create", "existing")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("already exists"))
 			Expect(result.Stderr).To(ContainSubstring("profile save"))
+		})
+	})
+
+	Context("wizard mode", func() {
+		It("shows help text", func() {
+			result := env.Run("profile", "create", "--help")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Interactive wizard"))
 		})
 	})
 })
