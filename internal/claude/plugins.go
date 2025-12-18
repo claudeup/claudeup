@@ -76,7 +76,7 @@ func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 
 	var registryV1 PluginRegistryV1
 	if err := json.Unmarshal(data, &registryV1); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse installed_plugins.json as V1 or V2 format: %w (file may be corrupted)", err)
 	}
 
 	// Convert V1 to V2 format
