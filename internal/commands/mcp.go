@@ -84,12 +84,15 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to discover MCP servers: %w", err)
 	}
 
-	// Filter out disabled MCP servers
-	mcpServers = mcp.FilterDisabledMCPServers(mcpServers, cfg.DisabledMCPServers)
-
 	if len(mcpServers) == 0 {
 		fmt.Println("No MCP servers found in enabled plugins.")
 		return nil
+	}
+
+	// Build set of disabled server references for quick lookup
+	disabledSet := make(map[string]bool)
+	for _, ref := range cfg.DisabledMCPServers {
+		disabledSet[ref] = true
 	}
 
 	// Sort by plugin name for consistent output
@@ -97,14 +100,26 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return mcpServers[i].PluginName < mcpServers[j].PluginName
 	})
 
-	// Count total servers
-	totalServers := 0
+	// Count enabled and disabled servers
+	enabledCount := 0
+	disabledCount := 0
 	for _, pluginServers := range mcpServers {
-		totalServers += len(pluginServers.Servers)
+		for serverName := range pluginServers.Servers {
+			ref := pluginServers.PluginName + ":" + serverName
+			if disabledSet[ref] {
+				disabledCount++
+			} else {
+				enabledCount++
+			}
+		}
 	}
 
-	// Print header
-	fmt.Println(ui.RenderSection("MCP Servers", totalServers))
+	// Print header with enabled/disabled counts
+	if disabledCount > 0 {
+		fmt.Printf("MCP Servers (%d enabled, %d disabled)\n", enabledCount, disabledCount)
+	} else {
+		fmt.Println(ui.RenderSection("MCP Servers", enabledCount))
+	}
 	fmt.Println()
 
 	// Print each plugin's MCP servers
@@ -121,7 +136,14 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		// Print each server
 		for _, serverName := range serverNames {
 			server := pluginServers.Servers[serverName]
-			fmt.Println(ui.Indent(fmt.Sprintf("%s %s", ui.Success(ui.SymbolSuccess), ui.Bold(serverName)), 1))
+			ref := pluginServers.PluginName + ":" + serverName
+			isDisabled := disabledSet[ref]
+
+			if isDisabled {
+				fmt.Println(ui.Indent(fmt.Sprintf("%s %s (disabled)", ui.Error(ui.SymbolError), ui.Bold(serverName)), 1))
+			} else {
+				fmt.Println(ui.Indent(fmt.Sprintf("%s %s", ui.Success(ui.SymbolSuccess), ui.Bold(serverName)), 1))
+			}
 			fmt.Println(ui.Indent(ui.RenderDetail("Command", server.Command), 2))
 			if len(server.Args) > 0 {
 				fmt.Println(ui.Indent(ui.RenderDetail("Args", fmt.Sprintf("%v", server.Args)), 2))
@@ -133,6 +155,7 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
+	totalServers := enabledCount + disabledCount
 	fmt.Printf("Total: %d MCP servers from %d plugins\n", totalServers, len(mcpServers))
 
 	return nil

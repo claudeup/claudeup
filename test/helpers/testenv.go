@@ -46,6 +46,7 @@ func NewTestEnv(binary string) *TestEnv {
 	// Create empty marketplace and plugin registries so commands don't fail
 	env.CreateKnownMarketplaces(map[string]interface{}{})
 	env.CreateInstalledPlugins(map[string]interface{}{})
+	env.CreateSettings(map[string]bool{})
 
 	return env
 }
@@ -222,4 +223,36 @@ func (e *TestEnv) CreateKnownMarketplaces(marketplaces map[string]interface{}) {
 	jsonData, err := json.MarshalIndent(marketplaces, "", "  ")
 	Expect(err).NotTo(HaveOccurred())
 	Expect(os.WriteFile(filepath.Join(pluginsDir, "known_marketplaces.json"), jsonData, 0644)).To(Succeed())
+}
+
+// CreateSettings creates a fake settings.json with enabled plugins
+func (e *TestEnv) CreateSettings(enabledPlugins map[string]bool) {
+	settings := map[string]interface{}{
+		"enabledPlugins": enabledPlugins,
+	}
+	jsonData, err := json.MarshalIndent(settings, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(e.ClaudeDir, "settings.json"), jsonData, 0644)).To(Succeed())
+}
+
+// CreatePluginMCPServers creates a .mcp.json file in a plugin directory
+func (e *TestEnv) CreatePluginMCPServers(pluginPath string, servers map[string]interface{}) {
+	mcpFile := map[string]interface{}{
+		"mcpServers": servers,
+	}
+	jsonData, err := json.MarshalIndent(mcpFile, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(pluginPath, ".mcp.json"), jsonData, 0644)).To(Succeed())
+}
+
+// SetDisabledMCPServers configures disabled MCP servers in claudeup config
+func (e *TestEnv) SetDisabledMCPServers(servers []string) {
+	config := map[string]interface{}{
+		"disabledMcpServers": servers,
+		"disabledPlugins":    map[string]interface{}{},
+		"preferences":        map[string]interface{}{},
+	}
+	jsonData, err := json.MarshalIndent(config, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(e.ConfigFile, jsonData, 0644)).To(Succeed())
 }
