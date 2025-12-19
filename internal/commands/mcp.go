@@ -5,6 +5,7 @@ package commands
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
@@ -140,6 +141,11 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 func runMCPDisable(cmd *cobra.Command, args []string) error {
 	serverRef := args[0]
 
+	// Validate format: must be plugin:server
+	if !strings.Contains(serverRef, ":") {
+		return fmt.Errorf("invalid format: %q\nExpected format: <plugin>:<server>\nExample: claudeup mcp disable my-plugin@marketplace:server-name", serverRef)
+	}
+
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
@@ -171,6 +177,11 @@ func runMCPDisable(cmd *cobra.Command, args []string) error {
 
 func runMCPEnable(cmd *cobra.Command, args []string) error {
 	serverRef := args[0]
+
+	// Validate format: must be plugin:server
+	if !strings.Contains(serverRef, ":") {
+		return fmt.Errorf("invalid format: %q\nExpected format: <plugin>:<server>\nExample: claudeup mcp enable my-plugin@marketplace:server-name", serverRef)
+	}
 
 	// Load config
 	cfg, err := config.Load()
