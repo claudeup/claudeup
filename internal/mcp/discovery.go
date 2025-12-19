@@ -41,6 +41,43 @@ func DiscoverEnabledMCPServers(pluginRegistry *claude.PluginRegistry, settings *
 	return discoverMCPServers(pluginRegistry, settings)
 }
 
+// FilterDisabledMCPServers removes disabled MCP servers from the discovered list.
+// The disabledServers list should contain references in the format "plugin:server".
+func FilterDisabledMCPServers(servers []PluginMCPServers, disabledServers []string) []PluginMCPServers {
+	if len(disabledServers) == 0 {
+		return servers
+	}
+
+	// Build a set of disabled server references for fast lookup
+	disabled := make(map[string]bool)
+	for _, ref := range disabledServers {
+		disabled[ref] = true
+	}
+
+	var result []PluginMCPServers
+	for _, pluginServers := range servers {
+		// Create a new map for non-disabled servers
+		filteredServers := make(map[string]ServerDefinition)
+		for serverName, serverDef := range pluginServers.Servers {
+			ref := pluginServers.PluginName + ":" + serverName
+			if !disabled[ref] {
+				filteredServers[serverName] = serverDef
+			}
+		}
+
+		// Only include plugin if it has servers remaining
+		if len(filteredServers) > 0 {
+			result = append(result, PluginMCPServers{
+				PluginName: pluginServers.PluginName,
+				PluginPath: pluginServers.PluginPath,
+				Servers:    filteredServers,
+			})
+		}
+	}
+
+	return result
+}
+
 // discoverMCPServers is the internal implementation that optionally filters by enabled plugins
 func discoverMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.Settings) ([]PluginMCPServers, error) {
 	var results []PluginMCPServers
