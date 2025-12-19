@@ -543,3 +543,145 @@ func TestDiscoverEnabledMCPServersWithMissingPluginInSettings(t *testing.T) {
 		t.Errorf("Expected 0 plugins (plugin not in enabledPlugins map), got %d", len(servers))
 	}
 }
+
+func TestFilterDisabledMCPServers(t *testing.T) {
+	// Test that disabled MCP servers are filtered out
+	servers := []PluginMCPServers{
+		{
+			PluginName: "plugin1@marketplace",
+			PluginPath: "/path/to/plugin1",
+			Servers: map[string]ServerDefinition{
+				"server-a": {Command: "node", Args: []string{"a.js"}},
+				"server-b": {Command: "node", Args: []string{"b.js"}},
+			},
+		},
+		{
+			PluginName: "plugin2@marketplace",
+			PluginPath: "/path/to/plugin2",
+			Servers: map[string]ServerDefinition{
+				"server-c": {Command: "python", Args: []string{"c.py"}},
+			},
+		},
+	}
+
+	// Disable server-b from plugin1
+	disabledServers := []string{"plugin1@marketplace:server-b"}
+
+	filtered := FilterDisabledMCPServers(servers, disabledServers)
+
+	// Should have 2 plugins still
+	if len(filtered) != 2 {
+		t.Fatalf("Expected 2 plugins, got %d", len(filtered))
+	}
+
+	// plugin1 should only have server-a now
+	var plugin1 *PluginMCPServers
+	for i := range filtered {
+		if filtered[i].PluginName == "plugin1@marketplace" {
+			plugin1 = &filtered[i]
+			break
+		}
+	}
+
+	if plugin1 == nil {
+		t.Fatal("plugin1@marketplace not found")
+	}
+
+	if len(plugin1.Servers) != 1 {
+		t.Errorf("Expected 1 server in plugin1, got %d", len(plugin1.Servers))
+	}
+
+	if _, exists := plugin1.Servers["server-a"]; !exists {
+		t.Error("server-a should exist")
+	}
+
+	if _, exists := plugin1.Servers["server-b"]; exists {
+		t.Error("server-b should NOT exist (disabled)")
+	}
+
+	// plugin2 should still have server-c
+	var plugin2 *PluginMCPServers
+	for i := range filtered {
+		if filtered[i].PluginName == "plugin2@marketplace" {
+			plugin2 = &filtered[i]
+			break
+		}
+	}
+
+	if plugin2 == nil {
+		t.Fatal("plugin2@marketplace not found")
+	}
+
+	if len(plugin2.Servers) != 1 {
+		t.Errorf("Expected 1 server in plugin2, got %d", len(plugin2.Servers))
+	}
+
+	if _, exists := plugin2.Servers["server-c"]; !exists {
+		t.Error("server-c should exist")
+	}
+}
+
+func TestFilterDisabledMCPServers_AllServersDisabled(t *testing.T) {
+	// Test that plugins with all servers disabled are removed from results
+	servers := []PluginMCPServers{
+		{
+			PluginName: "plugin1@marketplace",
+			PluginPath: "/path/to/plugin1",
+			Servers: map[string]ServerDefinition{
+				"server-a": {Command: "node"},
+			},
+		},
+	}
+
+	// Disable the only server
+	disabledServers := []string{"plugin1@marketplace:server-a"}
+
+	filtered := FilterDisabledMCPServers(servers, disabledServers)
+
+	// Should have 0 plugins since all servers were disabled
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 plugins (all servers disabled), got %d", len(filtered))
+	}
+}
+
+func TestFilterDisabledMCPServers_EmptyDisabledList(t *testing.T) {
+	// Test that empty disabled list returns all servers
+	servers := []PluginMCPServers{
+		{
+			PluginName: "plugin1@marketplace",
+			PluginPath: "/path/to/plugin1",
+			Servers: map[string]ServerDefinition{
+				"server-a": {Command: "node"},
+			},
+		},
+	}
+
+	filtered := FilterDisabledMCPServers(servers, []string{})
+
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 plugin, got %d", len(filtered))
+	}
+
+	if len(filtered[0].Servers) != 1 {
+		t.Errorf("Expected 1 server, got %d", len(filtered[0].Servers))
+	}
+}
+
+func TestFilterDisabledMCPServers_NilDisabledList(t *testing.T) {
+	// Test that nil disabled list returns all servers
+	servers := []PluginMCPServers{
+		{
+			PluginName: "plugin1@marketplace",
+			PluginPath: "/path/to/plugin1",
+			Servers: map[string]ServerDefinition{
+				"server-a": {Command: "node"},
+			},
+		},
+	}
+
+	filtered := FilterDisabledMCPServers(servers, nil)
+
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 plugin, got %d", len(filtered))
+	}
+}

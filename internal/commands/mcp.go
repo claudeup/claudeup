@@ -71,11 +71,20 @@ func runMCPList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load settings: %w", err)
 	}
 
+	// Load claudeup config for disabled MCP servers
+	cfg, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
 	// Discover MCP servers from enabled plugins only
 	mcpServers, err := mcp.DiscoverEnabledMCPServers(plugins, settings)
 	if err != nil {
 		return fmt.Errorf("failed to discover MCP servers: %w", err)
 	}
+
+	// Filter out disabled MCP servers
+	mcpServers = mcp.FilterDisabledMCPServers(mcpServers, cfg.DisabledMCPServers)
 
 	if len(mcpServers) == 0 {
 		fmt.Println("No MCP servers found in enabled plugins.")
