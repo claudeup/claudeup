@@ -200,3 +200,12 @@ func (r *PluginRegistry) PluginExists(pluginName string) bool {
 	_, exists := r.GetPlugin(pluginName)
 	return exists
 }
+
+// RemovePlugin removes a plugin from the registry entirely
+func (r *PluginRegistry) RemovePlugin(pluginName string) bool {
+	if _, exists := r.Plugins[pluginName]; !exists {
+		return false
+	}
+	delete(r.Plugins, pluginName)
+	return true
+}

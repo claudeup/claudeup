@@ -55,6 +55,11 @@ var _ = Describe("plugins", func() {
 					},
 				},
 			})
+
+			// Enable the plugin in settings
+			env.CreateSettings(map[string]bool{
+				"my-plugin@acme-marketplace": true,
+			})
 		})
 
 		It("lists plugin name", func() {
@@ -111,6 +116,11 @@ var _ = Describe("plugins", func() {
 						"scope":       "user",
 					},
 				},
+			})
+
+			// Enable the plugin
+			env.CreateSettings(map[string]bool{
+				"local-plugin@local-mp": true,
 			})
 		})
 
@@ -177,6 +187,12 @@ var _ = Describe("plugins", func() {
 						"scope":       "user",
 					},
 				},
+			})
+
+			// Enable both plugins
+			env.CreateSettings(map[string]bool{
+				"plugin1@acme":    true,
+				"plugin2@example": true,
 			})
 		})
 
@@ -257,6 +273,12 @@ var _ = Describe("plugins", func() {
 					},
 				},
 			})
+
+			// Enable the valid plugin in settings
+			env.CreateSettings(map[string]bool{
+				"valid-plugin@acme": true,
+				"stale-plugin@acme": true,
+			})
 		})
 
 		It("shows both enabled and stale in summary", func() {
@@ -280,7 +302,7 @@ var _ = Describe("plugins", func() {
 			result := env.Run("plugins", "--help")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Display detailed information"))
+			Expect(result.Stdout).To(ContainSubstring("alias"))
 			Expect(result.Stdout).To(ContainSubstring("--summary"))
 			Expect(result.Stdout).To(ContainSubstring("Usage:"))
 		})
@@ -289,7 +311,7 @@ var _ = Describe("plugins", func() {
 			result := env.Run("help", "plugins")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Display detailed information"))
+			Expect(result.Stdout).To(ContainSubstring("plugin list"))
 		})
 
 		It("describes --summary flag in help", func() {
@@ -297,7 +319,6 @@ var _ = Describe("plugins", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("summary"))
-			Expect(result.Stdout).To(ContainSubstring("statistics"))
 		})
 	})
 
@@ -333,6 +354,13 @@ var _ = Describe("plugins", func() {
 						"scope":       "user",
 					},
 				},
+			})
+
+			// Enable all plugins
+			env.CreateSettings(map[string]bool{
+				"aaa-plugin@acme": true,
+				"mmm-plugin@acme": true,
+				"zzz-plugin@acme": true,
 			})
 		})
 

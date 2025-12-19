@@ -70,3 +70,33 @@ func ConfirmYesNo(prompt string) (bool, error) {
 
 	return false, nil
 }
+
+// PromptYesNo prompts for yes/no confirmation with configurable default
+func PromptYesNo(prompt string, defaultYes bool) bool {
+	if config.YesFlag {
+		return defaultYes
+	}
+
+	var hint string
+	if defaultYes {
+		hint = "[Y/n]"
+	} else {
+		hint = "[y/N]"
+	}
+
+	fmt.Printf("%s %s: ", prompt, hint)
+
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return defaultYes
+	}
+
+	input = strings.TrimSpace(strings.ToLower(input))
+
+	if input == "" {
+		return defaultYes
+	}
+
+	return input == "y" || input == "yes"
+}
