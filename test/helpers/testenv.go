@@ -276,3 +276,93 @@ func (e *TestEnv) SetDisabledMCPServers(servers []string) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(os.WriteFile(e.ConfigFile, jsonData, 0644)).To(Succeed())
 }
+
+// ProjectDir creates and returns a project directory for testing scoped profiles
+func (e *TestEnv) ProjectDir(name string) string {
+	projectDir := filepath.Join(e.TempDir, "projects", name)
+	Expect(os.MkdirAll(projectDir, 0755)).To(Succeed())
+	return projectDir
+}
+
+// MCPJSONExists checks if .mcp.json exists in the given directory
+func (e *TestEnv) MCPJSONExists(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".mcp.json"))
+	return err == nil
+}
+
+// ClaudeupJSONExists checks if .claudeup.json exists in the given directory
+func (e *TestEnv) ClaudeupJSONExists(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".claudeup.json"))
+	return err == nil
+}
+
+// LoadMCPJSON loads .mcp.json from the given directory
+func (e *TestEnv) LoadMCPJSON(dir string) map[string]interface{} {
+	data, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	Expect(err).NotTo(HaveOccurred())
+
+	var config map[string]interface{}
+	Expect(json.Unmarshal(data, &config)).To(Succeed())
+	return config
+}
+
+// LoadClaudeupJSON loads .claudeup.json from the given directory
+func (e *TestEnv) LoadClaudeupJSON(dir string) map[string]interface{} {
+	data, err := os.ReadFile(filepath.Join(dir, ".claudeup.json"))
+	Expect(err).NotTo(HaveOccurred())
+
+	var config map[string]interface{}
+	Expect(json.Unmarshal(data, &config)).To(Succeed())
+	return config
+}
+
+// CreateClaudeupJSON creates a .claudeup.json file in the given directory
+func (e *TestEnv) CreateClaudeupJSON(dir string, cfg map[string]interface{}) {
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(dir, ".claudeup.json"), data, 0644)).To(Succeed())
+}
+
+// LoadProjectsRegistry loads the projects.json registry
+func (e *TestEnv) LoadProjectsRegistry() map[string]interface{} {
+	path := filepath.Join(e.ClaudeupDir, "projects.json")
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	Expect(err).NotTo(HaveOccurred())
+
+	var registry map[string]interface{}
+	Expect(json.Unmarshal(data, &registry)).To(Succeed())
+	return registry
+}
+
+// RunInDir executes the CLI with a specific working directory
+func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
+	cmd := exec.Command(e.Binary, args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"HOME="+e.TempDir,
+	)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+
+	return &Result{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		ExitCode: exitCode,
+	}
+}
