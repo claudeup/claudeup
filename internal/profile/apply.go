@@ -11,8 +11,16 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/secrets"
 )
+
+// ApplyOptions controls how a profile is applied
+type ApplyOptions struct {
+	Scope      Scope  // user, project, or local
+	ProjectDir string // Required for project/local scope
+	DryRun     bool   // If true, don't make changes (not yet implemented)
+}
 
 // CommandExecutor runs claude CLI commands
 type CommandExecutor interface {
@@ -128,6 +136,179 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 // Apply executes the profile changes using the default executor
 func Apply(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain) (*ApplyResult, error) {
 	return ApplyWithExecutor(profile, claudeDir, claudeJSONPath, secretChain, &DefaultExecutor{ClaudeDir: claudeDir})
+}
+
+// ApplyWithOptions applies a profile with the specified scope options
+func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions) (*ApplyResult, error) {
+	// Validate options
+	if opts.Scope == "" {
+		opts.Scope = ScopeUser
+	}
+
+	if (opts.Scope == ScopeProject || opts.Scope == ScopeLocal) && opts.ProjectDir == "" {
+		return nil, fmt.Errorf("project directory required for %s scope", opts.Scope)
+	}
+
+	executor := &DefaultExecutor{ClaudeDir: claudeDir}
+
+	switch opts.Scope {
+	case ScopeProject:
+		return applyProjectScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
+	case ScopeLocal:
+		return applyLocalScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
+	default:
+		// User scope: existing behavior
+		return ApplyWithExecutor(profile, claudeDir, claudeJSONPath, secretChain, executor)
+	}
+}
+
+// applyProjectScope applies a profile at project scope, creating .mcp.json and .claudeup.json
+func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
+	// 1. Write .mcp.json for MCP servers (Claude native format)
+	if len(profile.MCPServers) > 0 {
+		if err := WriteMCPJSON(opts.ProjectDir, profile.MCPServers); err != nil {
+			return nil, fmt.Errorf("failed to write %s: %w", MCPConfigFile, err)
+		}
+		// Track as "installed" even though we're just writing a file
+		for _, mcp := range profile.MCPServers {
+			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		}
+	}
+
+	// 2. Add marketplaces (user-level, needed to resolve plugins)
+	for _, m := range profile.Marketplaces {
+		key := marketplaceKey(m)
+		if key == "" {
+			continue
+		}
+		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
+		if err != nil {
+			// Check if already installed - treat as success
+			if !strings.Contains(output, "already installed") {
+				result.Errors = append(result.Errors, fmt.Errorf("marketplace %s: %w", key, err))
+			}
+		}
+		result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+	}
+
+	// 3. Install plugins with project scope
+	for _, plugin := range profile.Plugins {
+		output, err := executor.RunWithOutput("plugin", "install", "--scope", "project", plugin)
+		if err != nil {
+			if strings.Contains(output, "already installed") {
+				result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, plugin)
+			} else {
+				result.Errors = append(result.Errors, fmt.Errorf("plugin %s: %w", plugin, err))
+			}
+		} else {
+			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+		}
+	}
+
+	// 4. Write .claudeup.json
+	projectCfg := NewProjectConfig(profile)
+	if err := SaveProjectConfig(opts.ProjectDir, projectCfg); err != nil {
+		return nil, fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
+	}
+
+	return result, nil
+}
+
+// applyLocalScope applies a profile at local scope (private to this machine)
+func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
+	// 1. Resolve secrets for MCP servers
+	resolvedMCP := make(map[string]map[string]string)
+	for _, mcp := range profile.MCPServers {
+		if len(mcp.Secrets) > 0 {
+			resolved := make(map[string]string)
+			for envVar, ref := range mcp.Secrets {
+				var value string
+				var resolveErr error
+				for _, source := range ref.Sources {
+					switch source.Type {
+					case "env":
+						value, _, resolveErr = secretChain.Resolve(source.Key)
+					case "1password":
+						value, _, resolveErr = secretChain.Resolve(source.Ref)
+					case "keychain":
+						keychainRef := source.Service
+						if source.Account != "" {
+							keychainRef = source.Service + ":" + source.Account
+						}
+						value, _, resolveErr = secretChain.Resolve(keychainRef)
+					}
+					if resolveErr == nil && value != "" {
+						break
+					}
+				}
+				if value == "" {
+					result.Errors = append(result.Errors, fmt.Errorf("could not resolve secret %s for MCP server %s", envVar, mcp.Name))
+					continue
+				}
+				resolved[envVar] = value
+			}
+			resolvedMCP[mcp.Name] = resolved
+		}
+	}
+
+	// 2. Add MCP servers with local scope
+	for _, mcp := range profile.MCPServers {
+		mcpCopy := mcp
+		mcpCopy.Scope = "local" // Override to local
+		args := buildMCPAddArgs(mcpCopy, resolvedMCP[mcp.Name])
+		output, err := executor.RunWithOutput(args...)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("MCP %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
+		} else {
+			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		}
+	}
+
+	// 3. Add marketplaces (user-level)
+	for _, m := range profile.Marketplaces {
+		key := marketplaceKey(m)
+		if key == "" {
+			continue
+		}
+		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
+		if err != nil {
+			if !strings.Contains(output, "already installed") {
+				result.Errors = append(result.Errors, fmt.Errorf("marketplace %s: %w", key, err))
+			}
+		}
+		result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+	}
+
+	// 4. Install plugins with local scope
+	for _, plugin := range profile.Plugins {
+		output, err := executor.RunWithOutput("plugin", "install", "--scope", "local", plugin)
+		if err != nil {
+			if strings.Contains(output, "already installed") {
+				result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, plugin)
+			} else {
+				result.Errors = append(result.Errors, fmt.Errorf("plugin %s: %w", plugin, err))
+			}
+		} else {
+			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+		}
+	}
+
+	// 5. Update projects registry
+	registry, err := config.LoadProjectsRegistry()
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("load registry: %w", err))
+	} else {
+		registry.SetProject(opts.ProjectDir, profile.Name)
+		if err := config.SaveProjectsRegistry(registry); err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("save registry: %w", err))
+		}
+	}
+
+	return result, nil
 }
 
 // ApplyWithExecutor executes the profile changes using the provided executor
