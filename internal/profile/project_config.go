@@ -88,5 +88,6 @@ func NewProjectConfig(p *Profile) *ProjectConfig {
 		ProfileSource: source,
 		Marketplaces:  p.Marketplaces,
 		Plugins:       p.Plugins,
+		AppliedAt:     time.Now(),
 	}
 }
