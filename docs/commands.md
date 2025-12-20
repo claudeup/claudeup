@@ -68,13 +68,15 @@ claudeup status
 
 Shows marketplaces, plugin counts, MCP servers, and any detected issues.
 
-### plugins
+### plugin
 
-List installed plugins.
+Manage plugins.
 
 ```bash
-claudeup plugins           # Full list with details
-claudeup plugins --summary # Summary statistics only
+claudeup plugin list              # Full list with details
+claudeup plugin list --summary    # Summary statistics only
+claudeup plugin enable <name>     # Enable a disabled plugin
+claudeup plugin disable <name>    # Disable a plugin
 ```
 
 ### marketplace
@@ -94,26 +96,6 @@ claudeup mcp list                              # List all MCP servers
 claudeup mcp disable <plugin>:<server>         # Disable specific server
 claudeup mcp enable <plugin>:<server>          # Re-enable server
 ```
-
-## Enable/Disable
-
-### enable
-
-Re-enable a disabled plugin.
-
-```bash
-claudeup enable <plugin>@<marketplace>
-```
-
-### disable
-
-Disable a plugin without uninstalling.
-
-```bash
-claudeup disable <plugin>@<marketplace>
-```
-
-Disabled plugins are stored in `~/.claudeup/config.json` and can be re-enabled.
 
 ## Maintenance
 

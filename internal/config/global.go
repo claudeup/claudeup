@@ -10,20 +10,9 @@ import (
 
 // GlobalConfig represents the global configuration file structure
 type GlobalConfig struct {
-	DisabledPlugins    map[string]DisabledPlugin `json:"disabledPlugins"`
-	DisabledMCPServers []string                  `json:"disabledMcpServers"`
-	ClaudeDir          string                    `json:"claudeDir,omitempty"`
-	Preferences        Preferences               `json:"preferences"`
-}
-
-// DisabledPlugin stores metadata for a disabled plugin
-type DisabledPlugin struct {
-	Version      string `json:"version"`
-	InstalledAt  string `json:"installedAt"`
-	LastUpdated  string `json:"lastUpdated"`
-	InstallPath  string `json:"installPath"`
-	GitCommitSha string `json:"gitCommitSha"`
-	IsLocal      bool   `json:"isLocal"`
+	DisabledMCPServers []string    `json:"disabledMcpServers"`
+	ClaudeDir          string      `json:"claudeDir,omitempty"`
+	Preferences        Preferences `json:"preferences"`
 }
 
 // Preferences represents user preferences
@@ -38,7 +27,6 @@ type Preferences struct {
 func DefaultConfig() *GlobalConfig {
 	homeDir, _ := os.UserHomeDir()
 	return &GlobalConfig{
-		DisabledPlugins:    make(map[string]DisabledPlugin),
 		DisabledMCPServers: []string{},
 		ClaudeDir:          filepath.Join(homeDir, ".claude"),
 		Preferences: Preferences{
@@ -100,18 +88,6 @@ func Save(cfg *GlobalConfig) error {
 	return os.WriteFile(cfgPath, data, 0644)
 }
 
-// IsPluginDisabled checks if a plugin is in the disabled map
-func (c *GlobalConfig) IsPluginDisabled(pluginName string) bool {
-	_, exists := c.DisabledPlugins[pluginName]
-	return exists
-}
-
-// GetDisabledPlugin retrieves metadata for a disabled plugin
-func (c *GlobalConfig) GetDisabledPlugin(pluginName string) (DisabledPlugin, bool) {
-	plugin, exists := c.DisabledPlugins[pluginName]
-	return plugin, exists
-}
-
 // IsMCPServerDisabled checks if an MCP server is in the disabled list
 func (c *GlobalConfig) IsMCPServerDisabled(serverRef string) bool {
 	for _, ref := range c.DisabledMCPServers {
@@ -120,25 +96,6 @@ func (c *GlobalConfig) IsMCPServerDisabled(serverRef string) bool {
 		}
 	}
 	return false
-}
-
-// DisablePlugin adds a plugin to the disabled map with its metadata
-func (c *GlobalConfig) DisablePlugin(pluginName string, metadata DisabledPlugin) bool {
-	if c.IsPluginDisabled(pluginName) {
-		return false // Already disabled
-	}
-	c.DisabledPlugins[pluginName] = metadata
-	return true
-}
-
-// EnablePlugin removes a plugin from the disabled map and returns its metadata
-func (c *GlobalConfig) EnablePlugin(pluginName string) (DisabledPlugin, bool) {
-	metadata, exists := c.DisabledPlugins[pluginName]
-	if !exists {
-		return DisabledPlugin{}, false // Wasn't disabled
-	}
-	delete(c.DisabledPlugins, pluginName)
-	return metadata, true
 }
 
 // DisableMCPServer adds an MCP server to the disabled list
