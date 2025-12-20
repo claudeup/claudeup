@@ -235,6 +235,27 @@ func (e *TestEnv) CreateSettings(enabledPlugins map[string]bool) {
 	Expect(os.WriteFile(filepath.Join(e.ClaudeDir, "settings.json"), jsonData, 0644)).To(Succeed())
 }
 
+// IsPluginEnabled checks if a plugin is enabled in settings.json
+func (e *TestEnv) IsPluginEnabled(pluginName string) bool {
+	data, err := os.ReadFile(filepath.Join(e.ClaudeDir, "settings.json"))
+	if err != nil {
+		return false
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		return false
+	}
+
+	enabledPlugins, ok := settings["enabledPlugins"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+
+	enabled, ok := enabledPlugins[pluginName].(bool)
+	return ok && enabled
+}
+
 // CreatePluginMCPServers creates a .mcp.json file in a plugin directory
 func (e *TestEnv) CreatePluginMCPServers(pluginPath string, servers map[string]interface{}) {
 	mcpFile := map[string]interface{}{
