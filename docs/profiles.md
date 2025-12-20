@@ -14,11 +14,218 @@ claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
 claudeup profile save [name]       # Save current setup as a profile
 claudeup profile create <name>     # Create a profile by copying an existing one
-claudeup profile use <name>        # Apply a profile (replaces current config)
+claudeup profile use <name>        # Apply a profile
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile delete <name>     # Delete a custom user profile
 claudeup profile restore <name>    # Restore a built-in profile to original state
 claudeup profile suggest           # Get profile suggestion based on project
+```
+
+## Profile Scopes
+
+Profiles can be applied at different scopes, allowing you to layer configurations:
+
+```bash
+# User scope (default) - Your personal configuration
+claudeup profile use my-defaults
+
+# Project scope - Project-specific plugins (shared with team via git)
+claudeup profile use backend-project --scope project
+
+# Local scope - Machine-specific plugins (not shared)
+claudeup profile use laptop-only --scope local
+```
+
+### How Scopes Work
+
+Claude Code uses a **layered settings model** where all scopes are active simultaneously:
+
+```text
+┌─────────────────────────────────────┐
+│ Local Scope (machine-specific)      │  ← Highest precedence
+├─────────────────────────────────────┤
+│ Project Scope (shared with team)    │
+├─────────────────────────────────────┤
+│ User Scope (personal defaults)      │  ← Base layer
+└─────────────────────────────────────┘
+```
+
+**Key behaviors:**
+
+1. **Settings accumulate** - Plugins from all scopes are enabled simultaneously
+2. **Scopes add, not replace** - Applying a local profile ADDS to your user and project plugins
+3. **Precedence for conflicts** - When the same plugin is configured in multiple scopes, more specific scope wins
+
+### Accumulation Example
+
+```bash
+# User scope: 5 base plugins
+claudeup profile use base-tools
+
+# Project scope: 3 project plugins
+cd ~/my-project
+claudeup profile use backend-stack --scope project
+
+# Local scope: 2 machine-specific plugins
+claudeup profile use docker-tools --scope local
+
+# Result: All 10 plugins (5 + 3 + 2) are active
+```
+
+### Override Example
+
+To disable a plugin from a lower scope, explicitly set it to `false`:
+
+```json
+// User scope (~/.claude/settings.json)
+{
+  "enabledPlugins": {
+    "heavy-plugin@marketplace": true
+  }
+}
+
+// Local scope (.claude/settings.local.json)
+{
+  "enabledPlugins": {
+    "heavy-plugin@marketplace": false  // Disables it on this machine
+  }
+}
+```
+
+### Scope Storage
+
+| Scope | Location | Shared? | Use Case |
+|-------|----------|---------|----------|
+| **User** | `~/.claude/settings.json` | No | Personal default plugins used everywhere |
+| **Project** | `.claude/settings.json` | Yes (via git) | Project-specific plugins, shared with team |
+| **Local** | `~/.claude/settings.local.json` | No (gitignored) | Machine-specific plugins, personal overrides |
+
+### Project Scope Files
+
+When you apply a profile with `--scope project`, two files are created:
+
+```bash
+.claudeup.json    # Plugin manifest (lists enabled plugins)
+.mcp.json         # MCP server configuration (Claude native format)
+```
+
+**Recommended git workflow:**
+
+```bash
+# After applying project profile
+git add .claudeup.json .mcp.json
+git commit -m "Add project-level Claude configuration"
+
+# Team members sync with:
+claudeup profile sync
+```
+
+### Project Sync
+
+Team members who clone a repository with `.claudeup.json` can install the project's plugins:
+
+```bash
+git clone <repo>
+cd <repo>
+claudeup profile sync
+```
+
+This installs all plugins listed in `.claudeup.json`. MCP servers from `.mcp.json` are loaded automatically by Claude Code.
+
+### Local Scope Registry
+
+Local scope profiles are tracked in `~/.claudeup/projects.json`:
+
+```json
+{
+  "projects": {
+    "/Users/you/projects/my-app": {
+      "profile": "laptop-dev-tools",
+      "lastUsed": "2025-01-15T10:30:00Z"
+    }
+  }
+}
+```
+
+This allows claudeup to remember which local profile applies to each project directory.
+
+### Viewing Active Configuration
+
+To see which profile is active at each scope:
+
+```bash
+# Show current profile (checks local → project → user)
+claudeup profile current
+
+# Example output for project with local profile:
+# Current profile: dev-tools (local scope)
+#   Marketplaces: 2
+#   Plugins: 8
+```
+
+### When to Use Each Scope
+
+**User Scope** (default):
+
+- Your personal base configuration
+- Plugins you want everywhere
+- One-time setup on new machines
+
+**Project Scope** (`--scope project`):
+
+- Project requires specific plugins
+- Team needs shared configuration
+- Plugin selection is project-dependent
+- Files committed to git
+
+**Local Scope** (`--scope local`):
+
+- Machine-specific tools (e.g., Docker-related plugins only on machines with Docker)
+- Personal overrides (disable heavy plugins on laptop)
+- Experiment without affecting team
+- Files NOT committed to git (in `.gitignore`)
+
+### Common Patterns
+
+**Pattern 1: Base + Project**
+
+```bash
+# Once: Set up personal defaults
+claudeup profile use my-base-tools
+
+# Per-project: Add project plugins
+cd ~/backend-api
+claudeup profile use backend-stack --scope project
+```
+
+**Pattern 2: Base + Project + Local Override**
+
+```bash
+# User scope: Base tools
+claudeup profile use base
+
+# Project scope: Backend tools
+cd ~/api-service
+claudeup profile use backend --scope project
+
+# Local scope: Disable heavy plugins on laptop
+claudeup profile use lightweight --scope local
+```
+
+**Pattern 3: Team Collaboration**
+
+```bash
+# Maintainer: Set up project configuration
+cd ~/team-project
+claudeup profile use team-stack --scope project
+git add .claudeup.json .mcp.json
+git commit -m "Add Claude configuration"
+git push
+
+# Team member: Sync project plugins
+git clone <repo>
+cd team-project
+claudeup profile sync  # Installs plugins from .claudeup.json
 ```
 
 ## Built-in Profiles
@@ -34,6 +241,7 @@ claudeup setup --profile default
 ```
 
 **Marketplaces:**
+
 - `anthropics/claude-code` - Official Anthropic plugins
 
 **Use when:** Starting fresh or want a clean slate.
@@ -49,11 +257,13 @@ claudeup setup --profile frontend
 ```
 
 **Marketplaces:**
+
 - `anthropics/claude-code` - Official Anthropic plugins
 - `obra/superpowers-marketplace` - Productivity skills and workflows
 - `malston/claude-code-templates` - Next.js/Vercel tooling
 
 **Plugins:**
+
 - `frontend-design@claude-code-plugins` - Distinctive UI/UX implementation
 - `nextjs-vercel-pro@claude-code-templates` - Next.js scaffolding, components, Vercel deployment
 - `superpowers@superpowers-marketplace` - TDD, debugging, collaboration patterns
@@ -77,6 +287,7 @@ claudeup setup --profile frontend-full
 **Marketplaces:** Same as `frontend`
 
 **Plugins:** Everything in `frontend`, plus:
+
 - `testing-suite@claude-code-templates` - Playwright E2E testing (adds Playwright MCP)
 - `performance-optimizer@claude-code-templates` - Bundle analysis, profiling
 - `superpowers-chrome@superpowers-marketplace` - Chrome DevTools Protocol access
@@ -97,11 +308,13 @@ claudeup setup --profile hobson
 ```
 
 **Marketplaces:**
+
 - `wshobson/agents` - Comprehensive plugin collection with 65+ plugins
 
 **Plugins:** Selected during interactive setup wizard
 
 **Categories available:**
+
 - Core Development - workflows, debugging, docs, refactoring
 - Quality & Testing - code review, testing, cleanup
 - AI & Machine Learning - LLM dev, agents, MLOps
@@ -127,7 +340,7 @@ claudeup profile use hobson --no-interactive
 
 Built-in and user profiles are grouped separately in the list:
 
-```
+```bash
 $ claudeup profile list
 Built-in profiles:
 
@@ -161,11 +374,13 @@ claudeup profile save my-work
 ```
 
 **Auto-generated descriptions:**
+
 - Profiles automatically get meaningful descriptions based on their contents
 - Example: "2 marketplaces, 5 plugins" or "1 marketplace, 10 plugins, 2 MCP servers"
 - Empty profiles show "Empty profile"
 
 **Description preservation:**
+
 - Custom descriptions (set via `--description`) are preserved when re-saving
 - Old generic "Snapshot of current Claude Code configuration" descriptions are automatically updated to auto-generated ones
 - Use `--description` flag to override at any time
@@ -345,18 +560,20 @@ claudeup profile reset hobson
 ```
 
 This removes:
+
 - All plugins installed from the profile's marketplaces
 - All MCP servers defined in the profile
 - All marketplaces added by the profile
 
 **Use cases:**
+
 - Testing a profile's setup wizard from scratch
 - Cleaning up before switching to a different profile
 - Removing a profile's effects without applying a new one
 
 The reset command shows what will be removed and prompts for confirmation:
 
-```
+```text
 Reset profile: hobson
 
   Will remove:
@@ -412,6 +629,7 @@ These commands serve different purposes:
 | `profile restore` | Removes customizations from a built-in profile |
 
 **To fully restore a customized built-in profile:**
+
 ```bash
 # 1. Remove installed components
 claudeup profile reset frontend
