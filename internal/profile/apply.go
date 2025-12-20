@@ -186,11 +186,14 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
 			// Check if already installed - treat as success
-			if !strings.Contains(output, "already installed") {
+			if strings.Contains(output, "already installed") {
+				result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+			} else {
 				result.Errors = append(result.Errors, fmt.Errorf("marketplace %s: %w", key, err))
 			}
+		} else {
+			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 		}
-		result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 	}
 
 	// 3. Install plugins with project scope
@@ -276,11 +279,14 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 		}
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
-			if !strings.Contains(output, "already installed") {
+			if strings.Contains(output, "already installed") {
+				result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+			} else {
 				result.Errors = append(result.Errors, fmt.Errorf("marketplace %s: %w", key, err))
 			}
+		} else {
+			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 		}
-		result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 	}
 
 	// 4. Install plugins with local scope
