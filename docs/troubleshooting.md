@@ -71,16 +71,10 @@ MCP server changes require restarting Claude Code to take effect.
 
 ### Plugin disabled but still appears
 
-Check if it's in the disabled list:
-
-```bash
-jq -r '.disabledPlugins' < ~/.claudeup/config.json
-```
-
 Re-enable with:
 
 ```bash
-claudeup enable <plugin>@<marketplace>
+claudeup plugin enable <plugin-name>
 ```
 
 ### Marketplace missing

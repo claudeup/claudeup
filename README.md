@@ -54,8 +54,8 @@ Protects your system from untrusted plugins while still letting Claude work on y
 Fine-grained control over what's enabled:
 
 ```bash
-claudeup status                    # Overview of your installation
-claudeup disable plugin@marketplace   # Disable a plugin
+claudeup status                       # Overview of your installation
+claudeup plugin disable name          # Disable a plugin
 claudeup mcp disable plugin:server    # Disable just an MCP server
 ```
 

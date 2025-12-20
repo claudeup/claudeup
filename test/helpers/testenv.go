@@ -249,7 +249,6 @@ func (e *TestEnv) CreatePluginMCPServers(pluginPath string, servers map[string]i
 func (e *TestEnv) SetDisabledMCPServers(servers []string) {
 	config := map[string]interface{}{
 		"disabledMcpServers": servers,
-		"disabledPlugins":    map[string]interface{}{},
 		"preferences":        map[string]interface{}{},
 	}
 	jsonData, err := json.MarshalIndent(config, "", "  ")

@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for global configuration management
-// ABOUTME: Tests config loading, saving, and plugin/MCP enable/disable operations
+// ABOUTME: Tests config loading, saving, and MCP enable/disable operations
 package config
 
 import (
@@ -12,10 +12,6 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.DisabledPlugins == nil {
-		t.Error("DisabledPlugins map should be initialized")
-	}
-
 	if cfg.DisabledMCPServers == nil {
 		t.Error("DisabledMCPServers slice should be initialized")
 	}
@@ -26,92 +22,6 @@ func TestDefaultConfig(t *testing.T) {
 
 	if cfg.Preferences.VerboseOutput != false {
 		t.Error("VerboseOutput should default to false")
-	}
-}
-
-func TestIsPluginDisabled(t *testing.T) {
-	cfg := DefaultConfig()
-	pluginName := "test-plugin@test-marketplace"
-
-	// Should not be disabled initially
-	if cfg.IsPluginDisabled(pluginName) {
-		t.Error("Plugin should not be disabled initially")
-	}
-
-	// Add to disabled map
-	cfg.DisabledPlugins[pluginName] = DisabledPlugin{
-		Version: "1.0.0",
-	}
-
-	// Should be disabled now
-	if !cfg.IsPluginDisabled(pluginName) {
-		t.Error("Plugin should be disabled after adding to map")
-	}
-}
-
-func TestDisablePlugin(t *testing.T) {
-	cfg := DefaultConfig()
-	pluginName := "test-plugin@test-marketplace"
-	metadata := DisabledPlugin{
-		Version:      "1.0.0",
-		InstallPath:  "/path/to/plugin",
-		GitCommitSha: "abc123",
-		IsLocal:      true,
-	}
-
-	// First disable should return true
-	if !cfg.DisablePlugin(pluginName, metadata) {
-		t.Error("First disable should return true")
-	}
-
-	// Second disable should return false (already disabled)
-	if cfg.DisablePlugin(pluginName, metadata) {
-		t.Error("Second disable should return false")
-	}
-
-	// Verify metadata was stored
-	stored, exists := cfg.GetDisabledPlugin(pluginName)
-	if !exists {
-		t.Error("Plugin metadata should exist")
-	}
-
-	if stored.Version != "1.0.0" {
-		t.Errorf("Expected version 1.0.0, got %s", stored.Version)
-	}
-
-	if stored.GitCommitSha != "abc123" {
-		t.Errorf("Expected commit abc123, got %s", stored.GitCommitSha)
-	}
-}
-
-func TestEnablePlugin(t *testing.T) {
-	cfg := DefaultConfig()
-	pluginName := "test-plugin@test-marketplace"
-	metadata := DisabledPlugin{
-		Version: "1.0.0",
-	}
-
-	// Enable non-disabled plugin should return false
-	_, enabled := cfg.EnablePlugin(pluginName)
-	if enabled {
-		t.Error("Enabling non-disabled plugin should return false")
-	}
-
-	// Disable then enable
-	cfg.DisablePlugin(pluginName, metadata)
-	retrieved, enabled := cfg.EnablePlugin(pluginName)
-
-	if !enabled {
-		t.Error("Enabling disabled plugin should return true")
-	}
-
-	if retrieved.Version != "1.0.0" {
-		t.Errorf("Expected version 1.0.0, got %s", retrieved.Version)
-	}
-
-	// Should no longer be in disabled map
-	if cfg.IsPluginDisabled(pluginName) {
-		t.Error("Plugin should not be disabled after enabling")
 	}
 }
 
@@ -184,7 +94,6 @@ func TestSaveAndLoad(t *testing.T) {
 
 	// Create config
 	cfg := DefaultConfig()
-	cfg.DisablePlugin("test-plugin", DisabledPlugin{Version: "1.0.0"})
 	cfg.DisableMCPServer("test-server")
 
 	// Save to temp file
@@ -210,52 +119,7 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 
 	// Verify loaded config matches
-	if !loadedCfg.IsPluginDisabled("test-plugin") {
-		t.Error("Loaded config should have test-plugin disabled")
-	}
-
 	if !loadedCfg.IsMCPServerDisabled("test-server") {
 		t.Error("Loaded config should have test-server disabled")
-	}
-
-	plugin, exists := loadedCfg.GetDisabledPlugin("test-plugin")
-	if !exists {
-		t.Error("Loaded config should have test-plugin metadata")
-	}
-
-	if plugin.Version != "1.0.0" {
-		t.Errorf("Expected version 1.0.0, got %s", plugin.Version)
-	}
-}
-
-func TestGetDisabledPlugin(t *testing.T) {
-	cfg := DefaultConfig()
-	pluginName := "test-plugin@test-marketplace"
-
-	// Get non-existent plugin
-	_, exists := cfg.GetDisabledPlugin(pluginName)
-	if exists {
-		t.Error("Non-existent plugin should not exist")
-	}
-
-	// Add plugin
-	metadata := DisabledPlugin{
-		Version:     "2.0.0",
-		InstallPath: "/test/path",
-	}
-	cfg.DisablePlugin(pluginName, metadata)
-
-	// Get existing plugin
-	retrieved, exists := cfg.GetDisabledPlugin(pluginName)
-	if !exists {
-		t.Error("Plugin should exist after disabling")
-	}
-
-	if retrieved.Version != "2.0.0" {
-		t.Errorf("Expected version 2.0.0, got %s", retrieved.Version)
-	}
-
-	if retrieved.InstallPath != "/test/path" {
-		t.Errorf("Expected path /test/path, got %s", retrieved.InstallPath)
 	}
 }
