@@ -256,3 +256,128 @@ func (e *AcceptanceTestEnv) MarketplaceCount() int {
 	registry := e.LoadMarketplaceRegistry()
 	return len(registry)
 }
+
+// ProjectDir returns a project directory path (creates if needed)
+func (e *AcceptanceTestEnv) ProjectDir() string {
+	e.t.Helper()
+
+	projectDir := filepath.Join(e.HomeDir, "projects", "test-project")
+	if err := os.MkdirAll(projectDir, 0755); err != nil {
+		e.t.Fatal(err)
+	}
+	return projectDir
+}
+
+// ProjectDirWithGit creates a project directory with git initialized
+func (e *AcceptanceTestEnv) ProjectDirWithGit() string {
+	e.t.Helper()
+
+	projectDir := e.ProjectDir()
+
+	// Initialize git repo
+	cmd := exec.Command("git", "init")
+	cmd.Dir = projectDir
+	if err := cmd.Run(); err != nil {
+		e.t.Fatal(err)
+	}
+
+	return projectDir
+}
+
+// MCPJSONExists checks if .mcp.json exists in the given directory
+func (e *AcceptanceTestEnv) MCPJSONExists(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".mcp.json"))
+	return err == nil
+}
+
+// ClaudeupJSONExists checks if .claudeup.json exists in the given directory
+func (e *AcceptanceTestEnv) ClaudeupJSONExists(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".claudeup.json"))
+	return err == nil
+}
+
+// LoadMCPJSON loads .mcp.json from the given directory
+func (e *AcceptanceTestEnv) LoadMCPJSON(dir string) map[string]interface{} {
+	e.t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	if err != nil {
+		e.t.Fatal(err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		e.t.Fatal(err)
+	}
+
+	return config
+}
+
+// LoadClaudeupJSON loads .claudeup.json from the given directory
+func (e *AcceptanceTestEnv) LoadClaudeupJSON(dir string) map[string]interface{} {
+	e.t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(dir, ".claudeup.json"))
+	if err != nil {
+		e.t.Fatal(err)
+	}
+
+	var config map[string]interface{}
+	if err := json.Unmarshal(data, &config); err != nil {
+		e.t.Fatal(err)
+	}
+
+	return config
+}
+
+// CreateClaudeupJSON creates a .claudeup.json file in the given directory
+func (e *AcceptanceTestEnv) CreateClaudeupJSON(dir string, cfg map[string]interface{}) {
+	e.t.Helper()
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		e.t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, ".claudeup.json"), data, 0644); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+// CreateMCPJSON creates a .mcp.json file in the given directory
+func (e *AcceptanceTestEnv) CreateMCPJSON(dir string, cfg map[string]interface{}) {
+	e.t.Helper()
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		e.t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(dir, ".mcp.json"), data, 0644); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
+// ClaudeupdDir returns the claudeup config directory path
+func (e *AcceptanceTestEnv) ClaudeupDir() string {
+	return filepath.Join(e.HomeDir, ".claudeup")
+}
+
+// CreateProjectsJSON creates projects.json with local scope mappings
+func (e *AcceptanceTestEnv) CreateProjectsJSON(projects map[string]interface{}) {
+	e.t.Helper()
+
+	claudeupDir := e.ClaudeupDir()
+	if err := os.MkdirAll(claudeupDir, 0755); err != nil {
+		e.t.Fatal(err)
+	}
+
+	data, err := json.MarshalIndent(projects, "", "  ")
+	if err != nil {
+		e.t.Fatal(err)
+	}
+
+	if err := os.WriteFile(filepath.Join(claudeupDir, "projects.json"), data, 0644); err != nil {
+		e.t.Fatal(err)
+	}
+}

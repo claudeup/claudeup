@@ -26,9 +26,10 @@ Manage configuration profiles.
 ```bash
 claudeup profile list                        # List available profiles
 claudeup profile show <name>                 # Display profile contents
+claudeup profile current                     # Show active profile (with scope)
 claudeup profile save [name]                 # Save current setup as profile
-claudeup profile create <name>               # Create profile from existing one
-claudeup profile use <name>                  # Apply a profile
+claudeup profile create <name>               # Create profile with wizard
+claudeup profile use <name>                  # Apply a profile (user scope)
 claudeup profile suggest                     # Suggest profile for current project
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
@@ -38,6 +39,78 @@ claudeup profile reset <name>                # Remove everything a profile insta
 claudeup profile save my-work --description "My work setup"
 claudeup profile create home --from work --description "Home setup"
 ```
+
+#### Project-Level Profiles
+
+Apply profiles at project scope for team sharing:
+
+```bash
+# Apply profile to current project (creates .mcp.json + .claudeup.json)
+claudeup profile use frontend --scope project
+
+# Team members clone and sync plugins
+claudeup profile sync              # Install plugins from .claudeup.json
+claudeup profile sync --dry-run    # Preview without changes
+
+# Apply profile locally only (not shared via git)
+claudeup profile use frontend --scope local
+```
+
+**Scope options:**
+
+| Scope | MCP Servers | Plugins | Shared? |
+|-------|-------------|---------|---------|
+| `user` | `~/.claude.json` | user-scoped | No |
+| `project` | `.mcp.json` | project-scoped | Yes (via git) |
+| `local` | `~/.claude.json` | local-scoped | No |
+
+**Files created by `--scope project`:**
+
+- `.mcp.json` - MCP servers (Claude auto-loads this)
+- `.claudeup.json` - Plugins manifest (team runs `profile sync`)
+
+**Team workflow:**
+
+1. One team member applies the profile with `--scope project`
+2. Commit `.mcp.json` and `.claudeup.json` to version control
+3. Other team members clone/pull and run `claudeup profile sync`
+4. MCP servers load automatically; plugins are installed by sync
+
+**Scope precedence:**
+
+When determining the active profile, `profile current` checks in order:
+
+1. **Project scope** - `.claudeup.json` in current directory
+2. **Local scope** - Entry in `~/.claudeup/projects.json` for current directory
+3. **User scope** - Global profile from `~/.claudeup/config.json`
+
+The first match wins. This means project-level configuration always takes precedence over personal settings when you're in a project directory.
+
+**Secrets and project scope:**
+
+MCP servers often require secrets (API keys, tokens). When using `--scope project`:
+
+- Secrets are **not** stored in `.mcp.json` - only secret references
+- Each team member must have the referenced secrets available locally
+- Common secret sources: environment variables, 1Password, system keychain
+- The sync command does not handle secrets - configure them separately
+
+Example `.mcp.json` with secret reference:
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/github-mcp"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Team members set `GITHUB_TOKEN` in their environment before using Claude.
 
 ## Sandbox
 
@@ -137,6 +210,15 @@ Configuration is stored in `~/.claudeup/`:
 ```
 ~/.claudeup/
 ├── config.json       # Disabled plugins/servers, preferences
+├── projects.json     # Local-scope project-to-profile mappings
 ├── profiles/         # Saved profiles
 └── sandboxes/        # Persistent sandbox state
+```
+
+Project-level configuration files (created by `--scope project`):
+
+```
+your-project/
+├── .mcp.json         # Claude native MCP server config (auto-loaded)
+└── .claudeup.json    # Plugins manifest (team runs `profile sync`)
 ```
