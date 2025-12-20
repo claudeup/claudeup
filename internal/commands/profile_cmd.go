@@ -783,32 +783,32 @@ func hasDiffChanges(diff *profile.Diff) bool {
 
 func showDiff(diff *profile.Diff) {
 	if len(diff.PluginsToRemove) > 0 || len(diff.MCPToRemove) > 0 {
-		fmt.Println("  Remove:")
+		fmt.Printf("  %s\n", ui.Warning("Remove:"))
 		for _, p := range diff.PluginsToRemove {
-			fmt.Printf("    - %s\n", p)
+			fmt.Printf("    %s %s\n", ui.Warning("-"), p)
 		}
 		for _, m := range diff.MCPToRemove {
-			fmt.Printf("    - MCP: %s\n", m)
+			fmt.Printf("    %s %s\n", ui.Warning("-"), ui.Muted("MCP: ")+m)
 		}
 	}
 
 	if len(diff.PluginsToInstall) > 0 || len(diff.MCPToInstall) > 0 || len(diff.MarketplacesToAdd) > 0 {
-		fmt.Println("  Install:")
+		fmt.Printf("  %s\n", ui.Success("Install:"))
 		for _, m := range diff.MarketplacesToAdd {
-			fmt.Printf("    + Marketplace: %s\n", m.DisplayName())
+			fmt.Printf("    %s %s\n", ui.Success("+"), ui.Muted("Marketplace: ")+m.DisplayName())
 		}
 		for _, p := range diff.PluginsToInstall {
-			fmt.Printf("    + %s\n", p)
+			fmt.Printf("    %s %s\n", ui.Success("+"), p)
 		}
 		for _, m := range diff.MCPToInstall {
 			secretInfo := ""
 			if len(m.Secrets) > 0 {
 				for k := range m.Secrets {
-					secretInfo = fmt.Sprintf(" (requires %s)", k)
+					secretInfo = ui.Muted(fmt.Sprintf(" (requires %s)", k))
 					break
 				}
 			}
-			fmt.Printf("    + MCP: %s%s\n", m.Name, secretInfo)
+			fmt.Printf("    %s %s%s\n", ui.Success("+"), ui.Muted("MCP: ")+m.Name, secretInfo)
 		}
 	}
 }

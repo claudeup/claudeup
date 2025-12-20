@@ -69,6 +69,49 @@ claudeup profile use frontend --scope local
 - `.mcp.json` - MCP servers (Claude auto-loads this)
 - `.claudeup.json` - Plugins manifest (team runs `profile sync`)
 
+**Team workflow:**
+
+1. One team member applies the profile with `--scope project`
+2. Commit `.mcp.json` and `.claudeup.json` to version control
+3. Other team members clone/pull and run `claudeup profile sync`
+4. MCP servers load automatically; plugins are installed by sync
+
+**Scope precedence:**
+
+When determining the active profile, `profile current` checks in order:
+
+1. **Project scope** - `.claudeup.json` in current directory
+2. **Local scope** - Entry in `~/.claudeup/projects.json` for current directory
+3. **User scope** - Global profile from `~/.claudeup/config.json`
+
+The first match wins. This means project-level configuration always takes precedence over personal settings when you're in a project directory.
+
+**Secrets and project scope:**
+
+MCP servers often require secrets (API keys, tokens). When using `--scope project`:
+
+- Secrets are **not** stored in `.mcp.json` - only secret references
+- Each team member must have the referenced secrets available locally
+- Common secret sources: environment variables, 1Password, system keychain
+- The sync command does not handle secrets - configure them separately
+
+Example `.mcp.json` with secret reference:
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/github-mcp"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    }
+  }
+}
+```
+
+Team members set `GITHUB_TOKEN` in their environment before using Claude.
+
 ## Sandbox
 
 ### sandbox
