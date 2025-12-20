@@ -568,15 +568,22 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 	if scope == profile.ScopeProject {
 		fmt.Println()
 		ui.PrintInfo("Project files created:")
+
+		var filesToAdd []string
 		if profile.MCPJSONExists(cwd) {
 			fmt.Printf("  %s %s (MCP servers - Claude auto-loads)\n", ui.Success(ui.SymbolSuccess), profile.MCPConfigFile)
+			filesToAdd = append(filesToAdd, profile.MCPConfigFile)
 		}
 		if profile.ProjectConfigExists(cwd) {
 			fmt.Printf("  %s %s (plugins manifest)\n", ui.Success(ui.SymbolSuccess), profile.ProjectConfigFile)
+			filesToAdd = append(filesToAdd, profile.ProjectConfigFile)
 		}
-		fmt.Println()
-		fmt.Printf("%s Consider adding these to git:\n", ui.Muted(ui.SymbolArrow))
-		fmt.Printf("  git add %s %s\n", profile.MCPConfigFile, profile.ProjectConfigFile)
+
+		if len(filesToAdd) > 0 {
+			fmt.Println()
+			fmt.Printf("%s Consider adding these to git:\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("  git add %s\n", strings.Join(filesToAdd, " "))
+		}
 	}
 
 	// Run post-apply hook if applicable (decision was made before apply)
