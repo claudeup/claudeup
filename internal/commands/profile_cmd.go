@@ -1544,7 +1544,7 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 
 	// Check for .claudeup.json
 	if !profile.ProjectConfigExists(cwd) {
-		return fmt.Errorf("no %s found in current directory.\nRun 'claudeup profile use <name> --scope project' to create one", profile.ProjectConfigFile)
+		return fmt.Errorf("no %s found in current directory.\nRun `claudeup profile use <name> --scope project` to create one", profile.ProjectConfigFile)
 	}
 
 	opts := profile.SyncOptions{
