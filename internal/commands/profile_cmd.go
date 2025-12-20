@@ -766,20 +766,26 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Suggested profile: %s\n", suggested.Name)
+	fmt.Println(ui.RenderDetail("Suggested profile", ui.Bold(suggested.Name)))
 	if suggested.Description != "" {
-		fmt.Printf("  %s\n", suggested.Description)
+		fmt.Printf("  %s\n", ui.Muted(suggested.Description))
 	}
 	fmt.Println()
 
-	fmt.Print("Apply this profile? [Y/n]: ")
-	choice := promptChoice("", "y")
-	if choice == "y" || choice == "yes" || choice == "" {
+	fmt.Printf("%s Apply this profile? %s: ", ui.Info(ui.SymbolArrow), ui.Muted("[Y/n]"))
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		ui.PrintMuted("Cancelled.")
+		return nil
+	}
+	choice := strings.TrimSpace(strings.ToLower(input))
+	if choice == "" || choice == "y" || choice == "yes" {
 		// Run the use command
 		return runProfileUse(cmd, []string{suggested.Name})
 	}
 
-	fmt.Println("Cancelled.")
+	ui.PrintMuted("Cancelled.")
 	return nil
 }
 
