@@ -3,6 +3,7 @@ package profile
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -141,5 +142,61 @@ func TestNewProjectConfig(t *testing.T) {
 	}
 	if len(cfg.Plugins) != 1 {
 		t.Errorf("len(Plugins) = %d, want 1", len(cfg.Plugins))
+	}
+}
+
+func TestProjectConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     ProjectConfig
+		wantErr bool
+	}{
+		{
+			name:    "valid config",
+			cfg:     ProjectConfig{Profile: "test"},
+			wantErr: false,
+		},
+		{
+			name:    "missing profile",
+			cfg:     ProjectConfig{},
+			wantErr: true,
+		},
+		{
+			name:    "empty profile",
+			cfg:     ProjectConfig{Profile: ""},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadProjectConfig_ValidationError(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Write invalid config (missing profile)
+	path := filepath.Join(tempDir, ProjectConfigFile)
+	data := []byte(`{"version": "1", "plugins": ["plugin-a"]}`)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	_, err = LoadProjectConfig(tempDir)
+	if err == nil {
+		t.Error("LoadProjectConfig should fail for config missing profile")
+	}
+	if !strings.Contains(err.Error(), "profile") {
+		t.Errorf("error should mention missing profile: %v", err)
 	}
 }

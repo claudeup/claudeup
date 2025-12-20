@@ -36,7 +36,20 @@ func LoadProjectConfig(projectDir string) (*ProjectConfig, error) {
 		return nil, fmt.Errorf("invalid %s: %w", ProjectConfigFile, err)
 	}
 
+	// Validate required fields
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", ProjectConfigFile, err)
+	}
+
 	return &cfg, nil
+}
+
+// Validate checks that required fields are present
+func (c *ProjectConfig) Validate() error {
+	if c.Profile == "" {
+		return fmt.Errorf("missing required field: profile")
+	}
+	return nil
 }
 
 // SaveProjectConfig writes a .claudeup.json file to the given directory
