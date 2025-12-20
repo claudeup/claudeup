@@ -258,14 +258,17 @@ func runPluginEnable(cmd *cobra.Command, args []string) error {
 	// Offer to save to profile
 	cfg, err := config.Load()
 	if err == nil && cfg.Preferences.ActiveProfile != "" {
+		shouldSave := config.YesFlag // Auto-save with --yes
 		if !config.YesFlag {
 			fmt.Println()
-			if ui.PromptYesNo("Save to current profile?", true) {
-				if err := saveCurrentStateToProfile(cfg.Preferences.ActiveProfile); err != nil {
-					ui.PrintWarning(fmt.Sprintf("Failed to save profile: %v", err))
-				} else {
-					ui.PrintSuccess(fmt.Sprintf("Updated profile %q", cfg.Preferences.ActiveProfile))
-				}
+			shouldSave = ui.PromptYesNo("Save to current profile?", true)
+		}
+
+		if shouldSave {
+			if err := saveCurrentStateToProfile(cfg.Preferences.ActiveProfile); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Failed to save profile: %v", err))
+			} else {
+				ui.PrintSuccess(fmt.Sprintf("Updated profile %q", cfg.Preferences.ActiveProfile))
 			}
 		}
 	}
