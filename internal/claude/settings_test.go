@@ -104,3 +104,94 @@ func TestIsPluginEnabledEmptyMap(t *testing.T) {
 		t.Error("Plugin not in enabledPlugins map should return false")
 	}
 }
+
+func TestSaveSettingsPreservesAllFields(t *testing.T) {
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create settings.json with multiple fields (like real Claude settings.json)
+	originalSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin1@marketplace": true,
+		},
+		"model": "claude-sonnet-4-5",
+		"includeCoAuthoredBy": true,
+		"permissions": map[string]interface{}{
+			"bash": map[string]interface{}{
+				"enabled": true,
+			},
+		},
+		"hooks": map[string]interface{}{
+			"beforeMessage": "echo 'test'",
+		},
+		"statusLine": map[string]interface{}{
+			"enabled": true,
+			"format":  "custom",
+		},
+	}
+
+	data, _ := json.Marshal(originalSettings)
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load settings
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Modify enabledPlugins (typical use case that triggers the bug)
+	settings.EnablePlugin("plugin2@marketplace")
+
+	// Save settings back
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read the file and verify ALL fields are preserved
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var savedSettings map[string]interface{}
+	if err := json.Unmarshal(savedData, &savedSettings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify enabledPlugins was updated
+	enabledPlugins := savedSettings["enabledPlugins"].(map[string]interface{})
+	if len(enabledPlugins) != 2 {
+		t.Errorf("Expected 2 plugins in enabledPlugins, got %d", len(enabledPlugins))
+	}
+
+	// CRITICAL: Verify all other fields are preserved
+	if savedSettings["model"] == nil {
+		t.Error("model field was lost during save")
+	}
+	if savedSettings["model"] != "claude-sonnet-4-5" {
+		t.Errorf("model field changed: expected 'claude-sonnet-4-5', got %v", savedSettings["model"])
+	}
+
+	if savedSettings["includeCoAuthoredBy"] == nil {
+		t.Error("includeCoAuthoredBy field was lost during save")
+	}
+
+	if savedSettings["permissions"] == nil {
+		t.Error("permissions field was lost during save")
+	}
+
+	if savedSettings["hooks"] == nil {
+		t.Error("hooks field was lost during save")
+	}
+
+	if savedSettings["statusLine"] == nil {
+		t.Error("statusLine field was lost during save")
+	}
+}

@@ -12,6 +12,7 @@ import (
 // Settings represents the Claude Code settings.json file structure
 type Settings struct {
 	EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	raw            map[string]interface{} // Preserves all fields from settings.json
 }
 
 // LoadSettings reads the settings.json file from the Claude directory
@@ -35,17 +36,32 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 		return nil, err
 	}
 
-	var settings Settings
-	if err := json.Unmarshal(data, &settings); err != nil {
+	// Unmarshal into raw map first to preserve all fields
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
+	}
+
+	// Extract enabledPlugins with type safety
+	settings := &Settings{
+		raw:            raw,
+		EnabledPlugins: make(map[string]bool),
+	}
+
+	if enabledPlugins, ok := raw["enabledPlugins"].(map[string]interface{}); ok {
+		for key, val := range enabledPlugins {
+			if enabled, ok := val.(bool); ok {
+				settings.EnabledPlugins[key] = enabled
+			}
+		}
 	}
 
 	// Validate settings structure
-	if err := validateSettings(&settings); err != nil {
+	if err := validateSettings(settings); err != nil {
 		return nil, err
 	}
 
-	return &settings, nil
+	return settings, nil
 }
 
 // IsPluginEnabled checks if a plugin is enabled in the settings
@@ -82,7 +98,16 @@ func (s *Settings) RemovePlugin(pluginName string) {
 func SaveSettings(claudeDir string, settings *Settings) error {
 	settingsPath := filepath.Join(claudeDir, "settings.json")
 
-	data, err := json.MarshalIndent(settings, "", "  ")
+	// Initialize raw map if not present
+	if settings.raw == nil {
+		settings.raw = make(map[string]interface{})
+	}
+
+	// Update enabledPlugins in raw map
+	settings.raw["enabledPlugins"] = settings.EnabledPlugins
+
+	// Marshal the full raw map to preserve all fields
+	data, err := json.MarshalIndent(settings.raw, "", "  ")
 	if err != nil {
 		return err
 	}
