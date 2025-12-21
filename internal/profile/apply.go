@@ -365,8 +365,8 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 	for _, plugin := range diff.PluginsToRemove {
 		output, err := executor.RunWithOutput("plugin", "uninstall", plugin)
 		if err != nil {
-			// Check if the error is just "already uninstalled" - treat as success
-			if strings.Contains(output, "already uninstalled") {
+			// Check if the error is just "already uninstalled" or "not found" - treat as success
+			if strings.Contains(output, "already uninstalled") || strings.Contains(output, "not found") {
 				result.PluginsAlreadyRemoved = append(result.PluginsAlreadyRemoved, plugin)
 			} else {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w (output: %s)", plugin, err, output))
@@ -680,7 +680,12 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, execu
 			if strings.HasSuffix(plugin, suffix) {
 				output, err := executor.RunWithOutput("plugin", "uninstall", plugin)
 				if err != nil {
-					result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w\n  Output: %s", plugin, err, strings.TrimSpace(output)))
+					// Check if the error is just "already uninstalled" or "not found" - treat as success
+					if strings.Contains(output, "already uninstalled") || strings.Contains(output, "not found") {
+						result.PluginsRemoved = append(result.PluginsRemoved, plugin)
+					} else {
+						result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w\n  Output: %s", plugin, err, strings.TrimSpace(output)))
+					}
 				} else {
 					result.PluginsRemoved = append(result.PluginsRemoved, plugin)
 				}

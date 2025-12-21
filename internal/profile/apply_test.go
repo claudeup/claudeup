@@ -928,3 +928,124 @@ func TestResetHandlesErrors(t *testing.T) {
 		t.Errorf("Expected 1 error recorded, got %d", len(result.Errors))
 	}
 }
+
+// mockExecutorWithOutput allows controlling both error and output
+type mockExecutorWithOutput struct {
+	commands [][]string
+	outputs  map[string]string // command prefix -> output
+}
+
+func (m *mockExecutorWithOutput) Run(args ...string) error {
+	m.commands = append(m.commands, args)
+	return nil
+}
+
+func (m *mockExecutorWithOutput) RunWithOutput(args ...string) (string, error) {
+	m.commands = append(m.commands, args)
+	// Check if we have output/error for this command
+	if len(args) > 0 && m.outputs != nil {
+		key := strings.Join(args, " ")
+		if output, ok := m.outputs[key]; ok {
+			// If output contains error keywords, return error
+			if strings.Contains(output, "not found") || strings.Contains(output, "Failed") {
+				return output, fmt.Errorf("exit status 1")
+			}
+		}
+	}
+	return "", nil
+}
+
+func TestApplyHandlesPluginNotFoundError(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: has plugin-a but not plugin-b
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile wants to remove both plugin-a and plugin-b (plugin-b doesn't exist)
+	profile := &Profile{
+		Name:    "test",
+		Plugins: []string{}, // Empty = remove everything
+	}
+
+	// Executor that simulates "not found" error for plugin-b
+	executor := &mockExecutorWithOutput{
+		outputs: map[string]string{
+			"plugin uninstall plugin-a@marketplace": "", // Success
+		},
+	}
+
+	result, err := ApplyWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), nil, executor)
+	if err != nil {
+		t.Fatalf("Apply failed: %v", err)
+	}
+
+	// Should have removed plugin-a successfully
+	if len(result.PluginsRemoved) != 1 {
+		t.Errorf("Expected 1 plugin removed, got %d: %v", len(result.PluginsRemoved), result.PluginsRemoved)
+	}
+
+	// Should have NO errors (plugin not found is not an error)
+	if len(result.Errors) != 0 {
+		t.Errorf("Expected no errors, got %d: %v", len(result.Errors), result.Errors)
+	}
+}
+
+func TestResetHandlesPluginNotFoundError(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: no plugins actually installed
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{},
+	}
+	// But profile thinks there should be plugins from this marketplace
+	marketplaces := map[string]interface{}{
+		"test-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "test/marketplace",
+			},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	profile := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "test/marketplace"},
+		},
+	}
+
+	// Executor that simulates "not found" error
+	executor := &mockExecutorWithOutput{
+		outputs: map[string]string{
+			"plugin uninstall gopls-lsp@claude-plugins-official": `✘ Failed to uninstall plugin "gopls-lsp@claude-plugins-official": Plugin "gopls-lsp@claude-plugins-official" not found in installed plugins`,
+		},
+	}
+
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	if err != nil {
+		t.Fatalf("Reset should not return error: %v", err)
+	}
+
+	// Should have NO errors (plugin not found is not an error when trying to remove it)
+	if len(result.Errors) != 0 {
+		t.Errorf("Expected no errors for 'not found' during reset, got %d: %v", len(result.Errors), result.Errors)
+	}
+}
