@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/secrets"
 )
@@ -139,6 +140,13 @@ func (e *applyTestEnv) createMarketplaceRegistry(marketplaces map[string]interfa
 	e.writeJSON(filepath.Join(e.claudeDir, "plugins", "known_marketplaces.json"), marketplaces)
 }
 
+func (e *applyTestEnv) createSettings(enabledPlugins map[string]bool) {
+	data := map[string]interface{}{
+		"enabledPlugins": enabledPlugins,
+	}
+	e.writeJSON(filepath.Join(e.claudeDir, "settings.json"), data)
+}
+
 func (e *applyTestEnv) createClaudeJSON(data map[string]interface{}) {
 	e.writeJSON(e.claudeJSON, data)
 }
@@ -184,6 +192,12 @@ var _ = Describe("ApplyRemovesPlugins", func() {
 			"plugin-a@marketplace": map[string]interface{}{"version": "1.0"},
 			"plugin-b@marketplace": map[string]interface{}{"version": "1.0"},
 		})
+
+		// Enable both plugins in settings.json
+		env.createSettings(map[string]bool{
+			"plugin-a@marketplace": true,
+			"plugin-b@marketplace": true,
+		})
 	})
 
 	It("removes plugins not in profile", func() {
@@ -198,8 +212,15 @@ var _ = Describe("ApplyRemovesPlugins", func() {
 		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(executor.HasCommand("plugin", "uninstall", "plugin-b@marketplace")).To(BeTrue(), "Expected plugin uninstall command for plugin-b. Commands: %v", executor.Commands)
+		// Verify plugin was removed from result
 		Expect(result.PluginsRemoved).To(HaveLen(1))
+		Expect(result.PluginsRemoved).To(ContainElement("plugin-b@marketplace"))
+
+		// Verify settings.json was updated correctly
+		settings, err := claude.LoadSettings(env.claudeDir)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(settings.IsPluginEnabled("plugin-a@marketplace")).To(BeTrue(), "plugin-a should still be enabled")
+		Expect(settings.IsPluginEnabled("plugin-b@marketplace")).To(BeFalse(), "plugin-b should be disabled")
 	})
 })
 
@@ -406,15 +427,11 @@ var _ = Describe("ApplyCommandOrder", func() {
 		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
-		uninstallIdx := -1
 		marketplaceIdx := -1
 		installIdx := -1
 
 		for i, cmd := range executor.Commands {
 			if len(cmd) >= 2 {
-				if cmd[0] == "plugin" && cmd[1] == "uninstall" {
-					uninstallIdx = i
-				}
 				if cmd[0] == "plugin" && cmd[1] == "marketplace" {
 					marketplaceIdx = i
 				}
@@ -424,11 +441,11 @@ var _ = Describe("ApplyCommandOrder", func() {
 			}
 		}
 
-		Expect(uninstallIdx).NotTo(Equal(-1))
-		Expect(marketplaceIdx).NotTo(Equal(-1))
-		Expect(installIdx).NotTo(Equal(-1))
+		Expect(marketplaceIdx).NotTo(Equal(-1), "Expected marketplace add command")
+		Expect(installIdx).NotTo(Equal(-1), "Expected plugin install command")
 
-		Expect(uninstallIdx).To(BeNumerically("<", marketplaceIdx), "Expected uninstall before marketplace add")
+		// Plugin removal happens via settings.json (not executor commands)
+		// Only constraint: marketplace add must happen before plugin install
 		Expect(marketplaceIdx).To(BeNumerically("<", installIdx), "Expected marketplace add before plugin install")
 	})
 })
@@ -439,27 +456,30 @@ var _ = Describe("ApplyPluginAlreadyUninstalled", func() {
 	BeforeEach(func() {
 		env = setupApplyTestEnv()
 
+		// Plugin is installed but NOT enabled
 		env.createPluginRegistry(map[string]interface{}{
 			"plugin-a@marketplace": map[string]interface{}{"version": "1.0"},
 		})
+
+		// Create settings.json without the plugin enabled (already disabled)
+		env.createSettings(map[string]bool{})
 	})
 
-	It("handles already uninstalled plugins gracefully", func() {
+	It("handles already disabled plugins gracefully", func() {
 		p := &profile.Profile{
 			Name:    "test",
-			Plugins: []string{},
+			Plugins: []string{}, // Profile wants no plugins
 		}
 
 		executor := NewMockExecutor()
-		executor.Errors["plugin uninstall plugin-a@marketplace"] = fmt.Errorf("uninstall failed")
-		executor.Outputs["plugin uninstall plugin-a@marketplace"] = "Error: plugin-a@marketplace is already uninstalled"
-
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
 		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
+		// Plugin is already disabled, should be in PluginsAlreadyRemoved
 		Expect(result.PluginsAlreadyRemoved).To(HaveLen(1))
+		Expect(result.PluginsAlreadyRemoved).To(ContainElement("plugin-a@marketplace"))
 		Expect(result.Errors).To(BeEmpty())
 	})
 })
