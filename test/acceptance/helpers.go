@@ -166,6 +166,19 @@ func (e *AcceptanceTestEnv) CreatePluginRegistry(plugins map[string]claude.Plugi
 	}
 }
 
+// CreateSettings creates settings.json with enabled plugins
+func (e *AcceptanceTestEnv) CreateSettings(enabledPlugins map[string]bool) {
+	e.t.Helper()
+
+	settings := &claude.Settings{
+		EnabledPlugins: enabledPlugins,
+	}
+
+	if err := claude.SaveSettings(e.ClaudeDir, settings); err != nil {
+		e.t.Fatal(err)
+	}
+}
+
 // CreateMarketplaceRegistry creates known_marketplaces.json
 func (e *AcceptanceTestEnv) CreateMarketplaceRegistry(marketplaces map[string]claude.MarketplaceMetadata) {
 	e.t.Helper()

@@ -201,11 +201,12 @@ func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, a
 	}
 }
 
-// CreateInstalledPlugins creates a fake installed_plugins.json
+// CreateInstalledPlugins creates a fake installed_plugins.json and settings.json
 func (e *TestEnv) CreateInstalledPlugins(plugins map[string]interface{}) {
 	pluginsDir := filepath.Join(e.ClaudeDir, "plugins")
 	Expect(os.MkdirAll(pluginsDir, 0755)).To(Succeed())
 
+	// Create installed_plugins.json
 	data := map[string]interface{}{
 		"version": 2,
 		"plugins": plugins,
@@ -213,6 +214,13 @@ func (e *TestEnv) CreateInstalledPlugins(plugins map[string]interface{}) {
 	jsonData, err := json.MarshalIndent(data, "", "  ")
 	Expect(err).NotTo(HaveOccurred())
 	Expect(os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), jsonData, 0644)).To(Succeed())
+
+	// Create settings.json with all plugins enabled by default
+	enabledPlugins := make(map[string]bool)
+	for pluginName := range plugins {
+		enabledPlugins[pluginName] = true
+	}
+	e.CreateSettings(enabledPlugins)
 }
 
 // CreateKnownMarketplaces creates a fake known_marketplaces.json
