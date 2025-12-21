@@ -465,7 +465,7 @@ var _ = Describe("ApplyPluginAlreadyUninstalled", func() {
 		env.createSettings(map[string]bool{})
 	})
 
-	XIt("handles already disabled plugins gracefully", func() {
+	It("handles already disabled plugins gracefully", func() {
 		p := &profile.Profile{
 			Name:    "test",
 			Plugins: []string{}, // Profile wants no plugins
