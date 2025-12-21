@@ -14,6 +14,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	statusScope string
+)
+
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show an overview of Claude Code installation",
@@ -33,6 +37,7 @@ For diagnostics, use 'claudeup doctor'.`,
 
 func init() {
 	rootCmd.AddCommand(statusCmd)
+	statusCmd.Flags().StringVar(&statusScope, "scope", "", "Check status for specific scope (user, project, or local)")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
@@ -66,11 +71,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
 
-	// Check for unsaved profile changes
+	// Check for unsaved profile changes (scope-aware)
 	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
 		homeDir, _ := os.UserHomeDir()
 		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+		projectDir, _ := os.Getwd()
 
 		// Check if profile file exists (both disk and embedded)
 		_, diskErr := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
@@ -84,28 +90,72 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
 			}
 		} else {
-			// Check for modifications using helper
-			modified, comparisonErr := profile.IsActiveProfileModified(cfg.Preferences.ActiveProfile, profilesDir, claudeDir, claudeJSONPath)
+			// Determine which scopes to check
+			scopesToCheck := []string{}
+			if statusScope != "" {
+				// User specified a specific scope
+				scopesToCheck = append(scopesToCheck, statusScope)
+			} else {
+				// Check all scopes (user always, project/local if settings exist)
+				scopesToCheck = append(scopesToCheck, "user")
 
-			if comparisonErr != nil {
-				// Subtle warning for debugging - don't alarm users
-				ui.PrintMuted(fmt.Sprintf("Note: Could not check for profile changes (%v)", comparisonErr))
+				// Check if project scope settings exist
+				projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+				if _, err := os.Stat(projectSettingsPath); err == nil {
+					scopesToCheck = append(scopesToCheck, "project")
+				}
+
+				// Check if local scope settings exist
+				localSettingsPath := filepath.Join(projectDir, ".claude-local", "settings.json")
+				if _, err := os.Stat(localSettingsPath); err == nil {
+					scopesToCheck = append(scopesToCheck, "local")
+				}
 			}
 
-			if modified {
-				// Load profile again to get diff details for summary
-				savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
-				if err != nil {
-					savedProfile, err = profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+			// Check each scope for drift
+			hasAnyDrift := false
+			for _, scope := range scopesToCheck {
+				modified, comparisonErr := profile.IsProfileModifiedAtScope(
+					cfg.Preferences.ActiveProfile,
+					profilesDir,
+					claudeDir,
+					claudeJSONPath,
+					projectDir,
+					scope,
+				)
+
+				if comparisonErr != nil {
+					// Subtle warning for debugging - don't alarm users
+					ui.PrintMuted(fmt.Sprintf("Note: Could not check %s scope for profile changes (%v)", scope, comparisonErr))
+					continue
 				}
-				if err == nil {
-					diff, err := profile.CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
-					if err == nil && diff.HasChanges() {
+
+				if modified {
+					if !hasAnyDrift {
 						fmt.Println()
 						ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", cfg.Preferences.ActiveProfile))
-						ui.PrintInfo("  • " + diff.Summary())
-						ui.PrintInfo("Run 'claudeup profile save' to persist them.")
+						hasAnyDrift = true
 					}
+
+					// Load profile again to get diff details for summary
+					savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
+					if err != nil {
+						savedProfile, err = profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+					}
+					if err == nil {
+						diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, projectDir, scope)
+						if err == nil && diff.HasChanges() {
+							ui.PrintInfo(fmt.Sprintf("  • %s scope: %s", ui.Bold(scope), diff.Summary()))
+						}
+					}
+				}
+			}
+
+			if hasAnyDrift {
+				if statusScope != "" {
+					ui.PrintInfo(fmt.Sprintf("Run 'claudeup profile save --scope %s' to persist changes at %s scope.", statusScope, statusScope))
+				} else {
+					ui.PrintInfo("Run 'claudeup profile save --scope <scope>' to persist changes for each scope.")
 				}
 			}
 		}

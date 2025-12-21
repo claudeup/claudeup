@@ -84,6 +84,26 @@ func CompareWithCurrent(savedProfile *Profile, claudeDir, claudeJSONPath string)
 	return compare(savedProfile, current), nil
 }
 
+// CompareWithScope compares a saved profile with the current state at a specific scope
+func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectDir, scope string) (*ProfileDiff, error) {
+	// Validate scope
+	if scope != "user" && scope != "project" && scope != "local" {
+		return nil, fmt.Errorf("invalid scope: %s (must be user, project, or local)", scope)
+	}
+
+	// Create snapshot of current state at the specified scope
+	current, err := SnapshotWithScope("", claudeDir, claudeJSONPath, SnapshotOptions{
+		Scope:      scope,
+		ProjectDir: projectDir,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Compare current vs saved, respecting skipPluginDiff
+	return compare(savedProfile, current), nil
+}
+
 // IsActiveProfileModified checks if the active profile has unsaved changes
 // Returns (hasChanges, comparisonError)
 // - hasChanges: true if profile exists and has modifications
@@ -108,6 +128,35 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 	diff, err := CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to compare profile %q: %w", activeProfileName, err)
+	}
+
+	return diff.HasChanges(), nil
+}
+
+// IsProfileModifiedAtScope checks if a profile has unsaved changes at a specific scope
+// Returns (hasChanges, comparisonError)
+// - hasChanges: true if profile exists and has modifications at the specified scope
+// - comparisonError: non-nil if comparison failed (file read error, corrupt data, etc.)
+// Gracefully returns (false, err) on any errors
+func IsProfileModifiedAtScope(profileName, profilesDir, claudeDir, claudeJSONPath, projectDir, scope string) (bool, error) {
+	if profileName == "" {
+		return false, nil
+	}
+
+	// Try to load the profile (disk first, then embedded)
+	savedProfile, err := Load(profilesDir, profileName)
+	if err != nil {
+		// Try embedded profile
+		savedProfile, err = GetEmbeddedProfile(profileName)
+		if err != nil {
+			return false, fmt.Errorf("failed to load profile %q: %w", profileName, err)
+		}
+	}
+
+	// Compare with current state at the specified scope
+	diff, err := CompareWithScope(savedProfile, claudeDir, claudeJSONPath, projectDir, scope)
+	if err != nil {
+		return false, fmt.Errorf("failed to compare profile %q at scope %s: %w", profileName, scope, err)
 	}
 
 	return diff.HasChanges(), nil

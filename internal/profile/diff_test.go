@@ -3,8 +3,10 @@
 package profile
 
 import (
+	"os"
 	"testing"
 
+	"github.com/claudeup/claudeup/internal/claude"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -393,6 +395,269 @@ var _ = Describe("ProfileDiff", func() {
 			Expect(summary).To(ContainSubstring("1 MCP server added"))
 			Expect(summary).To(ContainSubstring("1 MCP server removed"))
 			Expect(summary).To(ContainSubstring("1 MCP server modified"))
+		})
+	})
+
+	Describe("CompareWithScope", func() {
+		var (
+			tempDir    string
+			claudeDir  string
+			projectDir string
+		)
+
+		BeforeEach(func() {
+			tempDir = GinkgoT().TempDir()
+			claudeDir = tempDir + "/.claude"
+			projectDir = tempDir + "/project"
+
+			// Create directory structure
+			Expect(os.MkdirAll(claudeDir+"/plugins", 0755)).To(Succeed())
+			Expect(os.MkdirAll(projectDir+"/.claude", 0755)).To(Succeed())
+		})
+
+		It("compares profile with user scope", func() {
+			// Create plugin registry
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"test-plugin@marketplace": {
+						{
+							Scope:       "user",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: claudeDir + "/plugins/cache/test-plugin",
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at user scope
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"test-plugin@marketplace": true,
+					"extra-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			// Saved profile with only one plugin
+			saved := &Profile{
+				Name:    "test",
+				Plugins: []string{"test-plugin@marketplace"},
+			}
+
+			diff, err := CompareWithScope(saved, claudeDir, "", projectDir, "user")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(diff.PluginsAdded).To(ConsistOf("extra-plugin@marketplace"))
+			Expect(diff.PluginsRemoved).To(BeEmpty())
+		})
+
+		It("compares profile with project scope", func() {
+			// Create plugin registry
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"project-plugin@marketplace": {
+						{
+							Scope:       "project",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: projectDir + "/.claude/plugins/project-plugin",
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at project scope
+			projectSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"project-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+			// Saved profile with different plugin
+			saved := &Profile{
+				Name:    "test",
+				Plugins: []string{"other-plugin@marketplace"},
+			}
+
+			diff, err := CompareWithScope(saved, claudeDir, "", projectDir, "project")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(diff.PluginsAdded).To(ConsistOf("project-plugin@marketplace"))
+			Expect(diff.PluginsRemoved).To(ConsistOf("other-plugin@marketplace"))
+		})
+
+		It("compares profile with local scope", func() {
+			// Create plugin registry
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"local-plugin@marketplace": {
+						{
+							Scope:       "local",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: projectDir + "/.claude-local/plugins/local-plugin",
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at local scope
+			localSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"local-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, localSettings)).To(Succeed())
+
+			// Saved profile empty
+			saved := &Profile{
+				Name:    "test",
+				Plugins: []string{},
+			}
+
+			diff, err := CompareWithScope(saved, claudeDir, "", projectDir, "local")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(diff.PluginsAdded).To(ConsistOf("local-plugin@marketplace"))
+			Expect(diff.PluginsRemoved).To(BeEmpty())
+		})
+
+		It("returns error for invalid scope", func() {
+			saved := &Profile{
+				Name: "test",
+			}
+
+			_, err := CompareWithScope(saved, claudeDir, "", projectDir, "invalid")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid scope"))
+		})
+	})
+
+	Describe("IsProfileModifiedAtScope", func() {
+		var (
+			tempDir     string
+			claudeDir   string
+			projectDir  string
+			profilesDir string
+		)
+
+		BeforeEach(func() {
+			tempDir = GinkgoT().TempDir()
+			claudeDir = tempDir + "/.claude"
+			projectDir = tempDir + "/project"
+			profilesDir = tempDir + "/.claudeup/profiles"
+
+			// Create directory structure
+			Expect(os.MkdirAll(claudeDir+"/plugins", 0755)).To(Succeed())
+			Expect(os.MkdirAll(projectDir+"/.claude", 0755)).To(Succeed())
+			Expect(os.MkdirAll(profilesDir, 0755)).To(Succeed())
+		})
+
+		It("returns true when profile is modified at user scope", func() {
+			// Create plugin registry
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"test-plugin@marketplace": {
+						{
+							Scope:       "user",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: claudeDir + "/plugins/cache/test-plugin",
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at user scope
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"test-plugin@marketplace":  true,
+					"extra-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			// Save profile with only one plugin
+			profile := &Profile{
+				Name:    "test",
+				Plugins: []string{"test-plugin@marketplace"},
+			}
+			Expect(Save(profilesDir, profile)).To(Succeed())
+
+			// Check for modifications
+			modified, err := IsProfileModifiedAtScope("test", profilesDir, claudeDir, "", projectDir, "user")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(modified).To(BeTrue())
+		})
+
+		It("returns false when profile is not modified at project scope", func() {
+			// Create plugin registry
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"project-plugin@marketplace": {
+						{
+							Scope:       "project",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: projectDir + "/.claude/plugins/project-plugin",
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at project scope
+			projectSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"project-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+			// Save profile matching current state
+			profile := &Profile{
+				Name:    "test",
+				Plugins: []string{"project-plugin@marketplace"},
+			}
+			Expect(Save(profilesDir, profile)).To(Succeed())
+
+			// Check for modifications
+			modified, err := IsProfileModifiedAtScope("test", profilesDir, claudeDir, "", projectDir, "project")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(modified).To(BeFalse())
+		})
+
+		It("returns false for empty profile name", func() {
+			modified, err := IsProfileModifiedAtScope("", profilesDir, claudeDir, "", projectDir, "user")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(modified).To(BeFalse())
+		})
+
+		It("returns error for nonexistent profile", func() {
+			modified, err := IsProfileModifiedAtScope("nonexistent", profilesDir, claudeDir, "", projectDir, "user")
+			Expect(err).To(HaveOccurred())
+			Expect(modified).To(BeFalse())
+		})
+
+		It("returns error for invalid scope", func() {
+			// Save a valid profile
+			profile := &Profile{
+				Name:    "test",
+				Plugins: []string{},
+			}
+			Expect(Save(profilesDir, profile)).To(Succeed())
+
+			modified, err := IsProfileModifiedAtScope("test", profilesDir, claudeDir, "", projectDir, "invalid")
+			Expect(err).To(HaveOccurred())
+			Expect(modified).To(BeFalse())
 		})
 	})
 })
