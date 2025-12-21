@@ -70,17 +70,19 @@ func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
 }
 
 func readPlugins(claudeDir string) ([]string, error) {
-	// Use claude.LoadPlugins to get V1→V2 migration for free
-	registry, err := claude.LoadPlugins(claudeDir)
+	// Read enabled plugins from settings.json (not installed plugins)
+	// Profiles manage enablement, not installation
+	settings, err := claude.LoadSettings(claudeDir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Extract plugin names using GetAllPlugins (returns user-scoped plugins)
-	allPlugins := registry.GetAllPlugins()
-	plugins := make([]string, 0, len(allPlugins))
-	for name := range allPlugins {
-		plugins = append(plugins, name)
+	// Extract enabled plugin names
+	plugins := make([]string, 0, len(settings.EnabledPlugins))
+	for name, enabled := range settings.EnabledPlugins {
+		if enabled {
+			plugins = append(plugins, name)
+		}
 	}
 	sort.Strings(plugins)
 

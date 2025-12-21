@@ -36,6 +36,15 @@ func TestSnapshotFromState(t *testing.T) {
 	}
 	writeJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData)
 
+	// Create mock settings.json with enabled plugins
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"superpowers@superpowers-marketplace": true,
+			"frontend-design@claude-code-plugins": true,
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
 	// Create mock known_marketplaces.json
 	marketplacesData := map[string]interface{}{
 		"superpowers-marketplace": map[string]interface{}{
