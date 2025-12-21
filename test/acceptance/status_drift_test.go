@@ -1,11 +1,10 @@
 // ABOUTME: Acceptance tests for scope-aware drift detection in status command
 // ABOUTME: Ensures project profiles only check project scope, preventing false drift warnings
-package acceptance_test
+package acceptance
 
 import (
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,11 +12,6 @@ import (
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/test/helpers"
 )
-
-func TestStatusDrift(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Status Drift Detection Suite")
-}
 
 var _ = Describe("Status drift detection scope awareness", func() {
 	var (

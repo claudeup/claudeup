@@ -1,23 +1,17 @@
 // ABOUTME: Acceptance tests for status command with --scope flag
 // ABOUTME: Tests CLI behavior for scope-specific status checks
 
-package acceptance_test
+package acceptance
 
 import (
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/claudeup/claudeup/test/helpers"
 )
-
-func TestStatusScope(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Status Scope Acceptance Suite")
-}
 
 var _ = Describe("claudeup status --scope", func() {
 	var (
