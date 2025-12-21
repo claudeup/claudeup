@@ -48,6 +48,12 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
+	// Load settings to check which plugins are enabled
+	settings, err := claude.LoadSettings(claudeDir)
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+
 	// Print header
 	fmt.Println(ui.RenderSection("claudeup Status", -1))
 
@@ -114,20 +120,31 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Count enabled/disabled plugins and detect issues
 	enabledCount := 0
+	disabledCount := 0
 	stalePlugins := []string{}
 
 	for name, plugin := range plugins.GetAllPlugins() {
-		if plugin.PathExists() {
+		// Check if plugin is enabled in settings.json
+		if settings.IsPluginEnabled(name) {
 			enabledCount++
+			// Also check if enabled plugin has stale path
+			if !plugin.PathExists() {
+				stalePlugins = append(stalePlugins, name)
+			}
 		} else {
-			stalePlugins = append(stalePlugins, name)
+			disabledCount++
 		}
 	}
 
 	// Print plugins summary
 	fmt.Println()
 	fmt.Println(ui.RenderSection("Plugins", len(plugins.GetAllPlugins())))
-	fmt.Printf("  %s %d enabled\n", ui.Success(ui.SymbolSuccess), enabledCount)
+	if enabledCount > 0 {
+		fmt.Printf("  %s %d enabled\n", ui.Success(ui.SymbolSuccess), enabledCount)
+	}
+	if disabledCount > 0 {
+		fmt.Printf("  %s %d disabled\n", ui.Muted(ui.SymbolInfo), disabledCount)
+	}
 	if len(stalePlugins) > 0 {
 		fmt.Printf("  %s %d stale\n", ui.Warning(ui.SymbolWarning), len(stalePlugins))
 	}
