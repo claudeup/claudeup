@@ -118,9 +118,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
 	}
 
-	// Count enabled/disabled plugins and detect issues
+	// Count enabled plugins and detect issues
 	enabledCount := 0
-	disabledCount := 0
 	stalePlugins := []string{}
 
 	for name, plugin := range plugins.GetAllPlugins() {
@@ -131,20 +130,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			if !plugin.PathExists() {
 				stalePlugins = append(stalePlugins, name)
 			}
-		} else {
-			disabledCount++
 		}
 	}
 
-	// Print plugins summary
+	// Print plugins summary (only show enabled plugins, like marketplaces)
 	fmt.Println()
-	fmt.Println(ui.RenderSection("Plugins", len(plugins.GetAllPlugins())))
+	fmt.Println(ui.RenderSection("Plugins", enabledCount))
 	if enabledCount > 0 {
-		fmt.Printf("  %s %d enabled\n", ui.Success(ui.SymbolSuccess), enabledCount)
+		for name := range plugins.GetAllPlugins() {
+			if settings.IsPluginEnabled(name) {
+				fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
+			}
+		}
 	}
-	if disabledCount > 0 {
-		fmt.Printf("  %s %d disabled\n", ui.Muted(ui.SymbolInfo), disabledCount)
-	}
+	// Only show stale plugins if there are any
 	if len(stalePlugins) > 0 {
 		fmt.Printf("  %s %d stale\n", ui.Warning(ui.SymbolWarning), len(stalePlugins))
 	}
