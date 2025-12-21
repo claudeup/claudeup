@@ -82,32 +82,50 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Print header
 	fmt.Println(ui.RenderSection("claudeup Status", -1))
 
-	// Print active profile
-	cfg, _ := config.Load()
-	activeProfile := "none"
-	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
-		activeProfile = cfg.Preferences.ActiveProfile
+	// Determine active profile (project profile takes precedence)
+	var activeProfile string
+	var profileScope string
+
+	// Check for project-level profile first
+	if profile.ProjectConfigExists(projectDir) {
+		projectCfg, err := profile.LoadProjectConfig(projectDir)
+		if err == nil && projectCfg.Profile != "" {
+			activeProfile = projectCfg.Profile
+			profileScope = "project"
+		}
 	}
+
+	// Fall back to user-level profile
+	if activeProfile == "" {
+		cfg, _ := config.Load()
+		if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+			activeProfile = cfg.Preferences.ActiveProfile
+			profileScope = "user"
+		} else {
+			activeProfile = "none"
+		}
+	}
+
 	fmt.Println()
-	fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
+	if profileScope != "" {
+		fmt.Println(ui.RenderDetail("Active Profile", fmt.Sprintf("%s %s", ui.Bold(activeProfile), ui.Muted(fmt.Sprintf("(%s scope)", profileScope)))))
+	} else {
+		fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
+	}
 
 	// Check for unsaved profile changes (scope-aware)
-	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+	if activeProfile != "none" && activeProfile != "" {
 		homeDir, _ := os.UserHomeDir()
 		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 		// Check if profile file exists (both disk and embedded)
-		_, diskErr := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
-		_, embeddedErr := profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+		_, diskErr := profile.Load(profilesDir, activeProfile)
+		_, embeddedErr := profile.GetEmbeddedProfile(activeProfile)
 
 		if diskErr != nil && embeddedErr != nil {
-			// Profile doesn't exist anywhere - auto-clear
-			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found. Clearing active profile.", cfg.Preferences.ActiveProfile))
-			cfg.Preferences.ActiveProfile = ""
-			if err := config.Save(cfg); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
-			}
+			// Profile doesn't exist anywhere - show warning
+			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found.", activeProfile))
 		} else {
 			// Determine which scopes to check
 			scopesToCheck := []string{}
@@ -135,7 +153,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			hasAnyDrift := false
 			for _, scope := range scopesToCheck {
 				modified, comparisonErr := profile.IsProfileModifiedAtScope(
-					cfg.Preferences.ActiveProfile,
+					activeProfile,
 					profilesDir,
 					claudeDir,
 					claudeJSONPath,
@@ -152,14 +170,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				if modified {
 					if !hasAnyDrift {
 						fmt.Println()
-						ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", cfg.Preferences.ActiveProfile))
+						ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", activeProfile))
 						hasAnyDrift = true
 					}
 
 					// Load profile again to get diff details for summary
-					savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
+					savedProfile, err := profile.Load(profilesDir, activeProfile)
 					if err != nil {
-						savedProfile, err = profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+						savedProfile, err = profile.GetEmbeddedProfile(activeProfile)
 					}
 					if err == nil {
 						diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, projectDir, scope)
