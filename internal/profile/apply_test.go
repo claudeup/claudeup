@@ -300,7 +300,7 @@ func TestComputeDiffMarketplacesOnlyAdd(t *testing.T) {
 	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
 	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
 
-	// Profile only has marketplace B (not A) - but marketplaces are additive
+	// Profile only has marketplace B (not A) - marketplaces are declarative
 	profile := &Profile{
 		Name: "test",
 		Marketplaces: []Marketplace{
@@ -313,11 +313,13 @@ func TestComputeDiffMarketplacesOnlyAdd(t *testing.T) {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
 
-	// Should add B, not remove A (marketplaces are additive only)
+	// Should add B and remove A (declarative behavior)
 	if len(diff.MarketplacesToAdd) != 1 || diff.MarketplacesToAdd[0].Repo != "org/marketplace-b" {
 		t.Errorf("Expected to add marketplace-b, got: %v", diff.MarketplacesToAdd)
 	}
-	// Verify no mechanism exists to remove marketplaces (by design)
+	if len(diff.MarketplacesToRemove) != 1 || diff.MarketplacesToRemove[0].Repo != "org/marketplace-a" {
+		t.Errorf("Expected to remove marketplace-a, got: %v", diff.MarketplacesToRemove)
+	}
 }
 
 func writeTestJSON(t *testing.T, path string, data interface{}) {

@@ -52,16 +52,18 @@ type ApplyResult struct {
 	MCPServersRemoved     []string
 	MCPServersInstalled   []string
 	MarketplacesAdded     []string
+	MarketplacesRemoved   []string
 	Errors                []error
 }
 
 // Diff represents what needs to change to apply a profile
 type Diff struct {
-	PluginsToRemove  []string
-	PluginsToInstall []string
-	MCPToRemove      []string
-	MCPToInstall     []MCPServer
-	MarketplacesToAdd []Marketplace
+	PluginsToRemove      []string
+	PluginsToInstall     []string
+	MCPToRemove          []string
+	MCPToInstall         []MCPServer
+	MarketplacesToAdd    []Marketplace
+	MarketplacesToRemove []Marketplace
 }
 
 // ComputeDiff calculates what changes are needed to apply a profile
@@ -118,14 +120,27 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 		}
 	}
 
-	// Marketplaces to add (we don't remove marketplaces - just add missing ones)
-	currentMarketplaces := make(map[string]bool)
+	// Marketplaces: remove extras and add missing ones (declarative)
+	currentMarketplaces := make(map[string]Marketplace)
 	for _, m := range current.Marketplaces {
-		currentMarketplaces[marketplaceKey(m)] = true
+		currentMarketplaces[marketplaceKey(m)] = m
 	}
 
+	profileMarketplaces := make(map[string]bool)
 	for _, m := range profile.Marketplaces {
-		if !currentMarketplaces[marketplaceKey(m)] {
+		profileMarketplaces[marketplaceKey(m)] = true
+	}
+
+	// Remove marketplaces not in profile
+	for key, m := range currentMarketplaces {
+		if !profileMarketplaces[key] {
+			diff.MarketplacesToRemove = append(diff.MarketplacesToRemove, m)
+		}
+	}
+
+	// Add marketplaces missing from current
+	for _, m := range profile.Marketplaces {
+		if _, exists := currentMarketplaces[marketplaceKey(m)]; !exists {
 			diff.MarketplacesToAdd = append(diff.MarketplacesToAdd, m)
 		}
 	}
@@ -383,6 +398,24 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 			result.Errors = append(result.Errors, fmt.Errorf("failed to remove MCP server %s: %w\n  Output: %s", mcp, err, strings.TrimSpace(output)))
 		} else {
 			result.MCPServersRemoved = append(result.MCPServersRemoved, mcp)
+		}
+	}
+
+	// Remove marketplaces
+	for _, m := range diff.MarketplacesToRemove {
+		key := marketplaceKey(m)
+		if key != "" {
+			output, err := executor.RunWithOutput("plugin", "marketplace", "remove", key)
+			if err != nil {
+				// Check if already removed - treat as success
+				if strings.Contains(output, "not found") || strings.Contains(output, "not installed") {
+					result.MarketplacesRemoved = append(result.MarketplacesRemoved, key)
+				} else {
+					result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w\n  Output: %s", key, err, strings.TrimSpace(output)))
+				}
+			} else {
+				result.MarketplacesRemoved = append(result.MarketplacesRemoved, key)
+			}
 		}
 	}
 

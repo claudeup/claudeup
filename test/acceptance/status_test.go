@@ -130,6 +130,11 @@ var _ = Describe("status", func() {
 					},
 				},
 			})
+			// Enable both plugins so they show as stale (paths don't exist)
+			env.CreateSettings(map[string]bool{
+				"plugin-one@acme":    true,
+				"plugin-two@example": true,
+			})
 		})
 
 		It("shows plugin count", func() {
@@ -159,6 +164,10 @@ var _ = Describe("status", func() {
 						"scope":       "user",
 					},
 				},
+			})
+			// Enable the plugin so it shows as stale
+			env.CreateSettings(map[string]bool{
+				"stale-plugin@acme": true,
 			})
 		})
 
