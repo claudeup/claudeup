@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "profile": "hobson-claude-mem",
+  "profile": "claudeup",
   "profileSource": "custom",
   "marketplaces": [
     {
@@ -45,10 +45,8 @@
     }
   ],
   "plugins": [
-    "arm-cortex-microcontrollers@claude-code-workflows",
     "backend-api-security@claude-code-workflows",
     "backend-development@claude-code-workflows",
-    "c4-architecture@claude-code-workflows",
     "claude-mem@thedotmack",
     "code-documentation@claude-code-workflows",
     "code-refactoring@claude-code-workflows",
@@ -62,19 +60,11 @@
     "documentation-generation@claude-code-workflows",
     "double-shot-latte@superpowers-marketplace",
     "elements-of-style@superpowers-marketplace",
-    "episodic-memory@superpowers-marketplace",
     "error-debugging@claude-code-workflows",
-    "framework-migration@claude-code-workflows",
     "frontend-design@claude-code-plugins",
-    "frontend-mobile-development@claude-code-workflows",
-    "frontend-mobile-security@claude-code-workflows",
     "full-stack-orchestration@claude-code-workflows",
-    "functional-programming@claude-code-workflows",
     "git-pr-workflows@claude-code-workflows",
-    "gopls-lsp@claude-plugins-official",
     "javascript-typescript@claude-code-workflows",
-    "julia-development@claude-code-workflows",
-    "jvm-languages@claude-code-workflows",
     "multi-platform-apps@claude-code-workflows",
     "nextjs-vercel-pro@claude-code-templates",
     "performance-testing-review@claude-code-workflows",
@@ -82,13 +72,11 @@
     "security-compliance@claude-code-workflows",
     "security-scanning@claude-code-workflows",
     "shell-scripting@claude-code-workflows",
-    "superpowers-lab@superpowers-marketplace",
     "superpowers@superpowers-marketplace",
     "systems-programming@claude-code-workflows",
     "tdd-workflows@claude-code-workflows",
-    "team-collaboration@claude-code-workflows",
     "unit-testing@claude-code-workflows",
     "web-scripting@claude-code-workflows"
   ],
-  "appliedAt": "2025-12-21T01:06:32.254591-07:00"
+  "appliedAt": "2025-12-21T14:29:54.490796-07:00"
 }
