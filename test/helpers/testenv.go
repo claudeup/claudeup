@@ -5,6 +5,7 @@ package helpers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -378,9 +379,38 @@ func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
 // BuildBinary builds the claudeup binary and returns its path
 func BuildBinary() string {
 	binPath := filepath.Join(GinkgoT().TempDir(), "claudeup")
-	cmd := exec.Command("go", "build", "-o", binPath, "./cmd/claudeup")
+
+	// Find the project root by looking for go.mod
+	projectRoot, err := findProjectRoot()
+	Expect(err).NotTo(HaveOccurred())
+
+	// Use absolute path for source
+	sourcePath := filepath.Join(projectRoot, "cmd", "claudeup")
+
+	cmd := exec.Command("go", "build", "-o", binPath, sourcePath)
 	Expect(cmd.Run()).To(Succeed())
 	return binPath
+}
+
+// findProjectRoot walks up the directory tree to find go.mod
+func findProjectRoot() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	for {
+		goModPath := filepath.Join(dir, "go.mod")
+		if _, err := os.Stat(goModPath); err == nil {
+			return dir, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", fmt.Errorf("could not find go.mod in any parent directory")
+		}
+		dir = parent
+	}
 }
 
 // WriteJSON writes data as JSON to the specified path

@@ -41,6 +41,12 @@ func init() {
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	// Get current directory for scope-aware settings
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	// Load marketplaces
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {
@@ -53,10 +59,24 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
-	// Load settings to check which plugins are enabled
-	settings, err := claude.LoadSettings(claudeDir)
-	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+	// Load settings - scope-aware
+	var settings *claude.Settings
+	if statusScope != "" {
+		// Validate scope
+		if err := claude.ValidateScope(statusScope); err != nil {
+			return err
+		}
+		// Load specific scope
+		settings, err = claude.LoadSettingsForScope(statusScope, claudeDir, projectDir)
+		if err != nil {
+			return fmt.Errorf("failed to load %s scope settings: %w", statusScope, err)
+		}
+	} else {
+		// Load merged settings from all scopes
+		settings, err = claude.LoadMergedSettings(claudeDir, projectDir)
+		if err != nil {
+			return fmt.Errorf("failed to load settings: %w", err)
+		}
 	}
 
 	// Print header
@@ -76,7 +96,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		homeDir, _ := os.UserHomeDir()
 		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-		projectDir, _ := os.Getwd()
 
 		// Check if profile file exists (both disk and embedded)
 		_, diskErr := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)

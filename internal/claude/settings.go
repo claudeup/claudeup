@@ -137,8 +137,8 @@ func SettingsPathForScope(scope string, claudeDir string, projectDir string) (st
 		if projectDir == "" {
 			return "", fmt.Errorf("project directory required for local scope")
 		}
-		// Local scope: ./.claude/settings-local.json (machine-specific, gitignored)
-		return filepath.Join(projectDir, ".claude", "settings-local.json"), nil
+		// Local scope: ./.claude/settings.local.json (machine-specific, gitignored)
+		return filepath.Join(projectDir, ".claude", "settings.local.json"), nil
 	default:
 		// This should never be reached due to ValidateScope above
 		return "", fmt.Errorf("invalid scope: %s", scope)
