@@ -232,7 +232,7 @@ func TestSettingsPathForScope(t *testing.T) {
 			name:        "local scope",
 			scope:       "local",
 			projectDir:  projectDir,
-			expected:    filepath.Join(projectDir, ".claude", "settings-local.json"),
+			expected:    filepath.Join(projectDir, ".claude", "settings.local.json"),
 			shouldError: false,
 		},
 		{
@@ -410,7 +410,7 @@ func TestLoadMergedSettings(t *testing.T) {
 		},
 	}
 	data, _ = json.Marshal(localSettings)
-	os.WriteFile(filepath.Join(projectDir, ".claude", "settings-local.json"), data, 0644)
+	os.WriteFile(filepath.Join(projectDir, ".claude", "settings.local.json"), data, 0644)
 
 	// Load merged settings
 	merged, err := LoadMergedSettings(claudeDir, projectDir)

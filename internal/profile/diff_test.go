@@ -310,35 +310,35 @@ var _ = Describe("ProfileDiff", func() {
 			diff := &ProfileDiff{
 				PluginsAdded: []string{"plugin1"},
 			}
-			Expect(diff.Summary()).To(Equal("1 plugin added"))
+			Expect(diff.Summary()).To(Equal("1 plugin not in profile"))
 		})
 
 		It("formats multiple plugins added", func() {
 			diff := &ProfileDiff{
 				PluginsAdded: []string{"plugin1", "plugin2"},
 			}
-			Expect(diff.Summary()).To(Equal("2 plugins added"))
+			Expect(diff.Summary()).To(Equal("2 plugins not in profile"))
 		})
 
 		It("formats single plugin removed", func() {
 			diff := &ProfileDiff{
 				PluginsRemoved: []string{"plugin1"},
 			}
-			Expect(diff.Summary()).To(Equal("1 plugin removed"))
+			Expect(diff.Summary()).To(Equal("1 plugin missing"))
 		})
 
 		It("formats multiple plugins removed", func() {
 			diff := &ProfileDiff{
 				PluginsRemoved: []string{"plugin1", "plugin2"},
 			}
-			Expect(diff.Summary()).To(Equal("2 plugins removed"))
+			Expect(diff.Summary()).To(Equal("2 plugins missing"))
 		})
 
 		It("formats single marketplace added", func() {
 			diff := &ProfileDiff{
 				MarketplacesAdded: []Marketplace{{Source: "github", Repo: "org/repo"}},
 			}
-			Expect(diff.Summary()).To(Equal("1 marketplace added"))
+			Expect(diff.Summary()).To(Equal("1 marketplace not in profile"))
 		})
 
 		It("formats multiple marketplaces added", func() {
@@ -348,7 +348,7 @@ var _ = Describe("ProfileDiff", func() {
 					{Source: "github", Repo: "org/repo2"},
 				},
 			}
-			Expect(diff.Summary()).To(Equal("2 marketplaces added"))
+			Expect(diff.Summary()).To(Equal("2 marketplaces not in profile"))
 		})
 
 		It("formats single MCP server modified", func() {
@@ -374,7 +374,7 @@ var _ = Describe("ProfileDiff", func() {
 				MarketplacesRemoved: []Marketplace{{Source: "github", Repo: "org/repo"}},
 				MCPServersModified:  []MCPServer{{Name: "server1", Command: "cmd"}},
 			}
-			Expect(diff.Summary()).To(Equal("2 plugins added, 1 marketplace removed, 1 MCP server modified"))
+			Expect(diff.Summary()).To(Equal("2 plugins not in profile, 1 marketplace missing, 1 MCP server modified"))
 		})
 
 		It("formats all change types", func() {
@@ -388,12 +388,12 @@ var _ = Describe("ProfileDiff", func() {
 				MCPServersModified:   []MCPServer{{Name: "server3", Command: "cmd3"}},
 			}
 			summary := diff.Summary()
-			Expect(summary).To(ContainSubstring("1 plugin added"))
-			Expect(summary).To(ContainSubstring("1 plugin removed"))
-			Expect(summary).To(ContainSubstring("1 marketplace added"))
-			Expect(summary).To(ContainSubstring("1 marketplace removed"))
-			Expect(summary).To(ContainSubstring("1 MCP server added"))
-			Expect(summary).To(ContainSubstring("1 MCP server removed"))
+			Expect(summary).To(ContainSubstring("1 plugin not in profile"))
+			Expect(summary).To(ContainSubstring("1 plugin missing"))
+			Expect(summary).To(ContainSubstring("1 marketplace not in profile"))
+			Expect(summary).To(ContainSubstring("1 marketplace missing"))
+			Expect(summary).To(ContainSubstring("1 MCP server not in profile"))
+			Expect(summary).To(ContainSubstring("1 MCP server missing"))
 			Expect(summary).To(ContainSubstring("1 MCP server modified"))
 		})
 	})
