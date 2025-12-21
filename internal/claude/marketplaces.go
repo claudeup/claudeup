@@ -53,3 +53,23 @@ func SaveMarketplaces(claudeDir string, registry MarketplaceRegistry) error {
 
 	return os.WriteFile(marketplacesPath, data, 0644)
 }
+
+// MarketplaceExists checks if a marketplace with the given repo or URL is installed
+func (r MarketplaceRegistry) MarketplaceExists(repoOrURL string) bool {
+	for _, meta := range r {
+		if meta.Source.Repo == repoOrURL || meta.Source.URL == repoOrURL {
+			return true
+		}
+	}
+	return false
+}
+
+// GetMarketplaceByRepo returns the marketplace name for a given repo, or empty string if not found
+func (r MarketplaceRegistry) GetMarketplaceByRepo(repoOrURL string) string {
+	for name, meta := range r {
+		if meta.Source.Repo == repoOrURL || meta.Source.URL == repoOrURL {
+			return name
+		}
+	}
+	return ""
+}
