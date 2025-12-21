@@ -308,11 +308,18 @@ func runScopeClear(cmd *cobra.Command, args []string) error {
 func clearScope(scope string, settingsPath string, claudeDir string) error {
 	switch scope {
 	case "user":
-		// Reset user settings to empty configuration
-		emptySettings := &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
+		// Load existing settings and only clear enabledPlugins
+		settings, err := claude.LoadSettings(claudeDir)
+		if err != nil {
+			// If settings don't exist, create minimal settings
+			settings = &claude.Settings{
+				EnabledPlugins: make(map[string]bool),
+			}
+		} else {
+			// Clear only the enabledPlugins field, preserve everything else
+			settings.EnabledPlugins = make(map[string]bool)
 		}
-		return claude.SaveSettings(claudeDir, emptySettings)
+		return claude.SaveSettings(claudeDir, settings)
 
 	case "project":
 		// Remove project settings file
