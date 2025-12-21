@@ -40,3 +40,7 @@ docker/claudeup*
 
 # Worktrees
 .worktrees/
+
+# Claude
+settings.local.json
+
