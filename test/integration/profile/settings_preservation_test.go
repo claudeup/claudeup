@@ -6,18 +6,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/claudeup/claudeup/internal/claude"
 )
-
-func TestSettingsPreservation(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Settings Preservation Suite")
-}
 
 var _ = Describe("Profile operations preserve non-plugin settings", func() {
 	var (
