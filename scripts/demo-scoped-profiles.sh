@@ -106,24 +106,37 @@ EOF
 # Create known_marketplaces.json
 cat > "$CLAUDE_DIR/plugins/known_marketplaces.json" <<EOF
 {
-  "version": 1,
-  "marketplaces": {
-    "thedotmack": {
+  "thedotmack": {
+    "source": {
       "source": "github",
       "repo": "thedotmack/claude-mem"
     },
-    "claude-plugins-official": {
+    "installLocation": "$CLAUDE_DIR/plugins/marketplaces/thedotmack",
+    "lastUpdated": "2025-01-01T00:00:00Z"
+  },
+  "claude-plugins-official": {
+    "source": {
       "source": "github",
       "repo": "claude-plugins-official/plugins"
     },
-    "superpowers-marketplace": {
+    "installLocation": "$CLAUDE_DIR/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2025-01-01T00:00:00Z"
+  },
+  "superpowers-marketplace": {
+    "source": {
       "source": "github",
       "repo": "superpowers-marketplace/superpowers"
     },
-    "claude-code-workflows": {
+    "installLocation": "$CLAUDE_DIR/plugins/marketplaces/superpowers-marketplace",
+    "lastUpdated": "2025-01-01T00:00:00Z"
+  },
+  "claude-code-workflows": {
+    "source": {
       "source": "github",
       "repo": "claude-code-workflows/workflows"
-    }
+    },
+    "installLocation": "$CLAUDE_DIR/plugins/marketplaces/claude-code-workflows",
+    "lastUpdated": "2025-01-01T00:00:00Z"
   }
 }
 EOF
