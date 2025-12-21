@@ -21,6 +21,8 @@ type ApplyOptions struct {
 	Scope      Scope  // user, project, or local
 	ProjectDir string // Required for project/local scope
 	DryRun     bool   // If true, don't make changes (not yet implemented)
+	Reinstall  bool   // If true, reinstall even if already installed
+	ShowProgress bool // If true, show progress UI during apply
 }
 
 // CommandExecutor runs claude CLI commands
@@ -167,15 +169,117 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath string, secret
 
 	executor := &DefaultExecutor{ClaudeDir: claudeDir}
 
+	// Use concurrent apply with progress tracking for project/local scope
+	// User scope uses sequential apply to maintain declarative behavior (removes + adds)
+	if opts.ShowProgress && opts.Scope != ScopeUser {
+		concurrentResult, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
+			ClaudeDir: claudeDir,
+			Scope:     string(opts.Scope),
+			Reinstall: opts.Reinstall,
+			Output:    os.Stdout,
+			Executor:  executor,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert to ApplyResult and handle post-apply tasks
+		result := convertConcurrentResult(concurrentResult)
+
+		// Write scope-specific config files
+		if opts.Scope == ScopeProject {
+			if err := writeProjectScopeConfigs(profile, claudeDir, opts.ProjectDir); err != nil {
+				return nil, err
+			}
+		} else if opts.Scope == ScopeLocal {
+			if err := writeLocalScopeConfigs(profile, claudeDir, opts.ProjectDir); err != nil {
+				return nil, err
+			}
+		}
+
+		return result, nil
+	}
+
+	// Sequential apply (user scope for declarative behavior, or when progress disabled)
 	switch opts.Scope {
 	case ScopeProject:
 		return applyProjectScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
 	case ScopeLocal:
 		return applyLocalScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
 	default:
-		// User scope: existing behavior
+		// User scope: declarative behavior (removes extras, adds missing)
 		return ApplyWithExecutor(profile, claudeDir, claudeJSONPath, secretChain, executor)
 	}
+}
+
+// convertConcurrentResult converts ConcurrentApplyResult to ApplyResult
+func convertConcurrentResult(cr *ConcurrentApplyResult) *ApplyResult {
+	return &ApplyResult{
+		PluginsInstalled:      cr.PluginsInstalled,
+		PluginsAlreadyPresent: cr.PluginsSkipped,
+		MCPServersInstalled:   cr.MCPServersInstalled,
+		MarketplacesAdded:     cr.MarketplacesInstalled,
+		Errors:                cr.Errors,
+	}
+}
+
+// writeProjectScopeConfigs writes .mcp.json, .claudeup.json, and settings.json for project scope
+func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
+	// Write .mcp.json for MCP servers
+	if len(profile.MCPServers) > 0 {
+		if err := WriteMCPJSON(projectDir, profile.MCPServers); err != nil {
+			return fmt.Errorf("failed to write %s: %w", MCPConfigFile, err)
+		}
+	}
+
+	// Write project settings.json with enabled plugins
+	projectSettings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
+	if err != nil {
+		projectSettings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+	projectSettings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		projectSettings.EnabledPlugins[plugin] = true
+	}
+	if err := claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings); err != nil {
+		return fmt.Errorf("failed to write project settings.json: %w", err)
+	}
+
+	// Write .claudeup.json
+	projectCfg := NewProjectConfig(profile)
+	if err := SaveProjectConfig(projectDir, projectCfg); err != nil {
+		return fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
+	}
+
+	return nil
+}
+
+// writeLocalScopeConfigs writes settings.local.json for local scope
+func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
+	localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
+	if err != nil {
+		localSettings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+	localSettings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		localSettings.EnabledPlugins[plugin] = true
+	}
+	if err := claude.SaveSettingsForScope("local", claudeDir, projectDir, localSettings); err != nil {
+		return fmt.Errorf("failed to write local settings.json: %w", err)
+	}
+
+	// Update projects registry
+	registry, err := config.LoadProjectsRegistry()
+	if err == nil {
+		registry.SetProject(projectDir, profile.Name)
+		_ = config.SaveProjectsRegistry(registry)
+	}
+
+	return nil
 }
 
 // applyProjectScope applies a profile at project scope, creating .mcp.json and .claudeup.json
