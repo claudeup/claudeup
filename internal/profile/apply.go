@@ -377,18 +377,28 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 		}
 	}
 
-	// Remove plugins
-	for _, plugin := range diff.PluginsToRemove {
-		output, err := executor.RunWithOutput("plugin", "uninstall", plugin)
+	// Remove plugins by disabling them in settings.json
+	// Note: We disable in settings.json instead of uninstalling because plugins
+	// may exist at multiple scopes (user/project/local) and claude CLI only
+	// uninstalls from one scope at a time, leaving them enabled
+	if len(diff.PluginsToRemove) > 0 {
+		settings, err := claude.LoadSettings(claudeDir)
 		if err != nil {
-			// Check if the error is just "already uninstalled" or "not found" - treat as success
-			if strings.Contains(output, "already uninstalled") || strings.Contains(output, "not found") {
-				result.PluginsAlreadyRemoved = append(result.PluginsAlreadyRemoved, plugin)
-			} else {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to uninstall plugin %s: %w (output: %s)", plugin, err, output))
-			}
+			result.Errors = append(result.Errors, fmt.Errorf("failed to load settings: %w", err))
 		} else {
-			result.PluginsRemoved = append(result.PluginsRemoved, plugin)
+			for _, plugin := range diff.PluginsToRemove {
+				if settings.IsPluginEnabled(plugin) {
+					settings.RemovePlugin(plugin)
+					result.PluginsRemoved = append(result.PluginsRemoved, plugin)
+				} else {
+					result.PluginsAlreadyRemoved = append(result.PluginsAlreadyRemoved, plugin)
+				}
+			}
+
+			// Save updated settings
+			if err := claude.SaveSettings(claudeDir, settings); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to save settings: %w", err))
+			}
 		}
 	}
 
