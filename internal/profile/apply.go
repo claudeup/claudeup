@@ -18,11 +18,11 @@ import (
 
 // ApplyOptions controls how a profile is applied
 type ApplyOptions struct {
-	Scope      Scope  // user, project, or local
-	ProjectDir string // Required for project/local scope
-	DryRun     bool   // If true, don't make changes (not yet implemented)
-	Reinstall  bool   // If true, reinstall even if already installed
-	ShowProgress bool // If true, show progress UI during apply
+	Scope        Scope  // user, project, or local
+	ProjectDir   string // Required for project/local scope
+	DryRun       bool   // If true, don't make changes (not yet implemented)
+	Reinstall    bool   // If true, reinstall even if already installed
+	ShowProgress bool   // If true, use concurrent apply with progress UI (project/local scope only)
 }
 
 // CommandExecutor runs claude CLI commands
@@ -169,8 +169,10 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath string, secret
 
 	executor := &DefaultExecutor{ClaudeDir: claudeDir}
 
-	// Use concurrent apply with progress tracking for project/local scope
-	// User scope uses sequential apply to maintain declarative behavior (removes + adds)
+	// Use concurrent apply with progress tracking for project/local scope.
+	// User scope always uses sequential apply because it needs declarative behavior
+	// (removes plugins not in profile, then adds missing ones). Concurrent apply
+	// is additive-only, suitable for project/local where we don't remove plugins.
 	if opts.ShowProgress && opts.Scope != ScopeUser {
 		concurrentResult, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
 			ClaudeDir: claudeDir,

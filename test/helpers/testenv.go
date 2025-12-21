@@ -421,6 +421,16 @@ func WriteJSON(path string, data interface{}) {
 	Expect(os.WriteFile(path, jsonData, 0644)).To(Succeed())
 }
 
+// LoadJSON reads and parses a JSON file
+func LoadJSON(path string) map[string]interface{} {
+	data, err := os.ReadFile(path)
+	Expect(err).NotTo(HaveOccurred())
+
+	var result map[string]interface{}
+	Expect(json.Unmarshal(data, &result)).To(Succeed())
+	return result
+}
+
 // Cleanup removes the test environment (automatically called by GinkgoT().TempDir())
 func (e *TestEnv) Cleanup() {
 	// Temp dir is automatically cleaned up by Ginkgo

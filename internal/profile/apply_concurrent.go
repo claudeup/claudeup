@@ -79,7 +79,10 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	// Initial render
 	tracker.Render(opts.Output)
 
-	// Phase 1: Install marketplaces (must complete before plugins)
+	// Phase 1: Install marketplaces sequentially (must complete before Phase 2).
+	// Marketplaces provide the plugin registries that Claude CLI uses to resolve
+	// plugin names like "backend-development@claude-code-workflows". If we install
+	// plugins before their marketplace is registered, Claude CLI won't find them.
 	if len(marketplacesToInstall) > 0 {
 		marketplaceJobs := make([]Job, len(marketplacesToInstall))
 		for i, m := range marketplacesToInstall {
@@ -117,7 +120,10 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 		}
 	}
 
-	// Phase 2: Install plugins (concurrent with MCP servers)
+	// Phase 2: Install plugins and MCP servers concurrently.
+	// These have no dependencies on each other and can be installed in parallel
+	// using the worker pool. The worker pool limits concurrency to DefaultWorkers
+	// (currently 4) to avoid overwhelming the Claude CLI or network.
 	pluginJobs := make([]Job, len(pluginsToInstall))
 	for i, plugin := range pluginsToInstall {
 		plugin := plugin // capture
@@ -196,6 +202,14 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 
 	// Finish progress display
 	tracker.Finish(opts.Output)
+
+	// Print summary with error count if any failures occurred
+	if len(result.Errors) > 0 {
+		fmt.Fprintf(opts.Output, "\n%d operation(s) failed:\n", len(result.Errors))
+		for _, err := range result.Errors {
+			fmt.Fprintf(opts.Output, "  • %s\n", err.Error())
+		}
+	}
 
 	return result, nil
 }

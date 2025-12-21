@@ -214,6 +214,11 @@ func (t *ProgressTracker) Render(w io.Writer) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	t.renderLocked(w)
+}
+
+// renderLocked renders without acquiring the lock (caller must hold mutex)
+func (t *ProgressTracker) renderLocked(w io.Writer) {
 	if isTerminal(w) {
 		t.renderTTY(w)
 	} else {
@@ -264,11 +269,17 @@ func (t *ProgressTracker) renderSimple(w io.Writer) {
 	}
 }
 
-// RenderUpdate outputs a single item update (for non-TTY streaming)
+// RenderUpdate outputs a single item update
+// For TTY: performs a full re-render with cursor control
+// For non-TTY: streams individual updates line-by-line
+// Uses mutex to prevent interleaved output from concurrent workers
 func (t *ProgressTracker) RenderUpdate(w io.Writer, phaseName string, result ItemResult) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if isTerminal(w) {
 		// TTY: full re-render handles it
-		t.Render(w)
+		t.renderTTY(w)
 	} else {
 		// Non-TTY: stream individual updates
 		status := SymbolSuccess

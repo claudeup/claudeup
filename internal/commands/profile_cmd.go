@@ -218,6 +218,7 @@ var (
 	profileUseForce         bool
 	profileUseScope         string
 	profileUseReinstall     bool
+	profileUseNoProgress    bool
 )
 
 // Flags for profile sync command
@@ -250,6 +251,7 @@ func init() {
 	profileUseCmd.Flags().BoolVarP(&profileUseForce, "force", "f", false, "Force reapply even with unsaved changes")
 	profileUseCmd.Flags().StringVar(&profileUseScope, "scope", "", "Apply scope: user (default), project, or local")
 	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
+	profileUseCmd.Flags().BoolVar(&profileUseNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
@@ -525,7 +527,7 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		Scope:        scope,
 		ProjectDir:   cwd,
 		Reinstall:    profileUseReinstall,
-		ShowProgress: true, // Enable concurrent apply with progress UI
+		ShowProgress: !profileUseNoProgress, // Enable concurrent apply with progress UI
 	}
 
 	result, err := profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
