@@ -130,29 +130,27 @@ chmod +x "$HELPER_SCRIPT"
 
 echo ""
 print_section "Manual Interaction Available"
-cat <<INTERACT_MSG
-${GREEN}You can interact with the demo environment in another terminal!${NC}
-
-In a separate terminal, run these commands to explore:
-
-${CYAN}# Quick setup - copy/paste this:${NC}
-export DEMO_DIR="$TEST_DIR"
-alias demo-claudeup='CLAUDE_CONFIG_DIR=\$DEMO_DIR/.claude $(pwd)/bin/claudeup'
-cd "\$DEMO_DIR/my-project"
-
-${CYAN}# Now run commands:${NC}
-demo-claudeup plugin list
-demo-claudeup status
-demo-claudeup profile list
-
-${CYAN}# Or use the helper script:${NC}
-$HELPER_SCRIPT plugin list
-$HELPER_SCRIPT status
-
-${YELLOW}Note: You must use the BUILT binary (./bin/claudeup) or set CLAUDE_CONFIG_DIR.${NC}
-${YELLOW}Running just 'claudeup' will use your real ~/.claude directory!${NC}
-
-INTERACT_MSG
+echo -e "${GREEN}You can interact with the demo environment in another terminal!${NC}"
+echo ""
+echo "In a separate terminal, run these commands to explore:"
+echo ""
+echo -e "${CYAN}# Quick setup - copy/paste this:${NC}"
+echo "export DEMO_DIR=\"$TEST_DIR\""
+echo "alias demo-claudeup='CLAUDE_CONFIG_DIR=\$DEMO_DIR/.claude $(pwd)/bin/claudeup'"
+echo "cd \"\$DEMO_DIR/my-project\""
+echo ""
+echo -e "${CYAN}# Now run commands:${NC}"
+echo "demo-claudeup plugin list"
+echo "demo-claudeup status"
+echo "demo-claudeup profile list"
+echo ""
+echo -e "${CYAN}# Or use the helper script:${NC}"
+echo "$HELPER_SCRIPT plugin list"
+echo "$HELPER_SCRIPT status"
+echo ""
+echo -e "${YELLOW}Note: You must use the BUILT binary (./bin/claudeup) or set CLAUDE_CONFIG_DIR.${NC}"
+echo -e "${YELLOW}Running just 'claudeup' will use your real ~/.claude directory!${NC}"
+echo ""
 
 pause
 
