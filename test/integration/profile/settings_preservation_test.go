@@ -214,6 +214,85 @@ var _ = Describe("Profile operations preserve non-plugin settings", func() {
 			Expect(plugins).NotTo(HaveKey("plugin-d@marketplace"), "old plugin should be disabled")
 			Expect(plugins).NotTo(HaveKey("plugin-e@marketplace"), "old plugin should be disabled")
 		})
+
+		It("should add new plugins when switching to profile with more plugins", func() {
+			// Setup: Project has 2 plugins enabled
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Switch to profile with 5 plugins (additions)
+			settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			settings.EnabledPlugins = map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+				"plugin-c@marketplace": true,
+				"plugin-d@marketplace": true,
+				"plugin-e@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify all 5 plugins are enabled
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(5), "should have all 5 plugins from new profile")
+			Expect(plugins).To(HaveKey("plugin-a@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-b@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-c@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-d@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-e@marketplace"))
+		})
+
+		It("should maintain same plugins when switching to equivalent profile", func() {
+			// Setup: Project has 3 plugins enabled
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+					"plugin-c@marketplace": true,
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Switch to profile with same 3 plugins (clone/equivalent)
+			settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			settings.EnabledPlugins = map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+				"plugin-c@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify same 3 plugins remain
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(3), "should have same 3 plugins")
+			Expect(plugins).To(HaveKey("plugin-a@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-b@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-c@marketplace"))
+		})
 	})
 
 	Describe("Local scope settings preservation", func() {
@@ -245,6 +324,126 @@ var _ = Describe("Profile operations preserve non-plugin settings", func() {
 			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
 
 			Expect(savedData).To(HaveKeyWithValue("localCustomField", "keep-me"))
+		})
+
+		It("should only enable new profile plugins when switching to profile with fewer plugins", func() {
+			// Setup: Local has 5 plugins enabled
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+					"plugin-c@marketplace": true,
+					"plugin-d@marketplace": true,
+					"plugin-e@marketplace": true,
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Switch to profile with only 2 plugins
+			settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			settings.EnabledPlugins = map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-c@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify only the 2 new profile plugins are enabled
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(2), "should have exactly 2 plugins from new profile")
+			Expect(plugins).To(HaveKey("plugin-a@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-c@marketplace"))
+			Expect(plugins).NotTo(HaveKey("plugin-b@marketplace"), "old plugin should be disabled")
+			Expect(plugins).NotTo(HaveKey("plugin-d@marketplace"), "old plugin should be disabled")
+			Expect(plugins).NotTo(HaveKey("plugin-e@marketplace"), "old plugin should be disabled")
+		})
+
+		It("should add new plugins when switching to profile with more plugins", func() {
+			// Setup: Local has 2 plugins enabled
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Switch to profile with 5 plugins (additions)
+			settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			settings.EnabledPlugins = map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+				"plugin-c@marketplace": true,
+				"plugin-d@marketplace": true,
+				"plugin-e@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify all 5 plugins are enabled
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(5), "should have all 5 plugins from new profile")
+			Expect(plugins).To(HaveKey("plugin-a@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-b@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-c@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-d@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-e@marketplace"))
+		})
+
+		It("should maintain same plugins when switching to equivalent profile", func() {
+			// Setup: Local has 3 plugins enabled
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+					"plugin-c@marketplace": true,
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Switch to profile with same 3 plugins (clone/equivalent)
+			settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			settings.EnabledPlugins = map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+				"plugin-c@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify same 3 plugins remain
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(3), "should have same 3 plugins")
+			Expect(plugins).To(HaveKey("plugin-a@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-b@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-c@marketplace"))
 		})
 	})
 
