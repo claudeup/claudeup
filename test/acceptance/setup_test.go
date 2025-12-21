@@ -143,13 +143,21 @@ var _ = Describe("setup", func() {
 				}
 			}`), 0644)).To(Succeed())
 
+			// Create settings.json with plugin enabled
+			settingsFile := filepath.Join(customClaudeDir, "settings.json")
+			Expect(os.WriteFile(settingsFile, []byte(`{
+				"enabledPlugins": {
+					"test-plugin@test-marketplace": true
+				}
+			}`), 0644)).To(Succeed())
+
 			// Create empty known_marketplaces.json
 			marketplacesFile := filepath.Join(customClaudeDir, "plugins", "known_marketplaces.json")
 			Expect(os.WriteFile(marketplacesFile, []byte(`{}`), 0644)).To(Succeed())
 
 			// Create .claude.json settings file for custom dir
-			settingsFile := filepath.Join(customClaudeDir, ".claude.json")
-			Expect(os.WriteFile(settingsFile, []byte(`{"mcpServers": {}}`), 0644)).To(Succeed())
+			claudeJSONFile := filepath.Join(customClaudeDir, ".claude.json")
+			Expect(os.WriteFile(claudeJSONFile, []byte(`{"mcpServers": {}}`), 0644)).To(Succeed())
 
 			// Run setup with --claude-dir pointing to custom directory
 			// Use 'c' to continue without saving, 'y' to proceed
