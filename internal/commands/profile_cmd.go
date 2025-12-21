@@ -217,6 +217,7 @@ var (
 	profileUseNoInteractive bool
 	profileUseForce         bool
 	profileUseScope         string
+	profileUseReinstall     bool
 )
 
 // Flags for profile sync command
@@ -248,6 +249,7 @@ func init() {
 	profileUseCmd.Flags().BoolVar(&profileUseNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileUseCmd.Flags().BoolVarP(&profileUseForce, "force", "f", false, "Force reapply even with unsaved changes")
 	profileUseCmd.Flags().StringVar(&profileUseScope, "scope", "", "Apply scope: user (default), project, or local")
+	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
