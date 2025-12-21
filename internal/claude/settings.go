@@ -130,8 +130,8 @@ func SettingsPathForScope(scope string, claudeDir string, projectDir string) (st
 		if projectDir == "" {
 			return "", fmt.Errorf("project directory required for local scope")
 		}
-		// Local scope: ./.claude-local/settings.json (machine-specific, gitignored)
-		return filepath.Join(projectDir, ".claude-local", "settings.json"), nil
+		// Local scope: ./.claude/settings-local.json (machine-specific, gitignored)
+		return filepath.Join(projectDir, ".claude", "settings-local.json"), nil
 	default:
 		return "", fmt.Errorf("invalid scope: %s (must be user, project, or local)", scope)
 	}

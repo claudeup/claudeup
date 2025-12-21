@@ -232,7 +232,7 @@ func TestSettingsPathForScope(t *testing.T) {
 			name:        "local scope",
 			scope:       "local",
 			projectDir:  projectDir,
-			expected:    filepath.Join(projectDir, ".claude-local", "settings.json"),
+			expected:    filepath.Join(projectDir, ".claude", "settings-local.json"),
 			shouldError: false,
 		},
 		{
@@ -409,9 +409,8 @@ func TestLoadMergedSettings(t *testing.T) {
 			"local-plugin@marketplace": true,
 		},
 	}
-	os.MkdirAll(filepath.Join(projectDir, ".claude-local"), 0755)
 	data, _ = json.Marshal(localSettings)
-	os.WriteFile(filepath.Join(projectDir, ".claude-local", "settings.json"), data, 0644)
+	os.WriteFile(filepath.Join(projectDir, ".claude", "settings-local.json"), data, 0644)
 
 	// Load merged settings
 	merged, err := LoadMergedSettings(claudeDir, projectDir)

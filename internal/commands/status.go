@@ -106,7 +106,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				}
 
 				// Check if local scope settings exist
-				localSettingsPath := filepath.Join(projectDir, ".claude-local", "settings.json")
+				localSettingsPath := filepath.Join(projectDir, ".claude", "settings-local.json")
 				if _, err := os.Stat(localSettingsPath); err == nil {
 					scopesToCheck = append(scopesToCheck, "local")
 				}
