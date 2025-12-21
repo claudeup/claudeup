@@ -53,6 +53,8 @@ print_info "Project directory: $PROJECT_DIR"
 
 # Set CLAUDE_CONFIG_DIR for all claudeup commands
 export CLAUDE_CONFIG_DIR="$CLAUDE_DIR"
+# Override HOME so claudeup reads config from demo dir, not real ~/.claudeup
+export HOME="$TEST_DIR"
 
 # Create directory structure
 mkdir -p "$CLAUDE_DIR/plugins"
@@ -184,12 +186,25 @@ print_info "  - 4 marketplaces in registry"
 print_info "  - 3 plugins in registry (with fake plugin.json files)"
 print_info "  - 2 enabled at user scope"
 
+# Create a minimal claudeup config for the demo (no active profile)
+mkdir -p "$TEST_DIR/.claudeup"
+cat > "$TEST_DIR/.claudeup/config.json" <<'CFG_EOF'
+{
+  "disabledMcpServers": [],
+  "preferences": {
+    "autoUpdate": false,
+    "verboseOutput": false
+  }
+}
+CFG_EOF
+
 # Create helper script for manual interaction
 HELPER_SCRIPT="$TEST_DIR/run-claudeup.sh"
 cat > "$HELPER_SCRIPT" <<HELPER_EOF
 #!/bin/bash
 # Helper script to run claudeup commands against the demo environment
 export CLAUDE_CONFIG_DIR="$CLAUDE_DIR"
+export HOME="$TEST_DIR"
 cd "$PROJECT_DIR"
 $(pwd)/bin/claudeup "\$@"
 HELPER_EOF
@@ -203,7 +218,7 @@ echo "In a separate terminal, run these commands to explore:"
 echo ""
 echo -e "${CYAN}# Quick setup - copy/paste this:${NC}"
 echo "export DEMO_DIR=\"$TEST_DIR\""
-echo "alias demo-claudeup='CLAUDE_CONFIG_DIR=\$DEMO_DIR/.claude $(pwd)/bin/claudeup'"
+echo "alias demo-claudeup='HOME=\$DEMO_DIR CLAUDE_CONFIG_DIR=\$DEMO_DIR/.claude $(pwd)/bin/claudeup'"
 echo "cd \"\$DEMO_DIR/my-project\""
 echo ""
 echo -e "${CYAN}# Now run commands:${NC}"
