@@ -477,9 +477,10 @@ var _ = Describe("ApplyPluginAlreadyUninstalled", func() {
 		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Plugin is already disabled, should be in PluginsAlreadyRemoved
-		Expect(result.PluginsAlreadyRemoved).To(HaveLen(1))
-		Expect(result.PluginsAlreadyRemoved).To(ContainElement("plugin-a@marketplace"))
+		// Plugin is already disabled (not in settings.json), so nothing to remove
+		// Snapshot only reads enabled plugins, so this plugin won't be in the diff
+		Expect(result.PluginsRemoved).To(BeEmpty())
+		Expect(result.PluginsAlreadyRemoved).To(BeEmpty())
 		Expect(result.Errors).To(BeEmpty())
 	})
 })
