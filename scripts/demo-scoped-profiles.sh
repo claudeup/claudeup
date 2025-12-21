@@ -103,6 +103,31 @@ cat > "$CLAUDE_DIR/plugins/installed_plugins.json" <<EOF
 }
 EOF
 
+# Create known_marketplaces.json
+cat > "$CLAUDE_DIR/plugins/known_marketplaces.json" <<EOF
+{
+  "version": 1,
+  "marketplaces": {
+    "thedotmack": {
+      "source": "github",
+      "repo": "thedotmack/claude-mem"
+    },
+    "claude-plugins-official": {
+      "source": "github",
+      "repo": "claude-plugins-official/plugins"
+    },
+    "superpowers-marketplace": {
+      "source": "github",
+      "repo": "superpowers-marketplace/superpowers"
+    },
+    "claude-code-workflows": {
+      "source": "github",
+      "repo": "claude-code-workflows/workflows"
+    }
+  }
+}
+EOF
+
 # Create user scope settings
 cat > "$CLAUDE_DIR/settings.json" <<EOF
 {
@@ -114,6 +139,7 @@ cat > "$CLAUDE_DIR/settings.json" <<EOF
 EOF
 
 print_info "Created Claude Code test environment"
+print_info "  - 4 marketplaces in registry"
 print_info "  - 3 plugins in registry"
 print_info "  - 2 enabled at user scope"
 
