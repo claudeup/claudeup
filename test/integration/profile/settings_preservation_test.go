@@ -172,6 +172,48 @@ var _ = Describe("Profile operations preserve non-plugin settings", func() {
 			Expect(savedData).To(HaveKeyWithValue("projectCustomField", "preserve-me"))
 			Expect(savedData).To(HaveKey("mcpServers"))
 		})
+
+		It("should only enable new profile plugins when switching to profile with fewer plugins", func() {
+			// Setup: Project has 5 plugins enabled
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+					"plugin-c@marketplace": true,
+					"plugin-d@marketplace": true,
+					"plugin-e@marketplace": true,
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Switch to profile with only 2 plugins
+			settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Simulate profile apply - replace with new profile's plugins
+			settings.EnabledPlugins = map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-c@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify only the 2 new profile plugins are enabled
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(2), "should have exactly 2 plugins from new profile")
+			Expect(plugins).To(HaveKey("plugin-a@marketplace"))
+			Expect(plugins).To(HaveKey("plugin-c@marketplace"))
+			Expect(plugins).NotTo(HaveKey("plugin-b@marketplace"), "old plugin should be disabled")
+			Expect(plugins).NotTo(HaveKey("plugin-d@marketplace"), "old plugin should be disabled")
+			Expect(plugins).NotTo(HaveKey("plugin-e@marketplace"), "old plugin should be disabled")
+		})
 	})
 
 	Describe("Local scope settings preservation", func() {
