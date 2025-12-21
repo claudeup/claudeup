@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
@@ -59,23 +60,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
-	// Load settings - scope-aware
-	var settings *claude.Settings
+	// Validate scope if specified
 	if statusScope != "" {
-		// Validate scope
 		if err := claude.ValidateScope(statusScope); err != nil {
 			return err
-		}
-		// Load specific scope
-		settings, err = claude.LoadSettingsForScope(statusScope, claudeDir, projectDir)
-		if err != nil {
-			return fmt.Errorf("failed to load %s scope settings: %w", statusScope, err)
-		}
-	} else {
-		// Load merged settings from all scopes
-		settings, err = claude.LoadMergedSettings(claudeDir, projectDir)
-		if err != nil {
-			return fmt.Errorf("failed to load settings: %w", err)
 		}
 	}
 
@@ -205,13 +193,40 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
 	}
 
+	// Load settings from each scope to determine where plugins are enabled
+	var scopes []string
+	if statusScope != "" {
+		// Only check specified scope when --scope flag is used
+		scopes = []string{statusScope}
+	} else {
+		// Check all scopes in precedence order
+		scopes = []string{"local", "project", "user"}
+	}
+
+	scopeSettings := make(map[string]*claude.Settings)
+	for _, scope := range scopes {
+		scopeSettings[scope], _ = claude.LoadSettingsForScope(scope, claudeDir, projectDir)
+	}
+
+	// Build map of plugin -> scope (highest precedence wins)
+	pluginScopes := make(map[string]string)
+	for name := range plugins.GetAllPlugins() {
+		// Check scopes in precedence order (local > project > user)
+		for _, scope := range scopes {
+			if scopeSettings[scope] != nil && scopeSettings[scope].IsPluginEnabled(name) {
+				pluginScopes[name] = scope
+				break // Found at highest precedence scope
+			}
+		}
+	}
+
 	// Count enabled plugins and detect issues
 	enabledCount := 0
 	stalePlugins := []string{}
 
 	for name, plugin := range plugins.GetAllPlugins() {
-		// Check if plugin is enabled in settings.json
-		if settings.IsPluginEnabled(name) {
+		// Check if plugin is enabled in any scope
+		if _, enabled := pluginScopes[name]; enabled {
 			enabledCount++
 			// Also check if enabled plugin has stale path
 			if !plugin.PathExists() {
@@ -220,14 +235,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Print plugins summary (only show enabled plugins, like marketplaces)
+	// Print plugins summary with scope information
 	fmt.Println()
 	fmt.Println(ui.RenderSection("Plugins", enabledCount))
 	if enabledCount > 0 {
-		for name := range plugins.GetAllPlugins() {
-			if settings.IsPluginEnabled(name) {
-				fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
-			}
+		// Sort plugin names for consistent output
+		pluginNames := make([]string, 0, len(pluginScopes))
+		for name := range pluginScopes {
+			pluginNames = append(pluginNames, name)
+		}
+		sort.Strings(pluginNames)
+
+		for _, name := range pluginNames {
+			scope := pluginScopes[name]
+			fmt.Printf("  %s %s %s\n", ui.Success(ui.SymbolSuccess), name, ui.Muted(fmt.Sprintf("(%s)", scope)))
 		}
 	}
 	// Only show stale plugins if there are any
