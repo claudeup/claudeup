@@ -6,5 +6,6 @@
     {"source": "github", "repo": "anthropics/claude-code"}
   ],
   "plugins": [],
+  "skipPluginDiff": true,
   "detect": {}
 }
