@@ -151,9 +151,37 @@ cat > "$CLAUDE_DIR/settings.json" <<EOF
 }
 EOF
 
+# Create fake plugin directories so paths exist (avoid "stale" warnings)
+mkdir -p "$CLAUDE_DIR/plugins/cache/claude-mem"
+cat > "$CLAUDE_DIR/plugins/cache/claude-mem/plugin.json" <<'PLUGIN_EOF'
+{
+  "name": "claude-mem",
+  "version": "7.4.5",
+  "description": "Memory and context management for Claude"
+}
+PLUGIN_EOF
+
+mkdir -p "$CLAUDE_DIR/plugins/cache/superpowers"
+cat > "$CLAUDE_DIR/plugins/cache/superpowers/plugin.json" <<'PLUGIN_EOF'
+{
+  "name": "superpowers",
+  "version": "4.0.0",
+  "description": "Enhanced capabilities for Claude Code"
+}
+PLUGIN_EOF
+
+mkdir -p "$PROJECT_DIR/.claude/plugins/gopls-lsp"
+cat > "$PROJECT_DIR/.claude/plugins/gopls-lsp/plugin.json" <<'PLUGIN_EOF'
+{
+  "name": "gopls-lsp",
+  "version": "1.0.0",
+  "description": "Go language server integration"
+}
+PLUGIN_EOF
+
 print_info "Created Claude Code test environment"
 print_info "  - 4 marketplaces in registry"
-print_info "  - 3 plugins in registry"
+print_info "  - 3 plugins in registry (with fake plugin.json files)"
 print_info "  - 2 enabled at user scope"
 
 # Create helper script for manual interaction
