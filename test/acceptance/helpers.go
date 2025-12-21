@@ -142,18 +142,21 @@ func (e *AcceptanceTestEnv) CreatePlugin(name, marketplace, version string, mcpS
 	}
 }
 
-// CreatePluginRegistry creates installed_plugins.json
+// CreatePluginRegistry creates installed_plugins.json and settings.json
 func (e *AcceptanceTestEnv) CreatePluginRegistry(plugins map[string]claude.PluginMetadata) {
 	e.t.Helper()
 
 	// Convert to V2 format
 	pluginsV2 := make(map[string][]claude.PluginMetadata)
+	enabledPlugins := make(map[string]bool)
 	for name, meta := range plugins {
 		// Ensure scope is set
 		if meta.Scope == "" {
 			meta.Scope = "user"
 		}
 		pluginsV2[name] = []claude.PluginMetadata{meta}
+		// Enable all plugins by default
+		enabledPlugins[name] = true
 	}
 
 	registry := &claude.PluginRegistry{
@@ -164,6 +167,9 @@ func (e *AcceptanceTestEnv) CreatePluginRegistry(plugins map[string]claude.Plugi
 	if err := claude.SavePlugins(e.ClaudeDir, registry); err != nil {
 		e.t.Fatal(err)
 	}
+
+	// Create settings.json with enabled plugins
+	e.CreateSettings(enabledPlugins)
 }
 
 // CreateSettings creates settings.json with enabled plugins
