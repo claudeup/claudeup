@@ -14,6 +14,7 @@ import (
 
 var (
 	scopeListScope string
+	scopeClearForce bool
 )
 
 var scopeCmd = &cobra.Command{
@@ -45,10 +46,41 @@ Examples:
 	RunE: runScopeList,
 }
 
+var scopeClearCmd = &cobra.Command{
+	Use:   "clear <user|project|local>",
+	Short: "Clear settings at a specific scope",
+	Long: `Remove settings at the specified scope level.
+
+This is a destructive operation that removes configuration files.
+You will be prompted for confirmation unless --force is used.
+
+User scope:
+  - Resets ~/.claude/settings.json to empty configuration
+  - Does not remove plugins (use 'claudeup plugin' commands)
+
+Project scope:
+  - Removes .claude/settings.json from project
+  - Team members will be affected on next pull
+
+Local scope:
+  - Removes .claude/settings.local.json
+  - Only affects this machine
+
+Examples:
+  claudeup scope clear user              # Clear user scope with confirmation
+  claudeup scope clear project --force   # Clear project scope without confirmation
+  claudeup scope clear local             # Clear local scope with confirmation`,
+	Args: cobra.ExactArgs(1),
+	RunE: runScopeClear,
+}
+
 func init() {
 	rootCmd.AddCommand(scopeCmd)
 	scopeCmd.AddCommand(scopeListCmd)
+	scopeCmd.AddCommand(scopeClearCmd)
+
 	scopeListCmd.Flags().StringVar(&scopeListScope, "scope", "", "Show only specified scope (user, project, or local)")
+	scopeClearCmd.Flags().BoolVar(&scopeClearForce, "force", false, "Skip confirmation prompts")
 }
 
 func runScopeList(cmd *cobra.Command, args []string) error {
@@ -166,5 +198,137 @@ func formatScopeName(scope string) string {
 		return "Local"
 	default:
 		return scope
+	}
+}
+
+func runScopeClear(cmd *cobra.Command, args []string) error {
+	scope := args[0]
+
+	// Validate scope
+	if err := claude.ValidateScope(scope); err != nil {
+		return err
+	}
+
+	// Get current directory for project/local scopes
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Get settings path for this scope
+	settingsPath, err := claude.SettingsPathForScope(scope, claudeDir, projectDir)
+	if err != nil {
+		return err
+	}
+
+	// Check if settings file exists
+	_, err = os.Stat(settingsPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("%s scope is not configured\nHint: No settings file found at %s", scope, settingsPath)
+	}
+
+	// Load current settings to show what will be cleared
+	settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
+	if err != nil {
+		return fmt.Errorf("failed to load %s scope settings: %w", scope, err)
+	}
+
+	// Count enabled plugins
+	enabledCount := 0
+	for _, enabled := range settings.EnabledPlugins {
+		if enabled {
+			enabledCount++
+		}
+	}
+
+	// Show what will be cleared
+	fmt.Println(ui.RenderSection(fmt.Sprintf("Clear %s scope (%s)", formatScopeName(scope), settingsPath), -1))
+	fmt.Println()
+
+	if enabledCount > 0 {
+		fmt.Printf("This will reset:\n")
+		fmt.Printf("  • %d enabled plugins\n", enabledCount)
+		fmt.Printf("  • %s-level settings\n", formatScopeName(scope))
+	} else {
+		fmt.Printf("This will remove the settings file (no plugins currently enabled)\n")
+	}
+
+	fmt.Println()
+
+	// Scope-specific warnings
+	switch scope {
+	case "user":
+		fmt.Println(ui.Muted("This does NOT:"))
+		fmt.Println(ui.Muted("  • Remove plugins from disk (use 'claudeup plugin uninstall')"))
+		fmt.Println(ui.Muted("  • Remove marketplaces"))
+		fmt.Println(ui.Muted("  • Affect project or local scopes"))
+	case "project":
+		ui.PrintWarning("Team Impact Warning:")
+		fmt.Println("  Team members will lose project configuration on next pull.")
+		fmt.Println("  Consider committing this change if intentional.")
+	case "local":
+		fmt.Println(ui.Muted("This only affects this machine."))
+		fmt.Println(ui.Muted("Project and user scopes remain unchanged."))
+	}
+
+	fmt.Println()
+
+	// Prompt for confirmation unless --force
+	if !scopeClearForce {
+		confirmed := ui.PromptYesNo(fmt.Sprintf("Clear %s scope settings?", scope), false)
+		if !confirmed {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+	}
+
+	// Clear the scope
+	if err := clearScope(scope, settingsPath, claudeDir); err != nil {
+		return fmt.Errorf("failed to clear %s scope: %w", scope, err)
+	}
+
+	ui.PrintSuccess(fmt.Sprintf("Cleared %s scope settings", scope))
+
+	// Show next steps
+	fmt.Println()
+	fmt.Printf("To restore settings, use:\n")
+	fmt.Printf("  claudeup scope list --scope %s   # Verify it's cleared\n", scope)
+
+	switch scope {
+	case "user", "project":
+		fmt.Printf("  claude plugin install <plugin>  # Re-enable plugins\n")
+	case "local":
+		fmt.Printf("  claude plugin install <plugin> --scope local  # Re-enable local plugins\n")
+	}
+
+	return nil
+}
+
+// clearScope removes settings at the specified scope
+func clearScope(scope string, settingsPath string, claudeDir string) error {
+	switch scope {
+	case "user":
+		// Reset user settings to empty configuration
+		emptySettings := &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+		return claude.SaveSettings(claudeDir, emptySettings)
+
+	case "project":
+		// Remove project settings file
+		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+
+	case "local":
+		// Remove local settings file
+		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("invalid scope: %s", scope)
 	}
 }
