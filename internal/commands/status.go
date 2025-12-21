@@ -158,7 +158,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				if modified {
 					if !hasAnyDrift {
 						fmt.Println()
-						ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", activeProfile))
+						ui.PrintWarning(fmt.Sprintf("System differs from profile '%s':", activeProfile))
 						hasAnyDrift = true
 					}
 
@@ -177,10 +177,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 
 			if hasAnyDrift {
+				fmt.Println()
+				ui.PrintInfo("To sync:")
 				if statusScope != "" {
-					ui.PrintInfo(fmt.Sprintf("Run 'claudeup profile save --scope %s' to persist changes at %s scope.", statusScope, statusScope))
+					ui.PrintInfo(fmt.Sprintf("  • Update profile: 'claudeup profile save --scope %s'", statusScope))
+					ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile use %s --scope %s'", activeProfile, statusScope))
 				} else {
-					ui.PrintInfo("Run 'claudeup profile save --scope <scope>' to persist changes for each scope.")
+					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope <scope>'"))
+					ui.PrintInfo(fmt.Sprintf("  • Install missing to match profile: 'claudeup profile use %s'", activeProfile))
 				}
 			}
 		}

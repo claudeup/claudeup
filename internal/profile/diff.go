@@ -29,6 +29,8 @@ func (d *ProfileDiff) HasChanges() bool {
 }
 
 // Summary returns a human-readable summary of the changes
+// "Added" means: in system but not in profile (extra)
+// "Missing" means: in profile but not in system (expected but not installed)
 func (d *ProfileDiff) Summary() string {
 	if !d.HasChanges() {
 		return ""
@@ -38,26 +40,26 @@ func (d *ProfileDiff) Summary() string {
 
 	// Plugins
 	if len(d.PluginsAdded) > 0 {
-		parts = append(parts, pluralize(len(d.PluginsAdded), "plugin", "plugins")+" added")
+		parts = append(parts, pluralize(len(d.PluginsAdded), "plugin", "plugins")+" not in profile")
 	}
 	if len(d.PluginsRemoved) > 0 {
-		parts = append(parts, pluralize(len(d.PluginsRemoved), "plugin", "plugins")+" removed")
+		parts = append(parts, pluralize(len(d.PluginsRemoved), "plugin", "plugins")+" missing")
 	}
 
 	// Marketplaces
 	if len(d.MarketplacesAdded) > 0 {
-		parts = append(parts, pluralize(len(d.MarketplacesAdded), "marketplace", "marketplaces")+" added")
+		parts = append(parts, pluralize(len(d.MarketplacesAdded), "marketplace", "marketplaces")+" not in profile")
 	}
 	if len(d.MarketplacesRemoved) > 0 {
-		parts = append(parts, pluralize(len(d.MarketplacesRemoved), "marketplace", "marketplaces")+" removed")
+		parts = append(parts, pluralize(len(d.MarketplacesRemoved), "marketplace", "marketplaces")+" missing")
 	}
 
 	// MCP servers
 	if len(d.MCPServersAdded) > 0 {
-		parts = append(parts, pluralize(len(d.MCPServersAdded), "MCP server", "MCP servers")+" added")
+		parts = append(parts, pluralize(len(d.MCPServersAdded), "MCP server", "MCP servers")+" not in profile")
 	}
 	if len(d.MCPServersRemoved) > 0 {
-		parts = append(parts, pluralize(len(d.MCPServersRemoved), "MCP server", "MCP servers")+" removed")
+		parts = append(parts, pluralize(len(d.MCPServersRemoved), "MCP server", "MCP servers")+" missing")
 	}
 	if len(d.MCPServersModified) > 0 {
 		parts = append(parts, pluralize(len(d.MCPServersModified), "MCP server", "MCP servers")+" modified")
