@@ -194,6 +194,16 @@ func TestProfileCreate(t *testing.T) {
 		},
 	})
 
+	// Enable the plugin in settings.json (snapshots read from settings, not installed_plugins)
+	settingsPath := filepath.Join(env.ClaudeDir, "settings.json")
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"simple-plugin@minimal-marketplace": true,
+		},
+	}
+	settingsJSON, _ := json.MarshalIndent(settingsData, "", "  ")
+	os.WriteFile(settingsPath, settingsJSON, 0644)
+
 	// Action: Create profile from current state
 	snapshot, err := profile.Snapshot("minimal-profile", env.ClaudeDir, env.ClaudeJSONPath)
 	if err != nil {
