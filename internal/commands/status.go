@@ -115,23 +115,29 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			// Profile doesn't exist anywhere - show warning
 			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found.", activeProfile))
 		} else {
-			// Determine which scopes to check
+			// Determine which scopes to check based on profile scope
 			scopesToCheck := []string{}
 			if statusScope != "" {
 				// User specified a specific scope
 				scopesToCheck = append(scopesToCheck, statusScope)
+			} else if profileScope == "project" {
+				// Project-scoped profile: only check project scope
+				// (Local scope is for personal overrides, not managed by profile)
+				projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+				if _, err := os.Stat(projectSettingsPath); err == nil {
+					scopesToCheck = append(scopesToCheck, "project")
+				}
 			} else {
-				// Check all scopes (user always, project/local if settings exist)
+				// User-scoped profile: check all scopes
 				scopesToCheck = append(scopesToCheck, "user")
 
-				// Check if project scope settings exist
+				// Also check project/local if they exist
 				projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
 				if _, err := os.Stat(projectSettingsPath); err == nil {
 					scopesToCheck = append(scopesToCheck, "project")
 				}
 
-				// Check if local scope settings exist
-				localSettingsPath := filepath.Join(projectDir, ".claude", "settings-local.json")
+				localSettingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
 				if _, err := os.Stat(localSettingsPath); err == nil {
 					scopesToCheck = append(scopesToCheck, "local")
 				}
