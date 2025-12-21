@@ -39,26 +39,46 @@ type MarketplaceSource struct {
 	URL    string `json:"url,omitempty"`
 }
 
-// Snapshot creates a Profile from the current Claude Code state
+// SnapshotOptions controls how a snapshot is taken
+type SnapshotOptions struct {
+	Scope      string // user, project, or local
+	ProjectDir string // Required for project/local scope
+}
+
+// Snapshot creates a Profile from the current Claude Code state (user scope)
 func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
+	return SnapshotWithScope(name, claudeDir, claudeJSONPath, SnapshotOptions{
+		Scope: "user",
+	})
+}
+
+// SnapshotWithScope creates a Profile from a specific scope
+func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOptions) (*Profile, error) {
 	p := &Profile{
 		Name: name,
 	}
 
-	// Read plugins
-	plugins, err := readPlugins(claudeDir)
+	if opts.Scope == "" {
+		opts.Scope = "user"
+	}
+
+	// Read plugins from scope-specific settings
+	plugins, err := readPluginsForScope(claudeDir, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.Plugins = plugins
 	}
 
 	// Read marketplaces
+	// For project scope, we could read from .claudeup.json if we want project-specific marketplaces
+	// For now, marketplaces are always user-scoped
 	marketplaces, err := readMarketplaces(claudeDir)
 	if err == nil {
 		p.Marketplaces = marketplaces
 	}
 
 	// Read MCP servers
-	mcpServers, err := readMCPServers(claudeJSONPath)
+	// For project scope, read from .mcp.json
+	mcpServers, err := readMCPServersForScope(claudeJSONPath, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.MCPServers = mcpServers
 	}
@@ -70,9 +90,12 @@ func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
 }
 
 func readPlugins(claudeDir string) ([]string, error) {
-	// Read enabled plugins from settings.json (not installed plugins)
-	// Profiles manage enablement, not installation
-	settings, err := claude.LoadSettings(claudeDir)
+	return readPluginsForScope(claudeDir, "", "user")
+}
+
+func readPluginsForScope(claudeDir, projectDir, scope string) ([]string, error) {
+	// Read enabled plugins from scope-specific settings.json
+	settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +156,34 @@ func readMarketplaces(claudeDir string) ([]Marketplace, error) {
 }
 
 func readMCPServers(claudeJSONPath string) ([]MCPServer, error) {
-	data, err := os.ReadFile(claudeJSONPath)
+	return readMCPServersForScope(claudeJSONPath, "", "user")
+}
+
+func readMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServer, error) {
+	var mcpPath string
+
+	switch scope {
+	case "project":
+		// Project scope reads from .mcp.json in project directory
+		if projectDir == "" {
+			return nil, nil // No project directory, return empty
+		}
+		mcpPath = filepath.Join(projectDir, ".mcp.json")
+	case "local":
+		// Local scope reads from .claude-local/mcp.json (if we implement it)
+		// For now, return empty for local scope
+		return nil, nil
+	default:
+		// User scope reads from ~/.claude.json
+		mcpPath = claudeJSONPath
+	}
+
+	data, err := os.ReadFile(mcpPath)
 	if err != nil {
+		// File not existing is not an error for optional scopes
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
@@ -149,7 +198,7 @@ func readMCPServers(claudeJSONPath string) ([]MCPServer, error) {
 			Name:    name,
 			Command: server.Command,
 			Args:    server.Args,
-			Scope:   "user",
+			Scope:   scope,
 		})
 	}
 

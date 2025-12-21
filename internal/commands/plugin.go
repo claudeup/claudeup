@@ -68,24 +68,21 @@ func init() {
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
-	// Load plugins
-	plugins, err := claude.LoadPlugins(claudeDir)
+	// Get current directory for project scope
+	projectDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to load plugins: %w", err)
+		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Load settings
-	settings, err := claude.LoadSettings(claudeDir)
+	// Analyze plugins across all scopes
+	analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+		return fmt.Errorf("failed to analyze plugins: %w", err)
 	}
-
-	// Get all plugins (user-scoped)
-	allPlugins := plugins.GetAllPlugins()
 
 	// Sort plugin names for consistent output
-	names := make([]string, 0, len(allPlugins))
-	for name := range allPlugins {
+	names := make([]string, 0, len(analysis))
+	for name := range analysis {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -97,16 +94,34 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 	disabledCount := 0
 	staleCount := 0
 
-	for name, plugin := range allPlugins {
-		if plugin.IsLocal {
-			localCount++
-		} else {
-			cachedCount++
+	for _, name := range names {
+		info := analysis[name]
+
+		// Count by type (use active source or first installation)
+		// Count each plugin only once, not each installation
+		var primaryInst *claude.PluginMetadata
+		if info.ActiveSource != "" {
+			primaryInst = info.GetInstallationForScope(info.ActiveSource)
+		}
+		if primaryInst == nil && len(info.InstalledAt) > 0 {
+			primaryInst = &info.InstalledAt[0]
 		}
 
-		if !plugin.PathExists() {
-			staleCount++
-		} else if settings.IsPluginEnabled(name) {
+		if primaryInst != nil {
+			if primaryInst.IsLocal {
+				localCount++
+			} else {
+				cachedCount++
+			}
+
+			// Check for stale installations
+			if !primaryInst.PathExists() {
+				staleCount++
+			}
+		}
+
+		// Count enabled/disabled
+		if info.IsEnabled() {
 			enabledCount++
 		} else {
 			disabledCount++
@@ -138,13 +153,22 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 
 	// Print each plugin
 	for _, name := range names {
-		plugin := allPlugins[name]
+		info := analysis[name]
 		var statusSymbol, statusText string
 
-		if !plugin.PathExists() {
+		// Check if any installation is stale
+		hasStale := false
+		for _, inst := range info.InstalledAt {
+			if !inst.PathExists() {
+				hasStale = true
+				break
+			}
+		}
+
+		if hasStale {
 			statusSymbol = ui.Error(ui.SymbolError)
 			statusText = ui.Error("stale (path not found)")
-		} else if settings.IsPluginEnabled(name) {
+		} else if info.IsEnabled() {
 			statusSymbol = ui.Success(ui.SymbolSuccess)
 			statusText = "enabled"
 		} else {
@@ -152,17 +176,82 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 			statusText = "disabled"
 		}
 
-		fmt.Printf("%s %s\n", statusSymbol, ui.Bold(name))
-		fmt.Println(ui.Indent(ui.RenderDetail("Version", plugin.Version), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Status", statusText), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Path", plugin.InstallPath), 1))
-		fmt.Println(ui.Indent(ui.RenderDetail("Installed", plugin.InstalledAt), 1))
-
-		pluginType := "cached"
-		if plugin.IsLocal {
-			pluginType = "local"
+		// Get version from active source or first installation
+		version := ""
+		if info.ActiveSource != "" {
+			if activeInst := info.GetInstallationForScope(info.ActiveSource); activeInst != nil {
+				version = activeInst.Version
+			}
 		}
-		fmt.Println(ui.Indent(ui.RenderDetail("Type", pluginType), 1))
+		if version == "" && len(info.InstalledAt) > 0 {
+			version = info.InstalledAt[0].Version
+		}
+
+		fmt.Printf("%s %s\n", statusSymbol, ui.Bold(name))
+
+		if version != "" {
+			fmt.Println(ui.Indent(ui.RenderDetail("Version", version), 1))
+		}
+
+		fmt.Println(ui.Indent(ui.RenderDetail("Status", statusText), 1))
+
+		// Show scope information
+		if len(info.EnabledAt) > 0 {
+			enabledAtText := formatScopeList(info.EnabledAt)
+			fmt.Println(ui.Indent(ui.RenderDetail("Enabled at", enabledAtText), 1))
+		}
+
+		if info.ActiveSource != "" {
+			fmt.Println(ui.Indent(ui.RenderDetail("Active source", info.ActiveSource), 1))
+		}
+
+		// Show all installation locations (deduplicated)
+		if len(info.InstalledAt) > 1 {
+			// Use map to deduplicate scopes
+			otherScopesMap := make(map[string]bool)
+			for _, inst := range info.InstalledAt {
+				if inst.Scope != info.ActiveSource {
+					otherScopesMap[inst.Scope] = true
+				}
+			}
+
+			// Convert to sorted slice
+			otherInstalls := make([]string, 0, len(otherScopesMap))
+			for scope := range otherScopesMap {
+				otherInstalls = append(otherInstalls, scope)
+			}
+			claude.SortScopesByPrecedence(otherInstalls)
+
+			if len(otherInstalls) > 0 {
+				fmt.Println(ui.Indent(ui.RenderDetail("Also installed at", formatScopeList(otherInstalls)), 1))
+			}
+		}
+
+		// Show primary installation path
+		if info.ActiveSource != "" {
+			if activeInst := info.GetInstallationForScope(info.ActiveSource); activeInst != nil {
+				fmt.Println(ui.Indent(ui.RenderDetail("Path", activeInst.InstallPath), 1))
+				fmt.Println(ui.Indent(ui.RenderDetail("Installed", activeInst.InstalledAt), 1))
+
+				pluginType := "cached"
+				if activeInst.IsLocal {
+					pluginType = "local"
+				}
+				fmt.Println(ui.Indent(ui.RenderDetail("Type", pluginType), 1))
+			}
+		} else if len(info.InstalledAt) > 0 {
+			// No active source, show first installation
+			inst := info.InstalledAt[0]
+			fmt.Println(ui.Indent(ui.RenderDetail("Path", inst.InstallPath), 1))
+			fmt.Println(ui.Indent(ui.RenderDetail("Installed", inst.InstalledAt), 1))
+
+			pluginType := "cached"
+			if inst.IsLocal {
+				pluginType = "local"
+			}
+			fmt.Println(ui.Indent(ui.RenderDetail("Type", pluginType), 1))
+		}
+
 		fmt.Println()
 	}
 
@@ -291,4 +380,24 @@ func saveCurrentStateToProfile(profileName string) error {
 
 	profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
 	return profile.Save(profilesDir, snapshot)
+}
+
+// formatScopeList formats a list of scopes as a comma-separated string
+func formatScopeList(scopes []string) string {
+	if len(scopes) == 0 {
+		return ""
+	}
+	if len(scopes) == 1 {
+		return scopes[0]
+	}
+
+	// Join with commas
+	result := ""
+	for i, scope := range scopes {
+		if i > 0 {
+			result += ", "
+		}
+		result += scope
+	}
+	return result
 }

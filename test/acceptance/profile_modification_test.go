@@ -85,7 +85,7 @@ var _ = Describe("profile modification detection", func() {
 				result := env.Run("status")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("has unsaved changes"))
+				Expect(result.Stdout).To(ContainSubstring("System differs from profile"))
 			})
 
 			It("shows summary of changes", func() {
@@ -93,7 +93,7 @@ var _ = Describe("profile modification detection", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				// Should mention plugins and marketplace changes
-				Expect(result.Stdout).To(MatchRegexp("plugin.*added|marketplace.*added"))
+				Expect(result.Stdout).To(MatchRegexp("plugin.*not in profile|marketplace.*not in profile"))
 			})
 
 			It("suggests running profile save", func() {

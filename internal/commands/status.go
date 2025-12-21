@@ -6,12 +6,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
+)
+
+var (
+	statusScope string
 )
 
 var statusCmd = &cobra.Command{
@@ -33,9 +38,16 @@ For diagnostics, use 'claudeup doctor'.`,
 
 func init() {
 	rootCmd.AddCommand(statusCmd)
+	statusCmd.Flags().StringVar(&statusScope, "scope", "", "Check status for specific scope (user, project, or local)")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	// Get current directory for scope-aware settings
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	// Load marketplaces
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {
@@ -48,64 +60,137 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
-	// Load settings to check which plugins are enabled
-	settings, err := claude.LoadSettings(claudeDir)
-	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+	// Validate scope if specified
+	if statusScope != "" {
+		if err := claude.ValidateScope(statusScope); err != nil {
+			return err
+		}
 	}
 
 	// Print header
 	fmt.Println(ui.RenderSection("claudeup Status", -1))
 
-	// Print active profile
-	cfg, _ := config.Load()
-	activeProfile := "none"
-	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
-		activeProfile = cfg.Preferences.ActiveProfile
-	}
-	fmt.Println()
-	fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
+	// Determine active profile (project profile takes precedence)
+	var activeProfile string
+	var profileScope string
 
-	// Check for unsaved profile changes
-	if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+	// Check for project-level profile first
+	if profile.ProjectConfigExists(projectDir) {
+		projectCfg, err := profile.LoadProjectConfig(projectDir)
+		if err == nil && projectCfg.Profile != "" {
+			activeProfile = projectCfg.Profile
+			profileScope = "project"
+		}
+	}
+
+	// Fall back to user-level profile
+	if activeProfile == "" {
+		cfg, _ := config.Load()
+		if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+			activeProfile = cfg.Preferences.ActiveProfile
+			profileScope = "user"
+		} else {
+			activeProfile = "none"
+		}
+	}
+
+	fmt.Println()
+	if profileScope != "" {
+		fmt.Println(ui.RenderDetail("Active Profile", fmt.Sprintf("%s %s", ui.Bold(activeProfile), ui.Muted(fmt.Sprintf("(%s scope)", profileScope)))))
+	} else {
+		fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
+	}
+
+	// Check for unsaved profile changes (scope-aware)
+	if activeProfile != "none" && activeProfile != "" {
 		homeDir, _ := os.UserHomeDir()
 		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 		// Check if profile file exists (both disk and embedded)
-		_, diskErr := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
-		_, embeddedErr := profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+		_, diskErr := profile.Load(profilesDir, activeProfile)
+		_, embeddedErr := profile.GetEmbeddedProfile(activeProfile)
 
 		if diskErr != nil && embeddedErr != nil {
-			// Profile doesn't exist anywhere - auto-clear
-			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found. Clearing active profile.", cfg.Preferences.ActiveProfile))
-			cfg.Preferences.ActiveProfile = ""
-			if err := config.Save(cfg); err != nil {
-				ui.PrintWarning(fmt.Sprintf("Could not clear active profile: %v", err))
-			}
+			// Profile doesn't exist anywhere - show warning
+			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found.", activeProfile))
 		} else {
-			// Check for modifications using helper
-			modified, comparisonErr := profile.IsActiveProfileModified(cfg.Preferences.ActiveProfile, profilesDir, claudeDir, claudeJSONPath)
+			// Determine which scopes to check based on profile scope
+			scopesToCheck := []string{}
+			if statusScope != "" {
+				// User specified a specific scope
+				scopesToCheck = append(scopesToCheck, statusScope)
+			} else if profileScope == "project" {
+				// Project-scoped profile: only check project scope
+				// (Local scope is for personal overrides, not managed by profile)
+				projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+				if _, err := os.Stat(projectSettingsPath); err == nil {
+					scopesToCheck = append(scopesToCheck, "project")
+				}
+			} else {
+				// User-scoped profile: check all scopes
+				scopesToCheck = append(scopesToCheck, "user")
 
-			if comparisonErr != nil {
-				// Subtle warning for debugging - don't alarm users
-				ui.PrintMuted(fmt.Sprintf("Note: Could not check for profile changes (%v)", comparisonErr))
+				// Also check project/local if they exist
+				projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+				if _, err := os.Stat(projectSettingsPath); err == nil {
+					scopesToCheck = append(scopesToCheck, "project")
+				}
+
+				localSettingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+				if _, err := os.Stat(localSettingsPath); err == nil {
+					scopesToCheck = append(scopesToCheck, "local")
+				}
 			}
 
-			if modified {
-				// Load profile again to get diff details for summary
-				savedProfile, err := profile.Load(profilesDir, cfg.Preferences.ActiveProfile)
-				if err != nil {
-					savedProfile, err = profile.GetEmbeddedProfile(cfg.Preferences.ActiveProfile)
+			// Check each scope for drift
+			hasAnyDrift := false
+			for _, scope := range scopesToCheck {
+				modified, comparisonErr := profile.IsProfileModifiedAtScope(
+					activeProfile,
+					profilesDir,
+					claudeDir,
+					claudeJSONPath,
+					projectDir,
+					scope,
+				)
+
+				if comparisonErr != nil {
+					// Subtle warning for debugging - don't alarm users
+					ui.PrintMuted(fmt.Sprintf("Note: Could not check %s scope for profile changes (%v)", scope, comparisonErr))
+					continue
 				}
-				if err == nil {
-					diff, err := profile.CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
-					if err == nil && diff.HasChanges() {
+
+				if modified {
+					if !hasAnyDrift {
 						fmt.Println()
-						ui.PrintWarning(fmt.Sprintf("Active profile '%s' has unsaved changes:", cfg.Preferences.ActiveProfile))
-						ui.PrintInfo("  • " + diff.Summary())
-						ui.PrintInfo("Run 'claudeup profile save' to persist them.")
+						ui.PrintWarning(fmt.Sprintf("System differs from profile '%s':", activeProfile))
+						hasAnyDrift = true
 					}
+
+					// Load profile again to get diff details for summary
+					savedProfile, err := profile.Load(profilesDir, activeProfile)
+					if err != nil {
+						savedProfile, err = profile.GetEmbeddedProfile(activeProfile)
+					}
+					if err == nil {
+						diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, projectDir, scope)
+						if err == nil && diff.HasChanges() {
+							ui.PrintInfo(fmt.Sprintf("  • %s scope: %s", ui.Bold(scope), diff.Summary()))
+						}
+					}
+				}
+			}
+
+			if hasAnyDrift {
+				fmt.Println()
+				ui.PrintInfo("To sync:")
+				if statusScope != "" {
+					ui.PrintInfo(fmt.Sprintf("  • Update profile: 'claudeup profile save --scope %s'", statusScope))
+					ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile use %s --scope %s'", activeProfile, statusScope))
+				} else {
+					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope <scope>'"))
+					ui.PrintInfo(fmt.Sprintf("  • Install missing to match profile: 'claudeup profile use %s'", activeProfile))
 				}
 			}
 		}
@@ -118,13 +203,40 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
 	}
 
+	// Load settings from each scope to determine where plugins are enabled
+	var scopes []string
+	if statusScope != "" {
+		// Only check specified scope when --scope flag is used
+		scopes = []string{statusScope}
+	} else {
+		// Check all scopes in precedence order
+		scopes = []string{"local", "project", "user"}
+	}
+
+	scopeSettings := make(map[string]*claude.Settings)
+	for _, scope := range scopes {
+		scopeSettings[scope], _ = claude.LoadSettingsForScope(scope, claudeDir, projectDir)
+	}
+
+	// Build map of plugin -> scope (highest precedence wins)
+	pluginScopes := make(map[string]string)
+	for name := range plugins.GetAllPlugins() {
+		// Check scopes in precedence order (local > project > user)
+		for _, scope := range scopes {
+			if scopeSettings[scope] != nil && scopeSettings[scope].IsPluginEnabled(name) {
+				pluginScopes[name] = scope
+				break // Found at highest precedence scope
+			}
+		}
+	}
+
 	// Count enabled plugins and detect issues
 	enabledCount := 0
 	stalePlugins := []string{}
 
 	for name, plugin := range plugins.GetAllPlugins() {
-		// Check if plugin is enabled in settings.json
-		if settings.IsPluginEnabled(name) {
+		// Check if plugin is enabled in any scope
+		if _, enabled := pluginScopes[name]; enabled {
 			enabledCount++
 			// Also check if enabled plugin has stale path
 			if !plugin.PathExists() {
@@ -133,14 +245,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Print plugins summary (only show enabled plugins, like marketplaces)
+	// Print plugins summary with scope information
 	fmt.Println()
 	fmt.Println(ui.RenderSection("Plugins", enabledCount))
 	if enabledCount > 0 {
-		for name := range plugins.GetAllPlugins() {
-			if settings.IsPluginEnabled(name) {
-				fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), name)
-			}
+		// Sort plugin names for consistent output
+		pluginNames := make([]string, 0, len(pluginScopes))
+		for name := range pluginScopes {
+			pluginNames = append(pluginNames, name)
+		}
+		sort.Strings(pluginNames)
+
+		for _, name := range pluginNames {
+			scope := pluginScopes[name]
+			fmt.Printf("  %s %s %s\n", ui.Success(ui.SymbolSuccess), name, ui.Muted(fmt.Sprintf("(%s)", scope)))
 		}
 	}
 	// Only show stale plugins if there are any

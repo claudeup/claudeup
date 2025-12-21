@@ -5,6 +5,8 @@ package profile
 import (
 	"fmt"
 	"strings"
+
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 // ProfileDiff represents differences between a saved profile and current state
@@ -27,6 +29,8 @@ func (d *ProfileDiff) HasChanges() bool {
 }
 
 // Summary returns a human-readable summary of the changes
+// "Added" means: in system but not in profile (extra)
+// "Missing" means: in profile but not in system (expected but not installed)
 func (d *ProfileDiff) Summary() string {
 	if !d.HasChanges() {
 		return ""
@@ -36,26 +40,26 @@ func (d *ProfileDiff) Summary() string {
 
 	// Plugins
 	if len(d.PluginsAdded) > 0 {
-		parts = append(parts, pluralize(len(d.PluginsAdded), "plugin", "plugins")+" added")
+		parts = append(parts, pluralize(len(d.PluginsAdded), "plugin", "plugins")+" not in profile")
 	}
 	if len(d.PluginsRemoved) > 0 {
-		parts = append(parts, pluralize(len(d.PluginsRemoved), "plugin", "plugins")+" removed")
+		parts = append(parts, pluralize(len(d.PluginsRemoved), "plugin", "plugins")+" missing")
 	}
 
 	// Marketplaces
 	if len(d.MarketplacesAdded) > 0 {
-		parts = append(parts, pluralize(len(d.MarketplacesAdded), "marketplace", "marketplaces")+" added")
+		parts = append(parts, pluralize(len(d.MarketplacesAdded), "marketplace", "marketplaces")+" not in profile")
 	}
 	if len(d.MarketplacesRemoved) > 0 {
-		parts = append(parts, pluralize(len(d.MarketplacesRemoved), "marketplace", "marketplaces")+" removed")
+		parts = append(parts, pluralize(len(d.MarketplacesRemoved), "marketplace", "marketplaces")+" missing")
 	}
 
 	// MCP servers
 	if len(d.MCPServersAdded) > 0 {
-		parts = append(parts, pluralize(len(d.MCPServersAdded), "MCP server", "MCP servers")+" added")
+		parts = append(parts, pluralize(len(d.MCPServersAdded), "MCP server", "MCP servers")+" not in profile")
 	}
 	if len(d.MCPServersRemoved) > 0 {
-		parts = append(parts, pluralize(len(d.MCPServersRemoved), "MCP server", "MCP servers")+" removed")
+		parts = append(parts, pluralize(len(d.MCPServersRemoved), "MCP server", "MCP servers")+" missing")
 	}
 	if len(d.MCPServersModified) > 0 {
 		parts = append(parts, pluralize(len(d.MCPServersModified), "MCP server", "MCP servers")+" modified")
@@ -78,6 +82,31 @@ func CompareWithCurrent(savedProfile *Profile, claudeDir, claudeJSONPath string)
 	current, err := Snapshot("", claudeDir, claudeJSONPath)
 	if err != nil {
 		return nil, err
+	}
+
+	// Compare current vs saved, respecting skipPluginDiff
+	return compare(savedProfile, current), nil
+}
+
+// CompareWithScope compares a saved profile with the current state at a specific scope
+func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectDir, scope string) (*ProfileDiff, error) {
+	// Validate scope
+	if err := claude.ValidateScope(scope); err != nil {
+		return nil, err
+	}
+
+	// Create snapshot of current state at the specified scope
+	current, err := SnapshotWithScope("", claudeDir, claudeJSONPath, SnapshotOptions{
+		Scope:      scope,
+		ProjectDir: projectDir,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Marketplaces are user-scope only - don't compare them for project/local scopes
+	if scope != "user" {
+		current.Marketplaces = savedProfile.Marketplaces
 	}
 
 	// Compare current vs saved, respecting skipPluginDiff
@@ -108,6 +137,35 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 	diff, err := CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to compare profile %q: %w", activeProfileName, err)
+	}
+
+	return diff.HasChanges(), nil
+}
+
+// IsProfileModifiedAtScope checks if a profile has unsaved changes at a specific scope
+// Returns (hasChanges, comparisonError)
+// - hasChanges: true if profile exists and has modifications at the specified scope
+// - comparisonError: non-nil if comparison failed (file read error, corrupt data, etc.)
+// Gracefully returns (false, err) on any errors
+func IsProfileModifiedAtScope(profileName, profilesDir, claudeDir, claudeJSONPath, projectDir, scope string) (bool, error) {
+	if profileName == "" {
+		return false, nil
+	}
+
+	// Try to load the profile (disk first, then embedded)
+	savedProfile, err := Load(profilesDir, profileName)
+	if err != nil {
+		// Try embedded profile
+		savedProfile, err = GetEmbeddedProfile(profileName)
+		if err != nil {
+			return false, fmt.Errorf("failed to load profile %q: %w", profileName, err)
+		}
+	}
+
+	// Compare with current state at the specified scope
+	diff, err := CompareWithScope(savedProfile, claudeDir, claudeJSONPath, projectDir, scope)
+	if err != nil {
+		return false, fmt.Errorf("failed to compare profile %q at scope %s: %w", profileName, scope, err)
 	}
 
 	return diff.HasChanges(), nil

@@ -114,3 +114,138 @@ func SaveSettings(claudeDir string, settings *Settings) error {
 
 	return os.WriteFile(settingsPath, data, 0644)
 }
+
+// SettingsPathForScope returns the settings.json path for a given scope
+func SettingsPathForScope(scope string, claudeDir string, projectDir string) (string, error) {
+	// Validate scope (allow empty string as alias for "user")
+	if scope != "" {
+		if err := ValidateScope(scope); err != nil {
+			return "", err
+		}
+	}
+
+	switch scope {
+	case "user", "":
+		return filepath.Join(claudeDir, "settings.json"), nil
+	case "project":
+		if projectDir == "" {
+			return "", fmt.Errorf("project directory required for project scope")
+		}
+		// Project scope: ./.claude/settings.json
+		return filepath.Join(projectDir, ".claude", "settings.json"), nil
+	case "local":
+		if projectDir == "" {
+			return "", fmt.Errorf("project directory required for local scope")
+		}
+		// Local scope: ./.claude/settings.local.json (machine-specific, gitignored)
+		return filepath.Join(projectDir, ".claude", "settings.local.json"), nil
+	default:
+		// This should never be reached due to ValidateScope above
+		return "", fmt.Errorf("invalid scope: %s", scope)
+	}
+}
+
+// LoadSettingsForScope reads settings from a specific scope
+func LoadSettingsForScope(scope string, claudeDir string, projectDir string) (*Settings, error) {
+	path, err := SettingsPathForScope(scope, claudeDir, projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// If file doesn't exist, return empty settings (not an error)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return &Settings{
+			EnabledPlugins: make(map[string]bool),
+			raw:            make(map[string]interface{}),
+		}, nil
+	}
+
+	// Read and parse
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Unmarshal into raw map first to preserve all fields
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, err
+	}
+
+	// Extract enabledPlugins with type safety
+	settings := &Settings{
+		raw:            raw,
+		EnabledPlugins: make(map[string]bool),
+	}
+
+	if enabledPlugins, ok := raw["enabledPlugins"].(map[string]interface{}); ok {
+		for key, val := range enabledPlugins {
+			if enabled, ok := val.(bool); ok {
+				settings.EnabledPlugins[key] = enabled
+			}
+		}
+	}
+
+	return settings, nil
+}
+
+// SaveSettingsForScope writes settings to a specific scope
+func SaveSettingsForScope(scope string, claudeDir string, projectDir string, settings *Settings) error {
+	path, err := SettingsPathForScope(scope, claudeDir, projectDir)
+	if err != nil {
+		return err
+	}
+
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	// Initialize raw map if not present
+	if settings.raw == nil {
+		settings.raw = make(map[string]interface{})
+	}
+
+	// Update enabledPlugins in raw map
+	settings.raw["enabledPlugins"] = settings.EnabledPlugins
+
+	// Marshal the full raw map to preserve all fields
+	data, err := json.MarshalIndent(settings.raw, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+// LoadMergedSettings loads settings from all scopes and merges them
+// Precedence: local > project > user (later scopes override earlier ones)
+func LoadMergedSettings(claudeDir string, projectDir string) (*Settings, error) {
+	merged := &Settings{
+		EnabledPlugins: make(map[string]bool),
+		raw:            make(map[string]interface{}),
+	}
+
+	// Load settings in precedence order (lowest to highest priority)
+	// ValidScopes is ordered: [user, project, local]
+	// This means local settings override project, which override user
+	for _, scope := range ValidScopes {
+		settings, err := LoadSettingsForScope(scope, claudeDir, projectDir)
+		if err != nil {
+			// Only return error for user scope (required), others are optional
+			if scope == ScopeUser {
+				return nil, err
+			}
+			continue
+		}
+
+		// Merge enabled plugins - later scopes override earlier ones
+		// This implements the precedence: local > project > user
+		for plugin, enabled := range settings.EnabledPlugins {
+			merged.EnabledPlugins[plugin] = enabled
+		}
+	}
+
+	return merged, nil
+}

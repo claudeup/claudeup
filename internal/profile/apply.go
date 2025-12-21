@@ -226,7 +226,27 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 		}
 	}
 
-	// 4. Write .claudeup.json
+	// 4. Write project scope settings.json with enabled plugins (declarative replace)
+	// CRITICAL: Load existing settings to preserve non-plugin fields
+	projectSettings, err := claude.LoadSettingsForScope("project", claudeDir, opts.ProjectDir)
+	if err != nil {
+		// If settings don't exist, create new minimal settings
+		projectSettings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Update only enabledPlugins field (preserve all other fields)
+	projectSettings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		projectSettings.EnabledPlugins[plugin] = true
+	}
+
+	if err := claude.SaveSettingsForScope("project", claudeDir, opts.ProjectDir, projectSettings); err != nil {
+		return nil, fmt.Errorf("failed to write project settings.json: %w", err)
+	}
+
+	// 5. Write .claudeup.json
 	projectCfg := NewProjectConfig(profile)
 	if err := SaveProjectConfig(opts.ProjectDir, projectCfg); err != nil {
 		return nil, fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
@@ -319,7 +339,27 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 		}
 	}
 
-	// 5. Update projects registry
+	// 5. Write local scope settings.json with enabled plugins (declarative replace)
+	// CRITICAL: Load existing settings to preserve non-plugin fields
+	localSettings, err := claude.LoadSettingsForScope("local", claudeDir, opts.ProjectDir)
+	if err != nil {
+		// If settings don't exist, create new minimal settings
+		localSettings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Update only enabledPlugins field (preserve all other fields)
+	localSettings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		localSettings.EnabledPlugins[plugin] = true
+	}
+
+	if err := claude.SaveSettingsForScope("local", claudeDir, opts.ProjectDir, localSettings); err != nil {
+		return nil, fmt.Errorf("failed to write local settings.json: %w", err)
+	}
+
+	// 6. Update projects registry
 	registry, err := config.LoadProjectsRegistry()
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("load registry: %w", err))
@@ -478,6 +518,27 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 		} else {
 			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
 		}
+	}
+
+	// Write user scope settings.json with enabled plugins (declarative replace)
+	// This ensures settings.json exactly matches the profile
+	// CRITICAL: Load existing settings to preserve non-plugin fields (mcpServers, etc.)
+	userSettings, err := claude.LoadSettings(claudeDir)
+	if err != nil {
+		// If settings don't exist, create new minimal settings
+		userSettings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Update only enabledPlugins field (preserve all other fields)
+	userSettings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		userSettings.EnabledPlugins[plugin] = true
+	}
+
+	if err := claude.SaveSettings(claudeDir, userSettings); err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("failed to write user settings.json: %w", err))
 	}
 
 	// Install MCP servers
