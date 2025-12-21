@@ -117,6 +117,13 @@ func SaveSettings(claudeDir string, settings *Settings) error {
 
 // SettingsPathForScope returns the settings.json path for a given scope
 func SettingsPathForScope(scope string, claudeDir string, projectDir string) (string, error) {
+	// Validate scope (allow empty string as alias for "user")
+	if scope != "" {
+		if err := ValidateScope(scope); err != nil {
+			return "", err
+		}
+	}
+
 	switch scope {
 	case "user", "":
 		return filepath.Join(claudeDir, "settings.json"), nil
@@ -133,7 +140,8 @@ func SettingsPathForScope(scope string, claudeDir string, projectDir string) (st
 		// Local scope: ./.claude/settings-local.json (machine-specific, gitignored)
 		return filepath.Join(projectDir, ".claude", "settings-local.json"), nil
 	default:
-		return "", fmt.Errorf("invalid scope: %s (must be user, project, or local)", scope)
+		// This should never be reached due to ValidateScope above
+		return "", fmt.Errorf("invalid scope: %s", scope)
 	}
 }
 
@@ -219,20 +227,21 @@ func LoadMergedSettings(claudeDir string, projectDir string) (*Settings, error) 
 		raw:            make(map[string]interface{}),
 	}
 
-	// Load in precedence order (lowest to highest)
-	scopes := []string{"user", "project", "local"}
-
-	for _, scope := range scopes {
+	// Load settings in precedence order (lowest to highest priority)
+	// ValidScopes is ordered: [user, project, local]
+	// This means local settings override project, which override user
+	for _, scope := range ValidScopes {
 		settings, err := LoadSettingsForScope(scope, claudeDir, projectDir)
 		if err != nil {
 			// Only return error for user scope (required), others are optional
-			if scope == "user" {
+			if scope == ScopeUser {
 				return nil, err
 			}
 			continue
 		}
 
-		// Merge enabled plugins (later scopes override)
+		// Merge enabled plugins - later scopes override earlier ones
+		// This implements the precedence: local > project > user
 		for plugin, enabled := range settings.EnabledPlugins {
 			merged.EnabledPlugins[plugin] = enabled
 		}

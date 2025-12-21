@@ -374,3 +374,24 @@ func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
 		ExitCode: exitCode,
 	}
 }
+
+// BuildBinary builds the claudeup binary and returns its path
+func BuildBinary() string {
+	binPath := filepath.Join(GinkgoT().TempDir(), "claudeup")
+	cmd := exec.Command("go", "build", "-o", binPath, "./cmd/claudeup")
+	Expect(cmd.Run()).To(Succeed())
+	return binPath
+}
+
+// WriteJSON writes data as JSON to the specified path
+func WriteJSON(path string, data interface{}) {
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.MkdirAll(filepath.Dir(path), 0755)).To(Succeed())
+	Expect(os.WriteFile(path, jsonData, 0644)).To(Succeed())
+}
+
+// Cleanup removes the test environment (automatically called by GinkgoT().TempDir())
+func (e *TestEnv) Cleanup() {
+	// Temp dir is automatically cleaned up by Ginkgo
+}

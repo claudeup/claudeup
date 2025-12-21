@@ -5,6 +5,8 @@ package profile
 import (
 	"fmt"
 	"strings"
+
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 // ProfileDiff represents differences between a saved profile and current state
@@ -87,8 +89,8 @@ func CompareWithCurrent(savedProfile *Profile, claudeDir, claudeJSONPath string)
 // CompareWithScope compares a saved profile with the current state at a specific scope
 func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectDir, scope string) (*ProfileDiff, error) {
 	// Validate scope
-	if scope != "user" && scope != "project" && scope != "local" {
-		return nil, fmt.Errorf("invalid scope: %s (must be user, project, or local)", scope)
+	if err := claude.ValidateScope(scope); err != nil {
+		return nil, err
 	}
 
 	// Create snapshot of current state at the specified scope

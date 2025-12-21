@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "profile": "my-work-setup",
+  "profile": "hobson-claude-mem",
   "profileSource": "custom",
   "marketplaces": [
     {
@@ -62,6 +62,7 @@
     "documentation-generation@claude-code-workflows",
     "double-shot-latte@superpowers-marketplace",
     "elements-of-style@superpowers-marketplace",
+    "episodic-memory@superpowers-marketplace",
     "error-debugging@claude-code-workflows",
     "framework-migration@claude-code-workflows",
     "frontend-design@claude-code-plugins",
@@ -70,6 +71,7 @@
     "full-stack-orchestration@claude-code-workflows",
     "functional-programming@claude-code-workflows",
     "git-pr-workflows@claude-code-workflows",
+    "gopls-lsp@claude-plugins-official",
     "javascript-typescript@claude-code-workflows",
     "julia-development@claude-code-workflows",
     "jvm-languages@claude-code-workflows",
@@ -88,5 +90,5 @@
     "unit-testing@claude-code-workflows",
     "web-scripting@claude-code-workflows"
   ],
-  "appliedAt": "2025-12-20T21:39:42.908301-07:00"
+  "appliedAt": "2025-12-20T23:54:08.960847-07:00"
 }
