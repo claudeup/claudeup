@@ -104,6 +104,11 @@ func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectD
 		return nil, err
 	}
 
+	// Marketplaces are user-scope only - don't compare them for project/local scopes
+	if scope != "user" {
+		current.Marketplaces = savedProfile.Marketplaces
+	}
+
 	// Compare current vs saved, respecting skipPluginDiff
 	return compare(savedProfile, current), nil
 }
