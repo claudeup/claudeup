@@ -117,6 +117,43 @@ print_info "Created Claude Code test environment"
 print_info "  - 3 plugins in registry"
 print_info "  - 2 enabled at user scope"
 
+# Create helper script for manual interaction
+HELPER_SCRIPT="$TEST_DIR/run-claudeup.sh"
+cat > "$HELPER_SCRIPT" <<HELPER_EOF
+#!/bin/bash
+# Helper script to run claudeup commands against the demo environment
+export CLAUDE_CONFIG_DIR="$CLAUDE_DIR"
+cd "$PROJECT_DIR"
+$(pwd)/bin/claudeup "\$@"
+HELPER_EOF
+chmod +x "$HELPER_SCRIPT"
+
+echo ""
+print_section "Manual Interaction Available"
+cat <<INTERACT_MSG
+${GREEN}You can interact with the demo environment in another terminal!${NC}
+
+In a separate terminal, run these commands to explore:
+
+${CYAN}# Quick setup - copy/paste this:${NC}
+export DEMO_DIR="$TEST_DIR"
+alias demo-claudeup='CLAUDE_CONFIG_DIR=\$DEMO_DIR/.claude $(pwd)/bin/claudeup'
+cd "\$DEMO_DIR/my-project"
+
+${CYAN}# Now run commands:${NC}
+demo-claudeup plugin list
+demo-claudeup status
+demo-claudeup profile list
+
+${CYAN}# Or use the helper script:${NC}
+$HELPER_SCRIPT plugin list
+$HELPER_SCRIPT status
+
+${YELLOW}Note: You must use the BUILT binary (./bin/claudeup) or set CLAUDE_CONFIG_DIR.${NC}
+${YELLOW}Running just 'claudeup' will use your real ~/.claude directory!${NC}
+
+INTERACT_MSG
+
 pause
 
 # Change to project directory for testing
@@ -433,7 +470,13 @@ EOF
 # Cleanup instructions
 print_section "Cleanup"
 print_step "Test environment: $TEST_DIR"
-print_info "Inspect with: cd $TEST_DIR"
-print_info "Delete with: rm -rf $TEST_DIR"
+echo ""
+print_info "To continue exploring the demo:"
+echo "  Helper script: $HELPER_SCRIPT"
+echo "  Or use: export DEMO_DIR=$TEST_DIR"
+echo "          alias demo-claudeup='CLAUDE_CONFIG_DIR=\$DEMO_DIR/.claude $(pwd)/bin/claudeup'"
+echo ""
+print_info "To clean up:"
+echo "  rm -rf $TEST_DIR"
 
 echo -e "\n${GREEN}Demo complete! All features working end-to-end.${NC}\n"
