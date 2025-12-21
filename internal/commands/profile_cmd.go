@@ -48,8 +48,24 @@ var profileUseCmd = &cobra.Command{
 	Short: "Apply a profile to Claude Code",
 	Long: `Apply a profile's configuration to your Claude Code installation.
 
+SCOPES:
+  --scope project  Apply to current project (creates .claudeup.json for team sharing)
+  --scope local    Apply to current project, but not shared (personal overrides)
+  --scope user     Apply globally to ~/.claude/ (default, affects all projects)
+
+Precedence: local > project > user. Plugins from all scopes are active simultaneously.
+
+For team projects, use --scope project to create a shareable configuration that
+teammates can sync with 'claudeup profile sync'.
+
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
-	Example: `  # Apply a profile interactively
+	Example: `  # Set up a profile for your team (creates .claudeup.json)
+  claudeup profile use backend-stack --scope project
+
+  # Add personal plugins that won't affect teammates
+  claudeup profile use my-extras --scope local
+
+  # Apply globally (affects all projects)
   claudeup profile use my-profile
 
   # Apply without prompts
