@@ -90,24 +90,31 @@ else
 fi
 
 # Copy entire .claude directory structure, then clear plugins
-if [ -d "$REAL_HOME/.claude" ]; then
-    print_info "Copying ~/.claude/ directory structure to skip setup prompts"
-    cp -r "$REAL_HOME/.claude/"* "$CLAUDE_DIR/" 2>/dev/null || true
+if git clone https://github.com/malston/claude-config.git --branch claudeup "$CLAUDE_DIR" >/dev/null 2>&1; then
 
     # Clear out plugins and settings to start fresh
     print_info "Clearing plugin data to start fresh"
     rm -rf "$CLAUDE_DIR/plugins"
     mkdir -p "$CLAUDE_DIR/plugins"
 
+else
+    print_info "Warning: Failed to clone claude-config repo, creating minimal config"
+    mkdir -p "$CLAUDE_DIR/plugins"
     # Reset settings to empty
     cat > "$CLAUDE_DIR/settings.json" <<'CLAUDE_SETTINGS_EOF'
 {
-  "enabledPlugins": {}
+  "enabledPlugins": {},
+  "hooks": {},
+  "includeCoAuthoredBy": false,
+  "model": "default",
+  "permissions": {
+    "allow": [],
+    "ask": [],
+    "defaultMode": "acceptEdits",
+    "deny": []
+  }
 }
 CLAUDE_SETTINGS_EOF
-else
-    print_info "Warning: No ~/.claude directory found"
-    mkdir -p "$CLAUDE_DIR/plugins"
 fi
 
 # Create a minimal claudeup config for the demo (no active profile)
