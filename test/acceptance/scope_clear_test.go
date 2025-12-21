@@ -1,22 +1,16 @@
 // ABOUTME: Acceptance tests for scope clear command
 // ABOUTME: Tests CLI behavior for clearing settings at different scopes
-package acceptance_test
+package acceptance
 
 import (
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/claudeup/claudeup/test/helpers"
 )
-
-func TestScopeClear(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scope Clear Acceptance Suite")
-}
 
 var _ = Describe("claudeup scope clear", func() {
 	var (

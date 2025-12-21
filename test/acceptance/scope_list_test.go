@@ -1,22 +1,16 @@
 // ABOUTME: Acceptance tests for scope list command
 // ABOUTME: Tests CLI behavior for viewing plugins across different scopes
-package acceptance_test
+package acceptance
 
 import (
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/claudeup/claudeup/test/helpers"
 )
-
-func TestScopeList(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Scope List Acceptance Suite")
-}
 
 var _ = Describe("claudeup scope list", func() {
 	var (
