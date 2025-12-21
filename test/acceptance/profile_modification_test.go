@@ -165,6 +165,11 @@ var _ = Describe("profile modification detection", func() {
 					},
 				})
 
+				// Enable plugin-b in settings (the "unsaved change")
+				env.CreateSettings(map[string]bool{
+					"plugin-b": true,
+				})
+
 				// Create .claude.json
 				claudeJSON := map[string]interface{}{
 					"mcpServers": map[string]interface{}{},
@@ -173,23 +178,19 @@ var _ = Describe("profile modification detection", func() {
 				os.WriteFile(filepath.Join(env.TempDir, ".claude.json"), data, 0644)
 			})
 
-			It("blocks reapplication with error", func() {
-				result := env.Run("profile", "use", "test-profile")
+			It("allows reapplication (declarative - syncs state)", func() {
+				result := env.Run("profile", "use", "test-profile", "-y")
 
-				Expect(result.ExitCode).NotTo(Equal(0))
-				Expect(result.Stderr).To(ContainSubstring("already active with unsaved changes"))
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Profile applied"))
 			})
 
-			It("suggests using profile save", func() {
-				result := env.Run("profile", "use", "test-profile")
+			It("removes the extra plugin to match profile", func() {
+				result := env.Run("profile", "use", "test-profile", "-y")
 
-				Expect(result.Stderr).To(ContainSubstring("profile save"))
-			})
-
-			It("suggests using --force flag", func() {
-				result := env.Run("profile", "use", "test-profile")
-
-				Expect(result.Stderr).To(ContainSubstring("--force"))
+				Expect(result.ExitCode).To(Equal(0))
+				// Should have removed plugin-b (not in profile)
+				Expect(result.Stdout).To(MatchRegexp("Removed.*plugin"))
 			})
 		})
 

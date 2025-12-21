@@ -411,19 +411,9 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q not found: %w", name, err)
 	}
 
-	// Check if reapplying active profile with unsaved changes (only for user scope)
+	// In a declarative system, reapplying a profile should always be allowed
+	// It simply syncs the current state to match the profile definition
 	cfg, _ := config.Load()
-	isAlreadyActive := cfg != nil && cfg.Preferences.ActiveProfile == name
-
-	if scope == profile.ScopeUser && isAlreadyActive && !profileUseForce {
-		// Check for unsaved changes
-		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-		diff, err := profile.CompareWithCurrent(p, claudeDir, claudeJSONPath)
-
-		if err == nil && diff.HasChanges() {
-			return fmt.Errorf("profile '%s' is already active with unsaved changes.\nUse 'claudeup profile save' to persist changes, or 'claudeup profile use %s --force' to discard them", name, name)
-		}
-	}
 
 	// Security check FIRST: warn about hooks from non-embedded profiles
 	// Users should know about hooks before seeing the diff
