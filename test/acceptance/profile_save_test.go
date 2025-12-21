@@ -92,6 +92,14 @@ var _ = Describe("profile save", func() {
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(env.GetActiveProfile()).To(Equal("active-one"))
 			})
+
+			It("does not prompt for overwrite when saving to active profile", func() {
+				result := env.Run("profile", "save")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("Overwrite?"))
+				Expect(result.Stdout).To(ContainSubstring("Saved profile"))
+			})
 		})
 
 		Context("when no active profile is set", func() {

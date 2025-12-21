@@ -633,6 +633,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 
 	// Determine profile name
 	var name string
+	isActiveProfile := false
 	if len(args) > 0 {
 		name = args[0]
 		// "current" is reserved as a keyword for the active profile
@@ -648,15 +649,16 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile use <name>' first")
 		}
 		name = cfg.Preferences.ActiveProfile
+		isActiveProfile = true
 		ui.PrintInfo(fmt.Sprintf("Saving to active profile: %s", name))
 	}
 
-	// Check if profile already exists
+	// Check if profile already exists (only prompt if explicitly named, not when saving to active profile)
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
-		if !config.YesFlag {
-			fmt.Printf("%s Profile %q already exists. Overwrite? [y/N]: ", ui.Warning(ui.SymbolWarning), name)
-			choice := promptChoice("", "n")
+		if !isActiveProfile && !config.YesFlag {
+			fmt.Printf("%s Profile %q already exists. ", ui.Warning(ui.SymbolWarning), name)
+			choice := promptChoice("Overwrite?", "n")
 			if choice != "y" && choice != "yes" {
 				ui.PrintMuted("Cancelled.")
 				return nil
