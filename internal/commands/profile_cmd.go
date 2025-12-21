@@ -780,12 +780,16 @@ func hasDiffChanges(diff *profile.Diff) bool {
 		len(diff.PluginsToInstall) > 0 ||
 		len(diff.MCPToRemove) > 0 ||
 		len(diff.MCPToInstall) > 0 ||
-		len(diff.MarketplacesToAdd) > 0
+		len(diff.MarketplacesToAdd) > 0 ||
+		len(diff.MarketplacesToRemove) > 0
 }
 
 func showDiff(diff *profile.Diff) {
-	if len(diff.PluginsToRemove) > 0 || len(diff.MCPToRemove) > 0 {
+	if len(diff.PluginsToRemove) > 0 || len(diff.MCPToRemove) > 0 || len(diff.MarketplacesToRemove) > 0 {
 		fmt.Printf("  %s\n", ui.Warning("Remove:"))
+		for _, m := range diff.MarketplacesToRemove {
+			fmt.Printf("    %s %s\n", ui.Warning("-"), ui.Muted("Marketplace: ")+m.DisplayName())
+		}
 		for _, p := range diff.PluginsToRemove {
 			fmt.Printf("    %s %s\n", ui.Warning("-"), p)
 		}

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/secrets"
 )
@@ -402,19 +403,36 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 	}
 
 	// Remove marketplaces
-	for _, m := range diff.MarketplacesToRemove {
-		key := marketplaceKey(m)
-		if key != "" {
-			output, err := executor.RunWithOutput("plugin", "marketplace", "remove", key)
-			if err != nil {
-				// Check if already removed - treat as success
-				if strings.Contains(output, "not found") || strings.Contains(output, "not installed") {
-					result.MarketplacesRemoved = append(result.MarketplacesRemoved, key)
-				} else {
-					result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s: %w\n  Output: %s", key, err, strings.TrimSpace(output)))
+	// Load current marketplaces to find names by repo/URL
+	marketplaceRegistry, err := claude.LoadMarketplaces(claudeDir)
+	if err == nil {
+		for _, m := range diff.MarketplacesToRemove {
+			// Find the marketplace name by matching repo/URL
+			var marketplaceName string
+			repoKey := marketplaceKey(m)
+			for name, meta := range marketplaceRegistry {
+				metaKey := meta.Source.Repo
+				if metaKey == "" {
+					metaKey = meta.Source.URL
 				}
-			} else {
-				result.MarketplacesRemoved = append(result.MarketplacesRemoved, key)
+				if metaKey == repoKey {
+					marketplaceName = name
+					break
+				}
+			}
+
+			if marketplaceName != "" {
+				output, err := executor.RunWithOutput("plugin", "marketplace", "remove", marketplaceName)
+				if err != nil {
+					// Check if already removed - treat as success
+					if strings.Contains(output, "not found") || strings.Contains(output, "not installed") {
+						result.MarketplacesRemoved = append(result.MarketplacesRemoved, repoKey)
+					} else {
+						result.Errors = append(result.Errors, fmt.Errorf("failed to remove marketplace %s (%s): %w\n  Output: %s", marketplaceName, repoKey, err, strings.TrimSpace(output)))
+					}
+				} else {
+					result.MarketplacesRemoved = append(result.MarketplacesRemoved, repoKey)
+				}
 			}
 		}
 	}
