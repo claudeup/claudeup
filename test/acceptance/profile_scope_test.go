@@ -160,12 +160,14 @@ var _ = Describe("profile use --scope", func() {
 				env.WriteFile(projectDir, ".claudeup.json", "{ invalid json }")
 			})
 
-			It("proceeds without warning when config cannot be parsed", func() {
+			It("warns about unreadable config but proceeds", func() {
 				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
 
-				// Should succeed - malformed config is treated as no config
+				// Should succeed - malformed config is overwritten
 				Expect(result.ExitCode).To(Equal(0))
-				// Should not show the "already configured" warning
+				// Should warn about the malformed config
+				Expect(result.Stdout).To(ContainSubstring("Could not read existing project config"))
+				// Should not show the "already configured" warning (can't read profile name)
 				Expect(result.Stdout).NotTo(ContainSubstring("already configured"))
 			})
 
