@@ -121,16 +121,70 @@ var _ = Describe("profile use concurrent apply", func() {
 			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "plugins", "installed_plugins.json"), installedPlugins)
 		})
 
-		It("forces reinstall of already-installed plugins", func() {
-			// First apply without reinstall - should show skipped
+		It("skips already-installed plugins without --reinstall", func() {
 			result := env.RunInDir(projectDir, "profile", "use", "reinstall-profile", "--scope", "project", "-y")
-			Expect(result.ExitCode).To(Equal(0))
-			// Could show "already installed" or skip count
 
-			// Apply with reinstall flag - should attempt install
-			result = env.RunInDir(projectDir, "profile", "use", "reinstall-profile", "--scope", "project", "--reinstall", "-y")
 			Expect(result.ExitCode).To(Equal(0))
-			// With reinstall, the plugin installation is attempted
+			// Should show skip count in progress output
+			Expect(result.Stdout).To(ContainSubstring("already installed"))
+		})
+
+		It("forces reinstall of already-installed plugins with --reinstall", func() {
+			result := env.RunInDir(projectDir, "profile", "use", "reinstall-profile", "--scope", "project", "--reinstall", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// With --reinstall, should NOT show "already installed" skip message
+			Expect(result.Stdout).NotTo(ContainSubstring("already installed"))
+		})
+
+		It("shows --reinstall in help text", func() {
+			result := env.Run("profile", "use", "--help")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("--reinstall"))
+			Expect(result.Stdout).To(ContainSubstring("Force reinstall"))
+		})
+	})
+
+	Describe("--reinstall with marketplaces", func() {
+		BeforeEach(func() {
+			// Profile with only a marketplace, no plugins
+			env.CreateProfile(&profile.Profile{
+				Name: "marketplace-only-profile",
+				Marketplaces: []profile.Marketplace{
+					{Source: "github", Repo: "test/marketplace"},
+				},
+			})
+
+			// Simulate that the marketplace is already installed
+			knownMarketplaces := map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source": map[string]interface{}{
+						"repo": "test/marketplace",
+					},
+				},
+			}
+			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "plugins", "known_marketplaces.json"), knownMarketplaces)
+		})
+
+		It("shows no changes when marketplace already installed without --reinstall", func() {
+			result := env.RunInDir(projectDir, "profile", "use", "marketplace-only-profile", "--scope", "project", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// When marketplace is already installed and there are no plugins,
+			// the output shows "No changes needed" or similar
+			Expect(result.Stdout).To(Or(
+				ContainSubstring("already installed"),
+				ContainSubstring("No changes needed"),
+			))
+		})
+
+		It("attempts reinstall of marketplaces with --reinstall", func() {
+			result := env.RunInDir(projectDir, "profile", "use", "marketplace-only-profile", "--scope", "project", "--reinstall", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// With --reinstall, the marketplace install is attempted (might fail
+			// because it's a fake marketplace, but that's ok for this test)
 		})
 	})
 
