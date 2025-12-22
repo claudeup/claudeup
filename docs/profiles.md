@@ -18,6 +18,7 @@ claudeup profile use <name>        # Apply a profile
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile delete <name>     # Delete a custom user profile
 claudeup profile restore <name>    # Restore a built-in profile to original state
+claudeup profile rename <old> <new> # Rename a custom profile
 claudeup profile suggest           # Get profile suggestion based on project
 ```
 
@@ -584,7 +585,7 @@ Reset profile: hobson
 Proceed? [y]:
 ```
 
-## Deleting and Restoring Profiles
+## Deleting, Renaming, and Restoring Profiles
 
 ### Deleting Custom Profiles
 
@@ -595,6 +596,18 @@ claudeup profile delete my-workflow
 ```
 
 This command only works on custom profiles. Attempting to delete a built-in profile returns an error with guidance to use `restore` instead.
+
+### Renaming Custom Profiles
+
+Use `profile rename` to rename custom profiles:
+
+```bash
+claudeup profile rename old-name new-name
+```
+
+This only works on custom profiles you've created. Built-in profiles cannot be renamed.
+
+If the profile being renamed is currently active, the active profile config is updated to point to the new name.
 
 ### Restoring Built-in Profiles
 

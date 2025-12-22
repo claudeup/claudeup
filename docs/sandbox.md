@@ -54,7 +54,25 @@ claudeup sandbox --no-secret GITHUB_TOKEN  # Exclude a secret
 # Utilities
 claudeup sandbox --shell                   # Drop to bash instead of Claude
 claudeup sandbox --clean --profile foo     # Reset sandbox state
+
+# Advanced options
+claudeup sandbox --ephemeral               # Force ephemeral mode (no persistence)
+claudeup sandbox --image my-image:latest   # Use custom Docker image
 ```
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--profile` | Profile for persistent state |
+| `--mount` | Additional mounts (host:container[:ro]) |
+| `--no-mount` | Don't mount working directory |
+| `--secret` | Additional secrets to inject |
+| `--no-secret` | Secrets to exclude |
+| `--shell` | Drop to bash instead of Claude CLI |
+| `--clean` | Reset sandbox state for profile |
+| `--ephemeral` | Force ephemeral mode even with --profile |
+| `--image` | Override sandbox Docker image |
 
 ## Profile Configuration
 

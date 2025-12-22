@@ -22,7 +22,7 @@ There's a known bug in Claude CLI ([#11278](https://github.com/anthropics/claude
 
 Claude CLI sets `isLocal: true` for marketplace plugins but creates paths without the `/plugins/` subdirectory:
 
-```
+```text
 Wrong: ~/.claude/plugins/marketplaces/claude-code-plugins/hookify
 Right: ~/.claude/plugins/marketplaces/claude-code-plugins/plugins/hookify
 ```
@@ -54,7 +54,7 @@ Understanding plugin types helps with troubleshooting:
 Check your plugin types:
 
 ```bash
-claudeup plugins --summary
+claudeup plugin list --summary
 ```
 
 ## Common Issues

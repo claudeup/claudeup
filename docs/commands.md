@@ -34,6 +34,7 @@ claudeup profile suggest                     # Suggest profile for current proje
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
 claudeup profile reset <name>                # Remove everything a profile installed
+claudeup profile rename <old> <new>          # Rename a custom profile
 
 # With description flag
 claudeup profile save my-work --description "My work setup"
@@ -63,6 +64,17 @@ claudeup profile use frontend --scope local
 | `user` | `~/.claude.json` | user-scoped | No |
 | `project` | `.mcp.json` | project-scoped | Yes (via git) |
 | `local` | `~/.claude.json` | local-scoped | No |
+
+**`profile use` flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--scope` | Apply scope: user, project, or local (default: user, or project if .claudeup.json exists) |
+| `--setup` | Force post-apply setup wizard to run |
+| `--no-interactive` | Skip post-apply setup wizard (for CI/scripting) |
+| `-f, --force` | Force reapply even with unsaved changes |
+| `--reinstall` | Force reinstall all plugins and marketplaces |
+| `--no-progress` | Disable progress display (for CI/scripting) |
 
 **Files created by `--scope project`:**
 
@@ -129,6 +141,36 @@ claudeup sandbox --no-secret <name>    # Exclude secret
 claudeup sandbox --clean --profile <name>  # Reset sandbox state
 ```
 
+## Scope Management
+
+### scope
+
+View and manage Claude Code settings across different scopes.
+
+```bash
+claudeup scope list                    # Show all scopes
+claudeup scope list --scope user       # Show only user scope
+claudeup scope list --scope project    # Show only project scope
+claudeup scope clear user              # Clear user scope with confirmation
+claudeup scope clear project --force   # Clear project scope without confirmation
+claudeup scope clear local             # Clear local scope with confirmation
+```
+
+Claude Code uses three scope levels (in precedence order):
+
+| Scope | Location | Description |
+|-------|----------|-------------|
+| `local` | `.claude/settings.local.json` | Machine-specific, highest precedence |
+| `project` | `.claude/settings.json` | Project-level, shared via git |
+| `user` | `~/.claude/settings.json` | Global personal defaults |
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--scope` | Filter to scope: user, project, or local |
+| `--force` | Skip confirmation prompts (for `clear`) |
+
 ## Status & Discovery
 
 ### status
@@ -136,10 +178,18 @@ claudeup sandbox --clean --profile <name>  # Reset sandbox state
 Overview of your Claude Code installation.
 
 ```bash
-claudeup status
+claudeup status                        # Show status for all scopes
+claudeup status --scope user           # Show only user scope
+claudeup status --scope project        # Filter to project scope
 ```
 
 Shows marketplaces, plugin counts, MCP servers, and any detected issues.
+
+**Flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--scope` | Filter to scope: user, project, or local |
 
 ### plugin
 
@@ -207,7 +257,7 @@ claudeup update --check-only # Preview without applying
 
 Configuration is stored in `~/.claudeup/`:
 
-```
+```text
 ~/.claudeup/
 ├── config.json       # Disabled plugins/servers, preferences
 ├── projects.json     # Local-scope project-to-profile mappings
@@ -217,7 +267,7 @@ Configuration is stored in `~/.claudeup/`:
 
 Project-level configuration files (created by `--scope project`):
 
-```
+```text
 your-project/
 ├── .mcp.json         # Claude native MCP server config (auto-loaded)
 └── .claudeup.json    # Plugins manifest (team runs `profile sync`)
