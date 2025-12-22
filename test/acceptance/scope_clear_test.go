@@ -214,6 +214,26 @@ var _ = Describe("claudeup scope clear", func() {
 		})
 	})
 
+	Describe("backup functionality", func() {
+		It("should create backup when clearing user scope with --backup", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force", "--backup")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Backup saved"))
+
+			// Verify backup file exists
+			backupPath := filepath.Join(env.TempDir, ".claudeup", "backups", "user-scope.json")
+			Expect(backupPath).To(BeARegularFile())
+		})
+
+		It("should create backup for local scope with --backup", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "local", "--force", "--backup")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Backup saved"))
+		})
+	})
+
 	Describe("help and usage", func() {
 		It("should show help text", func() {
 			result := env.Run("scope", "clear", "--help")

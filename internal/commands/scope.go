@@ -14,8 +14,9 @@ import (
 )
 
 var (
-	scopeListScope   string
-	scopeClearForce  bool
+	scopeListScope    string
+	scopeClearForce   bool
+	scopeClearBackup  bool
 	scopeRestoreForce bool
 )
 
@@ -99,6 +100,7 @@ func init() {
 
 	scopeListCmd.Flags().StringVar(&scopeListScope, "scope", "", "Filter to scope: user, project, or local (default: show all)")
 	scopeClearCmd.Flags().BoolVar(&scopeClearForce, "force", false, "Skip confirmation prompts")
+	scopeClearCmd.Flags().BoolVar(&scopeClearBackup, "backup", false, "Create backup before clearing")
 	scopeRestoreCmd.Flags().BoolVar(&scopeRestoreForce, "force", false, "Skip confirmation prompts")
 }
 
@@ -299,6 +301,25 @@ func runScopeClear(cmd *cobra.Command, args []string) error {
 			fmt.Println("Cancelled.")
 			return nil
 		}
+	}
+
+	// Create backup if requested
+	if scopeClearBackup {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+
+		var backupPath string
+		if scope == "local" {
+			backupPath, err = backup.SaveLocalScopeBackup(homeDir, projectDir, settingsPath)
+		} else {
+			backupPath, err = backup.SaveScopeBackup(homeDir, scope, settingsPath)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to create backup: %w", err)
+		}
+		fmt.Printf("  Backup saved: %s\n", backupPath)
 	}
 
 	// Clear the scope
