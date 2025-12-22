@@ -156,3 +156,48 @@ func TestRestoreScopeBackupNotFound(t *testing.T) {
 		t.Errorf("expected ErrNoBackup, got: %v", err)
 	}
 }
+
+func TestGetBackupInfo(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.WriteFile(backupPath, []byte(`{"enabledPlugins":{"a@test":true,"b@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := GetBackupInfo(tempDir, "user")
+	if err != nil {
+		t.Fatalf("GetBackupInfo failed: %v", err)
+	}
+
+	if !info.Exists {
+		t.Error("expected backup to exist")
+	}
+	if info.PluginCount != 2 {
+		t.Errorf("expected 2 plugins, got %d", info.PluginCount)
+	}
+	if info.ModTime.IsZero() {
+		t.Error("expected non-zero mod time")
+	}
+}
+
+func TestGetBackupInfoNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+
+	info, err := GetBackupInfo(tempDir, "user")
+	if err != nil {
+		t.Fatalf("GetBackupInfo failed: %v", err)
+	}
+
+	if info.Exists {
+		t.Error("expected backup to not exist")
+	}
+	if info.PluginCount != 0 {
+		t.Errorf("expected 0 plugins, got %d", info.PluginCount)
+	}
+}

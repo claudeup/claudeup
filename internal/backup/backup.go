@@ -5,11 +5,13 @@ package backup
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // EnsureBackupDir creates the backup directory if it doesn't exist
@@ -99,4 +101,51 @@ func RestoreScopeBackup(homeDir, scope, settingsPath string) error {
 
 	// Use copyFile helper
 	return copyFile(backupPath, settingsPath)
+}
+
+// BackupInfo contains metadata about a backup
+type BackupInfo struct {
+	Exists      bool
+	Path        string
+	ModTime     time.Time
+	PluginCount int
+}
+
+// GetBackupInfo returns information about a scope's backup
+func GetBackupInfo(homeDir, scope string) (*BackupInfo, error) {
+	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
+	backupFileName := fmt.Sprintf("%s-scope.json", scope)
+	backupPath := filepath.Join(backupDir, backupFileName)
+
+	info := &BackupInfo{Path: backupPath}
+
+	stat, err := os.Stat(backupPath)
+	if os.IsNotExist(err) {
+		return info, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	info.Exists = true
+	info.ModTime = stat.ModTime()
+
+	// Count plugins
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		return info, nil // Return partial info
+	}
+
+	var settings struct {
+		EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	}
+	if err := json.Unmarshal(content, &settings); err == nil {
+		for _, enabled := range settings.EnabledPlugins {
+			if enabled {
+				info.PluginCount++
+			}
+		}
+	}
+
+	return info, nil
 }
