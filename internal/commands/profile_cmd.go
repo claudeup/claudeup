@@ -425,6 +425,22 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Warn if we're about to overwrite an existing .claudeup.json with a different profile
+	if scope == profile.ScopeProject && profile.ProjectConfigExists(cwd) {
+		existingConfig, err := profile.LoadProjectConfig(cwd)
+		if err == nil && existingConfig.Profile != "" && existingConfig.Profile != name {
+			ui.PrintWarning(fmt.Sprintf("Project is already configured with profile %q", existingConfig.Profile))
+			fmt.Printf("  Applying %q will overwrite the existing configuration.\n", name)
+			fmt.Println()
+			if !config.YesFlag {
+				if !confirmProceed() {
+					ui.PrintMuted("Cancelled.")
+					return nil
+				}
+			}
+		}
+	}
+
 	// Load the profile (try disk first, then embedded)
 	p, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
@@ -1080,8 +1096,14 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
 
 	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {
-		// Apply the profile by calling runProfileUse
-		if err := runProfileUse(cmd, []string{name}); err != nil {
+		// Apply the profile at user scope (not project scope)
+		// This prevents accidentally overwriting existing project configs when
+		// the user just wants to create and try a new profile
+		savedScope := profileUseScope
+		profileUseScope = "user"
+		err := runProfileUse(cmd, []string{name})
+		profileUseScope = savedScope
+		if err != nil {
 			return err
 		}
 
