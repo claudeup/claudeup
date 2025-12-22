@@ -5,6 +5,7 @@ package backup
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -60,6 +61,46 @@ func TestSaveUserScopeBackup(t *testing.T) {
 		t.Fatal(err)
 	}
 	if string(content) != `{"enabledPlugins":{"test@example":true}}` {
+		t.Errorf("backup content mismatch: %s", content)
+	}
+}
+
+func TestSaveLocalScopeBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a mock local settings file
+	projectDir := filepath.Join(tempDir, "my-project")
+	if err := os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{"local@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save backup with project path
+	backupPath, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	if err != nil {
+		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
+	}
+
+	// Verify backup exists and has project hash in name
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Errorf("backup file not created: %v", err)
+	}
+
+	// Should contain "local-scope-" prefix
+	filename := filepath.Base(backupPath)
+	if !strings.HasPrefix(filename, "local-scope-") {
+		t.Errorf("unexpected filename: %s", filename)
+	}
+
+	// Verify content matches
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != `{"enabledPlugins":{"local@test":true}}` {
 		t.Errorf("backup content mismatch: %s", content)
 	}
 }
