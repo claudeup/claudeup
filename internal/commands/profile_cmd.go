@@ -295,12 +295,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		userProfileNames[p.Name] = true
 	}
 
-	// Get active profile from config
-	cfg, _ := config.Load()
-	activeProfile := ""
-	if cfg != nil {
-		activeProfile = cfg.Preferences.ActiveProfile
-	}
+	// Get active profile using scope hierarchy: project > local > user
+	cwd, _ := os.Getwd()
+	activeProfile, _ := getActiveProfile(cwd)
 
 	// Check if active profile has unsaved changes
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
