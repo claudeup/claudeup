@@ -79,7 +79,7 @@ func init() {
 	scopeCmd.AddCommand(scopeListCmd)
 	scopeCmd.AddCommand(scopeClearCmd)
 
-	scopeListCmd.Flags().StringVar(&scopeListScope, "scope", "", "Show only specified scope (user, project, or local)")
+	scopeListCmd.Flags().StringVar(&scopeListScope, "scope", "", "Filter to scope: user, project, or local (default: show all)")
 	scopeClearCmd.Flags().BoolVar(&scopeClearForce, "force", false, "Skip confirmation prompts")
 }
 

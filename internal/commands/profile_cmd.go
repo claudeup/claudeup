@@ -39,8 +39,24 @@ Use profiles to:
 var profileListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available profiles",
-	Args:  cobra.NoArgs,
-	RunE:  runProfileList,
+	Long: `List all available profiles with their status.
+
+INDICATORS:
+  *            Active profile at the current scope
+  (customized) Built-in profile has been modified and saved locally
+  (modified)   Plugins or MCP servers differ from the saved profile
+
+The (modified) indicator shows when plugins or MCP servers have changed.
+Marketplace changes are excluded since they don't affect Claude's behavior
+until plugins are installed from them.
+
+Comparisons are scope-aware: a user-scope profile is compared against
+user-scope settings only, not project-scoped plugins installed elsewhere.
+
+Example: In your home directory with user-scope profile "default" active,
+plugins installed via --scope project in ~/my-project/ won't trigger (modified).`,
+	Args: cobra.NoArgs,
+	RunE: runProfileList,
 }
 
 var profileUseCmd = &cobra.Command{
@@ -265,7 +281,7 @@ func init() {
 	profileUseCmd.Flags().BoolVar(&profileUseSetup, "setup", false, "Force post-apply setup wizard to run")
 	profileUseCmd.Flags().BoolVar(&profileUseNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileUseCmd.Flags().BoolVarP(&profileUseForce, "force", "f", false, "Force reapply even with unsaved changes")
-	profileUseCmd.Flags().StringVar(&profileUseScope, "scope", "", "Apply scope: user (default), project, or local")
+	profileUseCmd.Flags().StringVar(&profileUseScope, "scope", "", "Apply scope: user, project, or local (default: user, or project if .claudeup.json exists)")
 	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileUseCmd.Flags().BoolVar(&profileUseNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 
@@ -297,11 +313,12 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Get active profile using scope hierarchy: project > local > user
 	cwd, _ := os.Getwd()
-	activeProfile, _ := getActiveProfile(cwd)
+	activeProfile, activeScope := getActiveProfile(cwd)
 
-	// Check if active profile has unsaved changes
+	// Check if active profile has unsaved changes at its scope
+	// This ensures project-scope plugins don't affect user-scope profile's modified state
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-	activeProfileModified, comparisonErr := profile.IsActiveProfileModified(activeProfile, profilesDir, claudeDir, claudeJSONPath)
+	activeProfileModified, comparisonErr := profile.IsProfileModifiedAtScope(activeProfile, profilesDir, claudeDir, claudeJSONPath, cwd, activeScope)
 
 	if comparisonErr != nil {
 		// Comparison failed - show subtle note

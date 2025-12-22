@@ -37,7 +37,7 @@ For diagnostics, use 'claudeup doctor'.`,
 
 func init() {
 	rootCmd.AddCommand(statusCmd)
-	statusCmd.Flags().StringVar(&statusScope, "scope", "", "Check status for specific scope (user, project, or local)")
+	statusCmd.Flags().StringVar(&statusScope, "scope", "", "Filter to scope: user, project, or local (default: show all)")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {

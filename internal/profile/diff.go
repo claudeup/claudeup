@@ -28,6 +28,15 @@ func (d *ProfileDiff) HasChanges() bool {
 		len(d.MCPServersModified) > 0
 }
 
+// HasSignificantChanges returns true if there are meaningful differences.
+// Excludes marketplace changes since adding/removing marketplaces doesn't
+// affect Claude's behavior until plugins are installed from them.
+func (d *ProfileDiff) HasSignificantChanges() bool {
+	return len(d.PluginsAdded) > 0 || len(d.PluginsRemoved) > 0 ||
+		len(d.MCPServersAdded) > 0 || len(d.MCPServersRemoved) > 0 ||
+		len(d.MCPServersModified) > 0
+}
+
 // Summary returns a human-readable summary of the changes
 // "Added" means: in system but not in profile (extra)
 // "Missing" means: in profile but not in system (expected but not installed)
@@ -139,7 +148,7 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 		return false, fmt.Errorf("failed to compare profile %q: %w", activeProfileName, err)
 	}
 
-	return diff.HasChanges(), nil
+	return diff.HasSignificantChanges(), nil
 }
 
 // IsProfileModifiedAtScope checks if a profile has unsaved changes at a specific scope
@@ -168,7 +177,7 @@ func IsProfileModifiedAtScope(profileName, profilesDir, claudeDir, claudeJSONPat
 		return false, fmt.Errorf("failed to compare profile %q at scope %s: %w", profileName, scope, err)
 	}
 
-	return diff.HasChanges(), nil
+	return diff.HasSignificantChanges(), nil
 }
 
 // compare compares a saved profile with current state and returns differences
