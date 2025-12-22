@@ -169,3 +169,58 @@ func TestEmptyMarketplaceRegistry(t *testing.T) {
 		t.Errorf("Expected empty registry, got %d entries", len(loaded))
 	}
 }
+
+func TestMarketplaceExists(t *testing.T) {
+	registry := MarketplaceRegistry{
+		"claude-mem": MarketplaceMetadata{
+			Source: MarketplaceSource{
+				Source: "github",
+				Repo:   "thedotmack/claude-mem",
+			},
+		},
+		"superpowers": MarketplaceMetadata{
+			Source: MarketplaceSource{
+				Source: "git",
+				URL:    "https://github.com/obra/superpowers-marketplace.git",
+			},
+		},
+	}
+
+	// Test exists by repo
+	if !registry.MarketplaceExists("thedotmack/claude-mem") {
+		t.Error("Should find marketplace by repo")
+	}
+
+	// Test exists by URL
+	if !registry.MarketplaceExists("https://github.com/obra/superpowers-marketplace.git") {
+		t.Error("Should find marketplace by URL")
+	}
+
+	// Test not found
+	if registry.MarketplaceExists("nonexistent/repo") {
+		t.Error("Should not find nonexistent marketplace")
+	}
+}
+
+func TestGetMarketplaceByRepo(t *testing.T) {
+	registry := MarketplaceRegistry{
+		"claude-mem": MarketplaceMetadata{
+			Source: MarketplaceSource{
+				Source: "github",
+				Repo:   "thedotmack/claude-mem",
+			},
+		},
+	}
+
+	// Test found
+	name := registry.GetMarketplaceByRepo("thedotmack/claude-mem")
+	if name != "claude-mem" {
+		t.Errorf("Expected 'claude-mem', got '%s'", name)
+	}
+
+	// Test not found
+	name = registry.GetMarketplaceByRepo("nonexistent/repo")
+	if name != "" {
+		t.Errorf("Expected empty string for not found, got '%s'", name)
+	}
+}

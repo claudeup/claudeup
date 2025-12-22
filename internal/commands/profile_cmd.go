@@ -233,6 +233,8 @@ var (
 	profileUseNoInteractive bool
 	profileUseForce         bool
 	profileUseScope         string
+	profileUseReinstall     bool
+	profileUseNoProgress    bool
 )
 
 // Flags for profile sync command
@@ -264,6 +266,8 @@ func init() {
 	profileUseCmd.Flags().BoolVar(&profileUseNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileUseCmd.Flags().BoolVarP(&profileUseForce, "force", "f", false, "Force reapply even with unsaved changes")
 	profileUseCmd.Flags().StringVar(&profileUseScope, "scope", "", "Apply scope: user (default), project, or local")
+	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
+	profileUseCmd.Flags().BoolVar(&profileUseNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
@@ -534,18 +538,15 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 
 	chain := buildSecretChain()
 
-	var result *profile.ApplyResult
-	if scope == profile.ScopeUser {
-		// User scope: existing behavior
-		result, err = profile.Apply(p, claudeDir, claudeJSONPath, chain)
-	} else {
-		// Project or local scope: use ApplyWithOptions
-		opts := profile.ApplyOptions{
-			Scope:      scope,
-			ProjectDir: cwd,
-		}
-		result, err = profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
+	// Build apply options with progress tracking enabled by default
+	opts := profile.ApplyOptions{
+		Scope:        scope,
+		ProjectDir:   cwd,
+		Reinstall:    profileUseReinstall,
+		ShowProgress: !profileUseNoProgress, // Enable concurrent apply with progress UI
 	}
+
+	result, err := profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
 	if err != nil {
 		return fmt.Errorf("failed to apply profile: %w", err)
 	}
