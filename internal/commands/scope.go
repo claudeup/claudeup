@@ -7,14 +7,16 @@ import (
 	"os"
 	"sort"
 
+	"github.com/claudeup/claudeup/internal/backup"
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var (
-	scopeListScope string
-	scopeClearForce bool
+	scopeListScope   string
+	scopeClearForce  bool
+	scopeRestoreForce bool
 )
 
 var scopeCmd = &cobra.Command{
@@ -74,13 +76,30 @@ Examples:
 	RunE: runScopeClear,
 }
 
+var scopeRestoreCmd = &cobra.Command{
+	Use:   "restore <user|local>",
+	Short: "Restore settings from a backup",
+	Long: `Restore settings for a scope from the most recent backup.
+
+Backups are created when using 'scope clear' or 'profile use --reset'.
+Only user and local scopes support restore; for project scope, use git.
+
+Examples:
+  claudeup scope restore user          # Restore user scope from backup
+  claudeup scope restore local         # Restore local scope from backup`,
+	Args: cobra.ExactArgs(1),
+	RunE: runScopeRestore,
+}
+
 func init() {
 	rootCmd.AddCommand(scopeCmd)
 	scopeCmd.AddCommand(scopeListCmd)
 	scopeCmd.AddCommand(scopeClearCmd)
+	scopeCmd.AddCommand(scopeRestoreCmd)
 
 	scopeListCmd.Flags().StringVar(&scopeListScope, "scope", "", "Filter to scope: user, project, or local (default: show all)")
 	scopeClearCmd.Flags().BoolVar(&scopeClearForce, "force", false, "Skip confirmation prompts")
+	scopeRestoreCmd.Flags().BoolVar(&scopeRestoreForce, "force", false, "Skip confirmation prompts")
 }
 
 func runScopeList(cmd *cobra.Command, args []string) error {
@@ -338,4 +357,69 @@ func clearScope(scope string, settingsPath string, claudeDir string) error {
 	default:
 		return fmt.Errorf("invalid scope: %s", scope)
 	}
+}
+
+func runScopeRestore(cmd *cobra.Command, args []string) error {
+	scope := args[0]
+
+	// Reject project scope
+	if scope == "project" {
+		return fmt.Errorf("project scope restore not supported\nHint: Use 'git checkout' to restore project configuration files")
+	}
+
+	// Validate scope
+	if err := claude.ValidateScope(scope); err != nil {
+		return err
+	}
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
+
+	// Get backup info
+	backupInfo, err := backup.GetBackupInfo(homeDir, scope)
+	if err != nil {
+		return fmt.Errorf("failed to check backup: %w", err)
+	}
+
+	if !backupInfo.Exists {
+		return fmt.Errorf("no backup found for %s scope\nHint: Backups are created when using 'scope clear' or 'profile use --reset'", scope)
+	}
+
+	// Get settings path
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+	settingsPath, err := claude.SettingsPathForScope(scope, claudeDir, projectDir)
+	if err != nil {
+		return err
+	}
+
+	// Show backup info
+	fmt.Println(ui.RenderSection(fmt.Sprintf("Restore %s scope from backup", formatScopeName(scope)), -1))
+	fmt.Println()
+	fmt.Printf("Backup created: %s\n", backupInfo.ModTime.Format("2006-01-02 15:04:05"))
+	fmt.Printf("Contents:\n")
+	fmt.Printf("  • %d plugins enabled\n", backupInfo.PluginCount)
+	fmt.Println()
+
+	// Confirm unless --force
+	if !scopeRestoreForce {
+		confirmed := ui.PromptYesNo("Restore this backup?", false)
+		if !confirmed {
+			fmt.Println("Cancelled.")
+			return nil
+		}
+	}
+
+	// Restore
+	if err := backup.RestoreScopeBackup(homeDir, scope, settingsPath); err != nil {
+		return fmt.Errorf("failed to restore backup: %w", err)
+	}
+
+	ui.PrintSuccess(fmt.Sprintf("Restored %s scope from backup", scope))
+
+	return nil
 }
