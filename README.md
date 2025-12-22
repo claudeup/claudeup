@@ -84,7 +84,10 @@ claudeup update   # Check for updates
 git clone https://github.com/claudeup/claudeup.git
 cd claudeup
 go build -o bin/claudeup ./cmd/claudeup
+cp bin/claudeup ~/.local/bin/claudeup
 go test ./...
+alias clup=claudeup
+clup profile current
 ```
 
 ## License
