@@ -351,6 +351,32 @@ func (e *TestEnv) LoadProjectsRegistry() map[string]interface{} {
 	return registry
 }
 
+// RegisterProject adds a project to the projects.json registry (local scope)
+func (e *TestEnv) RegisterProject(projectDir, profileName string) {
+	path := filepath.Join(e.ClaudeupDir, "projects.json")
+
+	// Normalize path to handle macOS /var -> /private/var symlinks
+	// This matches what os.Getwd() returns when CLI runs from the directory
+	normalizedDir := projectDir
+	if resolved, err := filepath.EvalSymlinks(projectDir); err == nil {
+		normalizedDir = resolved
+	}
+
+	registry := map[string]interface{}{
+		"version": "1",
+		"projects": map[string]interface{}{
+			normalizedDir: map[string]interface{}{
+				"profile":   profileName,
+				"appliedAt": "2025-01-01T00:00:00Z",
+			},
+		},
+	}
+
+	data, err := json.MarshalIndent(registry, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(path, data, 0644)).To(Succeed())
+}
+
 // RunInDir executes the CLI with a specific working directory
 func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
 	cmd := exec.Command(e.Binary, args...)

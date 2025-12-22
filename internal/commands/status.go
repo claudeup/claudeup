@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
-	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
@@ -70,28 +69,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Print header
 	fmt.Println(ui.RenderSection("claudeup Status", -1))
 
-	// Determine active profile (project profile takes precedence)
-	var activeProfile string
-	var profileScope string
-
-	// Check for project-level profile first
-	if profile.ProjectConfigExists(projectDir) {
-		projectCfg, err := profile.LoadProjectConfig(projectDir)
-		if err == nil && projectCfg.Profile != "" {
-			activeProfile = projectCfg.Profile
-			profileScope = "project"
-		}
-	}
-
-	// Fall back to user-level profile
+	// Determine active profile using scope hierarchy: project > local > user
+	activeProfile, profileScope := getActiveProfile(projectDir)
 	if activeProfile == "" {
-		cfg, _ := config.Load()
-		if cfg != nil && cfg.Preferences.ActiveProfile != "" {
-			activeProfile = cfg.Preferences.ActiveProfile
-			profileScope = "user"
-		} else {
-			activeProfile = "none"
-		}
+		activeProfile = "none"
 	}
 
 	fmt.Println()
