@@ -295,11 +295,31 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		userProfileNames[p.Name] = true
 	}
 
-	// Get active profile from config
-	cfg, _ := config.Load()
+	// Get active profile using scope hierarchy: project > local > user
 	activeProfile := ""
-	if cfg != nil {
-		activeProfile = cfg.Preferences.ActiveProfile
+	cwd, _ := os.Getwd()
+
+	// Check project scope first (highest precedence)
+	if profile.ProjectConfigExists(cwd) {
+		if projectCfg, err := profile.LoadProjectConfig(cwd); err == nil {
+			activeProfile = projectCfg.Profile
+		}
+	}
+
+	// Check local scope in registry
+	if activeProfile == "" {
+		if registry, err := config.LoadProjectsRegistry(); err == nil {
+			if entry, ok := registry.GetProject(cwd); ok {
+				activeProfile = entry.Profile
+			}
+		}
+	}
+
+	// Fall back to user-level config
+	if activeProfile == "" {
+		if cfg, _ := config.Load(); cfg != nil {
+			activeProfile = cfg.Preferences.ActiveProfile
+		}
 	}
 
 	// Check if active profile has unsaved changes

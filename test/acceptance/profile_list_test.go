@@ -178,6 +178,42 @@ var _ = Describe("profile list", func() {
 			Expect(result.Stdout).To(MatchRegexp(`\*\s+profile-b`))
 			Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+profile-a`))
 		})
+
+		Context("with project-scoped profile", func() {
+			var projectDir string
+
+			BeforeEach(func() {
+				// Create a project directory with .claudeup.json
+				projectDir = env.ProjectDir("my-project")
+
+				// Set user-level active profile to "default"
+				env.SetActiveProfile("default")
+
+				// Create project-scoped profile config with different profile
+				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
+					"version": "1",
+					"profile": "frontend",
+				})
+			})
+
+			It("marks project-scoped profile as active when run from project directory", func() {
+				result := env.RunInDir(projectDir, "profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Should mark "frontend" (project scope) as active, not "default" (user scope)
+				Expect(result.Stdout).To(MatchRegexp(`\*\s+frontend`))
+				Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+default`))
+			})
+
+			It("marks user-level profile as active when run from non-project directory", func() {
+				// Run from temp root (no .claudeup.json)
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Should mark "default" (user scope) as active since no project config
+				Expect(result.Stdout).To(MatchRegexp(`\*\s+default`))
+			})
+		})
 	})
 
 	Describe("reserved name warning", func() {
