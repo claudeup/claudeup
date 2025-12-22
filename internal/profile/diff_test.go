@@ -73,6 +73,70 @@ var _ = Describe("ProfileDiff", func() {
 		})
 	})
 
+	Describe("HasSignificantChanges", func() {
+		It("returns false for empty diff", func() {
+			diff := &ProfileDiff{}
+			Expect(diff.HasSignificantChanges()).To(BeFalse())
+		})
+
+		It("returns true when plugins added", func() {
+			diff := &ProfileDiff{
+				PluginsAdded: []string{"plugin1"},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeTrue())
+		})
+
+		It("returns true when plugins removed", func() {
+			diff := &ProfileDiff{
+				PluginsRemoved: []string{"plugin1"},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeTrue())
+		})
+
+		It("returns false when only marketplaces added", func() {
+			diff := &ProfileDiff{
+				MarketplacesAdded: []Marketplace{{Source: "github", Repo: "test/repo"}},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeFalse())
+		})
+
+		It("returns false when only marketplaces removed", func() {
+			diff := &ProfileDiff{
+				MarketplacesRemoved: []Marketplace{{Source: "github", Repo: "test/repo"}},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeFalse())
+		})
+
+		It("returns true when MCP servers added", func() {
+			diff := &ProfileDiff{
+				MCPServersAdded: []MCPServer{{Name: "server1", Command: "cmd"}},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeTrue())
+		})
+
+		It("returns true when MCP servers removed", func() {
+			diff := &ProfileDiff{
+				MCPServersRemoved: []MCPServer{{Name: "server1", Command: "cmd"}},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeTrue())
+		})
+
+		It("returns true when MCP servers modified", func() {
+			diff := &ProfileDiff{
+				MCPServersModified: []MCPServer{{Name: "server1", Command: "new-cmd"}},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeTrue())
+		})
+
+		It("returns true when plugins changed along with marketplaces", func() {
+			diff := &ProfileDiff{
+				PluginsAdded:      []string{"plugin1"},
+				MarketplacesAdded: []Marketplace{{Source: "github", Repo: "test/repo"}},
+			}
+			Expect(diff.HasSignificantChanges()).To(BeTrue())
+		})
+	})
+
 	Describe("compare", func() {
 		It("detects no changes when profiles are identical", func() {
 			saved := &Profile{

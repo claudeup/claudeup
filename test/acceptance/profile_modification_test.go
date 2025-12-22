@@ -389,5 +389,61 @@ var _ = Describe("profile modification detection", func() {
 				Expect(result.Stdout).NotTo(ContainSubstring("(modified)"))
 			})
 		})
+
+		Context("when only marketplaces differ from profile", func() {
+			BeforeEach(func() {
+				// Create a profile with one marketplace
+				env.CreateProfile(&profile.Profile{
+					Name:        "test-profile",
+					Description: "Test profile",
+					Plugins:     []string{},
+					Marketplaces: []profile.Marketplace{
+						{Repo: "acme/marketplace"},
+					},
+					MCPServers: []profile.MCPServer{},
+				})
+				env.SetActiveProfile("test-profile")
+
+				// Create current state with EXTRA marketplaces (more than profile)
+				env.CreateKnownMarketplaces(map[string]interface{}{
+					"acme-marketplace": map[string]interface{}{
+						"source": map[string]interface{}{
+							"source": "github",
+							"repo":   "acme/marketplace",
+						},
+						"installLocation": "/tmp/acme",
+						"lastUpdated":     "2024-01-01T00:00:00Z",
+					},
+					"extra-marketplace": map[string]interface{}{
+						"source": map[string]interface{}{
+							"source": "github",
+							"repo":   "extra/marketplace",
+						},
+						"installLocation": "/tmp/extra",
+						"lastUpdated":     "2024-01-01T00:00:00Z",
+					},
+				})
+
+				// No plugins enabled
+				env.CreateSettings(map[string]bool{})
+
+				// Create .claude.json
+				claudeJSON := map[string]interface{}{
+					"mcpServers": map[string]interface{}{},
+				}
+				data, _ := json.MarshalIndent(claudeJSON, "", "  ")
+				os.WriteFile(filepath.Join(env.TempDir, ".claude.json"), data, 0644)
+			})
+
+			It("does not show (modified) indicator for marketplace-only differences", func() {
+				// Marketplace changes alone should not trigger (modified)
+				// because marketplaces are just discovery sources, not behavior changes
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("test-profile"))
+				Expect(result.Stdout).NotTo(ContainSubstring("(modified)"))
+			})
+		})
 	})
 })

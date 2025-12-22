@@ -44,11 +44,14 @@ var profileListCmd = &cobra.Command{
 INDICATORS:
   *            Active profile at the current scope
   (customized) Built-in profile has been modified and saved locally
-  (modified)   Current Claude state differs from the saved profile
+  (modified)   Plugins or MCP servers differ from the saved profile
 
-The (modified) indicator compares the active profile against the Claude state
-at its binding scope. A user-scope profile is compared against user-scope
-settings only, not project-scoped plugins installed elsewhere.`,
+The (modified) indicator shows when plugins or MCP servers have changed.
+Marketplace changes are excluded since they don't affect Claude's behavior
+until plugins are installed from them.
+
+Comparisons are scope-aware: a user-scope profile is compared against
+user-scope settings only, not project-scoped plugins installed elsewhere.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
