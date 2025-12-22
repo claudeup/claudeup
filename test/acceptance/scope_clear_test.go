@@ -234,6 +234,25 @@ var _ = Describe("claudeup scope clear", func() {
 		})
 	})
 
+	Describe("interactive backup prompt", func() {
+		It("should skip backup prompt with --force", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// With --force, no backup is created unless --backup is also passed
+			backupPath := filepath.Join(env.TempDir, ".claudeup", "backups", "user-scope.json")
+			_, err := os.Stat(backupPath)
+			Expect(os.IsNotExist(err)).To(BeTrue())
+		})
+
+		It("should create backup with --force --backup", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force", "--backup")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Backup saved"))
+		})
+	})
+
 	Describe("help and usage", func() {
 		It("should show help text", func() {
 			result := env.Run("scope", "clear", "--help")
