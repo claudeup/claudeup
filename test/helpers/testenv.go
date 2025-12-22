@@ -332,6 +332,11 @@ func (e *TestEnv) CreateClaudeupJSON(dir string, cfg map[string]interface{}) {
 	Expect(os.WriteFile(filepath.Join(dir, ".claudeup.json"), data, 0644)).To(Succeed())
 }
 
+// WriteFile writes arbitrary content to a file in the given directory
+func (e *TestEnv) WriteFile(dir, filename, content string) {
+	Expect(os.WriteFile(filepath.Join(dir, filename), []byte(content), 0644)).To(Succeed())
+}
+
 // LoadProjectsRegistry loads the projects.json registry
 func (e *TestEnv) LoadProjectsRegistry() map[string]interface{} {
 	path := filepath.Join(e.ClaudeupDir, "projects.json")

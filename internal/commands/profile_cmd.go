@@ -1101,10 +1101,23 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		// the user just wants to create and try a new profile
 		savedScope := profileUseScope
 		profileUseScope = "user"
-		err := runProfileUse(cmd, []string{name})
+		applyErr := runProfileUse(cmd, []string{name})
 		profileUseScope = savedScope
-		if err != nil {
-			return err
+		if applyErr != nil {
+			return applyErr
+		}
+
+		// If there's an existing project config, inform the user
+		cwd, _ := os.Getwd()
+		if profile.ProjectConfigExists(cwd) {
+			existingConfig, err := profile.LoadProjectConfig(cwd)
+			if err == nil && existingConfig.Profile != name {
+				fmt.Println()
+				ui.PrintInfo(fmt.Sprintf("Applied profile %q at user scope.", name))
+				fmt.Printf("  Note: This directory has an existing project config (%q).\n", existingConfig.Profile)
+				fmt.Printf("  Use '%s' to apply at project level.\n",
+					ui.Bold(fmt.Sprintf("claudeup profile use %s --scope project", name)))
+			}
 		}
 
 		// Save snapshot after applying to sync profile with actual installed state
