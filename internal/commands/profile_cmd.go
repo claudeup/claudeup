@@ -51,7 +51,10 @@ Marketplace changes are excluded since they don't affect Claude's behavior
 until plugins are installed from them.
 
 Comparisons are scope-aware: a user-scope profile is compared against
-user-scope settings only, not project-scoped plugins installed elsewhere.`,
+user-scope settings only, not project-scoped plugins installed elsewhere.
+
+Example: In your home directory with user-scope profile "default" active,
+plugins installed via --scope project in ~/my-project/ won't trigger (modified).`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
