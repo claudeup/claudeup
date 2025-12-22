@@ -396,14 +396,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 func runProfileUse(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	profilesDir := getProfilesDir()
 
 	// "current" is reserved as a keyword for the active profile
 	if name == "current" {
 		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile show current' to see the active profile")
 	}
 
-	// Determine scope
+	// Determine scope from flag or auto-detect
 	cwd, _ := os.Getwd()
 	var scope profile.Scope
 
@@ -422,6 +421,35 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 		} else {
 			scope = profile.ScopeUser
+		}
+	}
+
+	return applyProfileWithScope(name, scope)
+}
+
+// applyProfileWithScope applies a profile at the specified scope.
+// This is the core implementation shared by runProfileUse and runProfileCreate.
+func applyProfileWithScope(name string, scope profile.Scope) error {
+	profilesDir := getProfilesDir()
+	cwd, _ := os.Getwd()
+
+	// Warn if we're about to overwrite an existing .claudeup.json with a different profile.
+	// This only applies to project scope - user scope doesn't touch project config files.
+	if scope == profile.ScopeProject && profile.ProjectConfigExists(cwd) {
+		existingConfig, err := profile.LoadProjectConfig(cwd)
+		if err != nil {
+			// Log error but continue - malformed config will be overwritten
+			ui.PrintWarning(fmt.Sprintf("Could not read existing project config: %v", err))
+		} else if existingConfig.Profile != "" && existingConfig.Profile != name {
+			ui.PrintWarning(fmt.Sprintf("Project is already configured with profile %q", existingConfig.Profile))
+			fmt.Printf("  Applying %q will overwrite the existing configuration.\n", name)
+			fmt.Println()
+			if !config.YesFlag {
+				if !confirmProceed() {
+					ui.PrintMuted("Cancelled.")
+					return nil
+				}
+			}
 		}
 	}
 
@@ -1080,9 +1108,26 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
 
 	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {
-		// Apply the profile by calling runProfileUse
-		if err := runProfileUse(cmd, []string{name}); err != nil {
+		// Apply the profile at user scope (not project scope).
+		// This prevents accidentally overwriting existing project configs when
+		// the user just wants to create and try a new profile.
+		// Note: User scope intentionally skips the project overwrite warning since
+		// it doesn't modify .claudeup.json.
+		if err := applyProfileWithScope(name, profile.ScopeUser); err != nil {
 			return err
+		}
+
+		// If there's an existing project config, inform the user about scope choice
+		cwd, _ := os.Getwd()
+		if profile.ProjectConfigExists(cwd) {
+			existingConfig, loadErr := profile.LoadProjectConfig(cwd)
+			if loadErr == nil && existingConfig.Profile != name {
+				fmt.Println()
+				ui.PrintInfo(fmt.Sprintf("Applied profile %q at user scope.", name))
+				fmt.Printf("  Note: This directory has an existing project config (%q).\n", existingConfig.Profile)
+				fmt.Printf("  Use '%s' to apply at project level.\n",
+					ui.Bold(fmt.Sprintf("claudeup profile use %s --scope project", name)))
+			}
 		}
 
 		// Save snapshot after applying to sync profile with actual installed state

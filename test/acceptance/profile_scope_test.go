@@ -99,6 +99,86 @@ var _ = Describe("profile use --scope", func() {
 				Expect(env.MCPJSONExists(projectDir)).To(BeFalse())
 			})
 		})
+
+		Context("when .claudeup.json already exists with different profile", func() {
+			BeforeEach(func() {
+				// Create an existing .claudeup.json pointing to a different profile
+				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
+					"version": "1",
+					"profile": "original-profile",
+					"plugins": []string{"original-plugin@test"},
+				})
+			})
+
+			It("warns about overwriting existing config", func() {
+				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("original-profile"))
+				Expect(result.Stdout).To(SatisfyAny(
+					ContainSubstring("overwrite"),
+					ContainSubstring("replace"),
+					ContainSubstring("already configured"),
+				))
+			})
+
+			It("proceeds with -y flag", func() {
+				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+
+				Expect(result.ExitCode).To(Equal(0))
+				cfg := env.LoadClaudeupJSON(projectDir)
+				Expect(cfg["profile"]).To(Equal("test-profile"))
+			})
+
+			It("preserves existing config when same profile is reapplied", func() {
+				// Reapplying the same profile should not warn
+				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
+					"version": "1",
+					"profile": "test-profile",
+				})
+
+				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Should NOT show overwrite warning when same profile
+				Expect(result.Stdout).NotTo(ContainSubstring("already configured"))
+			})
+
+			It("shows warning with explicit --scope project flag", func() {
+				// Even with explicit scope flag, should warn about overwriting
+				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Warning should appear even with explicit --scope project
+				Expect(result.Stdout).To(ContainSubstring("original-profile"))
+			})
+		})
+
+		Context("when .claudeup.json is malformed", func() {
+			BeforeEach(func() {
+				// Create malformed JSON
+				env.WriteFile(projectDir, ".claudeup.json", "{ invalid json }")
+			})
+
+			It("warns about unreadable config but proceeds", func() {
+				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+
+				// Should succeed - malformed config is overwritten
+				Expect(result.ExitCode).To(Equal(0))
+				// Should warn about the malformed config
+				Expect(result.Stdout).To(ContainSubstring("Could not read existing project config"))
+				// Should not show the "already configured" warning (can't read profile name)
+				Expect(result.Stdout).NotTo(ContainSubstring("already configured"))
+			})
+
+			It("overwrites malformed config with valid one", func() {
+				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+
+				Expect(result.ExitCode).To(Equal(0))
+				cfg := env.LoadClaudeupJSON(projectDir)
+				Expect(cfg["profile"]).To(Equal("test-profile"))
+			})
+		})
 	})
 
 	Describe("--scope local", func() {
