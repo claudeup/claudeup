@@ -173,6 +173,47 @@ var _ = Describe("Profile operations preserve non-plugin settings", func() {
 			Expect(savedData).To(HaveKey("mcpServers"))
 		})
 
+		It("should preserve env configuration when applying profile", func() {
+			// Create project settings with env configuration
+			settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+			settingsData := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"old-plugin@marketplace": true,
+				},
+				"env": map[string]interface{}{
+					"CLAUDE_CODE_MAX_OUTPUT_TOKENS": "64000",
+					"MAX_THINKING_TOKENS":           "31999",
+				},
+			}
+			data, err := json.MarshalIndent(settingsData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(settingsPath, data, 0644)).To(Succeed())
+
+			// Load and update plugins (simulating profile apply)
+			settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+			settings.EnabledPlugins = map[string]bool{
+				"new-plugin@marketplace": true,
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, settings)).To(Succeed())
+
+			// Verify env configuration is preserved
+			var savedData map[string]interface{}
+			savedBytes, err := os.ReadFile(settingsPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(json.Unmarshal(savedBytes, &savedData)).To(Succeed())
+
+			Expect(savedData).To(HaveKey("env"))
+			envData := savedData["env"].(map[string]interface{})
+			Expect(envData).To(HaveKeyWithValue("CLAUDE_CODE_MAX_OUTPUT_TOKENS", "64000"))
+			Expect(envData).To(HaveKeyWithValue("MAX_THINKING_TOKENS", "31999"))
+
+			// Verify plugins were updated
+			plugins := savedData["enabledPlugins"].(map[string]interface{})
+			Expect(plugins).To(HaveLen(1))
+			Expect(plugins).To(HaveKey("new-plugin@marketplace"))
+		})
+
 		It("should only enable new profile plugins when switching to profile with fewer plugins", func() {
 			// Setup: Project has 5 plugins enabled
 			settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
