@@ -39,8 +39,18 @@ Use profiles to:
 var profileListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available profiles",
-	Args:  cobra.NoArgs,
-	RunE:  runProfileList,
+	Long: `List all available profiles with their status.
+
+INDICATORS:
+  *            Active profile at the current scope
+  (customized) Built-in profile has been modified and saved locally
+  (modified)   Current Claude state differs from the saved profile
+
+The (modified) indicator compares the active profile against the Claude state
+at its binding scope. A user-scope profile is compared against user-scope
+settings only, not project-scoped plugins installed elsewhere.`,
+	Args: cobra.NoArgs,
+	RunE: runProfileList,
 }
 
 var profileUseCmd = &cobra.Command{
@@ -297,11 +307,12 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Get active profile using scope hierarchy: project > local > user
 	cwd, _ := os.Getwd()
-	activeProfile, _ := getActiveProfile(cwd)
+	activeProfile, activeScope := getActiveProfile(cwd)
 
-	// Check if active profile has unsaved changes
+	// Check if active profile has unsaved changes at its scope
+	// This ensures project-scope plugins don't affect user-scope profile's modified state
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-	activeProfileModified, comparisonErr := profile.IsActiveProfileModified(activeProfile, profilesDir, claudeDir, claudeJSONPath)
+	activeProfileModified, comparisonErr := profile.IsProfileModifiedAtScope(activeProfile, profilesDir, claudeDir, claudeJSONPath, cwd, activeScope)
 
 	if comparisonErr != nil {
 		// Comparison failed - show subtle note
