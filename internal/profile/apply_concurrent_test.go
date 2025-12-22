@@ -4,14 +4,15 @@ package profile
 
 import (
 	"bytes"
-	"sync/atomic"
+	"sync"
 	"testing"
 )
 
 // concurrentMockExecutor records commands for testing concurrent apply
+// Uses mutex to protect slice append from concurrent worker goroutines
 type concurrentMockExecutor struct {
 	commands [][]string
-	mu       atomic.Int32
+	mu       sync.Mutex
 }
 
 func (m *concurrentMockExecutor) Run(args ...string) error {
@@ -19,8 +20,9 @@ func (m *concurrentMockExecutor) Run(args ...string) error {
 }
 
 func (m *concurrentMockExecutor) RunWithOutput(args ...string) (string, error) {
-	m.mu.Add(1)
+	m.mu.Lock()
 	m.commands = append(m.commands, args)
+	m.mu.Unlock()
 	return "", nil
 }
 
