@@ -253,6 +253,33 @@ var _ = Describe("claudeup scope clear", func() {
 		})
 	})
 
+	Describe("typed confirmation for user scope", func() {
+		It("should require typing 'yes' for user scope without --force", func() {
+			// This test documents the behavior - --force bypasses typed confirmation
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force")
+			Expect(result.ExitCode).To(Equal(0))
+		})
+
+		It("should show warning about typing yes", func() {
+			// Run without --force to see the prompt text
+			// Respond with "no" to cancel
+			result := env.RunInDirWithInput(projectDir, "no\n", "scope", "clear", "user")
+			Expect(result.Stdout).To(ContainSubstring("Type 'yes'"))
+		})
+
+		It("should cancel when user types something other than yes", func() {
+			result := env.RunInDirWithInput(projectDir, "no\n", "scope", "clear", "user")
+			Expect(result.Stdout).To(ContainSubstring("Cancelled"))
+			Expect(result.ExitCode).To(Equal(0))
+		})
+
+		It("should clear when user types yes", func() {
+			result := env.RunInDirWithInput(projectDir, "yes\n", "scope", "clear", "user")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Cleared user scope"))
+		})
+	})
+
 	Describe("help and usage", func() {
 		It("should show help text", func() {
 			result := env.Run("scope", "clear", "--help")

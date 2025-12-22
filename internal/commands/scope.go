@@ -3,6 +3,7 @@
 package commands
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"sort"
@@ -296,10 +297,24 @@ func runScopeClear(cmd *cobra.Command, args []string) error {
 
 	// Prompt for confirmation unless --force
 	if !scopeClearForce {
-		confirmed := ui.PromptYesNo(fmt.Sprintf("Clear %s scope settings?", scope), false)
-		if !confirmed {
-			fmt.Println("Cancelled.")
-			return nil
+		if scope == "user" {
+			// User scope requires typing "yes" for safety
+			fmt.Print(ui.Warning("Type 'yes' to clear user scope: "))
+			reader := bufio.NewReader(os.Stdin)
+			input, err := reader.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("failed to read input: %w", err)
+			}
+			if !ui.ValidateTypedConfirmation(input, "yes") {
+				fmt.Println("Cancelled.")
+				return nil
+			}
+		} else {
+			confirmed := ui.PromptYesNo(fmt.Sprintf("Clear %s scope settings?", scope), false)
+			if !confirmed {
+				fmt.Println("Cancelled.")
+				return nil
+			}
 		}
 	}
 
