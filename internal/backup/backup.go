@@ -5,6 +5,7 @@ package backup
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -80,4 +81,22 @@ func SaveLocalScopeBackup(homeDir, projectDir, settingsPath string) (string, err
 	}
 
 	return backupPath, nil
+}
+
+// ErrNoBackup is returned when no backup exists for a scope
+var ErrNoBackup = errors.New("no backup found")
+
+// RestoreScopeBackup copies the backup file back to the settings location
+func RestoreScopeBackup(homeDir, scope, settingsPath string) error {
+	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
+	backupFileName := fmt.Sprintf("%s-scope.json", scope)
+	backupPath := filepath.Join(backupDir, backupFileName)
+
+	// Check backup exists
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		return ErrNoBackup
+	}
+
+	// Use copyFile helper
+	return copyFile(backupPath, settingsPath)
 }

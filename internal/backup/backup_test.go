@@ -3,6 +3,7 @@
 package backup
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,5 +103,56 @@ func TestSaveLocalScopeBackup(t *testing.T) {
 	}
 	if string(content) != `{"enabledPlugins":{"local@test":true}}` {
 		t.Errorf("backup content mismatch: %s", content)
+	}
+}
+
+func TestRestoreScopeBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup directory and file
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.WriteFile(backupPath, []byte(`{"enabledPlugins":{"restored@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create target settings file (will be overwritten)
+	claudeDir := filepath.Join(tempDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restore backup
+	err := RestoreScopeBackup(tempDir, "user", settingsPath)
+	if err != nil {
+		t.Fatalf("RestoreScopeBackup failed: %v", err)
+	}
+
+	// Verify content was restored
+	content, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != `{"enabledPlugins":{"restored@test":true}}` {
+		t.Errorf("restore content mismatch: %s", content)
+	}
+}
+
+func TestRestoreScopeBackupNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+
+	err := RestoreScopeBackup(tempDir, "user", "/nonexistent/path")
+	if err == nil {
+		t.Error("expected error for missing backup")
+	}
+	if !errors.Is(err, ErrNoBackup) {
+		t.Errorf("expected ErrNoBackup, got: %v", err)
 	}
 }
