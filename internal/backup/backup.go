@@ -18,14 +18,21 @@ import (
 // Returns the path to the backup directory
 func EnsureBackupDir(homeDir string) (string, error) {
 	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
+	// Use 0700 for user-only access (backups may contain sensitive settings)
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		return "", err
 	}
 	return backupDir, nil
 }
 
-// copyFile copies src to dst, creating dst if needed
+// copyFile copies src to dst, preserving file permissions
 func copyFile(src, dst string) error {
+	// Get source file info for permissions
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+
 	srcFile, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
@@ -40,6 +47,11 @@ func copyFile(src, dst string) error {
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return fmt.Errorf("failed to copy file: %w", err)
+	}
+
+	// Preserve original file permissions
+	if err := os.Chmod(dst, srcInfo.Mode()); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
 
 	return nil
@@ -95,8 +107,34 @@ func RestoreScopeBackup(homeDir, scope, settingsPath string) error {
 	backupPath := filepath.Join(backupDir, backupFileName)
 
 	// Check backup exists
-	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-		return ErrNoBackup
+	if _, err := os.Stat(backupPath); err != nil {
+		if os.IsNotExist(err) {
+			return ErrNoBackup
+		}
+		return err
+	}
+
+	// Use copyFile helper
+	return copyFile(backupPath, settingsPath)
+}
+
+// RestoreLocalScopeBackup restores a local scope backup using project-specific naming
+func RestoreLocalScopeBackup(homeDir, projectDir, settingsPath string) error {
+	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
+
+	// Derive the same hash used when saving
+	hash := sha256.Sum256([]byte(projectDir))
+	shortHash := hex.EncodeToString(hash[:])[:8]
+
+	backupFileName := fmt.Sprintf("local-scope-%s.json", shortHash)
+	backupPath := filepath.Join(backupDir, backupFileName)
+
+	// Check backup exists
+	if _, err := os.Stat(backupPath); err != nil {
+		if os.IsNotExist(err) {
+			return ErrNoBackup
+		}
+		return err
 	}
 
 	// Use copyFile helper
@@ -134,6 +172,50 @@ func GetBackupInfo(homeDir, scope string) (*BackupInfo, error) {
 	content, err := os.ReadFile(backupPath)
 	if err != nil {
 		return info, nil // Return partial info
+	}
+
+	var settings struct {
+		EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	}
+	if err := json.Unmarshal(content, &settings); err == nil {
+		for _, enabled := range settings.EnabledPlugins {
+			if enabled {
+				info.PluginCount++
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// GetLocalBackupInfo returns information about a local scope's backup using project-specific naming
+func GetLocalBackupInfo(homeDir, projectDir string) (*BackupInfo, error) {
+	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
+
+	// Derive the same hash used when saving
+	hash := sha256.Sum256([]byte(projectDir))
+	shortHash := hex.EncodeToString(hash[:])[:8]
+
+	backupFileName := fmt.Sprintf("local-scope-%s.json", shortHash)
+	backupPath := filepath.Join(backupDir, backupFileName)
+
+	info := &BackupInfo{Path: backupPath}
+
+	stat, err := os.Stat(backupPath)
+	if os.IsNotExist(err) {
+		return info, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	info.Exists = true
+	info.ModTime = stat.ModTime()
+
+	// Count plugins
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		return info, nil // Return partial info if file can't be read
 	}
 
 	var settings struct {

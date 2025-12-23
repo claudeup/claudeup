@@ -417,8 +417,19 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	// Get backup info
-	backupInfo, err := backup.GetBackupInfo(homeDir, scope)
+	// Get current directory for local scope
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Get backup info (local scope uses project-specific naming)
+	var backupInfo *backup.BackupInfo
+	if scope == "local" {
+		backupInfo, err = backup.GetLocalBackupInfo(homeDir, projectDir)
+	} else {
+		backupInfo, err = backup.GetBackupInfo(homeDir, scope)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to check backup: %w", err)
 	}
@@ -428,10 +439,6 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get settings path
-	projectDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
 	settingsPath, err := claude.SettingsPathForScope(scope, claudeDir, projectDir)
 	if err != nil {
 		return err
@@ -454,8 +461,13 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Restore
-	if err := backup.RestoreScopeBackup(homeDir, scope, settingsPath); err != nil {
+	// Restore (local scope uses project-specific naming)
+	if scope == "local" {
+		err = backup.RestoreLocalScopeBackup(homeDir, projectDir, settingsPath)
+	} else {
+		err = backup.RestoreScopeBackup(homeDir, scope, settingsPath)
+	}
+	if err != nil {
 		return fmt.Errorf("failed to restore backup: %w", err)
 	}
 
