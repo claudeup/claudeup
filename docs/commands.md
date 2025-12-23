@@ -70,11 +70,27 @@ claudeup profile use frontend --scope local
 | Flag | Description |
 |------|-------------|
 | `--scope` | Apply scope: user, project, or local (default: user, or project if .claudeup.json exists) |
+| `--reset` | Clear target scope before applying (replaces instead of adding) |
 | `--setup` | Force post-apply setup wizard to run |
 | `--no-interactive` | Skip post-apply setup wizard (for CI/scripting) |
 | `-f, --force` | Force reapply even with unsaved changes |
 | `--reinstall` | Force reinstall all plugins and marketplaces |
 | `--no-progress` | Disable progress display (for CI/scripting) |
+
+**Reset mode:**
+
+The `--reset` flag clears the target scope before applying the profile:
+
+```bash
+# Replace user scope with new profile (instead of merging)
+claudeup profile use backend-stack --reset
+
+# Replace without prompts (for scripting)
+claudeup profile use backend-stack --reset -y
+```
+
+A backup is created automatically when using `--reset` (unless `-y` is used).
+Use `claudeup scope restore user` to recover if needed.
 
 **Files created by `--scope project`:**
 
@@ -151,9 +167,11 @@ View and manage Claude Code settings across different scopes.
 claudeup scope list                    # Show all scopes
 claudeup scope list --scope user       # Show only user scope
 claudeup scope list --scope project    # Show only project scope
-claudeup scope clear user              # Clear user scope with confirmation
+claudeup scope clear user              # Clear user scope (type 'yes' to confirm)
+claudeup scope clear user --backup     # Create backup before clearing
 claudeup scope clear project --force   # Clear project scope without confirmation
 claudeup scope clear local             # Clear local scope with confirmation
+claudeup scope restore user            # Restore from backup
 ```
 
 Claude Code uses three scope levels (in precedence order):
@@ -164,12 +182,30 @@ Claude Code uses three scope levels (in precedence order):
 | `project` | `.claude/settings.json` | Project-level, shared via git |
 | `user` | `~/.claude/settings.json` | Global personal defaults |
 
-**Flags:**
+**`scope list` flags:**
 
 | Flag | Description |
 |------|-------------|
 | `--scope` | Filter to scope: user, project, or local |
-| `--force` | Skip confirmation prompts (for `clear`) |
+
+**`scope clear` flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompts |
+| `--backup` | Create backup before clearing |
+
+**`scope restore` flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation prompts |
+
+**Notes:**
+
+- User scope requires typing 'yes' to confirm (extra safety)
+- Backups are stored in `~/.claudeup/backups/`
+- Project scope cannot be restored (use `git checkout` instead)
 
 ## Status & Discovery
 

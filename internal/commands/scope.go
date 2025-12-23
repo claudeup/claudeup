@@ -58,6 +58,9 @@ var scopeClearCmd = &cobra.Command{
 This is a destructive operation that removes configuration files.
 You will be prompted for confirmation unless --force is used.
 
+For user scope, you must type 'yes' to confirm (extra safety).
+Use --backup to save a backup before clearing.
+
 User scope:
   - Resets ~/.claude/settings.json to empty configuration
   - Does not remove plugins (use 'claudeup plugin' commands)
@@ -71,9 +74,10 @@ Local scope:
   - Only affects this machine
 
 Examples:
-  claudeup scope clear user              # Clear user scope with confirmation
-  claudeup scope clear project --force   # Clear project scope without confirmation
-  claudeup scope clear local             # Clear local scope with confirmation`,
+  claudeup scope clear user              # Clear with typed confirmation
+  claudeup scope clear user --backup     # Clear with backup
+  claudeup scope clear project --force   # Clear without confirmation
+  claudeup scope restore user            # Restore from backup`,
 	Args: cobra.ExactArgs(1),
 	RunE: runScopeClear,
 }

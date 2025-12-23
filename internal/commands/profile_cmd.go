@@ -70,23 +70,28 @@ SCOPES:
   --scope local    Apply to current project, but not shared (personal overrides)
   --scope user     Apply globally to ~/.claude/ (default, affects all projects)
 
+RESET MODE:
+  --reset          Clear the target scope before applying the profile.
+                   This replaces existing configuration instead of adding to it.
+                   A backup is created automatically (skip with -y).
+
 Precedence: local > project > user. Plugins from all scopes are active simultaneously.
 
 For team projects, use --scope project to create a shareable configuration that
 teammates can sync with 'claudeup profile sync'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
-	Example: `  # Set up a profile for your team (creates .claudeup.json)
+	Example: `  # Apply profile (adds to existing config)
+  claudeup profile use backend-stack
+
+  # Replace existing config with profile
+  claudeup profile use backend-stack --reset
+
+  # Replace without prompts (for scripting)
+  claudeup profile use backend-stack --reset -y
+
+  # Set up a profile for your team (creates .claudeup.json)
   claudeup profile use backend-stack --scope project
-
-  # Add personal plugins that won't affect teammates
-  claudeup profile use my-extras --scope local
-
-  # Apply globally (affects all projects)
-  claudeup profile use my-profile
-
-  # Apply without prompts
-  claudeup profile use my-profile -y
 
   # Force the post-apply setup wizard to run
   claudeup profile use my-profile --setup`,
