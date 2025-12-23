@@ -72,14 +72,19 @@ func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*Plugi
 	return analysis, nil
 }
 
-// determineActiveSource finds which installation is active based on scope precedence
-// Precedence: local > project > user
-// Only considers scopes where the plugin is enabled
+// determineActiveSource finds which installation is active based on scope precedence.
+//
+// Claude Code's precedence model (from docs.claude.com/settings):
+//   - More specific scopes always take precedence: local > project > user
+//   - When a plugin is enabled at any scope, it uses the highest-precedence installation available
+//
+// Examples:
+//   - Installed at project, enabled at user → uses project (higher precedence installation)
+//   - Installed at user, enabled at local → uses user (only available installation)
+//   - Installed at local+user, enabled at project → uses local (highest precedence)
 func determineActiveSource(installations []PluginMetadata, enabledScopes []string) string {
-	// Build map of enabled scopes for quick lookup
-	enabledMap := make(map[string]bool)
-	for _, scope := range enabledScopes {
-		enabledMap[scope] = true
+	if len(enabledScopes) == 0 {
+		return ""
 	}
 
 	// Build map of available installations by scope
@@ -88,46 +93,15 @@ func determineActiveSource(installations []PluginMetadata, enabledScopes []strin
 		installMap[inst.Scope] = true
 	}
 
-	// Check in precedence order (highest to lowest)
+	// Return highest-precedence installation available
 	precedence := []string{"local", "project", "user"}
 	for _, scope := range precedence {
-		// Use this scope if:
-		// 1. Plugin is enabled at this scope OR
-		// 2. Plugin is enabled at a lower-precedence scope and installed at this scope
-		if enabledMap[scope] && installMap[scope] {
+		if installMap[scope] {
 			return scope
 		}
 	}
 
-	// Fall back to highest-precedence installation if enabled at lower scope
-	for _, scope := range precedence {
-		if installMap[scope] {
-			// Check if any enabled scope has lower precedence
-			scopeIndex := indexOf(precedence, scope)
-			for _, enabledScope := range enabledScopes {
-				enabledIndex := indexOf(precedence, enabledScope)
-				if enabledIndex >= scopeIndex {
-					return scope
-				}
-			}
-		}
-	}
-
-	// Shouldn't reach here if enabledScopes is not empty, but handle gracefully
-	if len(installations) > 0 {
-		return installations[0].Scope
-	}
 	return ""
-}
-
-// indexOf returns the index of a string in a slice, or -1 if not found
-func indexOf(slice []string, value string) int {
-	for i, v := range slice {
-		if v == value {
-			return i
-		}
-	}
-	return -1
 }
 
 // GetEnabledPlugins returns a sorted list of all plugins enabled at any scope
