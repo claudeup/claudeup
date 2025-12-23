@@ -206,6 +206,18 @@ Claude Code uses three scope levels (in precedence order):
 - User scope requires typing 'yes' to confirm (extra safety)
 - Backups are stored in `~/.claudeup/backups/`
 - Project scope cannot be restored (use `git checkout` instead)
+- Each backup overwrites the previous one (only the most recent backup is kept)
+- Local scope backups are project-specific (different projects have separate backups)
+
+**Troubleshooting backup/restore:**
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| "no backup found" | No backup exists for this scope | Run `scope clear --backup` first to create one |
+| "no backup found" for local scope | Backup was made from a different directory | Run restore from the same project directory where backup was created |
+| Restore contains old data | Backups are overwritten on each save | Only the most recent backup is available; older backups are lost |
+| "homeDir must be an absolute path" | Internal error | Report as bug - this shouldn't happen in normal use |
+| "source is a symlink" | Settings file is a symlink | Remove symlink and use a regular file |
 
 ## Status & Discovery
 
