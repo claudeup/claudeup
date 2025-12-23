@@ -52,6 +52,77 @@ func TestValidateHomeDirNotExist(t *testing.T) {
 	}
 }
 
+func TestCopyFileRejectsSourceSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a real file
+	realFile := filepath.Join(tempDir, "real.txt")
+	if err := os.WriteFile(realFile, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink to it
+	symlinkPath := filepath.Join(tempDir, "symlink.txt")
+	if err := os.Symlink(realFile, symlinkPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to save backup from symlink (should fail)
+	_, err := SaveScopeBackup(tempDir, "user", symlinkPath)
+	if err == nil {
+		t.Error("expected error when source is a symlink")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("expected 'symlink' in error, got: %v", err)
+	}
+}
+
+func TestCopyFileRejectsDestinationSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup directory
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create source file
+	srcFile := filepath.Join(tempDir, "source.json")
+	if err := os.WriteFile(srcFile, []byte(`{"test":true}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a target file that the symlink will point to
+	targetFile := filepath.Join(tempDir, "target.txt")
+	if err := os.WriteFile(targetFile, []byte("original"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink at the backup location pointing to target
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.Symlink(targetFile, backupPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to save backup (should fail because destination is a symlink)
+	_, err := SaveScopeBackup(tempDir, "user", srcFile)
+	if err == nil {
+		t.Error("expected error when destination is a symlink")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("expected 'symlink' in error, got: %v", err)
+	}
+
+	// Verify target file was not modified
+	content, err := os.ReadFile(targetFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "original" {
+		t.Error("target file was modified through symlink")
+	}
+}
+
 func TestSaveUserScopeBackup(t *testing.T) {
 	tempDir := t.TempDir()
 

@@ -40,8 +40,28 @@ func EnsureBackupDir(homeDir string) (string, error) {
 }
 
 // copyFile copies src to dst, preserving file permissions
+// Rejects symlinks to prevent symlink attacks
 func copyFile(src, dst string) error {
-	// Get source file info for permissions
+	// Check source is not a symlink (Lstat doesn't follow symlinks)
+	srcLstat, err := os.Lstat(src)
+	if err != nil {
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+	if srcLstat.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("source is a symlink, refusing to copy: %s", src)
+	}
+
+	// Check destination is not a symlink if it exists
+	dstLstat, err := os.Lstat(dst)
+	if err == nil {
+		if dstLstat.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("destination is a symlink, refusing to overwrite: %s", dst)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat destination file: %w", err)
+	}
+
+	// Get source file info for permissions (follows symlinks, but we already checked)
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return fmt.Errorf("failed to stat source file: %w", err)
