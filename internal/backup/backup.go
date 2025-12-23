@@ -14,9 +14,23 @@ import (
 	"time"
 )
 
+// validateHomeDir ensures homeDir is an absolute path that exists
+func validateHomeDir(homeDir string) error {
+	if !filepath.IsAbs(homeDir) {
+		return fmt.Errorf("homeDir must be an absolute path: %s", homeDir)
+	}
+	if _, err := os.Stat(homeDir); err != nil {
+		return fmt.Errorf("homeDir does not exist: %w", err)
+	}
+	return nil
+}
+
 // EnsureBackupDir creates the backup directory if it doesn't exist
 // Returns the path to the backup directory
 func EnsureBackupDir(homeDir string) (string, error) {
+	if err := validateHomeDir(homeDir); err != nil {
+		return "", err
+	}
 	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
 	// Use 0700 for user-only access (backups may contain sensitive settings)
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
@@ -102,6 +116,9 @@ var ErrNoBackup = errors.New("no backup found")
 
 // RestoreScopeBackup copies the backup file back to the settings location
 func RestoreScopeBackup(homeDir, scope, settingsPath string) error {
+	if err := validateHomeDir(homeDir); err != nil {
+		return err
+	}
 	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
 	backupFileName := fmt.Sprintf("%s-scope.json", scope)
 	backupPath := filepath.Join(backupDir, backupFileName)
@@ -120,6 +137,9 @@ func RestoreScopeBackup(homeDir, scope, settingsPath string) error {
 
 // RestoreLocalScopeBackup restores a local scope backup using project-specific naming
 func RestoreLocalScopeBackup(homeDir, projectDir, settingsPath string) error {
+	if err := validateHomeDir(homeDir); err != nil {
+		return err
+	}
 	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
 
 	// Derive the same hash used when saving
@@ -151,6 +171,9 @@ type BackupInfo struct {
 
 // GetBackupInfo returns information about a scope's backup
 func GetBackupInfo(homeDir, scope string) (*BackupInfo, error) {
+	if err := validateHomeDir(homeDir); err != nil {
+		return nil, err
+	}
 	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
 	backupFileName := fmt.Sprintf("%s-scope.json", scope)
 	backupPath := filepath.Join(backupDir, backupFileName)
@@ -190,6 +213,9 @@ func GetBackupInfo(homeDir, scope string) (*BackupInfo, error) {
 
 // GetLocalBackupInfo returns information about a local scope's backup using project-specific naming
 func GetLocalBackupInfo(homeDir, projectDir string) (*BackupInfo, error) {
+	if err := validateHomeDir(homeDir); err != nil {
+		return nil, err
+	}
 	backupDir := filepath.Join(homeDir, ".claudeup", "backups")
 
 	// Derive the same hash used when saving

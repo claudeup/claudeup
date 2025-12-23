@@ -32,6 +32,26 @@ func TestEnsureBackupDir(t *testing.T) {
 	}
 }
 
+func TestValidateHomeDirRelativePath(t *testing.T) {
+	_, err := EnsureBackupDir("relative/path")
+	if err == nil {
+		t.Error("expected error for relative path")
+	}
+	if !strings.Contains(err.Error(), "absolute path") {
+		t.Errorf("expected 'absolute path' in error, got: %v", err)
+	}
+}
+
+func TestValidateHomeDirNotExist(t *testing.T) {
+	_, err := EnsureBackupDir("/nonexistent/path/that/does/not/exist")
+	if err == nil {
+		t.Error("expected error for non-existent path")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("expected 'does not exist' in error, got: %v", err)
+	}
+}
+
 func TestSaveUserScopeBackup(t *testing.T) {
 	tempDir := t.TempDir()
 
