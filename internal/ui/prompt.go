@@ -100,3 +100,8 @@ func PromptYesNo(prompt string, defaultYes bool) bool {
 
 	return input == "y" || input == "yes"
 }
+
+// ValidateTypedConfirmation checks if input matches expected (case-insensitive)
+func ValidateTypedConfirmation(input, expected string) bool {
+	return strings.EqualFold(strings.TrimSpace(input), expected)
+}

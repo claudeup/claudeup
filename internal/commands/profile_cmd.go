@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/claudeup/claudeup/internal/backup"
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
@@ -69,23 +70,28 @@ SCOPES:
   --scope local    Apply to current project, but not shared (personal overrides)
   --scope user     Apply globally to ~/.claude/ (default, affects all projects)
 
+RESET MODE:
+  --reset          Clear the target scope before applying the profile.
+                   This replaces existing configuration instead of adding to it.
+                   A backup is created automatically (skip with -y).
+
 Precedence: local > project > user. Plugins from all scopes are active simultaneously.
 
 For team projects, use --scope project to create a shareable configuration that
 teammates can sync with 'claudeup profile sync'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
-	Example: `  # Set up a profile for your team (creates .claudeup.json)
+	Example: `  # Apply profile (adds to existing config)
+  claudeup profile use backend-stack
+
+  # Replace existing config with profile
+  claudeup profile use backend-stack --reset
+
+  # Replace without prompts (for scripting)
+  claudeup profile use backend-stack --reset -y
+
+  # Set up a profile for your team (creates .claudeup.json)
   claudeup profile use backend-stack --scope project
-
-  # Add personal plugins that won't affect teammates
-  claudeup profile use my-extras --scope local
-
-  # Apply globally (affects all projects)
-  claudeup profile use my-profile
-
-  # Apply without prompts
-  claudeup profile use my-profile -y
 
   # Force the post-apply setup wizard to run
   claudeup profile use my-profile --setup`,
@@ -251,6 +257,7 @@ var (
 	profileUseScope         string
 	profileUseReinstall     bool
 	profileUseNoProgress    bool
+	profileUseReset         bool
 )
 
 // Flags for profile sync command
@@ -284,6 +291,7 @@ func init() {
 	profileUseCmd.Flags().StringVar(&profileUseScope, "scope", "", "Apply scope: user, project, or local (default: user, or project if .claudeup.json exists)")
 	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileUseCmd.Flags().BoolVar(&profileUseNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
+	profileUseCmd.Flags().BoolVar(&profileUseReset, "reset", false, "Clear target scope before applying profile")
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
@@ -435,6 +443,45 @@ func runProfileUse(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 		} else {
 			scope = profile.ScopeUser
+		}
+	}
+
+	// Handle --reset flag: clear scope before applying
+	if profileUseReset {
+		scopeStr := string(scope)
+		settingsPath, err := claude.SettingsPathForScope(scopeStr, claudeDir, cwd)
+		if err != nil {
+			return err
+		}
+
+		// Check if there's anything to clear
+		if _, err := os.Stat(settingsPath); err == nil {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get home directory: %w", err)
+			}
+
+			// Create backup unless -y (silent mode) is used
+			if !config.YesFlag {
+				var backupPath string
+				if scopeStr == "local" {
+					backupPath, err = backup.SaveLocalScopeBackup(homeDir, cwd, settingsPath)
+				} else {
+					backupPath, err = backup.SaveScopeBackup(homeDir, scopeStr, settingsPath)
+				}
+				if err != nil {
+					ui.PrintWarning(fmt.Sprintf("Could not create backup: %v", err))
+				} else {
+					fmt.Printf("  Backup saved: %s\n", backupPath)
+				}
+			}
+
+			// Clear the scope
+			if err := clearScope(scopeStr, settingsPath, claudeDir); err != nil {
+				return fmt.Errorf("failed to clear %s scope: %w", scopeStr, err)
+			}
+			fmt.Printf("Cleared %s scope\n", scopeStr)
+			fmt.Println()
 		}
 	}
 

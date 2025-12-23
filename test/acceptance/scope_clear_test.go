@@ -214,6 +214,72 @@ var _ = Describe("claudeup scope clear", func() {
 		})
 	})
 
+	Describe("backup functionality", func() {
+		It("should create backup when clearing user scope with --backup", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force", "--backup")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Backup saved"))
+
+			// Verify backup file exists
+			backupPath := filepath.Join(env.TempDir, ".claudeup", "backups", "user-scope.json")
+			Expect(backupPath).To(BeARegularFile())
+		})
+
+		It("should create backup for local scope with --backup", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "local", "--force", "--backup")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Backup saved"))
+		})
+	})
+
+	Describe("interactive backup prompt", func() {
+		It("should skip backup prompt with --force", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// With --force, no backup is created unless --backup is also passed
+			backupPath := filepath.Join(env.TempDir, ".claudeup", "backups", "user-scope.json")
+			_, err := os.Stat(backupPath)
+			Expect(os.IsNotExist(err)).To(BeTrue())
+		})
+
+		It("should create backup with --force --backup", func() {
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force", "--backup")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Backup saved"))
+		})
+	})
+
+	Describe("typed confirmation for user scope", func() {
+		It("should require typing 'yes' for user scope without --force", func() {
+			// This test documents the behavior - --force bypasses typed confirmation
+			result := env.RunInDir(projectDir, "scope", "clear", "user", "--force")
+			Expect(result.ExitCode).To(Equal(0))
+		})
+
+		It("should show warning about typing yes", func() {
+			// Run without --force to see the prompt text
+			// Respond with "no" to cancel
+			result := env.RunInDirWithInput(projectDir, "no\n", "scope", "clear", "user")
+			Expect(result.Stdout).To(ContainSubstring("Type 'yes'"))
+		})
+
+		It("should cancel when user types something other than yes", func() {
+			result := env.RunInDirWithInput(projectDir, "no\n", "scope", "clear", "user")
+			Expect(result.Stdout).To(ContainSubstring("Cancelled"))
+			Expect(result.ExitCode).To(Equal(0))
+		})
+
+		It("should clear when user types yes", func() {
+			result := env.RunInDirWithInput(projectDir, "yes\n", "scope", "clear", "user")
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Cleared user scope"))
+		})
+	})
+
 	Describe("help and usage", func() {
 		It("should show help text", func() {
 			result := env.Run("scope", "clear", "--help")

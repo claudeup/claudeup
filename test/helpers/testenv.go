@@ -407,6 +407,40 @@ func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
 	}
 }
 
+// RunInDirWithInput executes the CLI with a specific working directory and stdin input
+func (e *TestEnv) RunInDirWithInput(dir, input string, args ...string) *Result {
+	cmd := exec.Command(e.Binary, args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"HOME="+e.TempDir,
+	)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if input != "" {
+		cmd.Stdin = strings.NewReader(input)
+	}
+
+	err := cmd.Run()
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+
+	return &Result{
+		Stdout:   stdout.String(),
+		Stderr:   stderr.String(),
+		ExitCode: exitCode,
+	}
+}
+
 // BuildBinary builds the claudeup binary and returns its path
 func BuildBinary() string {
 	binPath := filepath.Join(GinkgoT().TempDir(), "claudeup")

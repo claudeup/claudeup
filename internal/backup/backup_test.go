@@ -1,0 +1,473 @@
+// ABOUTME: Tests for scope backup and restore functionality
+// ABOUTME: Covers saving, loading, and managing scope backups
+package backup
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func TestEnsureBackupDir(t *testing.T) {
+	tempDir := t.TempDir()
+
+	backupDir, err := EnsureBackupDir(tempDir)
+	if err != nil {
+		t.Fatalf("EnsureBackupDir failed: %v", err)
+	}
+
+	expected := filepath.Join(tempDir, ".claudeup", "backups")
+	if backupDir != expected {
+		t.Errorf("got %s, want %s", backupDir, expected)
+	}
+
+	info, err := os.Stat(backupDir)
+	if err != nil {
+		t.Fatalf("backup dir not created: %v", err)
+	}
+	if !info.IsDir() {
+		t.Error("backup path is not a directory")
+	}
+}
+
+func TestValidateHomeDirRelativePath(t *testing.T) {
+	_, err := EnsureBackupDir("relative/path")
+	if err == nil {
+		t.Error("expected error for relative path")
+	}
+	if !strings.Contains(err.Error(), "absolute path") {
+		t.Errorf("expected 'absolute path' in error, got: %v", err)
+	}
+}
+
+func TestValidateHomeDirNotExist(t *testing.T) {
+	_, err := EnsureBackupDir("/nonexistent/path/that/does/not/exist")
+	if err == nil {
+		t.Error("expected error for non-existent path")
+	}
+	if !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("expected 'does not exist' in error, got: %v", err)
+	}
+}
+
+func TestCopyFileRejectsSourceSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a real file
+	realFile := filepath.Join(tempDir, "real.txt")
+	if err := os.WriteFile(realFile, []byte("content"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink to it
+	symlinkPath := filepath.Join(tempDir, "symlink.txt")
+	if err := os.Symlink(realFile, symlinkPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to save backup from symlink (should fail)
+	_, err := SaveScopeBackup(tempDir, "user", symlinkPath)
+	if err == nil {
+		t.Error("expected error when source is a symlink")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("expected 'symlink' in error, got: %v", err)
+	}
+}
+
+func TestCopyFileRejectsDestinationSymlink(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup directory
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create source file
+	srcFile := filepath.Join(tempDir, "source.json")
+	if err := os.WriteFile(srcFile, []byte(`{"test":true}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a target file that the symlink will point to
+	targetFile := filepath.Join(tempDir, "target.txt")
+	if err := os.WriteFile(targetFile, []byte("original"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a symlink at the backup location pointing to target
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.Symlink(targetFile, backupPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to save backup (should fail because destination is a symlink)
+	_, err := SaveScopeBackup(tempDir, "user", srcFile)
+	if err == nil {
+		t.Error("expected error when destination is a symlink")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Errorf("expected 'symlink' in error, got: %v", err)
+	}
+
+	// Verify target file was not modified
+	content, err := os.ReadFile(targetFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "original" {
+		t.Error("target file was modified through symlink")
+	}
+}
+
+func TestSaveUserScopeBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a mock settings file
+	claudeDir := filepath.Join(tempDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{"test@example":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save backup
+	backupPath, err := SaveScopeBackup(tempDir, "user", settingsPath)
+	if err != nil {
+		t.Fatalf("SaveScopeBackup failed: %v", err)
+	}
+
+	// Verify backup exists
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Errorf("backup file not created: %v", err)
+	}
+
+	// Verify content matches
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != `{"enabledPlugins":{"test@example":true}}` {
+		t.Errorf("backup content mismatch: %s", content)
+	}
+}
+
+func TestSaveLocalScopeBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a mock local settings file
+	projectDir := filepath.Join(tempDir, "my-project")
+	if err := os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{"local@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save backup with project path
+	backupPath, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	if err != nil {
+		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
+	}
+
+	// Verify backup exists and has project hash in name
+	if _, err := os.Stat(backupPath); err != nil {
+		t.Errorf("backup file not created: %v", err)
+	}
+
+	// Should contain "local-scope-" prefix
+	filename := filepath.Base(backupPath)
+	if !strings.HasPrefix(filename, "local-scope-") {
+		t.Errorf("unexpected filename: %s", filename)
+	}
+
+	// Verify content matches
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != `{"enabledPlugins":{"local@test":true}}` {
+		t.Errorf("backup content mismatch: %s", content)
+	}
+}
+
+func TestRestoreScopeBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup directory and file
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.WriteFile(backupPath, []byte(`{"enabledPlugins":{"restored@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create target settings file (will be overwritten)
+	claudeDir := filepath.Join(tempDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restore backup
+	err := RestoreScopeBackup(tempDir, "user", settingsPath)
+	if err != nil {
+		t.Fatalf("RestoreScopeBackup failed: %v", err)
+	}
+
+	// Verify content was restored
+	content, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != `{"enabledPlugins":{"restored@test":true}}` {
+		t.Errorf("restore content mismatch: %s", content)
+	}
+}
+
+func TestRestoreScopeBackupNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+
+	err := RestoreScopeBackup(tempDir, "user", "/nonexistent/path")
+	if err == nil {
+		t.Error("expected error for missing backup")
+	}
+	if !errors.Is(err, ErrNoBackup) {
+		t.Errorf("expected ErrNoBackup, got: %v", err)
+	}
+}
+
+func TestGetBackupInfo(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.WriteFile(backupPath, []byte(`{"enabledPlugins":{"a@test":true,"b@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := GetBackupInfo(tempDir, "user")
+	if err != nil {
+		t.Fatalf("GetBackupInfo failed: %v", err)
+	}
+
+	if !info.Exists {
+		t.Error("expected backup to exist")
+	}
+	if info.PluginCount != 2 {
+		t.Errorf("expected 2 plugins, got %d", info.PluginCount)
+	}
+	if info.ModTime.IsZero() {
+		t.Error("expected non-zero mod time")
+	}
+}
+
+func TestGetBackupInfoNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+
+	info, err := GetBackupInfo(tempDir, "user")
+	if err != nil {
+		t.Fatalf("GetBackupInfo failed: %v", err)
+	}
+
+	if info.Exists {
+		t.Error("expected backup to not exist")
+	}
+	if info.PluginCount != 0 {
+		t.Errorf("expected 0 plugins, got %d", info.PluginCount)
+	}
+}
+
+func TestRestoreLocalScopeBackup(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create a project directory
+	projectDir := filepath.Join(tempDir, "my-project")
+
+	// Create backup directory with project-specific naming
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save a local scope backup first to get the correct filename
+	if err := os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{"local@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save the backup
+	_, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	if err != nil {
+		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
+	}
+
+	// Remove original file
+	if err := os.Remove(settingsPath); err != nil {
+		t.Fatal(err)
+	}
+
+	// Restore the backup
+	err = RestoreLocalScopeBackup(tempDir, projectDir, settingsPath)
+	if err != nil {
+		t.Fatalf("RestoreLocalScopeBackup failed: %v", err)
+	}
+
+	// Verify content was restored
+	content, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != `{"enabledPlugins":{"local@test":true}}` {
+		t.Errorf("restore content mismatch: %s", content)
+	}
+}
+
+func TestRestoreLocalScopeBackupNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	projectDir := filepath.Join(tempDir, "nonexistent-project")
+
+	err := RestoreLocalScopeBackup(tempDir, projectDir, "/nonexistent/path")
+	if err == nil {
+		t.Error("expected error for missing backup")
+	}
+	if !errors.Is(err, ErrNoBackup) {
+		t.Errorf("expected ErrNoBackup, got: %v", err)
+	}
+}
+
+func TestGetLocalBackupInfo(t *testing.T) {
+	tempDir := t.TempDir()
+	projectDir := filepath.Join(tempDir, "my-project")
+
+	// Create and save a local scope backup
+	if err := os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+	if err := os.WriteFile(settingsPath, []byte(`{"enabledPlugins":{"a@test":true,"b@test":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Save backup
+	_, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	if err != nil {
+		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
+	}
+
+	// Get backup info
+	info, err := GetLocalBackupInfo(tempDir, projectDir)
+	if err != nil {
+		t.Fatalf("GetLocalBackupInfo failed: %v", err)
+	}
+
+	if !info.Exists {
+		t.Error("expected backup to exist")
+	}
+	if info.PluginCount != 2 {
+		t.Errorf("expected 2 plugins, got %d", info.PluginCount)
+	}
+	if info.ModTime.IsZero() {
+		t.Error("expected non-zero mod time")
+	}
+}
+
+func TestGetLocalBackupInfoNotFound(t *testing.T) {
+	tempDir := t.TempDir()
+	projectDir := filepath.Join(tempDir, "nonexistent-project")
+
+	info, err := GetLocalBackupInfo(tempDir, projectDir)
+	if err != nil {
+		t.Fatalf("GetLocalBackupInfo failed: %v", err)
+	}
+
+	if info.Exists {
+		t.Error("expected backup to not exist")
+	}
+}
+
+func TestBackupEmptySettingsFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create an empty settings file
+	claudeDir := filepath.Join(tempDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Backup should succeed
+	backupPath, err := SaveScopeBackup(tempDir, "user", settingsPath)
+	if err != nil {
+		t.Fatalf("SaveScopeBackup failed on empty file: %v", err)
+	}
+
+	// Verify backup exists and is empty
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 0 {
+		t.Errorf("expected empty backup, got %d bytes", len(content))
+	}
+
+	// GetBackupInfo should handle empty file gracefully
+	info, err := GetBackupInfo(tempDir, "user")
+	if err != nil {
+		t.Fatalf("GetBackupInfo failed on empty file: %v", err)
+	}
+	if !info.Exists {
+		t.Error("expected backup to exist")
+	}
+	if info.PluginCount != 0 {
+		t.Errorf("expected 0 plugins for empty file, got %d", info.PluginCount)
+	}
+}
+
+func TestRestoreWhenTargetDirectoryMissing(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.WriteFile(backupPath, []byte(`{"enabledPlugins":{"test@plugin":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Target directory does NOT exist
+	settingsPath := filepath.Join(tempDir, "nonexistent-dir", "settings.json")
+
+	// Restore should fail because target directory doesn't exist
+	err := RestoreScopeBackup(tempDir, "user", settingsPath)
+	if err == nil {
+		t.Error("expected error when target directory doesn't exist")
+	}
+	// The error should be about creating/opening the file
+	if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "create") {
+		t.Errorf("expected file/directory error, got: %v", err)
+	}
+}
