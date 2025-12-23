@@ -403,3 +403,71 @@ func TestGetLocalBackupInfoNotFound(t *testing.T) {
 		t.Error("expected backup to not exist")
 	}
 }
+
+func TestBackupEmptySettingsFile(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create an empty settings file
+	claudeDir := filepath.Join(tempDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Backup should succeed
+	backupPath, err := SaveScopeBackup(tempDir, "user", settingsPath)
+	if err != nil {
+		t.Fatalf("SaveScopeBackup failed on empty file: %v", err)
+	}
+
+	// Verify backup exists and is empty
+	content, err := os.ReadFile(backupPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(content) != 0 {
+		t.Errorf("expected empty backup, got %d bytes", len(content))
+	}
+
+	// GetBackupInfo should handle empty file gracefully
+	info, err := GetBackupInfo(tempDir, "user")
+	if err != nil {
+		t.Fatalf("GetBackupInfo failed on empty file: %v", err)
+	}
+	if !info.Exists {
+		t.Error("expected backup to exist")
+	}
+	if info.PluginCount != 0 {
+		t.Errorf("expected 0 plugins for empty file, got %d", info.PluginCount)
+	}
+}
+
+func TestRestoreWhenTargetDirectoryMissing(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Create backup
+	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	backupPath := filepath.Join(backupDir, "user-scope.json")
+	if err := os.WriteFile(backupPath, []byte(`{"enabledPlugins":{"test@plugin":true}}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Target directory does NOT exist
+	settingsPath := filepath.Join(tempDir, "nonexistent-dir", "settings.json")
+
+	// Restore should fail because target directory doesn't exist
+	err := RestoreScopeBackup(tempDir, "user", settingsPath)
+	if err == nil {
+		t.Error("expected error when target directory doesn't exist")
+	}
+	// The error should be about creating/opening the file
+	if !strings.Contains(err.Error(), "no such file or directory") && !strings.Contains(err.Error(), "create") {
+		t.Errorf("expected file/directory error, got: %v", err)
+	}
+}
