@@ -24,6 +24,10 @@ https://github.com/claudeup/claudeup-superpowers.git
 
 Clone locally as `../claudeup-superpowers` or similar. When brainstorming features or creating implementation plans, save them there - not in this repository.
 
+**Claude Code Documentation (Settings):**
+
+- Read latest version of published Claude Code docs on [settings](https://code.claude.com/docs/en/settings)
+
 ## Development
 
 ```bash

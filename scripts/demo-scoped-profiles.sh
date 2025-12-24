@@ -32,7 +32,7 @@ print_command() {
 
 pause() {
     echo ""
-    read -p "Press ENTER to continue..."
+    read -rp "Press ENTER to continue..."
 }
 
 # Check if claude CLI is available
