@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -52,9 +53,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.Operation).To(Equal("test-operation"))
 				Expect(event.File).To(Equal(testFile))
 				Expect(event.Scope).To(Equal("user"))
@@ -71,9 +73,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.ChangeType).To(Equal(events.ChangeTypeUpdate))
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.After).NotTo(BeNil())
@@ -89,9 +92,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.ChangeType).To(Equal(events.ChangeTypeDelete))
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.After).To(BeNil())
@@ -105,9 +109,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).To(Equal(expectedErr))
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.Error).To(Equal("operation failed"))
 			})
 
@@ -119,7 +124,8 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				event := writer.events[0]
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
 
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.After.Hash).NotTo(BeEmpty())
@@ -134,10 +140,11 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).To(Equal(expectedErr))
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
 				// Marshal event to JSON and verify error is preserved
-				event := writer.events[0]
+				event := recordedEvents[0]
 				jsonData, err := json.Marshal(event)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -163,7 +170,7 @@ var _ = Describe("Tracker", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(executed).To(BeTrue())
-				Expect(writer.events).To(HaveLen(0))
+				Expect(writer.getEvents()).To(HaveLen(0))
 			})
 		})
 
@@ -195,7 +202,7 @@ var _ = Describe("Tracker", func() {
 				}
 
 				// Verify all events were recorded
-				Expect(writer.events).To(HaveLen(numGoroutines))
+				Expect(writer.getEvents()).To(HaveLen(numGoroutines))
 			})
 		})
 
@@ -213,9 +220,10 @@ var _ = Describe("Tracker", func() {
 				)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 				// Event should have cleaned path
-				Expect(writer.events[0].File).NotTo(ContainSubstring(".."))
+				Expect(recordedEvents[0].File).NotTo(ContainSubstring(".."))
 			})
 
 			It("handles deleted files gracefully", func() {
@@ -233,8 +241,84 @@ var _ = Describe("Tracker", func() {
 				)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
-				Expect(writer.events[0].ChangeType).To(Equal(events.ChangeTypeDelete))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
+				Expect(recordedEvents[0].ChangeType).To(Equal(events.ChangeTypeDelete))
+			})
+		})
+
+		Context("content capture for diffing", func() {
+			It("captures content for JSON files under 1MB", func() {
+				jsonContent := `{"key": "value", "number": 42}`
+
+				err := tracker.RecordFileWrite("test-operation", testFile, "user", func() error {
+					return os.WriteFile(testFile, []byte(jsonContent), 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
+
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Content).To(Equal(jsonContent))
+			})
+
+			It("does not capture content for JSON files over 1MB", func() {
+				// Create a JSON file > 1MB
+				largeJSON := make([]byte, 1024*1024+1) // 1MB + 1 byte
+				for i := range largeJSON {
+					largeJSON[i] = 'a'
+				}
+
+				err := tracker.RecordFileWrite("test-operation", testFile, "user", func() error {
+					return os.WriteFile(testFile, largeJSON, 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
+
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Hash).NotTo(BeEmpty())
+				Expect(event.After.Content).To(BeEmpty())
+			})
+
+			It("does not capture content for non-JSON files", func() {
+				txtFile := filepath.Join(tempDir, "test.txt")
+				content := "plain text content"
+
+				err := tracker.RecordFileWrite("test-operation", txtFile, "user", func() error {
+					return os.WriteFile(txtFile, []byte(content), 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
+
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Hash).NotTo(BeEmpty())
+				Expect(event.After.Content).To(BeEmpty())
+			})
+
+			It("captures before and after content for updates", func() {
+				beforeJSON := `{"version": 1}`
+				afterJSON := `{"version": 2}`
+
+				// Create initial file
+				os.WriteFile(testFile, []byte(beforeJSON), 0644)
+
+				err := tracker.RecordFileWrite("test-operation", testFile, "user", func() error {
+					return os.WriteFile(testFile, []byte(afterJSON), 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
+
+				Expect(event.Before).NotTo(BeNil())
+				Expect(event.Before.Content).To(Equal(beforeJSON))
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Content).To(Equal(afterJSON))
 			})
 		})
 	})
@@ -243,13 +327,28 @@ var _ = Describe("Tracker", func() {
 // fakeEventWriter for testing
 type fakeEventWriter struct {
 	events []*events.FileOperation
+	mu     sync.Mutex
 }
 
 func (w *fakeEventWriter) Write(event *events.FileOperation) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.events = append(w.events, event)
 	return nil
 }
 
 func (w *fakeEventWriter) Query(filters events.EventFilters) ([]*events.FileOperation, error) {
-	return nil, nil
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.events, nil
+}
+
+// getEvents safely retrieves a copy of events for test assertions
+func (w *fakeEventWriter) getEvents() []*events.FileOperation {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	// Return a copy to prevent race conditions in test assertions
+	result := make([]*events.FileOperation, len(w.events))
+	copy(result, w.events)
+	return result
 }

@@ -35,8 +35,9 @@ type FileOperation struct {
 
 // Snapshot represents the state of a file at a point in time
 type Snapshot struct {
-	Hash string `json:"hash"`
-	Size int64  `json:"size"`
+	Hash    string `json:"hash"`
+	Size    int64  `json:"size"`
+	Content string `json:"content,omitempty"` // File content for diffing (JSON files < 1MB)
 }
 
 // EventWriter writes and queries file operation events
@@ -135,19 +136,56 @@ func (t *Tracker) snapshot(path string) *Snapshot {
 		return nil
 	}
 
-	hash, err := hashFile(path)
-	if err != nil {
-		// Can't hash file, return basic info
-		return &Snapshot{
-			Hash: "",
-			Size: info.Size(),
+	var hash string
+	var content []byte
+
+	// Single-pass read for content capture eligible files
+	// WARNING: Content capture stores file contents in event logs.
+	// Event logs may contain sensitive data if configuration files include
+	// API keys, tokens, or credentials. See CLAUDE.md for privacy guidance.
+	if shouldCaptureContent(path, info.Size()) {
+		content, err = os.ReadFile(path)
+		if err == nil {
+			// Hash the content we just read
+			h := sha256.New()
+			h.Write(content)
+			hash = hex.EncodeToString(h.Sum(nil))
 		}
+	} else {
+		// Hash-only for large/non-JSON files
+		hash, err = hashFile(path)
 	}
 
-	return &Snapshot{
+	if err != nil || hash == "" {
+		return &Snapshot{Hash: "", Size: info.Size()}
+	}
+
+	snapshot := &Snapshot{
 		Hash: hash,
 		Size: info.Size(),
 	}
+	if content != nil {
+		snapshot.Content = string(content)
+	}
+
+	return snapshot
+}
+
+// shouldCaptureContent determines if file content should be captured for diffing
+func shouldCaptureContent(path string, size int64) bool {
+	const maxContentSize = 1024 * 1024 // 1MB
+
+	// Only capture JSON files
+	if filepath.Ext(path) != ".json" {
+		return false
+	}
+
+	// Only capture files under 1MB
+	if size >= maxContentSize {
+		return false
+	}
+
+	return true
 }
 
 // hashFile computes SHA-256 hash of a file
