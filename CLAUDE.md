@@ -85,6 +85,30 @@ Feature development uses git worktrees in `.worktrees/` directory (already in .g
 
 Built-in profiles are embedded from `internal/profile/profiles/*.json` using Go's embed directive.
 
+## Event Tracking & Privacy
+
+claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit trails and troubleshooting.
+
+### Content Capture Behavior
+
+**What is captured:**
+- JSON files under 1MB have their full content stored in event snapshots
+- This enables the `claudeup events diff` command to show detailed changes
+- Files tracked include: settings.json, installed_plugins.json, profiles, mcp configs
+
+**Privacy considerations:**
+- ⚠️ **Event logs may contain sensitive data** if configuration files include API keys, tokens, or credentials
+- Event logs are stored with 0600 permissions (owner-only access)
+- Logs are stored locally at `~/.claudeup/events/operations.log`
+
+**Recommendations:**
+- Do not store secrets in Claude configuration files (use environment variables or secret managers instead)
+- Review event logs before sharing for debugging: `cat ~/.claudeup/events/operations.log`
+- Event log retention can be configured in `~/.claudeup/config.json` (future feature)
+
+**Disabling event tracking:**
+Set `monitoring.enabled: false` in `~/.claudeup/config.json` to disable all event tracking.
+
 ## Claude CLI Format Compatibility
 
 claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `settings.json`). To protect against format changes:

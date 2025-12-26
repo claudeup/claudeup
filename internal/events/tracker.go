@@ -140,6 +140,9 @@ func (t *Tracker) snapshot(path string) *Snapshot {
 	var content []byte
 
 	// Single-pass read for content capture eligible files
+	// WARNING: Content capture stores file contents in event logs.
+	// Event logs may contain sensitive data if configuration files include
+	// API keys, tokens, or credentials. See CLAUDE.md for privacy guidance.
 	if shouldCaptureContent(path, info.Size()) {
 		content, err = os.ReadFile(path)
 		if err == nil {
