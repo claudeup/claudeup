@@ -79,6 +79,37 @@ func TestLoadMarketplacesNonExistent(t *testing.T) {
 	}
 }
 
+func TestLoadMarketplacesFreshInstall(t *testing.T) {
+	// Create temp directory with plugins subdirectory but no known_marketplaces.json
+	// This simulates a fresh Claude Code install that hasn't added any marketplaces yet
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create plugins directory (Claude creates this on install)
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load marketplaces from fresh install (no known_marketplaces.json yet)
+	registry, err := LoadMarketplaces(tempDir)
+	if err != nil {
+		t.Fatalf("LoadMarketplaces should not error on fresh install, got: %v", err)
+	}
+
+	// Should return empty registry
+	if registry == nil {
+		t.Error("Registry should be initialized, not nil")
+	}
+
+	if len(registry) != 0 {
+		t.Errorf("Expected 0 marketplaces in fresh install, got %d", len(registry))
+	}
+}
+
 func TestSaveMarketplacesInvalidPath(t *testing.T) {
 	registry := MarketplaceRegistry{
 		"test": MarketplaceMetadata{},
