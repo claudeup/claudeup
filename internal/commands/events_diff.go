@@ -45,8 +45,8 @@ func runEventsDiff(cmd *cobra.Command, args []string) error {
 
 	// Check if log file exists
 	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		ui.PrintError("No events recorded yet.")
-		return fmt.Errorf("event log not found")
+		ui.PrintInfo("No events recorded yet.")
+		return nil
 	}
 
 	// Create writer to query events
