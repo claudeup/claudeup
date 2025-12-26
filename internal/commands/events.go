@@ -50,7 +50,10 @@ func init() {
 
 func runEvents(cmd *cobra.Command, args []string) error {
 	// Get event log path
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
 	eventsDir := filepath.Join(homeDir, ".claudeup", "events")
 	logPath := filepath.Join(eventsDir, "operations.log")
 
