@@ -160,15 +160,38 @@ func diffHashOnly(before, after *Snapshot) *DiffResult {
 
 // formatValue formats a JSON value for display
 func formatValue(v interface{}) string {
+	return formatValueWithDepth(v, 0)
+}
+
+// formatValueWithDepth formats a JSON value with depth and size limits
+func formatValueWithDepth(v interface{}, depth int) string {
+	const maxDepth = 3
+	const maxArrayItems = 3
+
+	if depth > maxDepth {
+		return "..."
+	}
+
 	switch val := v.(type) {
 	case string:
 		return fmt.Sprintf("%q", val)
 	case []interface{}:
-		items := make([]string, len(val))
-		for i, item := range val {
-			items[i] = formatValue(item)
+		if len(val) == 0 {
+			return "[]"
 		}
-		return "[" + strings.Join(items, ", ") + "]"
+		limit := len(val)
+		if limit > maxArrayItems {
+			limit = maxArrayItems
+		}
+		items := make([]string, limit)
+		for i := 0; i < limit; i++ {
+			items[i] = formatValueWithDepth(val[i], depth+1)
+		}
+		result := "[" + strings.Join(items, ", ")
+		if len(val) > maxArrayItems {
+			result += fmt.Sprintf(", ...%d more", len(val)-maxArrayItems)
+		}
+		return result + "]"
 	case map[string]interface{}:
 		return "{...}"
 	default:

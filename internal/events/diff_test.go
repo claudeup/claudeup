@@ -181,4 +181,63 @@ var _ = Describe("DiffSnapshots", func() {
 			Expect(result.HasChanges).To(BeFalse())
 		})
 	})
+
+	Context("array truncation and depth limits", func() {
+		It("truncates large arrays to prevent overflow", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"items": [1, 2, 3]}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    200,
+				Content: `{"items": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}`,
+			}
+
+			result := events.DiffSnapshots(before, after)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ items"))
+			Expect(result.Summary).To(ContainSubstring("...7 more"))
+		})
+
+		It("limits depth for deeply nested arrays", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"deep": []}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    200,
+				Content: `{"deep": [[[[["too deep"]]]]]}`,
+			}
+
+			result := events.DiffSnapshots(before, after)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ deep"))
+			Expect(result.Summary).To(ContainSubstring("..."))
+		})
+
+		It("handles empty arrays correctly", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"items": [1, 2, 3]}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    50,
+				Content: `{"items": []}`,
+			}
+
+			result := events.DiffSnapshots(before, after)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ items"))
+			Expect(result.Summary).To(ContainSubstring("[]"))
+		})
+	})
 })
