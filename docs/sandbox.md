@@ -24,6 +24,7 @@ The sandbox runs the entire Claude Code environment (CLI, plugins, MCP servers) 
 ### What's Isolated
 
 The sandbox protects:
+
 - Your home directory and dotfiles
 - SSH keys and credentials (unless explicitly mounted)
 - Other projects and files
@@ -32,6 +33,7 @@ The sandbox protects:
 ### What's Accessible
 
 The sandbox has access to:
+
 - Network (for API calls, git operations)
 - Your current working directory (mounted at `/workspace`)
 - Secrets you explicitly configure in the profile
@@ -136,6 +138,18 @@ claudeup sandbox --clean --profile untrusted
 ```
 
 Removes all persistent state for a profile's sandbox, returning it to a fresh state.
+
+### Build the local docker image and use it for a shell
+
+```bash
+# 1. Build the local image:
+./scripts/build-sandbox-image.sh
+```
+
+```bash
+# 1. Launch a shell into the local image
+claudeup sandbox --image ghcr.io/claudeup/claudeup-sandbox:local --mount ~/.claude:/claude --shell
+```
 
 ## Requirements
 
