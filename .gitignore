@@ -38,6 +38,12 @@ Thumbs.db
 /claudeup-*
 docker/claudeup*
 
+# Environment variables
+.env
+.env.local
+.env.production
+.envrc
+
 # Worktrees
 .worktrees/
 
