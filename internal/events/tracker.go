@@ -136,26 +136,33 @@ func (t *Tracker) snapshot(path string) *Snapshot {
 		return nil
 	}
 
-	hash, err := hashFile(path)
-	if err != nil {
-		// Can't hash file, return basic info
-		return &Snapshot{
-			Hash: "",
-			Size: info.Size(),
+	var hash string
+	var content []byte
+
+	// Single-pass read for content capture eligible files
+	if shouldCaptureContent(path, info.Size()) {
+		content, err = os.ReadFile(path)
+		if err == nil {
+			// Hash the content we just read
+			h := sha256.New()
+			h.Write(content)
+			hash = hex.EncodeToString(h.Sum(nil))
 		}
+	} else {
+		// Hash-only for large/non-JSON files
+		hash, err = hashFile(path)
+	}
+
+	if err != nil || hash == "" {
+		return &Snapshot{Hash: "", Size: info.Size()}
 	}
 
 	snapshot := &Snapshot{
 		Hash: hash,
 		Size: info.Size(),
 	}
-
-	// Capture content for JSON files under 1MB for diffing
-	if shouldCaptureContent(path, info.Size()) {
-		content, err := os.ReadFile(path)
-		if err == nil {
-			snapshot.Content = string(content)
-		}
+	if content != nil {
+		snapshot.Content = string(content)
 	}
 
 	return snapshot
