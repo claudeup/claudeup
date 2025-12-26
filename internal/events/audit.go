@@ -32,10 +32,9 @@ type AuditSummary struct {
 
 // AuditOptions configures how the audit report is generated.
 type AuditOptions struct {
-	Scope       string
-	Operation   string
-	Since       time.Time
-	GroupByDate bool // if true, group events by date in timeline
+	Scope     string
+	Operation string
+	Since     time.Time
 }
 
 // GenerateAuditReport creates an audit report from a list of events.
