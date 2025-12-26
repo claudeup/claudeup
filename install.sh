@@ -176,11 +176,11 @@ if [[ -z "$EXISTING_VERSION" && -d "$HOME/.claude" ]]; then
         echo ""
         echo "Detected existing Claude Code configuration."
         echo "Creating backup profile 'my-previous-setup'..."
-        if "$INSTALL_DIR/$BINARY_NAME" profile create my-previous-setup 2>/dev/null; then
+        if "$INSTALL_DIR/$BINARY_NAME" profile save my-previous-setup --yes 2>/dev/null; then
             echo "✓ Saved current configuration as 'my-previous-setup'"
             echo "  You can restore it anytime with: $BINARY_NAME profile use my-previous-setup"
         else
-            echo "  (Could not create backup profile - you can do this manually with '$BINARY_NAME profile create')"
+            echo "  (Could not create backup profile - you can do this manually with '$BINARY_NAME profile save my-previous-setup')"
         fi
     fi
 fi
