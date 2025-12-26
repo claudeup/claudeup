@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // ProjectConfigFile is the filename for project-level profile configuration
@@ -66,7 +68,15 @@ func SaveProjectConfig(projectDir string, cfg *ProjectConfig) error {
 	// Add trailing newline for cleaner git diffs
 	data = append(data, '\n')
 
-	return os.WriteFile(path, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"project config save",
+		path,
+		"project",
+		func() error {
+			return os.WriteFile(path, data, 0644)
+		},
+	)
 }
 
 // ProjectConfigExists returns true if a .claudeup.json file exists in the directory

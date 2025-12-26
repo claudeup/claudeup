@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // MCPConfigFile is the filename for Claude's native MCP configuration
@@ -60,7 +62,15 @@ func WriteMCPJSON(projectDir string, servers []MCPServer) error {
 	// Add trailing newline
 	data = append(data, '\n')
 
-	return os.WriteFile(path, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"mcp config write",
+		path,
+		"project",
+		func() error {
+			return os.WriteFile(path, data, 0644)
+		},
+	)
 }
 
 // MCPJSONExists returns true if a .mcp.json file exists in the directory

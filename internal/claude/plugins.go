@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // PluginRegistry represents the installed_plugins.json file structure
@@ -112,7 +114,15 @@ func SavePlugins(claudeDir string, registry *PluginRegistry) error {
 		return err
 	}
 
-	return os.WriteFile(pluginsPath, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"plugin update",
+		pluginsPath,
+		"user",
+		func() error {
+			return os.WriteFile(pluginsPath, data, 0644)
+		},
+	)
 }
 
 // PathExists checks if a plugin's install path actually exists
