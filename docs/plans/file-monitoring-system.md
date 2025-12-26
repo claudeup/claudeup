@@ -487,6 +487,9 @@ func (n *Notifier) SendWebhook(event *FileOperation) error {
 - Users must manually clear old events using `claudeup events clear` (coming in Phase 2)
 - For Phase 1, monitor log file size and delete manually if needed
 - Operation names are generic (e.g., "plugin update" doesn't distinguish between profile apply vs plugin cleanup)
+- Events are written synchronously (no async queue)
+- Double file read for snapshots (before/after hashing)
+- In-memory query processing (works well for <3MB logs)
 
 ### Phase 2: Query & Diff Tools
 **Goal:** Enable troubleshooting
@@ -495,6 +498,9 @@ func (n *Notifier) SendWebhook(event *FileOperation) error {
 - [ ] Add filtering options to `events` command
 - [ ] Calculate and display meaningful diffs
 - [ ] **Add operation context** - Distinguish between "profile apply: plugin update" vs "cleanup: plugin update"
+- [ ] **Performance: Async event queue** - Background goroutine for non-blocking event writes
+- [ ] **Performance: Snapshot optimization** - Skip "before" snapshot for create operations
+- [ ] **Performance: Query indexing** - Add SQLite index for frequently queried fields
 
 **Value:** Users can understand *what* changed, not just that it changed
 

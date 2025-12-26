@@ -209,5 +209,56 @@ var _ = Describe("JSONLWriter", func() {
 			Expect(evts[0].Timestamp.After(evts[1].Timestamp)).To(BeTrue())
 			Expect(evts[1].Timestamp.After(evts[2].Timestamp)).To(BeTrue())
 		})
+
+		It("handles malformed JSONL gracefully", func() {
+			// Create a fresh log file for this test
+			malformedLogPath := filepath.Join(tempDir, "malformed-test.log")
+			malformedWriter, err := events.NewJSONLWriter(malformedLogPath)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Write a valid event
+			event1 := &events.FileOperation{
+				Timestamp:  time.Now(),
+				Operation:  "test",
+				File:       "/file1.json",
+				Scope:      "user",
+				ChangeType: "create",
+			}
+			malformedWriter.Write(event1)
+
+			// Manually append malformed JSON to log
+			f, err := os.OpenFile(malformedLogPath, os.O_APPEND|os.O_WRONLY, 0600)
+			Expect(err).NotTo(HaveOccurred())
+			f.WriteString("{invalid json}\n")
+			f.WriteString("not json at all\n")
+			f.Close()
+
+			// Write another valid event
+			event2 := &events.FileOperation{
+				Timestamp:  time.Now(),
+				Operation:  "test2",
+				File:       "/file2.json",
+				Scope:      "user",
+				ChangeType: "update",
+			}
+			malformedWriter.Write(event2)
+
+			// Query should skip malformed lines and return only valid events
+			evts, err := malformedWriter.Query(events.EventFilters{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(evts).To(HaveLen(2))
+			Expect(evts[0].Operation).To(Equal("test2"))
+			Expect(evts[1].Operation).To(Equal("test"))
+		})
+
+		It("returns empty slice for non-existent log file", func() {
+			emptyPath := filepath.Join(tempDir, "nonexistent.log")
+			emptyWriter, err := events.NewJSONLWriter(emptyPath)
+			Expect(err).NotTo(HaveOccurred())
+
+			evts, err := emptyWriter.Query(events.EventFilters{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(evts).To(BeEmpty())
+		})
 	})
 })

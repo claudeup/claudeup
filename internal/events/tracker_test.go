@@ -5,6 +5,7 @@ package events_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -163,6 +164,77 @@ var _ = Describe("Tracker", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(executed).To(BeTrue())
 				Expect(writer.events).To(HaveLen(0))
+			})
+		})
+
+		Context("concurrent operations", func() {
+			It("handles concurrent RecordFileWrite calls safely", func() {
+				const numGoroutines = 10
+				done := make(chan bool, numGoroutines)
+
+				for i := 0; i < numGoroutines; i++ {
+					go func(id int) {
+						defer GinkgoRecover()
+						testFile := filepath.Join(tempDir, fmt.Sprintf("concurrent-%d.txt", id))
+						err := tracker.RecordFileWrite(
+							"concurrent-test",
+							testFile,
+							"user",
+							func() error {
+								return os.WriteFile(testFile, []byte(fmt.Sprintf("test-%d", id)), 0644)
+							},
+						)
+						Expect(err).NotTo(HaveOccurred())
+						done <- true
+					}(i)
+				}
+
+				// Wait for all goroutines to complete
+				for i := 0; i < numGoroutines; i++ {
+					<-done
+				}
+
+				// Verify all events were recorded
+				Expect(writer.events).To(HaveLen(numGoroutines))
+			})
+		})
+
+		Context("edge cases", func() {
+			It("handles path injection attempts safely", func() {
+				maliciousPath := filepath.Join(tempDir, "../../../etc/passwd")
+				err := tracker.RecordFileWrite(
+					"injection-test",
+					maliciousPath,
+					"user",
+					func() error {
+						// Path should be cleaned before snapshot
+						return nil
+					},
+				)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(writer.events).To(HaveLen(1))
+				// Event should have cleaned path
+				Expect(writer.events[0].File).NotTo(ContainSubstring(".."))
+			})
+
+			It("handles deleted files gracefully", func() {
+				// Create file first
+				os.WriteFile(testFile, []byte("content"), 0644)
+
+				err := tracker.RecordFileWrite(
+					"delete-test",
+					testFile,
+					"user",
+					func() error {
+						// Delete file during operation
+						return os.Remove(testFile)
+					},
+				)
+
+				Expect(err).NotTo(HaveOccurred())
+				Expect(writer.events).To(HaveLen(1))
+				Expect(writer.events[0].ChangeType).To(Equal(events.ChangeTypeDelete))
 			})
 		})
 	})

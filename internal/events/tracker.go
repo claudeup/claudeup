@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -90,6 +91,9 @@ func (t *Tracker) RecordFileWrite(operation string, file string, scope string, f
 	if !t.enabled {
 		return fn()
 	}
+
+	// Sanitize file path to prevent injection attacks
+	file = filepath.Clean(file)
 
 	// Snapshot before
 	before := t.snapshot(file)
