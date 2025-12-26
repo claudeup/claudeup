@@ -17,6 +17,13 @@ const (
 	SymbolModified = "~"
 )
 
+// Formatting limits for diff output
+const (
+	maxHashDisplayLength = 8 // Number of characters to show from hash
+	maxValueDepth        = 3 // Maximum nesting depth for JSON value formatting
+	maxArrayDisplayItems = 3 // Maximum array items to show before truncation
+)
+
 // DiffResult contains the result of comparing two snapshots
 type DiffResult struct {
 	HasChanges       bool
@@ -87,6 +94,20 @@ func diffContent(beforeContent, afterContent string, beforeSize, afterSize int64
 
 // diffJSON compares two JSON objects and generates a summary of changes
 func diffJSON(before, after map[string]interface{}, beforeSize, afterSize int64) *DiffResult {
+	// Defensive nil checks
+	if before == nil && after == nil {
+		return &DiffResult{
+			HasChanges: false,
+			Summary:    "Both JSON objects are nil",
+		}
+	}
+	if before == nil {
+		before = make(map[string]interface{})
+	}
+	if after == nil {
+		after = make(map[string]interface{})
+	}
+
 	var changes []string
 	allKeys := make(map[string]bool)
 
@@ -172,10 +193,7 @@ func formatValue(v interface{}) string {
 
 // formatValueWithDepth formats a JSON value with depth and size limits
 func formatValueWithDepth(v interface{}, depth int) string {
-	const maxDepth = 3
-	const maxArrayItems = 3
-
-	if depth > maxDepth {
+	if depth > maxValueDepth {
 		return "..."
 	}
 
@@ -187,16 +205,16 @@ func formatValueWithDepth(v interface{}, depth int) string {
 			return "[]"
 		}
 		limit := len(val)
-		if limit > maxArrayItems {
-			limit = maxArrayItems
+		if limit > maxArrayDisplayItems {
+			limit = maxArrayDisplayItems
 		}
 		items := make([]string, limit)
 		for i := 0; i < limit; i++ {
 			items[i] = formatValueWithDepth(val[i], depth+1)
 		}
 		result := "[" + strings.Join(items, ", ")
-		if len(val) > maxArrayItems {
-			result += fmt.Sprintf(", ...%d more", len(val)-maxArrayItems)
+		if len(val) > maxArrayDisplayItems {
+			result += fmt.Sprintf(", ...%d more", len(val)-maxArrayDisplayItems)
 		}
 		return result + "]"
 	case map[string]interface{}:
@@ -206,10 +224,10 @@ func formatValueWithDepth(v interface{}, depth int) string {
 	}
 }
 
-// truncateHash returns first 8 chars of a hash for display
+// truncateHash returns first N chars of a hash for display
 func truncateHash(hash string) string {
-	if len(hash) > 8 {
-		return hash[:8]
+	if len(hash) > maxHashDisplayLength {
+		return hash[:maxHashDisplayLength]
 	}
 	return hash
 }

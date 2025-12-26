@@ -53,9 +53,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.Operation).To(Equal("test-operation"))
 				Expect(event.File).To(Equal(testFile))
 				Expect(event.Scope).To(Equal("user"))
@@ -72,9 +73,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.ChangeType).To(Equal(events.ChangeTypeUpdate))
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.After).NotTo(BeNil())
@@ -90,9 +92,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.ChangeType).To(Equal(events.ChangeTypeDelete))
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.After).To(BeNil())
@@ -106,9 +109,10 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).To(Equal(expectedErr))
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
-				event := writer.events[0]
+				event := recordedEvents[0]
 				Expect(event.Error).To(Equal("operation failed"))
 			})
 
@@ -120,7 +124,8 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				event := writer.events[0]
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
 
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.After.Hash).NotTo(BeEmpty())
@@ -135,10 +140,11 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).To(Equal(expectedErr))
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 
 				// Marshal event to JSON and verify error is preserved
-				event := writer.events[0]
+				event := recordedEvents[0]
 				jsonData, err := json.Marshal(event)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -164,7 +170,7 @@ var _ = Describe("Tracker", func() {
 
 				Expect(err).NotTo(HaveOccurred())
 				Expect(executed).To(BeTrue())
-				Expect(writer.events).To(HaveLen(0))
+				Expect(writer.getEvents()).To(HaveLen(0))
 			})
 		})
 
@@ -196,7 +202,7 @@ var _ = Describe("Tracker", func() {
 				}
 
 				// Verify all events were recorded
-				Expect(writer.events).To(HaveLen(numGoroutines))
+				Expect(writer.getEvents()).To(HaveLen(numGoroutines))
 			})
 		})
 
@@ -214,9 +220,10 @@ var _ = Describe("Tracker", func() {
 				)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
 				// Event should have cleaned path
-				Expect(writer.events[0].File).NotTo(ContainSubstring(".."))
+				Expect(recordedEvents[0].File).NotTo(ContainSubstring(".."))
 			})
 
 			It("handles deleted files gracefully", func() {
@@ -234,8 +241,9 @@ var _ = Describe("Tracker", func() {
 				)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(writer.events).To(HaveLen(1))
-				Expect(writer.events[0].ChangeType).To(Equal(events.ChangeTypeDelete))
+				recordedEvents := writer.getEvents()
+				Expect(recordedEvents).To(HaveLen(1))
+				Expect(recordedEvents[0].ChangeType).To(Equal(events.ChangeTypeDelete))
 			})
 		})
 
@@ -248,7 +256,8 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				event := writer.events[0]
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
 
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.After.Content).To(Equal(jsonContent))
@@ -266,7 +275,8 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				event := writer.events[0]
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
 
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.After.Hash).NotTo(BeEmpty())
@@ -282,7 +292,8 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				event := writer.events[0]
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
 
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.After.Hash).NotTo(BeEmpty())
@@ -301,7 +312,8 @@ var _ = Describe("Tracker", func() {
 				})
 
 				Expect(err).NotTo(HaveOccurred())
-				event := writer.events[0]
+				recordedEvents := writer.getEvents()
+				event := recordedEvents[0]
 
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.Before.Content).To(Equal(beforeJSON))
@@ -326,5 +338,17 @@ func (w *fakeEventWriter) Write(event *events.FileOperation) error {
 }
 
 func (w *fakeEventWriter) Query(filters events.EventFilters) ([]*events.FileOperation, error) {
-	return nil, nil
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.events, nil
+}
+
+// getEvents safely retrieves a copy of events for test assertions
+func (w *fakeEventWriter) getEvents() []*events.FileOperation {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	// Return a copy to prevent race conditions in test assertions
+	result := make([]*events.FileOperation, len(w.events))
+	copy(result, w.events)
+	return result
 }

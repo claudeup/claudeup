@@ -182,6 +182,46 @@ var _ = Describe("DiffSnapshots", func() {
 		})
 	})
 
+	Context("malformed JSON", func() {
+		It("handles malformed JSON gracefully with fallback to line-based diff", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"valid": "json"}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    120,
+				Content: `{invalid json syntax`,
+			}
+
+			result := events.DiffSnapshots(before, after)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.ContentAvailable).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("Content changed"))
+		})
+
+		It("handles both before and after malformed JSON", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{not valid json}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    120,
+				Content: `{also not valid`,
+			}
+
+			result := events.DiffSnapshots(before, after)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.ContentAvailable).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("Content changed"))
+		})
+	})
+
 	Context("array truncation and depth limits", func() {
 		It("truncates large arrays to prevent overflow", func() {
 			before := &events.Snapshot{
