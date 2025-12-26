@@ -38,6 +38,16 @@ func init() {
 }
 
 func runEventsDiff(cmd *cobra.Command, args []string) error {
+	// Expand and validate file path
+	if !filepath.IsAbs(diffFile) {
+		absPath, err := filepath.Abs(diffFile)
+		if err != nil {
+			return fmt.Errorf("invalid file path: %w", err)
+		}
+		diffFile = absPath
+	}
+	diffFile = filepath.Clean(diffFile)
+
 	// Get event log path
 	homeDir, _ := os.UserHomeDir()
 	eventsDir := filepath.Join(homeDir, ".claudeup", "events")
