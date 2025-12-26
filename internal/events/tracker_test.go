@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -314,9 +315,12 @@ var _ = Describe("Tracker", func() {
 // fakeEventWriter for testing
 type fakeEventWriter struct {
 	events []*events.FileOperation
+	mu     sync.Mutex
 }
 
 func (w *fakeEventWriter) Write(event *events.FileOperation) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.events = append(w.events, event)
 	return nil
 }
