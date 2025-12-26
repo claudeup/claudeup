@@ -35,8 +35,9 @@ type FileOperation struct {
 
 // Snapshot represents the state of a file at a point in time
 type Snapshot struct {
-	Hash string `json:"hash"`
-	Size int64  `json:"size"`
+	Hash    string `json:"hash"`
+	Size    int64  `json:"size"`
+	Content string `json:"content,omitempty"` // File content for diffing (JSON files < 1MB)
 }
 
 // EventWriter writes and queries file operation events
@@ -144,10 +145,37 @@ func (t *Tracker) snapshot(path string) *Snapshot {
 		}
 	}
 
-	return &Snapshot{
+	snapshot := &Snapshot{
 		Hash: hash,
 		Size: info.Size(),
 	}
+
+	// Capture content for JSON files under 1MB for diffing
+	if shouldCaptureContent(path, info.Size()) {
+		content, err := os.ReadFile(path)
+		if err == nil {
+			snapshot.Content = string(content)
+		}
+	}
+
+	return snapshot
+}
+
+// shouldCaptureContent determines if file content should be captured for diffing
+func shouldCaptureContent(path string, size int64) bool {
+	const maxContentSize = 1024 * 1024 // 1MB
+
+	// Only capture JSON files
+	if filepath.Ext(path) != ".json" {
+		return false
+	}
+
+	// Only capture files under 1MB
+	if size >= maxContentSize {
+		return false
+	}
+
+	return true
 }
 
 // hashFile computes SHA-256 hash of a file

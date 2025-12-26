@@ -237,6 +237,77 @@ var _ = Describe("Tracker", func() {
 				Expect(writer.events[0].ChangeType).To(Equal(events.ChangeTypeDelete))
 			})
 		})
+
+		Context("content capture for diffing", func() {
+			It("captures content for JSON files under 1MB", func() {
+				jsonContent := `{"key": "value", "number": 42}`
+
+				err := tracker.RecordFileWrite("test-operation", testFile, "user", func() error {
+					return os.WriteFile(testFile, []byte(jsonContent), 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				event := writer.events[0]
+
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Content).To(Equal(jsonContent))
+			})
+
+			It("does not capture content for JSON files over 1MB", func() {
+				// Create a JSON file > 1MB
+				largeJSON := make([]byte, 1024*1024+1) // 1MB + 1 byte
+				for i := range largeJSON {
+					largeJSON[i] = 'a'
+				}
+
+				err := tracker.RecordFileWrite("test-operation", testFile, "user", func() error {
+					return os.WriteFile(testFile, largeJSON, 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				event := writer.events[0]
+
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Hash).NotTo(BeEmpty())
+				Expect(event.After.Content).To(BeEmpty())
+			})
+
+			It("does not capture content for non-JSON files", func() {
+				txtFile := filepath.Join(tempDir, "test.txt")
+				content := "plain text content"
+
+				err := tracker.RecordFileWrite("test-operation", txtFile, "user", func() error {
+					return os.WriteFile(txtFile, []byte(content), 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				event := writer.events[0]
+
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Hash).NotTo(BeEmpty())
+				Expect(event.After.Content).To(BeEmpty())
+			})
+
+			It("captures before and after content for updates", func() {
+				beforeJSON := `{"version": 1}`
+				afterJSON := `{"version": 2}`
+
+				// Create initial file
+				os.WriteFile(testFile, []byte(beforeJSON), 0644)
+
+				err := tracker.RecordFileWrite("test-operation", testFile, "user", func() error {
+					return os.WriteFile(testFile, []byte(afterJSON), 0644)
+				})
+
+				Expect(err).NotTo(HaveOccurred())
+				event := writer.events[0]
+
+				Expect(event.Before).NotTo(BeNil())
+				Expect(event.Before.Content).To(Equal(beforeJSON))
+				Expect(event.After).NotTo(BeNil())
+				Expect(event.After.Content).To(Equal(afterJSON))
+			})
+		})
 	})
 })
 
