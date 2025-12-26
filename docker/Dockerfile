@@ -18,6 +18,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -fsSL https://claude.ai/install.sh | bash \
     && ln -s /root/.local/bin/claude /usr/local/bin/claude
 
+# Add ~/.local/bin to PATH so Claude's internal checks pass
+ENV PATH="/root/.local/bin:${PATH}"
+
 # Copy claudeup binary for the target architecture
 ARG TARGETARCH
 COPY claudeup-${TARGETARCH} /usr/local/bin/claudeup
