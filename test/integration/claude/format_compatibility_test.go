@@ -68,17 +68,20 @@ var _ = Describe("Claude CLI Format Compatibility", func() {
 	})
 
 	Context("Error handling for file path changes", func() {
-		It("returns PathNotFoundError when plugins file missing but Claude dir exists", func() {
+		It("returns empty registry when plugins file missing (fresh install)", func() {
 			// Create temp Claude dir without plugins file
+			// This simulates a fresh Claude install
 			tempDir := GinkgoT().TempDir()
 
-			_, err := claude.LoadPlugins(tempDir)
-			Expect(err).To(HaveOccurred())
+			registry, err := claude.LoadPlugins(tempDir)
+			Expect(err).NotTo(HaveOccurred(),
+				"LoadPlugins should handle fresh install gracefully")
 
-			// Should be PathNotFoundError
-			pathErr, ok := err.(*claude.PathNotFoundError)
-			Expect(ok).To(BeTrue(), "Should return PathNotFoundError when file missing")
-			Expect(pathErr.Component).To(Equal("plugin registry"))
+			// Should return empty V2 registry
+			Expect(registry).NotTo(BeNil())
+			Expect(registry.Version).To(Equal(2))
+			Expect(registry.Plugins).NotTo(BeNil())
+			Expect(registry.Plugins).To(BeEmpty())
 		})
 
 		It("returns PathNotFoundError when settings file missing but Claude dir exists", func() {

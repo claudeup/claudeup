@@ -209,6 +209,41 @@ func TestLoadPluginsNonExistent(t *testing.T) {
 	}
 }
 
+func TestLoadPluginsFreshInstall(t *testing.T) {
+	// Create temp directory with plugins subdirectory but no installed_plugins.json
+	// This simulates a fresh Claude Code install that hasn't installed any plugins yet
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create plugins directory (Claude creates this on install)
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load plugins from fresh install (no installed_plugins.json yet)
+	registry, err := LoadPlugins(tempDir)
+	if err != nil {
+		t.Fatalf("LoadPlugins should not error on fresh install, got: %v", err)
+	}
+
+	// Should return empty V2 registry
+	if registry.Version != 2 {
+		t.Errorf("Expected version 2, got %d", registry.Version)
+	}
+
+	if registry.Plugins == nil {
+		t.Error("Plugins map should be initialized, not nil")
+	}
+
+	if len(registry.Plugins) != 0 {
+		t.Errorf("Expected 0 plugins in fresh install, got %d", len(registry.Plugins))
+	}
+}
+
 func TestSavePluginsInvalidPath(t *testing.T) {
 	registry := &PluginRegistry{
 		Version: 2,

@@ -38,12 +38,11 @@ func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
 	data, err := os.ReadFile(pluginsPath)
 	if os.IsNotExist(err) {
-		// Claude installed but file missing - suspicious
-		return nil, &PathNotFoundError{
-			Component:    "plugin registry",
-			ExpectedPath: pluginsPath,
-			ClaudeDir:    claudeDir,
-		}
+		// Fresh Claude install - no plugins installed yet
+		return &PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]PluginMetadata),
+		}, nil
 	}
 	if err != nil {
 		return nil, err
