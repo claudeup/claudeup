@@ -13,6 +13,7 @@ type GlobalConfig struct {
 	DisabledMCPServers []string    `json:"disabledMcpServers"`
 	ClaudeDir          string      `json:"claudeDir,omitempty"`
 	Preferences        Preferences `json:"preferences"`
+	Sandbox            Sandbox     `json:"sandbox"`
 }
 
 // Preferences represents user preferences
@@ -21,6 +22,11 @@ type Preferences struct {
 	VerboseOutput bool   `json:"verboseOutput"`
 	ActiveProfile string `json:"activeProfile,omitempty"`
 	SecretBackend string `json:"secretBackend,omitempty"`
+}
+
+// Sandbox represents sandbox-related preferences
+type Sandbox struct {
+	CopyAuth bool `json:"copyAuth"`
 }
 
 // DefaultConfig returns a new config with default values
@@ -32,6 +38,9 @@ func DefaultConfig() *GlobalConfig {
 		Preferences: Preferences{
 			AutoUpdate:    false,
 			VerboseOutput: false,
+		},
+		Sandbox: Sandbox{
+			CopyAuth: false,
 		},
 	}
 }
