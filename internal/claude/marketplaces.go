@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // MarketplaceRegistry represents the known_marketplaces.json file structure
@@ -61,7 +63,15 @@ func SaveMarketplaces(claudeDir string, registry MarketplaceRegistry) error {
 		return err
 	}
 
-	return os.WriteFile(marketplacesPath, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"marketplace update",
+		marketplacesPath,
+		"user",
+		func() error {
+			return os.WriteFile(marketplacesPath, data, 0644)
+		},
+	)
 }
 
 // MarketplaceExists checks if a marketplace with the given repo or URL is installed

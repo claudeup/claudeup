@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // Profile represents a Claude Code configuration profile
@@ -119,7 +121,15 @@ func Save(profilesDir string, p *Profile) error {
 		return err
 	}
 
-	return os.WriteFile(profilePath, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"profile save",
+		profilePath,
+		"local",
+		func() error {
+			return os.WriteFile(profilePath, data, 0644)
+		},
+	)
 }
 
 // Load reads a profile from the profiles directory
