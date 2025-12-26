@@ -10,6 +10,13 @@ import (
 	"strings"
 )
 
+// Diff symbols for change visualization
+const (
+	SymbolAdded    = "+"
+	SymbolRemoved  = "-"
+	SymbolModified = "~"
+)
+
 // DiffResult contains the result of comparing two snapshots
 type DiffResult struct {
 	HasChanges       bool
@@ -104,11 +111,11 @@ func diffJSON(before, after map[string]interface{}, beforeSize, afterSize int64)
 		afterVal, afterExists := after[key]
 
 		if !beforeExists && afterExists {
-			changes = append(changes, fmt.Sprintf("+ %s: %v", key, formatValue(afterVal)))
+			changes = append(changes, fmt.Sprintf("%s %s: %v", SymbolAdded, key, formatValue(afterVal)))
 		} else if beforeExists && !afterExists {
-			changes = append(changes, fmt.Sprintf("- %s: %v", key, formatValue(beforeVal)))
+			changes = append(changes, fmt.Sprintf("%s %s: %v", SymbolRemoved, key, formatValue(beforeVal)))
 		} else if !reflect.DeepEqual(beforeVal, afterVal) {
-			changes = append(changes, fmt.Sprintf("~ %s: %v → %v", key, formatValue(beforeVal), formatValue(afterVal)))
+			changes = append(changes, fmt.Sprintf("%s %s: %v → %v", SymbolModified, key, formatValue(beforeVal), formatValue(afterVal)))
 		}
 	}
 

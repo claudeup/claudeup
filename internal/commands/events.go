@@ -133,12 +133,12 @@ func displayEvent(event *events.FileOperation) {
 	// Print change type
 	changeIcon := "→"
 	switch event.ChangeType {
-	case "create":
-		changeIcon = "+"
-	case "update":
-		changeIcon = "~"
-	case "delete":
-		changeIcon = "-"
+	case events.ChangeTypeCreate:
+		changeIcon = events.SymbolAdded
+	case events.ChangeTypeUpdate:
+		changeIcon = events.SymbolModified
+	case events.ChangeTypeDelete:
+		changeIcon = events.SymbolRemoved
 	}
 	fmt.Printf("  Change: %s %s\n", changeIcon, event.ChangeType)
 
