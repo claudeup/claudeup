@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	// maxTimelineDiffLines limits diff output in timeline for readability
+	maxTimelineDiffLines = 5
+)
+
 // AuditReport represents a comprehensive audit trail of file operations.
 type AuditReport struct {
 	GeneratedAt time.Time
@@ -188,11 +193,7 @@ func (r *AuditReport) FormatAsText() string {
 	}
 
 	if r.Summary.SizeChanges != 0 {
-		sign := "+"
-		if r.Summary.SizeChanges < 0 {
-			sign = ""
-		}
-		b.WriteString(fmt.Sprintf("Total Size Change: %s%d bytes\n", sign, r.Summary.SizeChanges))
+		b.WriteString(fmt.Sprintf("Total Size Change: %+d bytes\n", r.Summary.SizeChanges))
 	}
 
 	b.WriteString("\n")
@@ -284,11 +285,7 @@ func (r *AuditReport) FormatAsMarkdown() string {
 	}
 
 	if r.Summary.SizeChanges != 0 {
-		sign := "+"
-		if r.Summary.SizeChanges < 0 {
-			sign = ""
-		}
-		b.WriteString(fmt.Sprintf("- **Total Size Change:** %s%d bytes\n", sign, r.Summary.SizeChanges))
+		b.WriteString(fmt.Sprintf("- **Total Size Change:** %+d bytes\n", r.Summary.SizeChanges))
 	}
 
 	b.WriteString("\n")
@@ -414,10 +411,9 @@ func formatEventForMarkdown(event *FileOperation) string {
 			lines := strings.Split(diff.Summary, "\n")
 			if len(lines) > 0 && lines[0] != "" {
 				b.WriteString("- **Details:**\n  ```\n")
-				// Limit to first 5 lines for brevity in timeline
-				maxLines := 5
-				if len(lines) > maxLines {
-					lines = lines[:maxLines]
+				// Limit to first few lines for brevity in timeline
+				if len(lines) > maxTimelineDiffLines {
+					lines = lines[:maxTimelineDiffLines]
 				}
 				for _, line := range lines {
 					if line != "" {
