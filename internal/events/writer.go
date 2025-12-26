@@ -36,7 +36,7 @@ func (w *JSONLWriter) Write(event *FileOperation) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	f, err := os.OpenFile(w.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(w.logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
@@ -70,6 +70,9 @@ func (w *JSONLWriter) Query(filters EventFilters) ([]*FileOperation, error) {
 	var events []*FileOperation
 	scanner := bufio.NewScanner(f)
 
+	// Note: For large log files, this loads all matching events into memory
+	// before sorting and limiting. A future optimization could use a bounded
+	// priority queue to keep only the top N events during scanning.
 	for scanner.Scan() {
 		var event FileOperation
 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
@@ -94,7 +97,7 @@ func (w *JSONLWriter) Query(filters EventFilters) ([]*FileOperation, error) {
 		return events[i].Timestamp.After(events[j].Timestamp)
 	})
 
-	// Apply limit
+	// Apply limit after sorting to ensure we return the most recent events
 	if filters.Limit > 0 && len(events) > filters.Limit {
 		events = events[:filters.Limit]
 	}

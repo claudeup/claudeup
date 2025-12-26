@@ -115,7 +115,7 @@ func displayEvent(event *events.FileOperation) {
 
 	// Determine status icon
 	statusIcon := "✓"
-	if event.Error != nil {
+	if event.Error != "" {
 		statusIcon = "✗"
 	}
 
@@ -153,8 +153,8 @@ func displayEvent(event *events.FileOperation) {
 	}
 
 	// Print error if present
-	if event.Error != nil {
-		ui.PrintError(fmt.Sprintf("  Error: %v", event.Error))
+	if event.Error != "" {
+		ui.PrintError(fmt.Sprintf("  Error: %s", event.Error))
 	}
 }
 

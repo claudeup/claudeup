@@ -3,6 +3,7 @@
 package events_test
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -56,8 +57,8 @@ var _ = Describe("Tracker", func() {
 				Expect(event.Operation).To(Equal("test-operation"))
 				Expect(event.File).To(Equal(testFile))
 				Expect(event.Scope).To(Equal("user"))
-				Expect(event.ChangeType).To(Equal("create"))
-				Expect(event.Error).To(BeNil())
+				Expect(event.ChangeType).To(Equal(events.ChangeTypeCreate))
+				Expect(event.Error).To(BeEmpty())
 			})
 
 			It("records successful file update", func() {
@@ -72,7 +73,7 @@ var _ = Describe("Tracker", func() {
 				Expect(writer.events).To(HaveLen(1))
 
 				event := writer.events[0]
-				Expect(event.ChangeType).To(Equal("update"))
+				Expect(event.ChangeType).To(Equal(events.ChangeTypeUpdate))
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.Before.Hash).NotTo(Equal(event.After.Hash))
@@ -90,7 +91,7 @@ var _ = Describe("Tracker", func() {
 				Expect(writer.events).To(HaveLen(1))
 
 				event := writer.events[0]
-				Expect(event.ChangeType).To(Equal("delete"))
+				Expect(event.ChangeType).To(Equal(events.ChangeTypeDelete))
 				Expect(event.Before).NotTo(BeNil())
 				Expect(event.After).To(BeNil())
 			})
@@ -106,7 +107,7 @@ var _ = Describe("Tracker", func() {
 				Expect(writer.events).To(HaveLen(1))
 
 				event := writer.events[0]
-				Expect(event.Error).To(Equal(expectedErr))
+				Expect(event.Error).To(Equal("operation failed"))
 			})
 
 			It("includes snapshots with file hash and size", func() {
@@ -122,6 +123,28 @@ var _ = Describe("Tracker", func() {
 				Expect(event.After).NotTo(BeNil())
 				Expect(event.After.Hash).NotTo(BeEmpty())
 				Expect(event.After.Size).To(Equal(int64(len(content))))
+			})
+
+			It("marshals error messages to JSON correctly", func() {
+				expectedErr := errors.New("permission denied")
+
+				err := tracker.RecordFileWrite("failing-operation", testFile, "user", func() error {
+					return expectedErr
+				})
+
+				Expect(err).To(Equal(expectedErr))
+				Expect(writer.events).To(HaveLen(1))
+
+				// Marshal event to JSON and verify error is preserved
+				event := writer.events[0]
+				jsonData, err := json.Marshal(event)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Unmarshal and verify error message is present
+				var unmarshaled map[string]interface{}
+				err = json.Unmarshal(jsonData, &unmarshaled)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(unmarshaled["error"]).To(Equal("permission denied"))
 			})
 		})
 

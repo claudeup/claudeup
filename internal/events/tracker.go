@@ -10,6 +10,15 @@ import (
 	"time"
 )
 
+// ChangeType constants for file operations
+const (
+	ChangeTypeCreate   = "create"
+	ChangeTypeUpdate   = "update"
+	ChangeTypeDelete   = "delete"
+	ChangeTypeNoChange = "no-change"
+	ChangeTypeUnknown  = "unknown"
+)
+
 // FileOperation represents a single file modification event
 type FileOperation struct {
 	Timestamp  time.Time              `json:"timestamp"`
@@ -20,7 +29,7 @@ type FileOperation struct {
 	Before     *Snapshot              `json:"before,omitempty"`
 	After      *Snapshot              `json:"after,omitempty"`
 	Context    map[string]interface{} `json:"context,omitempty"`
-	Error      error                  `json:"error,omitempty"`
+	Error      string                 `json:"error,omitempty"`
 }
 
 // Snapshot represents the state of a file at a point in time
@@ -68,6 +77,14 @@ func NewTracker(writer EventWriter, enabled bool) *Tracker {
 	}
 }
 
+// errToString converts an error to a string, returning empty string for nil
+func errToString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
 // RecordFileWrite wraps a file write operation with event tracking
 func (t *Tracker) RecordFileWrite(operation string, file string, scope string, fn func() error) error {
 	if !t.enabled {
@@ -95,11 +112,13 @@ func (t *Tracker) RecordFileWrite(operation string, file string, scope string, f
 		ChangeType: changeType,
 		Before:     before,
 		After:      after,
-		Error:      err,
+		Error:      errToString(err),
 	}
 
 	// Write event (don't fail the operation if event writing fails)
-	_ = t.writer.Write(event)
+	if t.writer != nil {
+		_ = t.writer.Write(event)
+	}
 
 	return err
 }
@@ -146,16 +165,17 @@ func hashFile(path string) (string, error) {
 // inferChangeType determines the type of change based on before/after snapshots
 func inferChangeType(before, after *Snapshot) string {
 	if before == nil && after != nil {
-		return "create"
+		return ChangeTypeCreate
 	}
 	if before != nil && after == nil {
-		return "delete"
+		return ChangeTypeDelete
 	}
 	if before != nil && after != nil {
-		if before.Hash != after.Hash {
-			return "update"
+		// Detect changes via hash or size difference
+		if before.Hash != after.Hash || before.Size != after.Size {
+			return ChangeTypeUpdate
 		}
-		return "no-change"
+		return ChangeTypeNoChange
 	}
-	return "unknown"
+	return ChangeTypeUnknown
 }

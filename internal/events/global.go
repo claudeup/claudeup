@@ -20,10 +20,7 @@ func GlobalTracker() *Tracker {
 	globalTrackerOnce.Do(func() {
 		globalTracker = initializeGlobalTracker()
 	})
-
-	globalTrackerMu.RLock()
-	defer globalTrackerMu.RUnlock()
-	return globalTracker
+	return globalTracker // sync.Once provides sufficient synchronization
 }
 
 // SetGlobalTracker sets a custom global tracker (useful for testing)

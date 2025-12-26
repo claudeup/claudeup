@@ -473,13 +473,20 @@ func (n *Notifier) SendWebhook(event *FileOperation) error {
 
 ### Phase 1: Operation Instrumentation (MVP)
 **Goal:** Track claudeup's own operations
-- [ ] Create `internal/events` package with Tracker
-- [ ] Wrap all file write operations
-- [ ] Implement JSONL log writer
-- [ ] Add `claudeup events` command (read-only)
-- [ ] Add monitoring config to global config
+- [x] Create `internal/events` package with Tracker
+- [x] Wrap all file write operations
+- [x] Implement JSONL log writer
+- [x] Add `claudeup events` command (read-only)
+- [x] Add monitoring config to global config
+- [ ] **Retention policy enforcement** - Config exists but not enforced yet (Phase 2)
 
 **Value:** Users can see what claudeup did and when
+
+**Phase 1 Limitations:**
+- Log files will grow unbounded (no automatic cleanup)
+- Users must manually clear old events using `claudeup events clear` (coming in Phase 2)
+- For Phase 1, monitor log file size and delete manually if needed
+- Operation names are generic (e.g., "plugin update" doesn't distinguish between profile apply vs plugin cleanup)
 
 ### Phase 2: Query & Diff Tools
 **Goal:** Enable troubleshooting
@@ -487,6 +494,7 @@ func (n *Notifier) SendWebhook(event *FileOperation) error {
 - [ ] Implement `events audit` command
 - [ ] Add filtering options to `events` command
 - [ ] Calculate and display meaningful diffs
+- [ ] **Add operation context** - Distinguish between "profile apply: plugin update" vs "cleanup: plugin update"
 
 **Value:** Users can understand *what* changed, not just that it changed
 
