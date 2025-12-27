@@ -212,6 +212,11 @@ func (r *PluginRegistry) PluginExists(pluginName string) bool {
 	return exists
 }
 
+// IsPluginInstalled checks if a plugin is installed (alias for PluginExists)
+func (r *PluginRegistry) IsPluginInstalled(pluginName string) bool {
+	return r.PluginExists(pluginName)
+}
+
 // RemovePlugin removes a plugin from the registry entirely
 func (r *PluginRegistry) RemovePlugin(pluginName string) bool {
 	if _, exists := r.Plugins[pluginName]; !exists {

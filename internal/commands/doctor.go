@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -49,6 +50,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
+
+	// Get active profile for recommendations
+	activeProfile, _ := getActiveProfile(projectDir)
 
 	// Load plugins (gracefully handle fresh installs with no plugins)
 	plugins, err := claude.LoadPlugins(claudeDir)
@@ -113,18 +117,101 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(missingPlugins)
 
+	// Check for config drift (plugins in .claudeup.json/.claudeup.local.json but not installed)
+	configDrift, err := profile.DetectConfigDrift(projectDir, plugins)
+	if err != nil {
+		// Don't fail the whole command, but warn about config corruption
+		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))
+		configDrift = []profile.DriftedPlugin{}
+	}
+
+	// Filter config drift to avoid duplicates with missingPlugins
+	missingPluginsMap := make(map[string]bool)
+	for _, name := range missingPlugins {
+		missingPluginsMap[name] = true
+	}
+
+	filteredConfigDrift := []profile.DriftedPlugin{}
+	for _, d := range configDrift {
+		if !missingPluginsMap[d.PluginName] {
+			filteredConfigDrift = append(filteredConfigDrift, d)
+		}
+	}
+	configDrift = filteredConfigDrift
+
 	// Analyze path issues
 	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
 
-	if len(pathIssues) == 0 && len(missingPlugins) == 0 {
+	if len(pathIssues) == 0 && len(missingPlugins) == 0 && len(configDrift) == 0 {
 		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All plugin paths are valid", 1))
 	} else {
 		// Show plugins enabled but not installed
 		if len(missingPlugins) > 0 {
+			// Check which missing plugins are in the saved profile
+			pluginsInProfile := make(map[string]bool)
+			if activeProfile != "" && activeProfile != "none" {
+				profilesDir := getProfilesDir()
+				savedProfile, err := loadProfileWithFallback(profilesDir, activeProfile)
+				if err == nil {
+					for _, p := range savedProfile.Plugins {
+						pluginsInProfile[p] = true
+					}
+				}
+			}
+
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugin%s enabled but not installed:", len(missingPlugins), pluralS(len(missingPlugins))), 1))
 			for _, name := range missingPlugins {
-				fmt.Println(ui.Indent(ui.SymbolBullet+" "+name, 2))
+				suffix := ""
+				if pluginsInProfile[name] {
+					suffix = ui.Muted(" (in profile)")
+				}
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+name+suffix, 2))
+			}
+		}
+
+		// Show config drift (orphaned tracking entries - in config but not in settings)
+		if len(configDrift) > 0 {
+			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d orphaned config entr%s:", len(configDrift), pluralYIES(len(configDrift))), 1))
+
+			// Group by scope
+			driftByScope := make(map[profile.Scope][]string)
+			for _, d := range configDrift {
+				driftByScope[d.Scope] = append(driftByScope[d.Scope], d.PluginName)
+			}
+
+			// Check which drifted plugins are in the saved profile
+			pluginsInProfile := make(map[string]bool)
+			if activeProfile != "" && activeProfile != "none" {
+				profilesDir := getProfilesDir()
+				savedProfile, err := loadProfileWithFallback(profilesDir, activeProfile)
+				if err == nil {
+					for _, p := range savedProfile.Plugins {
+						pluginsInProfile[p] = true
+					}
+				}
+			}
+
+			// Show project scope drift
+			if projectDrift, ok := driftByScope[profile.ScopeProject]; ok {
+				for _, pluginName := range projectDrift {
+					suffix := ""
+					if pluginsInProfile[pluginName] {
+						suffix = ui.Muted(" (also in profile)")
+					}
+					fmt.Println(ui.Indent(ui.SymbolBullet+" "+pluginName+" "+ui.Muted("(project scope)")+suffix, 2))
+				}
+			}
+
+			// Show local scope drift
+			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
+				for _, pluginName := range localDrift {
+					suffix := ""
+					if pluginsInProfile[pluginName] {
+						suffix = ui.Muted(" (also in profile)")
+					}
+					fmt.Println(ui.Indent(ui.SymbolBullet+" "+pluginName+" "+ui.Muted("(local scope)")+suffix, 2))
+				}
 			}
 			fmt.Println()
 		}
@@ -166,8 +253,24 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		if len(missingPlugins) > 0 {
 			if activeProfile != "" && activeProfile != "none" {
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))), 1))
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or disable in settings: "+ui.Bold("claude plugin disable <name>")), 1))
 			} else {
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install missing plugins: "+ui.Bold("claude plugin install <name>")), 1))
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or disable in settings: "+ui.Bold("claude plugin disable <name>")), 1))
+			}
+		}
+
+		if len(configDrift) > 0 {
+			// Show specific clean commands for each scope
+			for _, d := range configDrift {
+				scopeName := "project"
+				if d.Scope == profile.ScopeLocal {
+					scopeName = "local"
+				}
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Remove from config and profile: "+ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s %s", scopeName, d.PluginName))), 1))
+			}
+			if activeProfile != "" && activeProfile != "none" {
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or reinstall if available: "+ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile))), 1))
 			}
 		}
 
@@ -187,7 +290,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", marketplaceSummary), 1))
 
 	pluginSummary := fmt.Sprintf("%d installed", len(plugins.Plugins))
-	totalIssues := len(pathIssues) + len(missingPlugins)
+	totalIssues := len(pathIssues) + len(missingPlugins) + len(configDrift)
 	if totalIssues > 0 {
 		pluginSummary += fmt.Sprintf(", %d issues", totalIssues)
 	}
@@ -209,7 +312,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	for name, plugin := range plugins.GetAllPlugins() {
 		if !plugin.PathExists() {
 			// Check if this is a fixable path issue
-			expectedPath := getExpectedPath(name, plugin.InstallPath)
+			expectedPath := getExpectedPath(plugin.InstallPath)
 			if expectedPath != "" && pathExists(expectedPath) {
 				issues = append(issues, PathIssue{
 					PluginName:   name,
@@ -237,7 +340,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	return issues
 }
 
-func getExpectedPath(pluginName, currentPath string) string {
+func getExpectedPath(currentPath string) string {
 	// Based on fix-plugin-paths.sh logic
 	if strings.Contains(currentPath, "claude-code-plugins") {
 		// Add /plugins/ subdirectory

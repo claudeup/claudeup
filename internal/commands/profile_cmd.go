@@ -301,6 +301,190 @@ var (
 // Flags for profile sync command
 var profileSyncDryRun bool
 
+// Flags for profile clean command
+var profileCleanScope string
+
+var profileCleanCmd = &cobra.Command{
+	Use:   "clean <plugin>",
+	Short: "Remove orphaned plugin from config and profile",
+	Long: `Remove a plugin from .claudeup.json or .claudeup.local.json.
+
+This command removes plugins that are tracked in config files but are no longer installed.
+If the plugin is also in your saved profile definition, this command will offer to
+remove it from the profile as well (preventing future reinstall attempts).
+
+Use this to clean up drift detected by 'claudeup status' or 'claudeup doctor'.`,
+	Example: `  # Remove plugin from project scope
+  claudeup profile clean --scope project nextjs-vercel-pro@claude-code-templates
+
+  # Remove plugin from local scope
+  claudeup profile clean --scope local my-plugin@marketplace`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileClean,
+}
+
+func runProfileClean(cmd *cobra.Command, args []string) error {
+	pluginName := args[0]
+
+	// Validate scope flag is provided
+	if profileCleanScope == "" {
+		return fmt.Errorf("--scope flag is required (project or local)")
+	}
+
+	// Validate scope value
+	var scope profile.Scope
+	switch profileCleanScope {
+	case "project":
+		scope = profile.ScopeProject
+	case "local":
+		scope = profile.ScopeLocal
+	default:
+		return fmt.Errorf("invalid scope %q: must be 'project' or 'local'", profileCleanScope)
+	}
+
+	// Get current directory
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Try to remove from config file if it exists
+	removedFromConfig := false
+	var cfg *profile.ProjectConfig
+	if profile.ConfigExistsForScope(projectDir, scope) {
+		var err error
+		cfg, err = profile.LoadConfigForScope(projectDir, scope)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		// Check if plugin is in the config
+		newPlugins := make([]string, 0, len(cfg.Plugins))
+		for _, p := range cfg.Plugins {
+			if p != pluginName {
+				newPlugins = append(newPlugins, p)
+			} else {
+				removedFromConfig = true
+			}
+		}
+		cfg.Plugins = newPlugins
+
+		// Save updated config if we made changes
+		if removedFromConfig {
+			if err := profile.SaveConfigForScope(projectDir, cfg, scope); err != nil {
+				return fmt.Errorf("failed to save config: %w", err)
+			}
+		}
+	}
+
+	// Also remove plugin from Claude settings if it's enabled there
+	scopeForSettings := profileCleanScope // "project" or "local"
+	removedFromSettings := false
+	settings, err := claude.LoadSettingsForScope(scopeForSettings, claudeDir, projectDir)
+	if err == nil && settings != nil && settings.IsPluginEnabled(pluginName) {
+		// Remove the plugin entirely (not just disable) to prevent Claude validation errors
+		if settings.EnabledPlugins != nil {
+			delete(settings.EnabledPlugins, pluginName)
+		}
+
+		// Save updated settings
+		if err := claude.SaveSettingsForScope(scopeForSettings, claudeDir, projectDir, settings); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Removed from config but failed to remove from settings: %v", err))
+		} else {
+			removedFromSettings = true
+		}
+	}
+
+	// Check if we removed the plugin from anywhere
+	if !removedFromConfig && !removedFromSettings {
+		return fmt.Errorf("plugin %q not found in %s scope config or settings", pluginName, scope.String())
+	}
+
+	// Success message
+	scopeName := scope.String()
+	configFile := ".claudeup.json"
+	settingsFile := ".claude/settings.json"
+	if scope == profile.ScopeLocal {
+		configFile = ".claudeup.local.json"
+		settingsFile = ".claude/settings.local.json"
+	}
+
+	if removedFromConfig && removedFromSettings {
+		ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s, %s)", pluginName, scopeName, configFile, settingsFile))
+	} else if removedFromSettings {
+		ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, settingsFile))
+	} else {
+		ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, configFile))
+	}
+
+	// Check if plugin is also in the saved profile definition
+	var profileName string
+	if cfg != nil {
+		profileName = cfg.Profile
+	}
+	if profileName != "" {
+		profilesDir := getProfilesDir()
+		savedProfile, err := loadProfileWithFallback(profilesDir, profileName)
+		if err == nil {
+			// Check if plugin is in the profile
+			pluginInProfile := false
+			for _, p := range savedProfile.Plugins {
+				if p == pluginName {
+					pluginInProfile = true
+					break
+				}
+			}
+
+			if pluginInProfile {
+				fmt.Println()
+				ui.PrintWarning(fmt.Sprintf("Plugin %s is also in your saved profile %q", pluginName, profileName))
+				fmt.Println("  If not removed from the profile, it will be reinstalled when you run:")
+				fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", profileName)))
+				fmt.Println()
+
+				// Ask if user wants to remove it from the profile too
+				confirm, err := ui.ConfirmYesNo("Remove from saved profile too?")
+				if err != nil {
+					return err
+				}
+
+				if confirm {
+					// Remove plugin from profile
+					newPlugins := []string{}
+					for _, p := range savedProfile.Plugins {
+						if p != pluginName {
+							newPlugins = append(newPlugins, p)
+						}
+					}
+					savedProfile.Plugins = newPlugins
+
+					// Save updated profile (only save to disk if it's a user profile or customized built-in)
+					if !profile.IsEmbeddedProfile(profileName) || profileExists(profilesDir, profileName) {
+						if err := profile.Save(profilesDir, savedProfile); err != nil {
+							return fmt.Errorf("failed to update profile: %w", err)
+						}
+						ui.PrintSuccess(fmt.Sprintf("Removed %s from profile %q", pluginName, profileName))
+					} else {
+						ui.PrintWarning("Cannot modify embedded profile. Create a custom version with:")
+						fmt.Printf("  %s\n", ui.Bold(fmt.Sprintf("claudeup profile save %s", profileName)))
+					}
+				} else {
+					ui.PrintMuted("Plugin remains in profile definition.")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// profileExists checks if a profile file exists on disk
+func profileExists(profilesDir, name string) bool {
+	path := filepath.Join(profilesDir, name+".json")
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
@@ -317,6 +501,7 @@ func init() {
 	profileCmd.AddCommand(profileRestoreCmd)
 	profileCmd.AddCommand(profileRenameCmd)
 	profileCmd.AddCommand(profileSyncCmd)
+	profileCmd.AddCommand(profileCleanCmd)
 
 	profileCloneCmd.Flags().StringVar(&profileCloneFromFlag, "from", "", "Source profile to copy from")
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
@@ -331,6 +516,10 @@ func init() {
 	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileUseCmd.Flags().BoolVar(&profileUseNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileUseCmd.Flags().BoolVar(&profileUseReset, "reset", false, "Clear target scope before applying profile")
+
+	// Add flags to profile clean command
+	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
+	profileCleanCmd.MarkFlagRequired("scope")
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
@@ -1056,6 +1245,71 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Println(")")
 	}
+	fmt.Println()
+
+	// Check for config drift (orphaned tracking entries)
+	plugins, err := claude.LoadPlugins(claudeDir)
+	if err == nil {
+		configDrift, err := profile.DetectConfigDrift(cwd, plugins)
+		if err == nil && len(configDrift) > 0 {
+			// Group by scope
+			driftByScope := make(map[profile.Scope][]string)
+			for _, d := range configDrift {
+				driftByScope[d.Scope] = append(driftByScope[d.Scope], d.PluginName)
+			}
+
+			// Check which drifted plugins are in the saved profile
+			pluginsInProfile := make(map[string]bool)
+			if savedProfile != nil {
+				for _, p := range savedProfile.Plugins {
+					pluginsInProfile[p] = true
+				}
+			}
+
+			fmt.Printf("%s %s\n", ui.Warning("⚠"), ui.Bold("Config Drift Detected"))
+			fmt.Println()
+
+			// Show project scope drift
+			if projectDrift, ok := driftByScope[profile.ScopeProject]; ok {
+				fmt.Printf("  %s %d orphaned entr%s:\n", ui.Muted(".claudeup.json"), len(projectDrift), pluralYIES(len(projectDrift)))
+				for _, pluginName := range projectDrift {
+					suffix := ""
+					if pluginsInProfile[pluginName] {
+						suffix = ui.Muted(" (also in profile)")
+					}
+					fmt.Printf("    - %s%s\n", pluginName, suffix)
+				}
+				fmt.Println()
+				for _, pluginName := range projectDrift {
+					fmt.Printf("  %s Remove from config and profile: %s\n",
+						ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile clean --scope project %s", pluginName)))
+				}
+				fmt.Printf("  %s Or reinstall if available: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", name)))
+				fmt.Println()
+			}
+
+			// Show local scope drift
+			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
+				fmt.Printf("  %s %d orphaned entr%s:\n", ui.Muted(".claudeup.local.json"), len(localDrift), pluralYIES(len(localDrift)))
+				for _, pluginName := range localDrift {
+					suffix := ""
+					if pluginsInProfile[pluginName] {
+						suffix = ui.Muted(" (also in profile)")
+					}
+					fmt.Printf("    - %s%s\n", pluginName, suffix)
+				}
+				fmt.Println()
+				for _, pluginName := range localDrift {
+					fmt.Printf("  %s Remove from config and profile: %s\n",
+						ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile clean --scope local %s", pluginName)))
+				}
+				fmt.Printf("  %s Or reinstall if available: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", name)))
+				fmt.Println()
+			}
+		}
+	}
 
 	return nil
 }
@@ -1080,6 +1334,13 @@ func pluralS(count int) string {
 		return ""
 	}
 	return "s"
+}
+
+func pluralYIES(count int) string {
+	if count == 1 {
+		return "y"
+	}
+	return "ies"
 }
 
 func hasDiffChanges(diff *profile.Diff) bool {
