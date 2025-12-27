@@ -124,7 +124,7 @@ func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectD
 
 // CompareWithCombinedScopes compares a saved profile with the effective Claude Code configuration
 // by combining all scopes (user + project + local). This represents the actual running configuration
-// since Claude Code accretes settings from user → project → local.
+// since Claude Code accumulates settings from user → project → local.
 func CompareWithCombinedScopes(savedProfile *Profile, claudeDir, claudeJSONPath, projectDir string) (*ProfileDiff, error) {
 	// Create snapshot combining all scopes
 	current, err := SnapshotCombined("", claudeDir, claudeJSONPath, projectDir)
@@ -170,7 +170,7 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 
 // IsProfileModifiedCombined checks if a profile has unsaved changes by comparing
 // against the effective Claude Code configuration (user + project + local scopes combined).
-// This accurately reflects Claude Code's behavior since it accretes settings from all scopes.
+// This accurately reflects Claude Code's behavior since it accumulates settings from all scopes.
 func IsProfileModifiedCombined(profileName, profilesDir, claudeDir, claudeJSONPath, projectDir string) (bool, error) {
 	if profileName == "" {
 		return false, nil

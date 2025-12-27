@@ -91,7 +91,7 @@ claudeup respects Claude Code's scope layering system (user → project → loca
 
 **How Claude Code works:**
 - Settings files exist at three scopes: user (`~/.claude/settings.json`), project (`.claude/settings.json`), local (`.claude/settings.local.json`)
-- Claude Code **accretes** settings from all scopes: user → project → local
+- Claude Code **accumulates** settings from all scopes: user → project → local
 - Later scopes override earlier ones (local > project > user)
 - The effective configuration is the combination of all three scopes
 

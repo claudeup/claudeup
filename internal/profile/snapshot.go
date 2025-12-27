@@ -90,7 +90,7 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOpti
 }
 
 // SnapshotCombined creates a Profile combining all scopes (user + project + local)
-// This represents the effective Claude Code configuration, since Claude accretes
+// This represents the effective Claude Code configuration, since Claude accumulates
 // settings from user → project → local (later scopes override earlier ones)
 func SnapshotCombined(name, claudeDir, claudeJSONPath, projectDir string) (*Profile, error) {
 	// Combine plugins from all scopes
@@ -125,7 +125,7 @@ func SnapshotCombined(name, claudeDir, claudeJSONPath, projectDir string) (*Prof
 }
 
 // readPluginsCombined reads enabled plugins from all scopes and combines them
-// Claude Code accretes settings: user → project → local (later overrides earlier)
+// Claude Code accumulates settings: user → project → local (later overrides earlier)
 func readPluginsCombined(claudeDir, projectDir string) ([]string, error) {
 	// Start with empty map to track enabled state
 	enabledPlugins := make(map[string]bool)
@@ -167,9 +167,11 @@ func readPluginsCombined(claudeDir, projectDir string) ([]string, error) {
 }
 
 // readMCPServersCombined reads MCP servers from all scopes and combines them
-// Claude Code accretes settings: user → project → local (later overrides earlier)
+// Claude Code uses REPLACEMENT for MCP servers: user → project → local
+// When the same server name exists in multiple scopes, the higher-precedence
+// scope COMPLETELY REPLACES the lower-precedence definition (no merging).
 func readMCPServersCombined(claudeJSONPath, projectDir string) ([]MCPServer, error) {
-	// Use map to track servers by name (later scopes override earlier ones)
+	// Use map to track servers by name - higher-precedence scopes completely replace lower ones
 	serverMap := make(map[string]MCPServer)
 
 	// Layer 1: User scope (global ~/.claude.json)

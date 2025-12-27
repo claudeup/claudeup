@@ -80,7 +80,7 @@ SAVED_PLUGINS=$(mktemp)
 trap 'rm -f "$CURRENT_PLUGINS" "$SAVED_PLUGINS"' EXIT
 
 # Extract currently enabled plugins from all scopes (user + project + local)
-# This mimics how Claude Code accretes settings across scopes
+# This mimics how Claude Code accumulates settings across scopes
 echo "📋 Reading effective plugin configuration (user + project + local)..."
 
 # Start with user-scope enabled plugins
@@ -138,17 +138,17 @@ NET_CHANGE=$((CURRENT_COUNT - SAVED_COUNT))
 
 # Display results
 echo
-echo -e "${BOLD}=== Profile Comparison: $PROFILE_NAME ===${NC}"
+echo -e "${BOLD}=== Changes from $PROFILE_NAME ===${NC}"
 echo
 
 if [[ $ADDED_COUNT -gt 0 ]]; then
-    echo -e "${GREEN}${BOLD}✅ ADDED ($ADDED_COUNT plugins):${NC}"
+    echo -e "${GREEN}${BOLD}+ Added on top of $PROFILE_NAME: $ADDED_COUNT plugins${NC}"
     echo "$ADDED" | sed 's/^/  → /'
     echo
 fi
 
 if [[ $REMOVED_COUNT -gt 0 ]]; then
-    echo -e "${RED}${BOLD}❌ REMOVED ($REMOVED_COUNT plugins):${NC}"
+    echo -e "${RED}${BOLD}- Removed from $PROFILE_NAME: $REMOVED_COUNT plugins${NC}"
     echo "$REMOVED" | sed 's/^/  → /'
     echo
 fi
