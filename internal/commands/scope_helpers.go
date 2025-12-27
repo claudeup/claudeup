@@ -7,6 +7,12 @@ import (
 	"github.com/claudeup/claudeup/internal/profile"
 )
 
+// ActiveProfileInfo represents an active profile at a specific scope
+type ActiveProfileInfo struct {
+	Name  string
+	Scope string
+}
+
 // getActiveProfile returns the active profile name and scope using the hierarchy:
 // 1. Project scope (.claudeup.json in cwd) - highest priority
 // 2. Local scope (projects.json registry)
@@ -34,4 +40,41 @@ func getActiveProfile(cwd string) (profileName, scope string) {
 	}
 
 	return "", ""
+}
+
+// getAllActiveProfiles returns active profiles from all scopes that have a profile set
+// Returns profiles in order: project, local, user (matching precedence order)
+// Used to display all active profiles when they differ across scopes
+func getAllActiveProfiles(cwd string) []ActiveProfileInfo {
+	var profiles []ActiveProfileInfo
+
+	// Project scope
+	if profile.ProjectConfigExists(cwd) {
+		if projectCfg, err := profile.LoadProjectConfig(cwd); err == nil && projectCfg.Profile != "" {
+			profiles = append(profiles, ActiveProfileInfo{
+				Name:  projectCfg.Profile,
+				Scope: "project",
+			})
+		}
+	}
+
+	// Local scope
+	if registry, err := config.LoadProjectsRegistry(); err == nil {
+		if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
+			profiles = append(profiles, ActiveProfileInfo{
+				Name:  entry.Profile,
+				Scope: "local",
+			})
+		}
+	}
+
+	// User scope
+	if cfg, _ := config.Load(); cfg != nil && cfg.Preferences.ActiveProfile != "" {
+		profiles = append(profiles, ActiveProfileInfo{
+			Name:  cfg.Preferences.ActiveProfile,
+			Scope: "user",
+		})
+	}
+
+	return profiles
 }

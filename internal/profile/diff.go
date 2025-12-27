@@ -122,11 +122,28 @@ func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectD
 	return compare(savedProfile, current), nil
 }
 
+// CompareWithCombinedScopes compares a saved profile with the effective Claude Code configuration
+// by combining all scopes (user + project + local). This represents the actual running configuration
+// since Claude Code accretes settings from user → project → local.
+func CompareWithCombinedScopes(savedProfile *Profile, claudeDir, claudeJSONPath, projectDir string) (*ProfileDiff, error) {
+	// Create snapshot combining all scopes
+	current, err := SnapshotCombined("", claudeDir, claudeJSONPath, projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Compare current vs saved, respecting skipPluginDiff
+	return compare(savedProfile, current), nil
+}
+
 // IsActiveProfileModified checks if the active profile has unsaved changes
 // Returns (hasChanges, comparisonError)
 // - hasChanges: true if profile exists and has modifications
 // - comparisonError: non-nil if comparison failed (file read error, corrupt data, etc.)
 // Gracefully returns (false, err) on any errors
+//
+// Deprecated: Use IsProfileModifiedCombined instead to properly account for
+// Claude Code's scope layering (user + project + local)
 func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJSONPath string) (bool, error) {
 	if activeProfileName == "" {
 		return false, nil
@@ -146,6 +163,33 @@ func IsActiveProfileModified(activeProfileName, profilesDir, claudeDir, claudeJS
 	diff, err := CompareWithCurrent(savedProfile, claudeDir, claudeJSONPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to compare profile %q: %w", activeProfileName, err)
+	}
+
+	return diff.HasSignificantChanges(), nil
+}
+
+// IsProfileModifiedCombined checks if a profile has unsaved changes by comparing
+// against the effective Claude Code configuration (user + project + local scopes combined).
+// This accurately reflects Claude Code's behavior since it accretes settings from all scopes.
+func IsProfileModifiedCombined(profileName, profilesDir, claudeDir, claudeJSONPath, projectDir string) (bool, error) {
+	if profileName == "" {
+		return false, nil
+	}
+
+	// Try to load the profile (disk first, then embedded)
+	savedProfile, err := Load(profilesDir, profileName)
+	if err != nil {
+		// Try embedded profile
+		savedProfile, err = GetEmbeddedProfile(profileName)
+		if err != nil {
+			return false, fmt.Errorf("failed to load profile %q: %w", profileName, err)
+		}
+	}
+
+	// Compare with combined state (all scopes)
+	diff, err := CompareWithCombinedScopes(savedProfile, claudeDir, claudeJSONPath, projectDir)
+	if err != nil {
+		return false, fmt.Errorf("failed to compare profile %q with combined scopes: %w", profileName, err)
 	}
 
 	return diff.HasSignificantChanges(), nil
