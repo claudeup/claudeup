@@ -139,6 +139,38 @@ claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit
 **Disabling event tracking:**
 Set `monitoring.enabled: false` in `~/.claudeup/config.json` to disable all event tracking.
 
+### Viewing Event Diffs
+
+The `claudeup events diff` command shows what changed in file operations:
+
+```bash
+# Show most recent change (truncated for readability)
+claudeup events diff --file ~/.claude/plugins/installed_plugins.json
+
+# Show full details with deep diff (recommended for debugging)
+claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
+```
+
+**Default mode** (truncated):
+- Nested objects shown as `{...}` to prevent terminal overflow
+- Good for quick overview of changes
+
+**Full mode** (`--full` flag):
+- Recursively diffs nested objects showing only changed fields
+- Color-coded symbols: 🟢 `+` added, 🔴 `-` removed, 🔵 `~` modified
+- Bold key names with gray `(added)`/`(removed)` labels
+- Ideal for understanding complex configuration changes
+
+**Example output:**
+```text
+~ plugins:
+  ~ conductor@claude-conductor:
+    ~ scope: "project" → "user"
+    ~ installedAt: "2025-12-26T05:14:20.184Z" → "2025-12-26T19:11:07.257Z"
+  ~ backend-api-security@claude-code-workflows:
+    - projectPath: "/Users/markalston/workspace/claudeup" (removed)
+```
+
 ## Claude CLI Format Compatibility
 
 claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `settings.json`). To protect against format changes:
