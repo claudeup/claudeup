@@ -209,13 +209,16 @@ type PluginChecker interface {
 // DetectConfigDrift finds plugins in .claudeup.json or .claudeup.local.json that are not installed
 func DetectConfigDrift(projectDir string, pluginChecker PluginChecker) ([]DriftedPlugin, error) {
 	var drift []DriftedPlugin
+	var firstError error
 
 	// Check project scope (.claudeup.json)
 	if ProjectConfigExists(projectDir) {
 		projectCfg, err := LoadProjectConfig(projectDir)
 		if err != nil {
-			// If we can't load it, skip drift detection for this scope
-			// Don't fail the whole operation
+			// Record the error but continue checking other scopes
+			if firstError == nil {
+				firstError = fmt.Errorf("failed to load %s: %w", ProjectConfigFile, err)
+			}
 		} else {
 			for _, pluginName := range projectCfg.Plugins {
 				if !pluginChecker.IsPluginInstalled(pluginName) {
@@ -232,7 +235,10 @@ func DetectConfigDrift(projectDir string, pluginChecker PluginChecker) ([]Drifte
 	if LocalConfigExists(projectDir) {
 		localCfg, err := LoadLocalConfig(projectDir)
 		if err != nil {
-			// If we can't load it, skip drift detection for this scope
+			// Record the error but continue checking other scopes
+			if firstError == nil {
+				firstError = fmt.Errorf("failed to load %s: %w", LocalConfigFile, err)
+			}
 		} else {
 			for _, pluginName := range localCfg.Plugins {
 				if !pluginChecker.IsPluginInstalled(pluginName) {
@@ -245,5 +251,5 @@ func DetectConfigDrift(projectDir string, pluginChecker PluginChecker) ([]Drifte
 		}
 	}
 
-	return drift, nil
+	return drift, firstError
 }

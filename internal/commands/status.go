@@ -280,7 +280,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Check for config drift (plugins in .claudeup.json/.claudeup.local.json but not installed)
 	configDrift, err := profile.DetectConfigDrift(projectDir, plugins)
 	if err != nil {
-		// Don't fail the whole command, just skip config drift detection
+		// Don't fail the whole command, but warn about config corruption
+		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))
 		configDrift = []profile.DriftedPlugin{}
 	}
 

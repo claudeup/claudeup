@@ -359,14 +359,15 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 		}
 
 		// Check if plugin is in the config
-		for i, p := range cfg.Plugins {
-			if p == pluginName {
-				// Remove plugin from list
-				cfg.Plugins = append(cfg.Plugins[:i], cfg.Plugins[i+1:]...)
+		newPlugins := make([]string, 0, len(cfg.Plugins))
+		for _, p := range cfg.Plugins {
+			if p != pluginName {
+				newPlugins = append(newPlugins, p)
+			} else {
 				removedFromConfig = true
-				break
 			}
 		}
+		cfg.Plugins = newPlugins
 
 		// Save updated config if we made changes
 		if removedFromConfig {
@@ -396,19 +397,14 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 
 	// Check if we removed the plugin from anywhere
 	if !removedFromConfig && !removedFromSettings {
-		scopeName := "project"
-		if scope == profile.ScopeLocal {
-			scopeName = "local"
-		}
-		return fmt.Errorf("plugin %q not found in %s scope config or settings", pluginName, scopeName)
+		return fmt.Errorf("plugin %q not found in %s scope config or settings", pluginName, scope.String())
 	}
 
 	// Success message
-	scopeName := "project"
+	scopeName := scope.String()
 	configFile := ".claudeup.json"
 	settingsFile := ".claude/settings.json"
 	if scope == profile.ScopeLocal {
-		scopeName = "local"
 		configFile = ".claudeup.local.json"
 		settingsFile = ".claude/settings.local.json"
 	}

@@ -120,7 +120,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Check for config drift (plugins in .claudeup.json/.claudeup.local.json but not installed)
 	configDrift, err := profile.DetectConfigDrift(projectDir, plugins)
 	if err != nil {
-		// Don't fail the whole command, just skip config drift detection
+		// Don't fail the whole command, but warn about config corruption
+		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))
 		configDrift = []profile.DriftedPlugin{}
 	}
 
@@ -311,7 +312,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	for name, plugin := range plugins.GetAllPlugins() {
 		if !plugin.PathExists() {
 			// Check if this is a fixable path issue
-			expectedPath := getExpectedPath(name, plugin.InstallPath)
+			expectedPath := getExpectedPath(plugin.InstallPath)
 			if expectedPath != "" && pathExists(expectedPath) {
 				issues = append(issues, PathIssue{
 					PluginName:   name,
@@ -339,7 +340,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	return issues
 }
 
-func getExpectedPath(_ /* pluginName */, currentPath string) string {
+func getExpectedPath(currentPath string) string {
 	// Based on fix-plugin-paths.sh logic
 	if strings.Contains(currentPath, "claude-code-plugins") {
 		// Add /plugins/ subdirectory
