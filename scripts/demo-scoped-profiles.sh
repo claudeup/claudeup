@@ -375,6 +375,110 @@ print_info "Checks only local scope drift:"
 
 pause
 
+# Apply profiles at different scopes
+print_section "Phase 8b: Applying Profiles at Different Scopes"
+
+print_step "Let's apply the 'base-tools' profile at user scope..."
+print_command "claudeup profile apply base-tools --scope user"
+"$CLAUDEUP_ROOT/bin/claudeup" profile apply base-tools --scope user
+
+print_info "Profile applied at user scope"
+
+pause
+
+print_step "Now apply 'backend-stack' at project scope..."
+print_command "claudeup profile apply backend-stack --scope project"
+"$CLAUDEUP_ROOT/bin/claudeup" profile apply backend-stack --scope project
+
+print_info "Profile applied at project scope"
+
+pause
+
+print_step "And apply 'docker-tools' at local scope..."
+print_command "claudeup profile apply docker-tools --local"
+"$CLAUDEUP_ROOT/bin/claudeup" profile apply docker-tools --local
+
+print_info "Profile applied at local scope"
+
+pause
+
+print_step "Verify .claude/settings.local.json was updated:"
+print_command "cat .claude/settings.local.json"
+echo "Local settings content:"
+cat .claude/settings.local.json | jq '.enabledPlugins' 2>/dev/null || cat .claude/settings.local.json
+
+print_info "Should show docker-tools plugins: systems-programming, shell-scripting"
+
+pause
+
+print_step "Let's see what profiles are active at each scope:"
+print_command "claudeup profile list"
+"$CLAUDEUP_ROOT/bin/claudeup" profile list
+
+pause
+
+# Show profile clean functionality
+print_section "Phase 8c: Profile Clean at Different Scopes"
+
+print_step "Let's intentionally create drift by manually installing a plugin..."
+print_command "claude plugin install python-development@claude-code-workflows --scope project"
+claude plugin install python-development@claude-code-workflows --scope project
+
+print_info "Added 'python-development' to project scope (not in backend-stack profile)"
+
+pause
+
+print_command "claudeup status --scope project"
+print_info "Should show drift for python-development:"
+"$CLAUDEUP_ROOT/bin/claudeup" status --scope project || true
+
+pause
+
+print_step "Now clean up the drift at project scope..."
+print_command "claudeup profile clean --scope project"
+"$CLAUDEUP_ROOT/bin/claudeup" profile clean --scope project
+
+print_info "Project scope cleaned"
+
+pause
+
+print_step "Let's create drift at local scope too..."
+print_command "claude plugin install web-scripting@claude-code-workflows --scope local"
+claude plugin install web-scripting@claude-code-workflows --scope local
+
+print_info "Added 'web-scripting' to local scope (not in docker-tools profile)"
+
+pause
+
+print_command "claudeup status --scope local"
+print_info "Should show drift for web-scripting:"
+"$CLAUDEUP_ROOT/bin/claudeup" status --scope local || true
+
+pause
+
+print_step "Clean up the drift at local scope..."
+print_command "claudeup profile clean --local"
+"$CLAUDEUP_ROOT/bin/claudeup" profile clean --local
+
+print_info "Local scope cleaned (only updates .claude/settings.local.json)"
+
+pause
+
+print_step "Verify .claude/settings.local.json was cleaned up:"
+print_command "cat .claude/settings.local.json"
+echo "Local settings after cleanup:"
+cat .claude/settings.local.json | jq '.enabledPlugins' 2>/dev/null || cat .claude/settings.local.json
+
+print_info "Should only show docker-tools plugins, web-scripting should be removed"
+
+pause
+
+print_command "claudeup status"
+print_info "Verify everything is clean across all scopes:"
+"$CLAUDEUP_ROOT/bin/claudeup" status || true
+
+pause
+
 # Show file structure
 print_section "Phase 9: File Structure Summary"
 
@@ -417,16 +521,20 @@ cat <<'EOF'
   - Installed real plugins with 'claude plugin install --scope <scope>'
   - claudeup read the actual structure created by Claude CLI
 
-✓ Demonstrated All Features
+✓ Demonstrated ALL Profile Features at ALL Scopes
   - Plugin list shows scope information
   - Settings accumulate across scopes
   - Drift detection works per-scope
   - Scope-specific status checks
+  - Profile apply at user/project/local scopes
+  - Profile clean at user/project/local scopes
+  - Profile list shows active profiles with scope markers
 
-✓ File Structure (Created by Claude CLI)
+✓ File Structure (Created by Claude CLI and claudeup)
+  - User settings: ~/.claude/settings.json (personal)
   - Project settings: .claude/settings.json (committed)
   - Local settings: .claude/settings.local.json (gitignored)
-  - User settings: ~/.claude/settings.json (personal)
+  - Project config: .claudeup.json (committed, project scope only)
   - Plugin registry: ~/.claude/plugins/installed_plugins.json
 
 ✓ Real Commands Executed
@@ -435,13 +543,21 @@ cat <<'EOF'
   - claudeup plugin list (with scope info)
   - claudeup status (with drift detection)
   - claudeup status --scope <scope> (targeted checks)
+  - claudeup profile apply <profile> --scope <scope>
+  - claudeup profile clean --scope <scope>
+  - claudeup profile list (shows active profiles)
 
-Key Insight:
-  Claude Code natively supports all three scopes!
-  - Reads ~/.claude/settings.json (user)
-  - Reads .claude/settings.json (project)
-  - Reads .claude/settings.local.json (local)
-  - Merges them with precedence: local > project > user
+Key Insights:
+  1. Claude Code natively supports all three scopes!
+     - Reads ~/.claude/settings.json (user)
+     - Reads .claude/settings.json (project)
+     - Reads .claude/settings.local.json (local)
+     - Merges them with precedence: local > project > user
+
+  2. Profile Clean Behavior:
+     - Project scope: Updates both .claudeup.json and .claude/settings.json
+     - Local scope: Updates only .claude/settings.local.json (no config file)
+     - User scope: Updates only ~/.claude/settings.json (no config file)
 
 Git Workflow:
   .gitignore should contain:
@@ -450,6 +566,7 @@ Git Workflow:
 
   Committed files:
     .claudeup/profiles/          # Team profiles
+    .claudeup.json               # Project scope tracking (if exists)
     .claude/settings.json        # Project settings
 
 No Assumptions:
