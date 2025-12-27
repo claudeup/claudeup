@@ -333,13 +333,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			if activeProfile != "" && activeProfile != "none" {
 				fmt.Printf("  %s Reinstall from profile: %s\n",
 					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
-				fmt.Printf("  %s Or disable in settings: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin disable <name>"))
+				fmt.Printf("  %s Or remove from settings: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean <plugin-name>"))
 			} else {
 				fmt.Printf("  %s Install manually: %s\n",
 					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin install <name>"))
-				fmt.Printf("  %s Or disable in settings: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin disable <name>"))
+				fmt.Printf("  %s Or remove from settings: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean <plugin-name>"))
 			}
 		}
 

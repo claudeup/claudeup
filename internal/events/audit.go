@@ -360,7 +360,7 @@ func formatEventForTimeline(event *FileOperation) string {
 
 	// Show brief diff if content available
 	if event.Before != nil || event.After != nil {
-		diff := DiffSnapshots(event.Before, event.After)
+		diff := DiffSnapshots(event.Before, event.After, false)
 		if diff.HasChanges && diff.ContentAvailable {
 			// Show first line of diff summary only
 			lines := strings.Split(diff.Summary, "\n")
@@ -405,7 +405,7 @@ func formatEventForMarkdown(event *FileOperation) string {
 
 	// Show brief diff if content available
 	if event.Before != nil || event.After != nil {
-		diff := DiffSnapshots(event.Before, event.After)
+		diff := DiffSnapshots(event.Before, event.After, false)
 		if diff.HasChanges && diff.ContentAvailable {
 			// Show first few lines of diff in code block
 			lines := strings.Split(diff.Summary, "\n")

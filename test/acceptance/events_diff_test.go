@@ -152,6 +152,26 @@ var _ = Describe("events diff", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("No events found for file:"))
 		})
+
+		It("shows truncated diff by default", func() {
+			result := env.Run("events", "diff", "--file", settingsPath)
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Nested objects should be truncated to {...}
+			Expect(result.Stdout).To(ContainSubstring("{...}"))
+		})
+
+		It("shows deep diff with --full flag", func() {
+			result := env.Run("events", "diff", "--file", settingsPath, "--full")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Should NOT show truncation
+			Expect(result.Stdout).NotTo(ContainSubstring("{...}"))
+			// Should show nested field changes
+			Expect(result.Stdout).To(ContainSubstring("enabled:"))
+			// Should show explicit labels
+			Expect(result.Stdout).To(ContainSubstring("(added)"))
+		})
 	})
 
 	Context("help and usage", func() {
