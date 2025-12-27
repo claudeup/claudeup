@@ -105,6 +105,7 @@ func NewProjectConfig(p *Profile) *ProjectConfig {
 
 // LoadConfigForScope loads the appropriate config file based on scope
 // Only project scope has a .claudeup.json config file (local uses .claude/settings.local.json)
+// This avoids duplication since Claude Code already manages local settings natively
 func LoadConfigForScope(projectDir string, scope Scope) (*ProjectConfig, error) {
 	if scope == ScopeProject {
 		return LoadProjectConfig(projectDir)
@@ -114,6 +115,7 @@ func LoadConfigForScope(projectDir string, scope Scope) (*ProjectConfig, error) 
 
 // SaveConfigForScope saves the config to the appropriate file based on scope
 // Only project scope has a .claudeup.json config file (local uses .claude/settings.local.json)
+// This avoids duplication since Claude Code already manages local settings natively
 func SaveConfigForScope(projectDir string, cfg *ProjectConfig, scope Scope) error {
 	if scope == ScopeProject {
 		return SaveProjectConfig(projectDir, cfg)
@@ -123,6 +125,7 @@ func SaveConfigForScope(projectDir string, cfg *ProjectConfig, scope Scope) erro
 
 // ConfigExistsForScope returns true if a config file exists for the given scope
 // Only project scope has a .claudeup.json config file (local uses .claude/settings.local.json)
+// This avoids duplication since Claude Code already manages local settings natively
 func ConfigExistsForScope(projectDir string, scope Scope) bool {
 	if scope == ScopeProject {
 		return ProjectConfigExists(projectDir)
@@ -173,7 +176,7 @@ func DetectConfigDrift(claudeDir, projectDir string, pluginChecker PluginChecker
 		if err != nil {
 			// Record the error but continue checking other scopes
 			if firstError == nil {
-				firstError = fmt.Errorf("failed to load %s: %w", localSettingsPath, err)
+				firstError = fmt.Errorf("failed to load .claude/settings.local.json: %w", err)
 			}
 		} else {
 			// Check each enabled plugin in local settings
