@@ -249,11 +249,40 @@ var _ = Describe("Profile clean command for config drift", func() {
 				Expect(result.Stderr).To(ContainSubstring("must be 'project' or 'local'"))
 			})
 
-			It("should error if config file doesn't exist", func() {
+			It("should error if plugin not found in config or settings", func() {
+				// Create minimal settings without the plugin
+				settings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{},
+				}
+				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), settings)
+
 				result := env.RunInDir(projectDir, "profile", "clean", "--scope", "project", "plugin@marketplace")
 
 				Expect(result.ExitCode).NotTo(Equal(0))
-				Expect(result.Stderr).To(ContainSubstring("no .claudeup.json file found"))
+				Expect(result.Stderr).To(ContainSubstring("not found in project scope config or settings"))
+			})
+
+			It("should succeed when plugin is only in settings, not in config", func() {
+				// Create settings with the plugin enabled
+				settings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{
+						"orphaned-plugin@marketplace": true,
+					},
+				}
+				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), settings)
+
+				// No .claudeup.json file exists
+				result := env.RunInDir(projectDir, "profile", "clean", "--scope", "project", "orphaned-plugin@marketplace")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Removed orphaned-plugin@marketplace from project scope"))
+				Expect(result.Stdout).To(ContainSubstring(".claude/settings.json"))
+
+				// Verify plugin removed from settings
+				updatedSettings := helpers.LoadJSON(filepath.Join(projectDir, ".claude", "settings.json"))
+				enabledPlugins := updatedSettings["enabledPlugins"].(map[string]interface{})
+				_, exists := enabledPlugins["orphaned-plugin@marketplace"]
+				Expect(exists).To(BeFalse())
 			})
 		})
 	})
@@ -302,6 +331,206 @@ var _ = Describe("Profile clean command for config drift", func() {
 			Expect(statusResult3.ExitCode).To(Equal(0))
 			Expect(statusResult3.Stdout).NotTo(ContainSubstring("Configuration Drift Detected"))
 			Expect(statusResult3.Stdout).NotTo(ContainSubstring("orphaned config"))
+		})
+	})
+
+	Describe("Removing orphaned plugins from saved profiles", func() {
+		var profilesDir string
+
+		BeforeEach(func() {
+			profilesDir = env.ProfilesDir
+		})
+
+		Context("when orphaned plugin is also in saved profile", func() {
+			BeforeEach(func() {
+				// Create saved profile with plugins
+				savedProfile := map[string]interface{}{
+					"name": "my-profile",
+					"plugins": []string{
+						"orphaned-plugin@marketplace",
+						"other-plugin@marketplace",
+					},
+					"settings": map[string]interface{}{
+						"enabledPlugins": map[string]bool{},
+					},
+				}
+				helpers.WriteJSON(filepath.Join(profilesDir, "my-profile.json"), savedProfile)
+
+				// Create project config referencing the profile
+				projectConfig := map[string]interface{}{
+					"version": "1",
+					"profile": "my-profile",
+					"plugins": []string{
+						"orphaned-plugin@marketplace",
+					},
+				}
+				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
+
+				// Create minimal settings
+				settings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{},
+				}
+				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), settings)
+			})
+
+			It("status should indicate plugin is also in profile", func() {
+				result := env.RunInDir(projectDir, "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("orphaned-plugin@marketplace"))
+				Expect(result.Stdout).To(ContainSubstring("(also in profile)"))
+			})
+
+			It("doctor should indicate plugin is also in profile", func() {
+				result := env.RunInDir(projectDir, "doctor")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("orphaned-plugin@marketplace"))
+				Expect(result.Stdout).To(ContainSubstring("(also in profile)"))
+			})
+
+			It("profile diff should indicate plugin is also in profile", func() {
+				result := env.RunInDir(projectDir, "profile", "diff", "my-profile")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("orphaned-plugin@marketplace"))
+				Expect(result.Stdout).To(ContainSubstring("(also in profile)"))
+			})
+
+			It("should warn when cleaning plugin that is in saved profile", func() {
+				// Run clean with "no" response to removing from profile
+				result := env.RunInDirWithInput(projectDir, "n\n", "profile", "clean", "--scope", "project", "orphaned-plugin@marketplace")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Removed orphaned-plugin@marketplace from project scope"))
+				Expect(result.Stdout).To(ContainSubstring("also in your saved profile"))
+				Expect(result.Stdout).To(ContainSubstring("Remove from saved profile too?"))
+				Expect(result.Stdout).To(ContainSubstring("Plugin remains in profile definition"))
+
+				// Verify plugin removed from config but still in profile
+				projectConfigData := helpers.LoadJSON(filepath.Join(projectDir, ".claudeup.json"))
+				pluginsRaw := projectConfigData["plugins"]
+				if pluginsRaw != nil {
+					plugins := pluginsRaw.([]interface{})
+					Expect(plugins).To(HaveLen(0))
+				} else {
+					// plugins field is nil, which means empty - this is acceptable
+					Expect(pluginsRaw).To(BeNil())
+				}
+
+				profileData := helpers.LoadJSON(filepath.Join(profilesDir, "my-profile.json"))
+				profilePlugins := profileData["plugins"].([]interface{})
+				Expect(profilePlugins).To(HaveLen(2))
+				Expect(profilePlugins).To(ContainElement("orphaned-plugin@marketplace"))
+			})
+
+			It("should remove plugin from both config and profile when confirmed", func() {
+				// Run clean with "yes" response to removing from profile
+				result := env.RunInDirWithInput(projectDir, "y\n", "profile", "clean", "--scope", "project", "orphaned-plugin@marketplace")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Removed orphaned-plugin@marketplace from project scope"))
+				Expect(result.Stdout).To(ContainSubstring("also in your saved profile"))
+				Expect(result.Stdout).To(ContainSubstring("Remove from saved profile too?"))
+				Expect(result.Stdout).To(ContainSubstring("Removed orphaned-plugin@marketplace from profile"))
+
+				// Verify plugin removed from config
+				projectConfigData := helpers.LoadJSON(filepath.Join(projectDir, ".claudeup.json"))
+				pluginsRaw := projectConfigData["plugins"]
+				if pluginsRaw != nil {
+					plugins := pluginsRaw.([]interface{})
+					Expect(plugins).To(HaveLen(0))
+				} else {
+					// plugins field is nil, which means empty - this is acceptable
+					Expect(pluginsRaw).To(BeNil())
+				}
+
+				// Verify plugin removed from profile
+				profileData := helpers.LoadJSON(filepath.Join(profilesDir, "my-profile.json"))
+				profilePlugins := profileData["plugins"].([]interface{})
+				Expect(profilePlugins).To(HaveLen(1))
+				Expect(profilePlugins).To(ContainElement("other-plugin@marketplace"))
+				Expect(profilePlugins).NotTo(ContainElement("orphaned-plugin@marketplace"))
+			})
+
+			It("should also remove plugin from Claude settings at the same scope", func() {
+				// First, enable the plugin in project scope settings
+				projectSettings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{
+						"orphaned-plugin@marketplace": true,
+						"other-plugin@marketplace":    true,
+					},
+				}
+				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
+
+				// Run clean with "no" to skip profile removal (focus on settings cleanup)
+				result := env.RunInDirWithInput(projectDir, "n\n", "profile", "clean", "--scope", "project", "orphaned-plugin@marketplace")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Removed orphaned-plugin@marketplace from project scope"))
+				Expect(result.Stdout).To(ContainSubstring(".claude/settings.json"))
+
+				// Verify plugin is REMOVED from settings (not just disabled)
+				settingsData := helpers.LoadJSON(filepath.Join(projectDir, ".claude", "settings.json"))
+				enabledPlugins := settingsData["enabledPlugins"].(map[string]interface{})
+				_, exists := enabledPlugins["orphaned-plugin@marketplace"]
+				Expect(exists).To(BeFalse(), "Plugin should be completely removed from settings, not just disabled")
+
+				// Other plugins should remain
+				Expect(enabledPlugins["other-plugin@marketplace"]).To(BeTrue())
+			})
+
+			It("after removing from both, status should show no drift", func() {
+				// Clean with yes to remove from profile
+				env.RunInDirWithInput(projectDir, "y\n", "profile", "clean", "--scope", "project", "orphaned-plugin@marketplace")
+
+				// Status should not show drift anymore
+				result := env.RunInDir(projectDir, "status")
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("Configuration Drift Detected"))
+				Expect(result.Stdout).NotTo(ContainSubstring("orphaned-plugin@marketplace"))
+			})
+		})
+
+		Context("when orphaned plugin is NOT in saved profile", func() {
+			BeforeEach(func() {
+				// Create saved profile WITHOUT the orphaned plugin
+				savedProfile := map[string]interface{}{
+					"name": "my-profile",
+					"plugins": []string{
+						"other-plugin@marketplace",
+					},
+					"settings": map[string]interface{}{
+						"enabledPlugins": map[string]bool{},
+					},
+				}
+				helpers.WriteJSON(filepath.Join(profilesDir, "my-profile.json"), savedProfile)
+
+				// Create project config with orphaned plugin
+				projectConfig := map[string]interface{}{
+					"version": "1",
+					"profile": "my-profile",
+					"plugins": []string{
+						"orphaned-plugin@marketplace",
+					},
+				}
+				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
+
+				// Create minimal settings
+				settings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{},
+				}
+				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), settings)
+			})
+
+			It("should NOT offer to remove from profile", func() {
+				result := env.RunInDir(projectDir, "profile", "clean", "--scope", "project", "orphaned-plugin@marketplace")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Removed orphaned-plugin@marketplace from project scope"))
+				Expect(result.Stdout).NotTo(ContainSubstring("also in your saved profile"))
+				Expect(result.Stdout).NotTo(ContainSubstring("Remove from saved profile too?"))
+			})
 		})
 	})
 })
