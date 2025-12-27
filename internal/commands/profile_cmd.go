@@ -65,7 +65,7 @@ active at project scope in ~/claudeup/, you'll see:
   * claudeup    [project] (modified)  ← This is what Claude Code uses
   ○ base-tools  [user]                ← Overridden, not in effect
 
-Use 'claudeup profile diff' to see exactly what's different.`,
+Use 'claudeup profile status' (or 'profile diff') for detailed breakdown.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
@@ -169,8 +169,9 @@ var profileShowCmd = &cobra.Command{
 }
 
 var profileDiffCmd = &cobra.Command{
-	Use:   "diff [name]",
-	Short: "Show differences between profile and current state by scope",
+	Use:     "diff [name]",
+	Aliases: []string{"status"},
+	Short:   "Show differences between profile and current state by scope",
 	Long: `Display how a profile differs from current state, broken down by scope.
 
 Shows:
@@ -183,10 +184,12 @@ If no name is given, uses the currently active profile.
 This helps distinguish between:
   - Profile modifications at the active scope (profile truly changed)
   - Scope layering (user/project/local scopes adding to the profile)`,
-	Example: `  # Show diff for active profile
+	Example: `  # Show status for active profile
+  claudeup profile status
   claudeup profile diff
 
-  # Show diff for specific profile
+  # Show status for specific profile
+  claudeup profile status backend-stack
   claudeup profile diff backend-stack`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileDiff,
