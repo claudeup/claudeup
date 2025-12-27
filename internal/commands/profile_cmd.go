@@ -301,6 +301,101 @@ var (
 // Flags for profile sync command
 var profileSyncDryRun bool
 
+// Flags for profile clean command
+var profileCleanScope string
+
+var profileCleanCmd = &cobra.Command{
+	Use:   "clean <plugin>",
+	Short: "Remove plugin from config tracking",
+	Long: `Remove a plugin from .claudeup.json or .claudeup.local.json.
+
+This command removes plugins that are tracked in config files but are no longer installed.
+Use this to clean up drift detected by 'claudeup status' or 'claudeup doctor'.`,
+	Example: `  # Remove plugin from project scope
+  claudeup profile clean --scope project nextjs-vercel-pro@claude-code-templates
+
+  # Remove plugin from local scope
+  claudeup profile clean --scope local my-plugin@marketplace`,
+	Args: cobra.ExactArgs(1),
+	RunE: runProfileClean,
+}
+
+func runProfileClean(cmd *cobra.Command, args []string) error {
+	pluginName := args[0]
+
+	// Validate scope flag is provided
+	if profileCleanScope == "" {
+		return fmt.Errorf("--scope flag is required (project or local)")
+	}
+
+	// Validate scope value
+	var scope profile.Scope
+	switch profileCleanScope {
+	case "project":
+		scope = profile.ScopeProject
+	case "local":
+		scope = profile.ScopeLocal
+	default:
+		return fmt.Errorf("invalid scope %q: must be 'project' or 'local'", profileCleanScope)
+	}
+
+	// Get current directory
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Check if config file exists
+	if !profile.ConfigExistsForScope(projectDir, scope) {
+		configFileName := ".claudeup.json"
+		if scope == profile.ScopeLocal {
+			configFileName = ".claudeup.local.json"
+		}
+		return fmt.Errorf("no %s file found in current directory", configFileName)
+	}
+
+	// Load config
+	cfg, err := profile.LoadConfigForScope(projectDir, scope)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Check if plugin is in the config
+	found := false
+	for i, p := range cfg.Plugins {
+		if p == pluginName {
+			// Remove plugin from list
+			cfg.Plugins = append(cfg.Plugins[:i], cfg.Plugins[i+1:]...)
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		scopeName := "project"
+		if scope == profile.ScopeLocal {
+			scopeName = "local"
+		}
+		return fmt.Errorf("plugin %q not found in %s scope config", pluginName, scopeName)
+	}
+
+	// Save updated config
+	if err := profile.SaveConfigForScope(projectDir, cfg, scope); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// Success message
+	scopeName := "project"
+	configFile := ".claudeup.json"
+	if scope == profile.ScopeLocal {
+		scopeName = "local"
+		configFile = ".claudeup.local.json"
+	}
+
+	ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, configFile))
+	return nil
+}
+
 func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
@@ -317,6 +412,7 @@ func init() {
 	profileCmd.AddCommand(profileRestoreCmd)
 	profileCmd.AddCommand(profileRenameCmd)
 	profileCmd.AddCommand(profileSyncCmd)
+	profileCmd.AddCommand(profileCleanCmd)
 
 	profileCloneCmd.Flags().StringVar(&profileCloneFromFlag, "from", "", "Source profile to copy from")
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
@@ -331,6 +427,10 @@ func init() {
 	profileUseCmd.Flags().BoolVar(&profileUseReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileUseCmd.Flags().BoolVar(&profileUseNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileUseCmd.Flags().BoolVar(&profileUseReset, "reset", false, "Clear target scope before applying profile")
+
+	// Add flags to profile clean command
+	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
+	profileCleanCmd.MarkFlagRequired("scope")
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
