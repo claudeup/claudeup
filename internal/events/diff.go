@@ -136,6 +136,16 @@ func diffJSON(before, after map[string]interface{}, beforeSize, afterSize int64,
 		} else if beforeExists && !afterExists {
 			changes = append(changes, fmt.Sprintf("%s %s: %v", SymbolRemoved, key, formatValueFull(beforeVal, full)))
 		} else if !reflect.DeepEqual(beforeVal, afterVal) {
+			// For full mode with nested objects, do deep diff
+			if full {
+				if beforeMap, beforeIsMap := beforeVal.(map[string]interface{}); beforeIsMap {
+					if afterMap, afterIsMap := afterVal.(map[string]interface{}); afterIsMap {
+						nestedDiff := diffNestedObjects(beforeMap, afterMap, 1)
+						changes = append(changes, fmt.Sprintf("%s %s:\n%s", SymbolModified, key, nestedDiff))
+						continue
+					}
+				}
+			}
 			changes = append(changes, fmt.Sprintf("%s %s: %v → %v", SymbolModified, key, formatValueFull(beforeVal, full), formatValueFull(afterVal, full)))
 		}
 	}
@@ -255,6 +265,83 @@ func formatMapFull(m map[string]interface{}, depth int, full bool) string {
 	}
 
 	return "{" + strings.Join(pairs, ", ") + "}"
+}
+
+// diffNestedObjects recursively compares two objects and returns indented diff output
+func diffNestedObjects(before, after map[string]interface{}, indentLevel int) string {
+	var changes []string
+	allKeys := make(map[string]bool)
+
+	// Collect all keys
+	for k := range before {
+		allKeys[k] = true
+	}
+	for k := range after {
+		allKeys[k] = true
+	}
+
+	// Sort keys
+	keys := make([]string, 0, len(allKeys))
+	for k := range allKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	indent := strings.Repeat("  ", indentLevel)
+
+	// Compare each key
+	for _, key := range keys {
+		beforeVal, beforeExists := before[key]
+		afterVal, afterExists := after[key]
+
+		if !beforeExists && afterExists {
+			changes = append(changes, fmt.Sprintf("%s%s %s: %v (added)", indent, SymbolAdded, key, formatValueFull(afterVal, true)))
+		} else if beforeExists && !afterExists {
+			changes = append(changes, fmt.Sprintf("%s%s %s: %v (removed)", indent, SymbolRemoved, key, formatValueFull(beforeVal, true)))
+		} else if !reflect.DeepEqual(beforeVal, afterVal) {
+			// Check if both are maps for recursive diffing
+			if beforeMap, beforeIsMap := beforeVal.(map[string]interface{}); beforeIsMap {
+				if afterMap, afterIsMap := afterVal.(map[string]interface{}); afterIsMap {
+					nestedDiff := diffNestedObjects(beforeMap, afterMap, indentLevel+1)
+					changes = append(changes, fmt.Sprintf("%s%s %s:\n%s", indent, SymbolModified, key, nestedDiff))
+					continue
+				}
+			}
+			// Check if both are arrays for element-wise diffing
+			if beforeArr, beforeIsArr := beforeVal.([]interface{}); beforeIsArr {
+				if afterArr, afterIsArr := afterVal.([]interface{}); afterIsArr {
+					arrDiff := diffArrays(beforeArr, afterArr, indentLevel, key)
+					if arrDiff != "" {
+						changes = append(changes, arrDiff)
+						continue
+					}
+				}
+			}
+			// Not nested structures, show simple before → after
+			changes = append(changes, fmt.Sprintf("%s%s %s: %v → %v", indent, SymbolModified, key, formatValueFull(beforeVal, true), formatValueFull(afterVal, true)))
+		}
+	}
+
+	return strings.Join(changes, "\n")
+}
+
+// diffArrays compares two arrays and returns a formatted diff
+func diffArrays(before, after []interface{}, indentLevel int, key string) string {
+	indent := strings.Repeat("  ", indentLevel)
+
+	// For arrays with single object elements (common in plugin metadata)
+	if len(before) == 1 && len(after) == 1 {
+		if beforeMap, beforeIsMap := before[0].(map[string]interface{}); beforeIsMap {
+			if afterMap, afterIsMap := after[0].(map[string]interface{}); afterIsMap {
+				// Both arrays contain single objects - diff the objects
+				nestedDiff := diffNestedObjects(beforeMap, afterMap, indentLevel+1)
+				return fmt.Sprintf("%s%s %s:\n%s", indent, SymbolModified, key, nestedDiff)
+			}
+		}
+	}
+
+	// For different length arrays or non-object elements, show full arrays
+	return ""
 }
 
 // truncateHash returns first N chars of a hash for display

@@ -301,7 +301,7 @@ var _ = Describe("DiffSnapshots", func() {
 	})
 
 	Context("full diff mode", func() {
-		It("shows complete nested object details when full=true", func() {
+		It("shows deep diff for nested objects when full=true", func() {
 			before := &events.Snapshot{
 				Hash:    "abc123",
 				Size:    100,
@@ -316,10 +316,33 @@ var _ = Describe("DiffSnapshots", func() {
 			result := events.DiffSnapshots(before, after, true)
 
 			Expect(result.HasChanges).To(BeTrue())
-			Expect(result.Summary).To(ContainSubstring("~ plugins"))
+			Expect(result.Summary).To(ContainSubstring("~ plugins:"))
 			Expect(result.Summary).NotTo(ContainSubstring("{...}"))
-			Expect(result.Summary).To(ContainSubstring("plugin1"))
-			Expect(result.Summary).To(ContainSubstring("plugin2"))
+			Expect(result.Summary).To(ContainSubstring("~ name:"))
+			Expect(result.Summary).To(ContainSubstring("~ version:"))
+			Expect(result.Summary).To(ContainSubstring("\"plugin1\" → \"plugin2\""))
+			Expect(result.Summary).To(ContainSubstring("\"1.0\" → \"2.0\""))
+		})
+
+		It("shows added and removed keys in nested objects", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"config": {"oldKey": "value1", "shared": "same"}}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    150,
+				Content: `{"config": {"newKey": "value2", "shared": "same"}}`,
+			}
+
+			result := events.DiffSnapshots(before, after, true)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ config:"))
+			Expect(result.Summary).To(ContainSubstring("- oldKey:"))
+			Expect(result.Summary).To(ContainSubstring("+ newKey:"))
+			Expect(result.Summary).NotTo(ContainSubstring("~ shared:"))
 		})
 
 		It("shows all array items when full=true", func() {
@@ -339,6 +362,44 @@ var _ = Describe("DiffSnapshots", func() {
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.Summary).NotTo(ContainSubstring("...7 more"))
 			Expect(result.Summary).To(ContainSubstring("10"))
+		})
+
+		It("handles deeply nested object changes", func() {
+			before := &events.Snapshot{
+				Hash: "abc123",
+				Size: 200,
+				Content: `{
+					"settings": {
+						"user": {
+							"preferences": {
+								"theme": "light"
+							}
+						}
+					}
+				}`,
+			}
+			after := &events.Snapshot{
+				Hash: "def456",
+				Size: 200,
+				Content: `{
+					"settings": {
+						"user": {
+							"preferences": {
+								"theme": "dark"
+							}
+						}
+					}
+				}`,
+			}
+
+			result := events.DiffSnapshots(before, after, true)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ settings:"))
+			Expect(result.Summary).To(ContainSubstring("~ user:"))
+			Expect(result.Summary).To(ContainSubstring("~ preferences:"))
+			Expect(result.Summary).To(ContainSubstring("~ theme:"))
+			Expect(result.Summary).To(ContainSubstring("\"light\" → \"dark\""))
 		})
 	})
 })
