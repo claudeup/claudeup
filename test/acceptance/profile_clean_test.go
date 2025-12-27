@@ -65,7 +65,7 @@ var _ = Describe("Profile clean command for config drift", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Configuration Drift Detected"))
-				Expect(result.Stdout).To(ContainSubstring("in config but not installed"))
+				Expect(result.Stdout).To(ContainSubstring("orphaned config entri"))
 				Expect(result.Stdout).To(ContainSubstring("missing-plugin-a@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("missing-plugin-b@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("(project scope)"))
@@ -76,7 +76,7 @@ var _ = Describe("Profile clean command for config drift", func() {
 				result := env.RunInDir(projectDir, "doctor")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("in config but not installed"))
+				Expect(result.Stdout).To(ContainSubstring("orphaned config entri"))
 				Expect(result.Stdout).To(ContainSubstring("missing-plugin-a@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("missing-plugin-b@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("(project scope)"))
@@ -108,7 +108,7 @@ var _ = Describe("Profile clean command for config drift", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Configuration Drift Detected"))
-				Expect(result.Stdout).To(ContainSubstring("in config but not installed"))
+				Expect(result.Stdout).To(ContainSubstring("orphaned config entry"))
 				Expect(result.Stdout).To(ContainSubstring("local-missing-plugin@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("(local scope)"))
 			})
@@ -117,7 +117,7 @@ var _ = Describe("Profile clean command for config drift", func() {
 				result := env.RunInDir(projectDir, "doctor")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("in config but not installed"))
+				Expect(result.Stdout).To(ContainSubstring("orphaned config entry"))
 				Expect(result.Stdout).To(ContainSubstring("local-missing-plugin@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("(local scope)"))
 			})
@@ -301,7 +301,7 @@ var _ = Describe("Profile clean command for config drift", func() {
 			statusResult3 := env.RunInDir(projectDir, "status")
 			Expect(statusResult3.ExitCode).To(Equal(0))
 			Expect(statusResult3.Stdout).NotTo(ContainSubstring("Configuration Drift Detected"))
-			Expect(statusResult3.Stdout).NotTo(ContainSubstring("in config but not installed"))
+			Expect(statusResult3.Stdout).NotTo(ContainSubstring("orphaned config"))
 		})
 	})
 })

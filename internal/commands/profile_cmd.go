@@ -1182,6 +1182,13 @@ func pluralS(count int) string {
 	return "s"
 }
 
+func pluralYIES(count int) string {
+	if count == 1 {
+		return "y"
+	}
+	return "ies"
+}
+
 func hasDiffChanges(diff *profile.Diff) bool {
 	return len(diff.PluginsToRemove) > 0 ||
 		len(diff.PluginsToInstall) > 0 ||

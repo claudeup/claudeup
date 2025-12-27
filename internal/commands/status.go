@@ -284,6 +284,21 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		configDrift = []profile.DriftedPlugin{}
 	}
 
+	// Filter config drift to avoid duplicates with missingPlugins
+	// Only show config drift for plugins NOT already shown in "enabled but not installed"
+	missingPluginsMap := make(map[string]bool)
+	for _, name := range missingPlugins {
+		missingPluginsMap[name] = true
+	}
+
+	filteredConfigDrift := []profile.DriftedPlugin{}
+	for _, d := range configDrift {
+		if !missingPluginsMap[d.PluginName] {
+			filteredConfigDrift = append(filteredConfigDrift, d)
+		}
+	}
+	configDrift = filteredConfigDrift
+
 	// Print issues if any
 	hasIssues := len(stalePlugins) > 0 || len(missingPlugins) > 0 || len(configDrift) > 0
 	if hasIssues {
@@ -328,11 +343,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				ui.Muted(ui.SymbolArrow), ui.Bold("claudeup doctor"))
 		}
 
-		// Show config drift (plugins in tracking files but not installed)
+		// Show config drift (orphaned tracking entries - in config but not in settings)
 		if len(configDrift) > 0 {
 			fmt.Println()
-			fmt.Printf("  %s %d plugin%s in config but not installed:\n",
-				ui.Warning(ui.SymbolWarning), len(configDrift), pluralS(len(configDrift)))
+			fmt.Printf("  %s %d orphaned config entr%s:\n",
+				ui.Warning(ui.SymbolWarning), len(configDrift), pluralYIES(len(configDrift)))
 
 			// Group by scope for clearer display
 			driftByScope := make(map[profile.Scope][]string)
@@ -355,8 +370,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 
 			fmt.Println()
-			ui.PrintInfo("  These plugins are tracked in config files but not installed.")
-			fmt.Printf("  %s Remove from tracking: %s\n",
+			ui.PrintInfo("  Tracked in config files but not in settings.")
+			fmt.Printf("  %s Clean up: %s\n",
 				ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean --scope <scope> <plugin>"))
 		}
 	}

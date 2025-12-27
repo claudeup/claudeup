@@ -121,6 +121,20 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		configDrift = []profile.DriftedPlugin{}
 	}
 
+	// Filter config drift to avoid duplicates with missingPlugins
+	missingPluginsMap := make(map[string]bool)
+	for _, name := range missingPlugins {
+		missingPluginsMap[name] = true
+	}
+
+	filteredConfigDrift := []profile.DriftedPlugin{}
+	for _, d := range configDrift {
+		if !missingPluginsMap[d.PluginName] {
+			filteredConfigDrift = append(filteredConfigDrift, d)
+		}
+	}
+	configDrift = filteredConfigDrift
+
 	// Analyze path issues
 	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
@@ -137,9 +151,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println()
 		}
 
-		// Show config drift (plugins in tracking files but not installed)
+		// Show config drift (orphaned tracking entries - in config but not in settings)
 		if len(configDrift) > 0 {
-			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d plugin%s in config but not installed:", len(configDrift), pluralS(len(configDrift))), 1))
+			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d orphaned config entr%s:", len(configDrift), pluralYIES(len(configDrift))), 1))
 
 			// Group by scope
 			driftByScope := make(map[profile.Scope][]string)
