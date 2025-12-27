@@ -1156,6 +1156,43 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Println(")")
 	}
+	fmt.Println()
+
+	// Check for config drift (orphaned tracking entries)
+	plugins, err := claude.LoadPlugins(claudeDir)
+	if err == nil {
+		configDrift, err := profile.DetectConfigDrift(cwd, plugins)
+		if err == nil && len(configDrift) > 0 {
+			// Group by scope
+			driftByScope := make(map[profile.Scope][]string)
+			for _, d := range configDrift {
+				driftByScope[d.Scope] = append(driftByScope[d.Scope], d.PluginName)
+			}
+
+			fmt.Printf("%s %s\n", ui.Warning("⚠"), ui.Bold("Config Drift Detected"))
+			fmt.Println()
+
+			// Show project scope drift
+			if projectDrift, ok := driftByScope[profile.ScopeProject]; ok {
+				fmt.Printf("  %s orphaned in %s:\n", ui.Muted(".claudeup.json"), pluralYIES(len(projectDrift)))
+				for _, pluginName := range projectDrift {
+					fmt.Printf("    - %s\n", pluginName)
+				}
+				fmt.Printf("  %s %s\n", ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean --scope project <plugin>"))
+				fmt.Println()
+			}
+
+			// Show local scope drift
+			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
+				fmt.Printf("  %s orphaned in %s:\n", ui.Muted(".claudeup.local.json"), pluralYIES(len(localDrift)))
+				for _, pluginName := range localDrift {
+					fmt.Printf("    - %s\n", pluginName)
+				}
+				fmt.Printf("  %s %s\n", ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean --scope local <plugin>"))
+				fmt.Println()
+			}
+		}
+	}
 
 	return nil
 }
