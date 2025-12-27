@@ -37,7 +37,8 @@ var _ = Describe("events audit", func() {
 			Expect(os.MkdirAll(eventsDir, 0755)).To(Succeed())
 
 			// Create test events
-			baseTime := time.Now().Add(-24 * time.Hour)
+			// Use 12 hours ago as base to ensure all events are on the same day when filtered by yesterday
+			baseTime := time.Now().Add(-12 * time.Hour)
 			testEvents := []*events.FileOperation{
 				{
 					Timestamp:  baseTime,
