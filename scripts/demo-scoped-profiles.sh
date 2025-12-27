@@ -334,8 +334,8 @@ scenario_local_scope() {
     print_section "Scenario: Local Scope Complete Lifecycle"
 
     print_step "1. Apply 'docker-tools' profile at local scope"
-    print_command "claudeup profile apply docker-tools --local"
-    "$CLAUDEUP_ROOT/bin/claudeup" profile apply docker-tools --local
+    print_command "claudeup profile apply docker-tools --scope local"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile apply docker-tools --scope local
     print_info "Profile applied at local scope"
     pause
 
