@@ -277,8 +277,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderSection("MCP Servers", -1))
 	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.Muted(ui.SymbolArrow))
 
+	// Check for config drift (plugins in .claudeup.json/.claudeup.local.json but not installed)
+	configDrift, err := profile.DetectConfigDrift(projectDir, plugins)
+	if err != nil {
+		// Don't fail the whole command, just skip config drift detection
+		configDrift = []profile.DriftedPlugin{}
+	}
+
 	// Print issues if any
-	hasIssues := len(stalePlugins) > 0 || len(missingPlugins) > 0
+	hasIssues := len(stalePlugins) > 0 || len(missingPlugins) > 0 || len(configDrift) > 0
 	if hasIssues {
 		fmt.Println()
 		fmt.Println(ui.RenderSection("Configuration Drift Detected", -1))
@@ -319,6 +326,38 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Printf("  %s Run %s for full diagnostics\n",
 				ui.Muted(ui.SymbolArrow), ui.Bold("claudeup doctor"))
+		}
+
+		// Show config drift (plugins in tracking files but not installed)
+		if len(configDrift) > 0 {
+			fmt.Println()
+			fmt.Printf("  %s %d plugin%s in config but not installed:\n",
+				ui.Warning(ui.SymbolWarning), len(configDrift), pluralS(len(configDrift)))
+
+			// Group by scope for clearer display
+			driftByScope := make(map[profile.Scope][]string)
+			for _, d := range configDrift {
+				driftByScope[d.Scope] = append(driftByScope[d.Scope], d.PluginName)
+			}
+
+			// Show project scope drift first
+			if projectDrift, ok := driftByScope[profile.ScopeProject]; ok {
+				for _, pluginName := range projectDrift {
+					fmt.Printf("    - %s %s\n", pluginName, ui.Muted("(project scope)"))
+				}
+			}
+
+			// Then local scope drift
+			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
+				for _, pluginName := range localDrift {
+					fmt.Printf("    - %s %s\n", pluginName, ui.Muted("(local scope)"))
+				}
+			}
+
+			fmt.Println()
+			ui.PrintInfo("  These plugins are tracked in config files but not installed.")
+			fmt.Printf("  %s Remove from tracking: %s\n",
+				ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean --scope <scope> <plugin>"))
 		}
 	}
 

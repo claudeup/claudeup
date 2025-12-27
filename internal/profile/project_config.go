@@ -194,3 +194,56 @@ func ConfigExistsForScope(projectDir string, scope Scope) bool {
 		return false
 	}
 }
+
+// DriftedPlugin represents a plugin that exists in config but is not installed
+type DriftedPlugin struct {
+	PluginName string
+	Scope      Scope
+}
+
+// PluginChecker interface for checking if plugins are installed
+type PluginChecker interface {
+	IsPluginInstalled(name string) bool
+}
+
+// DetectConfigDrift finds plugins in .claudeup.json or .claudeup.local.json that are not installed
+func DetectConfigDrift(projectDir string, pluginChecker PluginChecker) ([]DriftedPlugin, error) {
+	var drift []DriftedPlugin
+
+	// Check project scope (.claudeup.json)
+	if ProjectConfigExists(projectDir) {
+		projectCfg, err := LoadProjectConfig(projectDir)
+		if err != nil {
+			// If we can't load it, skip drift detection for this scope
+			// Don't fail the whole operation
+		} else {
+			for _, pluginName := range projectCfg.Plugins {
+				if !pluginChecker.IsPluginInstalled(pluginName) {
+					drift = append(drift, DriftedPlugin{
+						PluginName: pluginName,
+						Scope:      ScopeProject,
+					})
+				}
+			}
+		}
+	}
+
+	// Check local scope (.claudeup.local.json)
+	if LocalConfigExists(projectDir) {
+		localCfg, err := LoadLocalConfig(projectDir)
+		if err != nil {
+			// If we can't load it, skip drift detection for this scope
+		} else {
+			for _, pluginName := range localCfg.Plugins {
+				if !pluginChecker.IsPluginInstalled(pluginName) {
+					drift = append(drift, DriftedPlugin{
+						PluginName: pluginName,
+						Scope:      ScopeLocal,
+					})
+				}
+			}
+		}
+	}
+
+	return drift, nil
+}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -113,11 +114,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(missingPlugins)
 
+	// Check for config drift (plugins in .claudeup.json/.claudeup.local.json but not installed)
+	configDrift, err := profile.DetectConfigDrift(projectDir, plugins)
+	if err != nil {
+		// Don't fail the whole command, just skip config drift detection
+		configDrift = []profile.DriftedPlugin{}
+	}
+
 	// Analyze path issues
 	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
 
-	if len(pathIssues) == 0 && len(missingPlugins) == 0 {
+	if len(pathIssues) == 0 && len(missingPlugins) == 0 && len(configDrift) == 0 {
 		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All plugin paths are valid", 1))
 	} else {
 		// Show plugins enabled but not installed
@@ -125,6 +133,32 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugin%s enabled but not installed:", len(missingPlugins), pluralS(len(missingPlugins))), 1))
 			for _, name := range missingPlugins {
 				fmt.Println(ui.Indent(ui.SymbolBullet+" "+name, 2))
+			}
+			fmt.Println()
+		}
+
+		// Show config drift (plugins in tracking files but not installed)
+		if len(configDrift) > 0 {
+			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d plugin%s in config but not installed:", len(configDrift), pluralS(len(configDrift))), 1))
+
+			// Group by scope
+			driftByScope := make(map[profile.Scope][]string)
+			for _, d := range configDrift {
+				driftByScope[d.Scope] = append(driftByScope[d.Scope], d.PluginName)
+			}
+
+			// Show project scope drift
+			if projectDrift, ok := driftByScope[profile.ScopeProject]; ok {
+				for _, pluginName := range projectDrift {
+					fmt.Println(ui.Indent(ui.SymbolBullet+" "+pluginName+" "+ui.Muted("(project scope)"), 2))
+				}
+			}
+
+			// Show local scope drift
+			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
+				for _, pluginName := range localDrift {
+					fmt.Println(ui.Indent(ui.SymbolBullet+" "+pluginName+" "+ui.Muted("(local scope)"), 2))
+				}
 			}
 			fmt.Println()
 		}
@@ -171,6 +205,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		if len(configDrift) > 0 {
+			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Remove plugins from config: "+ui.Bold("claudeup profile clean --scope <scope> <plugin>")), 1))
+		}
+
 		if len(pathIssues) > 0 {
 			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix path issues: "+ui.Bold("claudeup cleanup")), 1))
 			fmt.Println(ui.Indent(ui.Muted("(use --fix-only or --remove-only for granular control)"), 2))
@@ -187,7 +225,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", marketplaceSummary), 1))
 
 	pluginSummary := fmt.Sprintf("%d installed", len(plugins.Plugins))
-	totalIssues := len(pathIssues) + len(missingPlugins)
+	totalIssues := len(pathIssues) + len(missingPlugins) + len(configDrift)
 	if totalIssues > 0 {
 		pluginSummary += fmt.Sprintf(", %d issues", totalIssues)
 	}
