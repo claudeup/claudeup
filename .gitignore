@@ -50,3 +50,6 @@ docker/claudeup*
 # Claude
 settings.local.json
 
+# claudeup local config (should not be committed)
+.claudeup.local.json
+
