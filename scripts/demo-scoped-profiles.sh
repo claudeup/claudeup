@@ -82,7 +82,8 @@ setup_environment() {
     export CI=true
 
     # Create directory structure
-    mkdir -p "$PROJECT_DIR/.claudeup/profiles"
+    mkdir -p "$PROJECT_DIR"
+    mkdir -p "$TEST_DIR/.claudeup/profiles"
 
     print_info "Using isolated Claude environment: $CLAUDE_DIR"
     print_info "All claude and claudeup commands will use this directory"
@@ -137,9 +138,14 @@ EOF
     # Create sample profiles
     print_step "Creating sample profiles..."
 
-    cat > "$PROJECT_DIR/.claudeup/profiles/base-tools.json" <<'EOF'
+    cat > "$TEST_DIR/.claudeup/profiles/base-tools.json" <<'EOF'
 {
   "name": "base-tools",
+  "marketplaces": [
+    {"source": "github", "repo": "thedotmack/claude-mem"},
+    {"source": "github", "repo": "obra/superpowers-marketplace"},
+    {"source": "github", "repo": "wshobson/agents"}
+  ],
   "plugins": [
     "claude-mem@thedotmack",
     "superpowers@superpowers-marketplace",
@@ -148,9 +154,13 @@ EOF
 }
 EOF
 
-    cat > "$PROJECT_DIR/.claudeup/profiles/backend-stack.json" <<'EOF'
+    cat > "$TEST_DIR/.claudeup/profiles/backend-stack.json" <<'EOF'
 {
   "name": "backend-stack",
+  "marketplaces": [
+    {"source": "github", "repo": "anthropics/claude-plugins-official"},
+    {"source": "github", "repo": "wshobson/agents"}
+  ],
   "plugins": [
     "gopls-lsp@claude-plugins-official",
     "backend-development@claude-code-workflows",
@@ -160,9 +170,12 @@ EOF
 }
 EOF
 
-    cat > "$PROJECT_DIR/.claudeup/profiles/docker-tools.json" <<'EOF'
+    cat > "$TEST_DIR/.claudeup/profiles/docker-tools.json" <<'EOF'
 {
   "name": "docker-tools",
+  "marketplaces": [
+    {"source": "github", "repo": "wshobson/agents"}
+  ],
   "plugins": [
     "systems-programming@claude-code-workflows",
     "shell-scripting@claude-code-workflows"
@@ -235,9 +248,9 @@ scenario_user_scope() {
     pause
 
     print_step "5. Clean up drift at user scope"
-    print_command "claudeup profile clean --scope user"
-    "$CLAUDEUP_ROOT/bin/claudeup" profile clean --scope user
-    print_info "User scope cleaned"
+    print_command "claudeup profile apply base-tools --scope user --reset -y"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile apply base-tools --scope user --reset -y
+    print_info "User scope cleaned (reset to profile state)"
     pause
 
     print_step "6. Verify cleanup - check user settings"
@@ -290,9 +303,9 @@ scenario_project_scope() {
     pause
 
     print_step "5. Clean up drift at project scope"
-    print_command "claudeup profile clean --scope project"
-    "$CLAUDEUP_ROOT/bin/claudeup" profile clean --scope project
-    print_info "Project scope cleaned"
+    print_command "claudeup profile clean --scope project python-development@claude-code-workflows"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile clean --scope project python-development@claude-code-workflows
+    print_info "Project scope cleaned (removed python-development)"
     pause
 
     print_step "6. Verify cleanup - check project settings"
@@ -346,9 +359,9 @@ scenario_local_scope() {
     pause
 
     print_step "5. Clean up drift at local scope"
-    print_command "claudeup profile clean --local"
-    "$CLAUDEUP_ROOT/bin/claudeup" profile clean --local
-    print_info "Local scope cleaned (only updates .claude/settings.local.json)"
+    print_command "claudeup profile clean --scope local web-scripting@claude-code-workflows"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile clean --scope local web-scripting@claude-code-workflows
+    print_info "Local scope cleaned (removed web-scripting from .claude/settings.local.json)"
     pause
 
     print_step "6. Verify cleanup - check local settings"
