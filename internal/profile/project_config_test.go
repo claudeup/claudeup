@@ -1,10 +1,13 @@
 package profile
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 func TestSaveAndLoadProjectConfig(t *testing.T) {
@@ -199,4 +202,236 @@ func TestLoadProjectConfig_ValidationError(t *testing.T) {
 	if !strings.Contains(err.Error(), "profile") {
 		t.Errorf("error should mention missing profile: %v", err)
 	}
+}
+
+func TestDetectConfigDrift(t *testing.T) {
+	t.Run("no drift when configs don't exist", func(t *testing.T) {
+		tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+		// Create mock plugin registry with installed plugins
+		mockRegistry := &MockPluginRegistry{
+			plugins: map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+			},
+		}
+
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		if err != nil {
+			t.Fatalf("DetectConfigDrift failed: %v", err)
+		}
+
+		if len(drift) != 0 {
+			t.Errorf("expected no drift, got %d drifted plugins", len(drift))
+		}
+	})
+
+	t.Run("detects drift from project config", func(t *testing.T) {
+		tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+		// Create project config with plugins
+		projectCfg := &ProjectConfig{
+			Profile: "test-profile",
+			Plugins: []string{
+				"plugin-a@marketplace",  // installed
+				"plugin-b@marketplace",  // NOT installed (drift)
+				"plugin-c@marketplace",  // NOT installed (drift)
+			},
+		}
+		if err := SaveProjectConfig(tempDir, projectCfg); err != nil {
+			t.Fatalf("SaveProjectConfig failed: %v", err)
+		}
+
+		// Create mock registry with only plugin-a installed
+		mockRegistry := &MockPluginRegistry{
+			plugins: map[string]bool{
+				"plugin-a@marketplace": true,
+			},
+		}
+
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		if err != nil {
+			t.Fatalf("DetectConfigDrift failed: %v", err)
+		}
+
+		if len(drift) != 2 {
+			t.Errorf("expected 2 drifted plugins, got %d", len(drift))
+		}
+
+		// Check that drifted plugins are from project scope
+		for _, d := range drift {
+			if d.Scope != ScopeProject {
+				t.Errorf("expected drift from project scope, got %s", d.Scope)
+			}
+			if d.PluginName != "plugin-b@marketplace" && d.PluginName != "plugin-c@marketplace" {
+				t.Errorf("unexpected drifted plugin: %s", d.PluginName)
+			}
+		}
+	})
+
+	t.Run("detects drift from local settings", func(t *testing.T) {
+		tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+		// Create .claude directory
+		claudeDir := filepath.Join(tempDir, ".claude")
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatalf("failed to create .claude dir: %v", err)
+		}
+
+		// Create local settings with enabled plugins
+		localSettings := &claude.Settings{
+			EnabledPlugins: map[string]bool{
+				"local-plugin-a@marketplace": true, // NOT installed (drift)
+			},
+		}
+		settingsPath := filepath.Join(claudeDir, "settings.local.json")
+		data, err := json.MarshalIndent(localSettings, "", "  ")
+		if err != nil {
+			t.Fatalf("failed to marshal settings: %v", err)
+		}
+		if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+			t.Fatalf("failed to write settings: %v", err)
+		}
+
+		// Create mock registry with no plugins installed
+		mockRegistry := &MockPluginRegistry{
+			plugins: map[string]bool{},
+		}
+
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		if err != nil {
+			t.Fatalf("DetectConfigDrift failed: %v", err)
+		}
+
+		if len(drift) != 1 {
+			t.Errorf("expected 1 drifted plugin, got %d", len(drift))
+		}
+
+		if drift[0].Scope != ScopeLocal {
+			t.Errorf("expected drift from local scope, got %s", drift[0].Scope)
+		}
+		if drift[0].PluginName != "local-plugin-a@marketplace" {
+			t.Errorf("expected local-plugin-a@marketplace, got %s", drift[0].PluginName)
+		}
+	})
+
+	t.Run("detects drift from both scopes", func(t *testing.T) {
+		tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+		// Create project config
+		projectCfg := &ProjectConfig{
+			Profile: "test-profile",
+			Plugins: []string{
+				"project-plugin@marketplace",  // NOT installed (drift)
+			},
+		}
+		if err := SaveProjectConfig(tempDir, projectCfg); err != nil {
+			t.Fatalf("SaveProjectConfig failed: %v", err)
+		}
+
+		// Create .claude directory
+		claudeDir := filepath.Join(tempDir, ".claude")
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatalf("failed to create .claude dir: %v", err)
+		}
+
+		// Create local settings with enabled plugins
+		localSettings := &claude.Settings{
+			EnabledPlugins: map[string]bool{
+				"local-plugin@marketplace": true, // NOT installed (drift)
+			},
+		}
+		settingsPath := filepath.Join(claudeDir, "settings.local.json")
+		data, err := json.MarshalIndent(localSettings, "", "  ")
+		if err != nil {
+			t.Fatalf("failed to marshal settings: %v", err)
+		}
+		if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+			t.Fatalf("failed to write settings: %v", err)
+		}
+
+		// Create mock registry with no plugins installed
+		mockRegistry := &MockPluginRegistry{
+			plugins: map[string]bool{},
+		}
+
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		if err != nil {
+			t.Fatalf("DetectConfigDrift failed: %v", err)
+		}
+
+		if len(drift) != 2 {
+			t.Errorf("expected 2 drifted plugins, got %d", len(drift))
+		}
+
+		// Check we have one from each scope
+		scopeCounts := make(map[Scope]int)
+		for _, d := range drift {
+			scopeCounts[d.Scope]++
+		}
+
+		if scopeCounts[ScopeProject] != 1 {
+			t.Errorf("expected 1 drift from project scope, got %d", scopeCounts[ScopeProject])
+		}
+		if scopeCounts[ScopeLocal] != 1 {
+			t.Errorf("expected 1 drift from local scope, got %d", scopeCounts[ScopeLocal])
+		}
+	})
+
+	t.Run("no drift when all plugins are installed", func(t *testing.T) {
+		tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+		if err != nil {
+			t.Fatalf("failed to create temp dir: %v", err)
+		}
+		defer os.RemoveAll(tempDir)
+		// Create project config
+		projectCfg := &ProjectConfig{
+			Profile: "test-profile",
+			Plugins: []string{
+				"plugin-a@marketplace",
+				"plugin-b@marketplace",
+			},
+		}
+		if err := SaveProjectConfig(tempDir, projectCfg); err != nil {
+			t.Fatalf("SaveProjectConfig failed: %v", err)
+		}
+
+		// Create mock registry with all plugins installed
+		mockRegistry := &MockPluginRegistry{
+			plugins: map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+			},
+		}
+
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		if err != nil {
+			t.Fatalf("DetectConfigDrift failed: %v", err)
+		}
+
+		if len(drift) != 0 {
+			t.Errorf("expected no drift, got %d drifted plugins", len(drift))
+		}
+	})
+}
+
+// MockPluginRegistry implements PluginChecker interface for testing
+type MockPluginRegistry struct {
+	plugins map[string]bool
+}
+
+func (m *MockPluginRegistry) IsPluginInstalled(name string) bool {
+	return m.plugins[name]
 }

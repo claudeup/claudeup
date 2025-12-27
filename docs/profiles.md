@@ -14,7 +14,7 @@ claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
 claudeup profile save [name]       # Save current setup as a profile
 claudeup profile create <name>     # Create a profile by copying an existing one
-claudeup profile use <name>        # Apply a profile
+claudeup profile apply <name>        # Apply a profile
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile delete <name>     # Delete a custom user profile
 claudeup profile restore <name>    # Restore a built-in profile to original state
@@ -28,13 +28,13 @@ Profiles can be applied at different scopes, allowing you to layer configuration
 
 ```bash
 # User scope (default) - Your personal configuration
-claudeup profile use my-defaults
+claudeup profile apply my-defaults
 
 # Project scope - Project-specific plugins (shared with team via git)
-claudeup profile use backend-project --scope project
+claudeup profile apply backend-project --scope project
 
 # Local scope - Machine-specific plugins (not shared)
-claudeup profile use laptop-only --scope local
+claudeup profile apply laptop-only --scope local
 ```
 
 ### How Scopes Work
@@ -61,14 +61,14 @@ Claude Code uses a **layered settings model** where all scopes are active simult
 
 ```bash
 # User scope: 5 base plugins
-claudeup profile use base-tools
+claudeup profile apply base-tools
 
 # Project scope: 3 project plugins
 cd ~/my-project
-claudeup profile use backend-stack --scope project
+claudeup profile apply backend-stack --scope project
 
 # Local scope: 2 machine-specific plugins
-claudeup profile use docker-tools --scope local
+claudeup profile apply docker-tools --scope local
 
 # Result: All 10 plugins (5 + 3 + 2) are active
 ```
@@ -192,25 +192,25 @@ claudeup profile current
 
 ```bash
 # Once: Set up personal defaults
-claudeup profile use my-base-tools
+claudeup profile apply my-base-tools
 
 # Per-project: Add project plugins
 cd ~/backend-api
-claudeup profile use backend-stack --scope project
+claudeup profile apply backend-stack --scope project
 ```
 
 **Pattern 2: Base + Project + Local Override**
 
 ```bash
 # User scope: Base tools
-claudeup profile use base
+claudeup profile apply base
 
 # Project scope: Backend tools
 cd ~/api-service
-claudeup profile use backend --scope project
+claudeup profile apply backend --scope project
 
 # Local scope: Disable heavy plugins on laptop
-claudeup profile use lightweight --scope local
+claudeup profile apply lightweight --scope local
 ```
 
 **Pattern 3: Team Collaboration**
@@ -218,7 +218,7 @@ claudeup profile use lightweight --scope local
 ```bash
 # Maintainer: Set up project configuration
 cd ~/team-project
-claudeup profile use team-stack --scope project
+claudeup profile apply team-stack --scope project
 git add .claudeup.json .mcp.json
 git commit -m "Add Claude configuration"
 git push
@@ -329,10 +329,10 @@ claudeup setup --profile hobson
 
 ```bash
 # Re-run setup wizard
-claudeup profile use hobson --setup
+claudeup profile apply hobson --setup
 
 # Skip wizard (for CI/scripting)
-claudeup profile use hobson --no-interactive
+claudeup profile apply hobson --no-interactive
 ```
 
 **Use when:** Want access to a large plugin marketplace with guided setup.
@@ -535,10 +535,10 @@ Profiles can include hooks that run after the profile is applied. This enables i
 
 ```bash
 # Force the hook to run even if first-run detection would skip it
-claudeup profile use myprofile --setup
+claudeup profile apply myprofile --setup
 
 # Skip the hook entirely (for CI/scripting)
-claudeup profile use myprofile --no-interactive
+claudeup profile apply myprofile --no-interactive
 ```
 
 ### Security Considerations
@@ -651,7 +651,7 @@ claudeup profile reset frontend
 claudeup profile restore frontend
 
 # 3. Reinstall from the original built-in
-claudeup profile use frontend
+claudeup profile apply frontend
 ```
 
 **Note:** If you only want to restore the profile definition without changing what's installed, just run `profile restore`.

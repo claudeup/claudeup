@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // PluginRegistry represents the installed_plugins.json file structure
@@ -112,7 +114,17 @@ func SavePlugins(claudeDir string, registry *PluginRegistry) error {
 		return err
 	}
 
-	return os.WriteFile(pluginsPath, data, 0644)
+	// Wrap file write with event tracking
+	// Note: Operation name is generic. Phase 2 will add context to distinguish
+	// between "profile apply", "plugin cleanup", and "plugin update" operations.
+	return events.GlobalTracker().RecordFileWrite(
+		"plugin update",
+		pluginsPath,
+		"user",
+		func() error {
+			return os.WriteFile(pluginsPath, data, 0644)
+		},
+	)
 }
 
 // PathExists checks if a plugin's install path actually exists
@@ -198,6 +210,11 @@ func (r *PluginRegistry) EnablePlugin(pluginName string, metadata PluginMetadata
 func (r *PluginRegistry) PluginExists(pluginName string) bool {
 	_, exists := r.GetPlugin(pluginName)
 	return exists
+}
+
+// IsPluginInstalled checks if a plugin is installed (alias for PluginExists)
+func (r *PluginRegistry) IsPluginInstalled(pluginName string) bool {
+	return r.PluginExists(pluginName)
 }
 
 // RemovePlugin removes a plugin from the registry entirely

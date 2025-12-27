@@ -33,7 +33,7 @@ Save and switch between different Claude configurations. Great for different pro
 ```bash
 claudeup profile list              # See available profiles
 claudeup profile save my-setup     # Save current config as a profile
-claudeup profile use backend       # Switch to a different profile
+claudeup profile apply backend     # Switch to a different profile
 ```
 
 Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more →](docs/profiles.md)

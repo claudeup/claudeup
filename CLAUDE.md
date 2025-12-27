@@ -85,6 +85,92 @@ Feature development uses git worktrees in `.worktrees/` directory (already in .g
 
 Built-in profiles are embedded from `internal/profile/profiles/*.json` using Go's embed directive.
 
+## Profile Scope Awareness
+
+claudeup respects Claude Code's scope layering system (user → project → local).
+
+**How Claude Code works:**
+- Settings files exist at three scopes: user (`~/.claude/settings.json`), project (`.claude/settings.json`), local (`.claude/settings.local.json`)
+- Claude Code **accumulates** settings from all scopes: user → project → local
+- Later scopes override earlier ones (local > project > user)
+- The effective configuration is the combination of all three scopes
+
+**How claudeup handles this:**
+- `profile list` shows which profile is active at each scope
+- `*` marker shows the highest precedence active profile (what Claude actually uses)
+- `○` marker shows profiles active at lower precedence scopes (overridden)
+- `[scope]` indicates which scope a profile is active in
+- `(modified)` compares against the **effective configuration** (all scopes combined)
+
+**Example output:**
+```text
+Your profiles (5)
+
+○ base-tools           Base tools [user] (modified)
+* claudeup             My claudeup setup [project]
+```
+
+This shows:
+- `base-tools` is active at user scope but overridden by `claudeup` at project scope
+- The effective configuration differs from the `base-tools` saved definition
+- Claude Code is actually using `claudeup` (highest precedence)
+
+## Event Tracking & Privacy
+
+claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit trails and troubleshooting.
+
+### Content Capture Behavior
+
+**What is captured:**
+- JSON files under 1MB have their full content stored in event snapshots
+- This enables the `claudeup events diff` command to show detailed changes
+- Files tracked include: settings.json, installed_plugins.json, profiles, mcp configs
+
+**Privacy considerations:**
+- ⚠️ **Event logs may contain sensitive data** if configuration files include API keys, tokens, or credentials
+- Event logs are stored with 0600 permissions (owner-only access)
+- Logs are stored locally at `~/.claudeup/events/operations.log`
+
+**Recommendations:**
+- Do not store secrets in Claude configuration files (use environment variables or secret managers instead)
+- Review event logs before sharing for debugging: `cat ~/.claudeup/events/operations.log`
+- Event log retention can be configured in `~/.claudeup/config.json` (future feature)
+
+**Disabling event tracking:**
+Set `monitoring.enabled: false` in `~/.claudeup/config.json` to disable all event tracking.
+
+### Viewing Event Diffs
+
+The `claudeup events diff` command shows what changed in file operations:
+
+```bash
+# Show most recent change (truncated for readability)
+claudeup events diff --file ~/.claude/plugins/installed_plugins.json
+
+# Show full details with deep diff (recommended for debugging)
+claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
+```
+
+**Default mode** (truncated):
+- Nested objects shown as `{...}` to prevent terminal overflow
+- Good for quick overview of changes
+
+**Full mode** (`--full` flag):
+- Recursively diffs nested objects showing only changed fields
+- Color-coded symbols: 🟢 `+` added, 🔴 `-` removed, 🔵 `~` modified
+- Bold key names with gray `(added)`/`(removed)` labels
+- Ideal for understanding complex configuration changes
+
+**Example output:**
+```text
+~ plugins:
+  ~ conductor@claude-conductor:
+    ~ scope: "project" → "user"
+    ~ installedAt: "2025-12-26T05:14:20.184Z" → "2025-12-26T19:11:07.257Z"
+  ~ backend-api-security@claude-code-workflows:
+    - projectPath: "/Users/markalston/workspace/claudeup" (removed)
+```
+
 ## Claude CLI Format Compatibility
 
 claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `settings.json`). To protect against format changes:

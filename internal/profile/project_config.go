@@ -1,5 +1,5 @@
-// ABOUTME: Manages .claudeup.json files for project-level profile configuration
-// ABOUTME: Stores profile metadata, marketplaces, and plugins for team sharing
+// ABOUTME: Manages .claudeup.json file for project-level profile configuration
+// ABOUTME: Local scope uses Claude Code's native .claude/settings.local.json
 package profile
 
 import (
@@ -8,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // ProjectConfigFile is the filename for project-level profile configuration
@@ -66,7 +69,15 @@ func SaveProjectConfig(projectDir string, cfg *ProjectConfig) error {
 	// Add trailing newline for cleaner git diffs
 	data = append(data, '\n')
 
-	return os.WriteFile(path, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"project config save",
+		path,
+		"project",
+		func() error {
+			return os.WriteFile(path, data, 0644)
+		},
+	)
 }
 
 // ProjectConfigExists returns true if a .claudeup.json file exists in the directory
@@ -90,4 +101,95 @@ func NewProjectConfig(p *Profile) *ProjectConfig {
 		Plugins:       p.Plugins,
 		AppliedAt:     time.Now(),
 	}
+}
+
+// LoadConfigForScope loads the appropriate config file based on scope
+// Only project scope has a .claudeup.json config file (local uses .claude/settings.local.json)
+// This avoids duplication since Claude Code already manages local settings natively
+func LoadConfigForScope(projectDir string, scope Scope) (*ProjectConfig, error) {
+	if scope == ScopeProject {
+		return LoadProjectConfig(projectDir)
+	}
+	return nil, fmt.Errorf("invalid scope for config loading: %s (only project scope has config file)", scope)
+}
+
+// SaveConfigForScope saves the config to the appropriate file based on scope
+// Only project scope has a .claudeup.json config file (local uses .claude/settings.local.json)
+// This avoids duplication since Claude Code already manages local settings natively
+func SaveConfigForScope(projectDir string, cfg *ProjectConfig, scope Scope) error {
+	if scope == ScopeProject {
+		return SaveProjectConfig(projectDir, cfg)
+	}
+	return fmt.Errorf("invalid scope for config saving: %s (only project scope has config file)", scope)
+}
+
+// ConfigExistsForScope returns true if a config file exists for the given scope
+// Only project scope has a .claudeup.json config file (local uses .claude/settings.local.json)
+// This avoids duplication since Claude Code already manages local settings natively
+func ConfigExistsForScope(projectDir string, scope Scope) bool {
+	if scope == ScopeProject {
+		return ProjectConfigExists(projectDir)
+	}
+	return false
+}
+
+// DriftedPlugin represents a plugin that exists in config but is not installed
+type DriftedPlugin struct {
+	PluginName string
+	Scope      Scope
+}
+
+// PluginChecker interface for checking if plugins are installed
+type PluginChecker interface {
+	IsPluginInstalled(name string) bool
+}
+
+// DetectConfigDrift finds plugins that are enabled but not installed
+func DetectConfigDrift(claudeDir, projectDir string, pluginChecker PluginChecker) ([]DriftedPlugin, error) {
+	var drift []DriftedPlugin
+	var firstError error
+
+	// Check project scope (.claudeup.json)
+	if ProjectConfigExists(projectDir) {
+		projectCfg, err := LoadProjectConfig(projectDir)
+		if err != nil {
+			// Record the error but continue checking other scopes
+			if firstError == nil {
+				firstError = fmt.Errorf("failed to load %s: %w", ProjectConfigFile, err)
+			}
+		} else {
+			for _, pluginName := range projectCfg.Plugins {
+				if !pluginChecker.IsPluginInstalled(pluginName) {
+					drift = append(drift, DriftedPlugin{
+						PluginName: pluginName,
+						Scope:      ScopeProject,
+					})
+				}
+			}
+		}
+	}
+
+	// Check local scope (.claude/settings.local.json)
+	localSettingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+	if _, err := os.Stat(localSettingsPath); err == nil {
+		localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
+		if err != nil {
+			// Record the error but continue checking other scopes
+			if firstError == nil {
+				firstError = fmt.Errorf("failed to load .claude/settings.local.json: %w", err)
+			}
+		} else {
+			// Check each enabled plugin in local settings
+			for pluginName := range localSettings.EnabledPlugins {
+				if !pluginChecker.IsPluginInstalled(pluginName) {
+					drift = append(drift, DriftedPlugin{
+						PluginName: pluginName,
+						Scope:      ScopeLocal,
+					})
+				}
+			}
+		}
+	}
+
+	return drift, firstError
 }

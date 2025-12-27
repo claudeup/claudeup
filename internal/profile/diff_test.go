@@ -724,4 +724,149 @@ var _ = Describe("ProfileDiff", func() {
 			Expect(modified).To(BeFalse())
 		})
 	})
+
+	Describe("SnapshotCombined and IsProfileModifiedCombined", func() {
+		var (
+			tempDir     string
+			claudeDir   string
+			projectDir  string
+			profilesDir string
+		)
+
+		BeforeEach(func() {
+			tempDir = GinkgoT().TempDir()
+			claudeDir = tempDir + "/.claude"
+			projectDir = tempDir + "/project"
+			profilesDir = tempDir + "/.claudeup/profiles"
+
+			// Create directory structure
+			Expect(os.MkdirAll(claudeDir, 0755)).To(Succeed())
+			Expect(os.MkdirAll(projectDir+"/.claude", 0755)).To(Succeed())
+			Expect(os.MkdirAll(profilesDir, 0755)).To(Succeed())
+		})
+
+		Describe("SnapshotCombined", func() {
+			It("combines plugins from user and project scopes", func() {
+				// User scope: plugin-a enabled
+				userSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-a@marketplace": true,
+						"plugin-b@marketplace": false, // Disabled at user scope
+					},
+				}
+				Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
+
+				// Project scope: plugin-b enabled (overrides user), plugin-c added
+				projectSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-b@marketplace": true, // Override: now enabled
+						"plugin-c@marketplace": true, // New plugin
+					},
+				}
+				Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+				// Snapshot combined should include: plugin-a (user), plugin-b (project override), plugin-c (project)
+				snapshot, err := SnapshotCombined("test", claudeDir, "", projectDir)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(snapshot.Plugins).To(ConsistOf("plugin-a@marketplace", "plugin-b@marketplace", "plugin-c@marketplace"))
+			})
+
+			It("local scope overrides project and user", func() {
+				// User scope
+				userSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-a@marketplace": true,
+					},
+				}
+				Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
+
+				// Project scope
+				projectSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-b@marketplace": true,
+					},
+				}
+				Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+				// Local scope: disable plugin-a, enable plugin-b, add plugin-c
+				localSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-a@marketplace": false, // Override user
+						"plugin-c@marketplace": true,  // New
+					},
+				}
+				Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, localSettings)).To(Succeed())
+
+				// Combined should be: plugin-b (project), plugin-c (local)
+				// plugin-a is disabled by local scope
+				snapshot, err := SnapshotCombined("test", claudeDir, "", projectDir)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(snapshot.Plugins).To(ConsistOf("plugin-b@marketplace", "plugin-c@marketplace"))
+				Expect(snapshot.Plugins).NotTo(ContainElement("plugin-a@marketplace"))
+			})
+		})
+
+		Describe("IsProfileModifiedCombined", func() {
+			It("detects modifications across all scopes", func() {
+				// Save a profile with plugin-a and plugin-b
+				profile := &Profile{
+					Name:    "test",
+					Plugins: []string{"plugin-a@marketplace", "plugin-b@marketplace"},
+				}
+				Expect(Save(profilesDir, profile)).To(Succeed())
+
+				// User scope: only plugin-a
+				userSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-a@marketplace": true,
+					},
+				}
+				Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
+
+				// Project scope: adds plugin-c (not in profile)
+				projectSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-c@marketplace": true,
+					},
+				}
+				Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+				// Combined state has plugin-a + plugin-c, but profile expects plugin-a + plugin-b
+				// Should detect modification
+				modified, err := IsProfileModifiedCombined("test", profilesDir, claudeDir, "", projectDir)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(modified).To(BeTrue())
+			})
+
+			It("returns false when combined state matches profile", func() {
+				// Save a profile
+				profile := &Profile{
+					Name:    "test",
+					Plugins: []string{"plugin-a@marketplace", "plugin-b@marketplace"},
+				}
+				Expect(Save(profilesDir, profile)).To(Succeed())
+
+				// User scope: plugin-a
+				userSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-a@marketplace": true,
+					},
+				}
+				Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
+
+				// Project scope: plugin-b
+				projectSettings := &claude.Settings{
+					EnabledPlugins: map[string]bool{
+						"plugin-b@marketplace": true,
+					},
+				}
+				Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+				// Combined = plugin-a + plugin-b, matches profile
+				modified, err := IsProfileModifiedCombined("test", profilesDir, claudeDir, "", projectDir)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(modified).To(BeFalse())
+			})
+		})
+	})
 })

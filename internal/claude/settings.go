@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/claudeup/claudeup/internal/events"
 )
 
 // Settings represents the Claude Code settings.json file structure
@@ -112,7 +114,15 @@ func SaveSettings(claudeDir string, settings *Settings) error {
 		return err
 	}
 
-	return os.WriteFile(settingsPath, data, 0644)
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"settings update",
+		settingsPath,
+		"user",
+		func() error {
+			return os.WriteFile(settingsPath, data, 0644)
+		},
+	)
 }
 
 // SettingsPathForScope returns the settings.json path for a given scope
@@ -216,7 +226,21 @@ func SaveSettingsForScope(scope string, claudeDir string, projectDir string, set
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	// Normalize empty scope to "user"
+	normalizedScope := scope
+	if normalizedScope == "" {
+		normalizedScope = "user"
+	}
+
+	// Wrap file write with event tracking
+	return events.GlobalTracker().RecordFileWrite(
+		"settings update",
+		path,
+		normalizedScope,
+		func() error {
+			return os.WriteFile(path, data, 0644)
+		},
+	)
 }
 
 // LoadMergedSettings loads settings from all scopes and merges them
