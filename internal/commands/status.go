@@ -213,8 +213,22 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Count enabled plugins and detect issues
 	enabledCount := 0
-	stalePlugins := []string{}
+	stalePlugins := []string{}        // Installed but path missing
+	missingPlugins := []string{}      // Enabled in settings but not installed
 
+	// First, collect all plugins enabled in settings (across all scopes)
+	enabledInSettings := make(map[string]bool)
+	for _, scope := range scopes {
+		if scopeSettings[scope] != nil {
+			for name, enabled := range scopeSettings[scope].EnabledPlugins {
+				if enabled {
+					enabledInSettings[name] = true
+				}
+			}
+		}
+	}
+
+	// Check installed plugins for issues
 	for name, plugin := range plugins.GetAllPlugins() {
 		// Check if plugin is enabled in any scope
 		if _, enabled := pluginScopes[name]; enabled {
@@ -225,6 +239,17 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+
+	// Find plugins enabled in settings but not installed
+	for name := range enabledInSettings {
+		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+			missingPlugins = append(missingPlugins, name)
+		}
+	}
+
+	// Sort for consistent output
+	sort.Strings(stalePlugins)
+	sort.Strings(missingPlugins)
 
 	// Print plugins summary with scope information
 	fmt.Println()
@@ -253,14 +278,48 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.Muted(ui.SymbolArrow))
 
 	// Print issues if any
-	if len(stalePlugins) > 0 {
+	hasIssues := len(stalePlugins) > 0 || len(missingPlugins) > 0
+	if hasIssues {
 		fmt.Println()
-		fmt.Println(ui.RenderSection("Issues Detected", -1))
-		fmt.Printf("  %s %d plugins have stale paths\n", ui.Warning(ui.SymbolWarning), len(stalePlugins))
-		for _, name := range stalePlugins {
-			fmt.Printf("    - %s\n", name)
+		fmt.Println(ui.RenderSection("Configuration Drift Detected", -1))
+
+		if len(missingPlugins) > 0 {
+			fmt.Println()
+			fmt.Printf("  %s %d plugin%s enabled but not installed:\n",
+				ui.Warning(ui.SymbolWarning), len(missingPlugins), pluralS(len(missingPlugins)))
+			for _, name := range missingPlugins {
+				fmt.Printf("    - %s\n", name)
+			}
+			fmt.Println()
+			ui.PrintInfo("  Plugins are enabled in settings but not installed.")
+			if activeProfile != "" && activeProfile != "none" {
+				fmt.Printf("  %s Reinstall from profile: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
+			} else {
+				fmt.Printf("  %s Install manually: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin install <name>"))
+			}
 		}
-		fmt.Printf("  %s Run 'claudeup doctor' for details\n", ui.Muted(ui.SymbolArrow))
+
+		if len(stalePlugins) > 0 {
+			fmt.Println()
+			fmt.Printf("  %s %d plugin%s installed but path missing:\n",
+				ui.Warning(ui.SymbolWarning), len(stalePlugins), pluralS(len(stalePlugins)))
+			for _, name := range stalePlugins {
+				fmt.Printf("    - %s\n", name)
+			}
+			fmt.Println()
+			ui.PrintInfo("  Plugin files are missing or corrupted.")
+			if activeProfile != "" && activeProfile != "none" {
+				fmt.Printf("  %s Reinstall from profile: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
+			} else {
+				fmt.Printf("  %s Reinstall manually: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin install <name> --reinstall"))
+			}
+			fmt.Printf("  %s Run %s for full diagnostics\n",
+				ui.Muted(ui.SymbolArrow), ui.Bold("claudeup doctor"))
+		}
 	}
 
 	return nil

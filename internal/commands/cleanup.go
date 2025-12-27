@@ -4,6 +4,8 @@ package commands
 
 import (
 	"fmt"
+	"os"
+	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/ui"
@@ -19,12 +21,13 @@ var (
 
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
-	Short: "Fix plugin path issues and remove stale entries",
-	Long: `Fix plugin path issues and remove entries that can't be fixed.
+	Short: "Fix plugin path issues, remove stale entries, and reinstall missing plugins",
+	Long: `Fix plugin configuration drift and installation issues.
 
 By default, this command:
   1. Fixes plugins with correctable path issues (missing subdirectories)
   2. Removes plugin entries that are truly broken (no valid path found)
+  3. Offers to reinstall plugins enabled in settings but not installed
 
 Use --fix-only or --remove-only for granular control.`,
 	Example: `  # Preview changes without applying them
@@ -56,11 +59,41 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("cannot use --fix-only and --remove-only together")
 	}
 
+	// Get current directory for scope-aware settings
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	// Load plugins
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
 		return fmt.Errorf("failed to load plugins: %w", err)
 	}
+
+	// Load settings from all scopes to find enabled plugins
+	scopes := []string{"user", "project", "local"}
+	enabledInSettings := make(map[string]bool)
+
+	for _, scope := range scopes {
+		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
+		if err == nil {
+			for name, enabled := range settings.EnabledPlugins {
+				if enabled {
+					enabledInSettings[name] = true
+				}
+			}
+		}
+	}
+
+	// Detect plugins enabled in settings but not installed
+	missingPlugins := []string{}
+	for name := range enabledInSettings {
+		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+			missingPlugins = append(missingPlugins, name)
+		}
+	}
+	sort.Strings(missingPlugins)
 
 	// Analyze issues
 	pathIssues := analyzePathIssues(plugins)
@@ -93,9 +126,23 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if there's anything to do
-	if len(fixableIssues) == 0 && len(unfixableIssues) == 0 {
+	if len(fixableIssues) == 0 && len(unfixableIssues) == 0 && len(missingPlugins) == 0 {
 		ui.PrintSuccess("No issues found")
 		return nil
+	}
+
+	// Show missing plugins first (most common issue)
+	if len(missingPlugins) > 0 {
+		if cleanupDryRun {
+			fmt.Println(ui.RenderSection("Would reinstall missing plugins", len(missingPlugins)))
+		} else {
+			fmt.Println(ui.RenderSection("Plugins enabled but not installed", len(missingPlugins)))
+		}
+		fmt.Println()
+		for _, name := range missingPlugins {
+			fmt.Printf("  %s %s\n", ui.Error(ui.SymbolError), ui.Bold(name))
+		}
+		fmt.Println()
 	}
 
 	// Show what will be done
@@ -173,6 +220,34 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save plugins: %w", err)
 	}
 
+	// Handle missing plugins (enabled but not installed)
+	if len(missingPlugins) > 0 && !cleanupDryRun {
+		// Get active profile for smarter recommendations
+		activeProfile, _ := getActiveProfile(projectDir)
+
+		fmt.Println()
+		if activeProfile != "" && activeProfile != "none" {
+			// Use profile to reinstall
+			ui.PrintInfo(fmt.Sprintf("Reinstall %d missing plugin%s from profile '%s'?", len(missingPlugins), pluralS(len(missingPlugins)), activeProfile))
+			confirm, err := ui.ConfirmYesNo(fmt.Sprintf("Run 'claudeup profile apply %s --reinstall'?", activeProfile))
+			if err != nil {
+				return err
+			}
+			if confirm {
+				ui.PrintInfo("To reinstall missing plugins, run:")
+				fmt.Printf("  %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
+				fmt.Println()
+				ui.PrintMuted("(This will be automated in a future version)")
+			}
+		} else {
+			// No active profile - show manual install commands
+			ui.PrintInfo("To reinstall missing plugins, run:")
+			for _, name := range missingPlugins {
+				fmt.Printf("  %s\n", ui.Muted("claude plugin install "+name))
+			}
+		}
+	}
+
 	// Report results
 	fmt.Println()
 	if fixed > 0 {
@@ -190,7 +265,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if fixed > 0 || removed > 0 {
+	if fixed > 0 || removed > 0 || len(missingPlugins) > 0 {
 		fmt.Println()
 		fmt.Printf("%s Run 'claudeup status' to verify the changes\n", ui.Muted(ui.SymbolArrow))
 	}

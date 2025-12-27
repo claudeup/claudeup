@@ -44,6 +44,12 @@ type PathIssue struct {
 func runDoctor(cmd *cobra.Command, args []string) error {
 	ui.PrintInfo("Running diagnostics...")
 
+	// Get current directory for scope-aware settings
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	// Load plugins (gracefully handle fresh installs with no plugins)
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
@@ -64,6 +70,23 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Load settings from all scopes to find enabled plugins
+	scopes := []string{"user", "project", "local"}
+	scopeSettings := make(map[string]*claude.Settings)
+	enabledInSettings := make(map[string]bool)
+
+	for _, scope := range scopes {
+		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
+		if err == nil {
+			scopeSettings[scope] = settings
+			for name, enabled := range settings.EnabledPlugins {
+				if enabled {
+					enabledInSettings[name] = true
+				}
+			}
+		}
+	}
+
 	// Check marketplaces
 	fmt.Println()
 	fmt.Println(ui.RenderSection("Checking Marketplaces", len(marketplaces)))
@@ -81,13 +104,30 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
+	// Detect plugins enabled in settings but not installed
+	missingPlugins := []string{}
+	for name := range enabledInSettings {
+		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+			missingPlugins = append(missingPlugins, name)
+		}
+	}
+	sort.Strings(missingPlugins)
+
 	// Analyze path issues
 	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
 
-	if len(pathIssues) == 0 {
+	if len(pathIssues) == 0 && len(missingPlugins) == 0 {
 		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All plugin paths are valid", 1))
 	} else {
+		// Show plugins enabled but not installed
+		if len(missingPlugins) > 0 {
+			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugin%s enabled but not installed:", len(missingPlugins), pluralS(len(missingPlugins))), 1))
+			for _, name := range missingPlugins {
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+name, 2))
+			}
+			fmt.Println()
+		}
 		// Group by issue type
 		byType := make(map[string][]PathIssue)
 		for _, issue := range pathIssues {
@@ -116,10 +156,25 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// Unified recommendation
+		// Recommendations
 		fmt.Println()
-		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Run 'claudeup cleanup' to fix and remove these issues"), 1))
-		fmt.Println(ui.Indent(ui.Muted("(use --fix-only or --remove-only for granular control)"), 2))
+		fmt.Println(ui.Indent(ui.Bold("Recommendations:"), 1))
+
+		// Get active profile for better recommendations
+		activeProfile, _ := getActiveProfile(projectDir)
+
+		if len(missingPlugins) > 0 {
+			if activeProfile != "" && activeProfile != "none" {
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))), 1))
+			} else {
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install missing plugins: "+ui.Bold("claude plugin install <name>")), 1))
+			}
+		}
+
+		if len(pathIssues) > 0 {
+			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix path issues: "+ui.Bold("claudeup cleanup")), 1))
+			fmt.Println(ui.Indent(ui.Muted("(use --fix-only or --remove-only for granular control)"), 2))
+		}
 	}
 	fmt.Println()
 
@@ -132,13 +187,14 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", marketplaceSummary), 1))
 
 	pluginSummary := fmt.Sprintf("%d installed", len(plugins.Plugins))
-	if len(pathIssues) > 0 {
-		pluginSummary += fmt.Sprintf(", %d issues", len(pathIssues))
+	totalIssues := len(pathIssues) + len(missingPlugins)
+	if totalIssues > 0 {
+		pluginSummary += fmt.Sprintf(", %d issues", totalIssues)
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", pluginSummary), 1))
 
 	fmt.Println()
-	if len(pathIssues) > 0 || marketplaceIssues > 0 {
+	if totalIssues > 0 || marketplaceIssues > 0 {
 		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {
 		ui.PrintSuccess("No issues detected!")

@@ -85,6 +85,36 @@ Feature development uses git worktrees in `.worktrees/` directory (already in .g
 
 Built-in profiles are embedded from `internal/profile/profiles/*.json` using Go's embed directive.
 
+## Profile Scope Awareness
+
+claudeup respects Claude Code's scope layering system (user → project → local).
+
+**How Claude Code works:**
+- Settings files exist at three scopes: user (`~/.claude/settings.json`), project (`.claude/settings.json`), local (`.claude/settings.local.json`)
+- Claude Code **accumulates** settings from all scopes: user → project → local
+- Later scopes override earlier ones (local > project > user)
+- The effective configuration is the combination of all three scopes
+
+**How claudeup handles this:**
+- `profile list` shows which profile is active at each scope
+- `*` marker shows the highest precedence active profile (what Claude actually uses)
+- `○` marker shows profiles active at lower precedence scopes (overridden)
+- `[scope]` indicates which scope a profile is active in
+- `(modified)` compares against the **effective configuration** (all scopes combined)
+
+**Example output:**
+```text
+Your profiles (5)
+
+○ base-tools           Base tools [user] (modified)
+* claudeup             My claudeup setup [project]
+```
+
+This shows:
+- `base-tools` is active at user scope but overridden by `claudeup` at project scope
+- The effective configuration differs from the `base-tools` saved definition
+- Claude Code is actually using `claudeup` (highest precedence)
+
 ## Event Tracking & Privacy
 
 claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit trails and troubleshooting.
