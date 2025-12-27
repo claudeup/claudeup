@@ -61,8 +61,9 @@ plugins installed via --scope project in ~/my-project/ won't trigger (modified).
 }
 
 var profileUseCmd = &cobra.Command{
-	Use:   "use <name>",
-	Short: "Apply a profile to Claude Code",
+	Use:     "apply <name>",
+	Aliases: []string{"use"},
+	Short:   "Apply a profile to Claude Code",
 	Long: `Apply a profile's configuration to your Claude Code installation.
 
 SCOPES:
@@ -82,19 +83,19 @@ teammates can sync with 'claudeup profile sync'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
 	Example: `  # Apply profile (adds to existing config)
-  claudeup profile use backend-stack
+  claudeup profile apply backend-stack
 
   # Replace existing config with profile
-  claudeup profile use backend-stack --reset
+  claudeup profile apply backend-stack --reset
 
   # Replace without prompts (for scripting)
-  claudeup profile use backend-stack --reset -y
+  claudeup profile apply backend-stack --reset -y
 
   # Set up a profile for your team (creates .claudeup.json)
-  claudeup profile use backend-stack --scope project
+  claudeup profile apply backend-stack --scope project
 
   # Force the post-apply setup wizard to run
-  claudeup profile use my-profile --setup`,
+  claudeup profile apply my-profile --setup`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileUse,
 }
