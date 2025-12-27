@@ -360,16 +360,17 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	allActiveProfiles := getAllActiveProfiles(cwd)
 
 	// The highest precedence active profile (project > local > user)
-	activeProfile, _ := getActiveProfile(cwd)
+	activeProfile, activeScope := getActiveProfile(cwd)
 
 	// Only check the highest precedence active profile for modifications.
 	// Lower precedence profiles are overridden and their modification status is irrelevant.
-	// We compare against the combined effective configuration since that's what Claude Code sees.
+	// We compare against the scope where the profile is active, not the combined configuration,
+	// to accurately reflect whether the profile itself has been modified at that scope.
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 	profileModifications := make(map[string]bool) // profileName -> isModified
 
-	if activeProfile != "" {
-		modified, err := profile.IsProfileModifiedCombined(activeProfile, profilesDir, claudeDir, claudeJSONPath, cwd)
+	if activeProfile != "" && activeScope != "" {
+		modified, err := profile.IsProfileModifiedAtScope(activeProfile, profilesDir, claudeDir, claudeJSONPath, cwd, activeScope)
 		if err == nil {
 			profileModifications[activeProfile] = modified
 		}
