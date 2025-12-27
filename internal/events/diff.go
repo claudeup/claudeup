@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/claudeup/claudeup/internal/ui"
 )
 
 // Diff symbols for change visualization
@@ -295,15 +297,29 @@ func diffNestedObjects(before, after map[string]interface{}, indentLevel int) st
 		afterVal, afterExists := after[key]
 
 		if !beforeExists && afterExists {
-			changes = append(changes, fmt.Sprintf("%s%s %s: %v (added)", indent, SymbolAdded, key, formatValueFull(afterVal, true)))
+			changes = append(changes, fmt.Sprintf("%s%s %s: %v %s",
+				indent,
+				ui.Success(SymbolAdded),
+				ui.Bold(key),
+				formatValueFull(afterVal, true),
+				ui.Muted("(added)")))
 		} else if beforeExists && !afterExists {
-			changes = append(changes, fmt.Sprintf("%s%s %s: %v (removed)", indent, SymbolRemoved, key, formatValueFull(beforeVal, true)))
+			changes = append(changes, fmt.Sprintf("%s%s %s: %v %s",
+				indent,
+				ui.Error(SymbolRemoved),
+				ui.Bold(key),
+				formatValueFull(beforeVal, true),
+				ui.Muted("(removed)")))
 		} else if !reflect.DeepEqual(beforeVal, afterVal) {
 			// Check if both are maps for recursive diffing
 			if beforeMap, beforeIsMap := beforeVal.(map[string]interface{}); beforeIsMap {
 				if afterMap, afterIsMap := afterVal.(map[string]interface{}); afterIsMap {
 					nestedDiff := diffNestedObjects(beforeMap, afterMap, indentLevel+1)
-					changes = append(changes, fmt.Sprintf("%s%s %s:\n%s", indent, SymbolModified, key, nestedDiff))
+					changes = append(changes, fmt.Sprintf("%s%s %s:\n%s",
+						indent,
+						ui.Info(SymbolModified),
+						ui.Bold(key),
+						nestedDiff))
 					continue
 				}
 			}
@@ -318,7 +334,12 @@ func diffNestedObjects(before, after map[string]interface{}, indentLevel int) st
 				}
 			}
 			// Not nested structures, show simple before → after
-			changes = append(changes, fmt.Sprintf("%s%s %s: %v → %v", indent, SymbolModified, key, formatValueFull(beforeVal, true), formatValueFull(afterVal, true)))
+			changes = append(changes, fmt.Sprintf("%s%s %s: %v → %v",
+				indent,
+				ui.Info(SymbolModified),
+				ui.Bold(key),
+				formatValueFull(beforeVal, true),
+				formatValueFull(afterVal, true)))
 		}
 	}
 
@@ -335,7 +356,11 @@ func diffArrays(before, after []interface{}, indentLevel int, key string) string
 			if afterMap, afterIsMap := after[0].(map[string]interface{}); afterIsMap {
 				// Both arrays contain single objects - diff the objects
 				nestedDiff := diffNestedObjects(beforeMap, afterMap, indentLevel+1)
-				return fmt.Sprintf("%s%s %s:\n%s", indent, SymbolModified, key, nestedDiff)
+				return fmt.Sprintf("%s%s %s:\n%s",
+					indent,
+					ui.Info(SymbolModified),
+					ui.Bold(key),
+					nestedDiff)
 			}
 		}
 	}
