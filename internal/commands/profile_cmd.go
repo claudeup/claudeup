@@ -43,23 +43,29 @@ var profileListCmd = &cobra.Command{
 	Long: `List all available profiles with their status.
 
 INDICATORS:
-  *            Active profile with highest precedence (project > local > user)
-  ○            Active profile at lower precedence scope (overridden)
+  *            Active profile with highest precedence (this is what Claude Code uses)
+  ○            Active profile at lower precedence scope (overridden, not in effect)
   [scope]      Scope where profile is active (project/local/user)
   (customized) Built-in profile has been modified and saved locally
-  (modified)   Effective configuration differs from saved profile
+  (modified)   Active profile's effective configuration differs from saved definition
 
-The (modified) indicator compares against the EFFECTIVE configuration,
-which combines all scopes since Claude Code accretes settings:
-user → project → local (later scopes override earlier ones).
+The (modified) indicator only appears on the highest precedence profile (*).
+It compares the saved profile against the EFFECTIVE configuration, which
+combines all scopes: user → project → local (later scopes override earlier).
 
-Multiple profiles can be active simultaneously at different scopes.
-The highest precedence profile (*) determines what Claude Code uses.
+SCOPE PRECEDENCE:
+  project > local > user
+
+Multiple profiles can be active at different scopes, but only the highest
+precedence profile affects Claude Code's behavior. Lower precedence profiles
+are overridden.
 
 Example: If "base-tools" is active at user scope but "claudeup" is
 active at project scope in ~/claudeup/, you'll see:
-  * claudeup    [project] ...
-  ○ base-tools  [user] ...`,
+  * claudeup    [project] (modified)  ← This is what Claude Code uses
+  ○ base-tools  [user]                ← Overridden, not in effect
+
+Use 'claudeup profile diff' to see exactly what's different.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
@@ -356,15 +362,16 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	// The highest precedence active profile (project > local > user)
 	activeProfile, _ := getActiveProfile(cwd)
 
-	// Check active profiles for modifications using combined scope comparison
-	// This accounts for Claude Code's scope accretion: user → project → local
+	// Only check the highest precedence active profile for modifications.
+	// Lower precedence profiles are overridden and their modification status is irrelevant.
+	// We compare against the combined effective configuration since that's what Claude Code sees.
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 	profileModifications := make(map[string]bool) // profileName -> isModified
 
-	for _, ap := range allActiveProfiles {
-		modified, err := profile.IsProfileModifiedCombined(ap.Name, profilesDir, claudeDir, claudeJSONPath, cwd)
+	if activeProfile != "" {
+		modified, err := profile.IsProfileModifiedCombined(activeProfile, profilesDir, claudeDir, claudeJSONPath, cwd)
 		if err == nil {
-			profileModifications[ap.Name] = modified
+			profileModifications[activeProfile] = modified
 		}
 	}
 
