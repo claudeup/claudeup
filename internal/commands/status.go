@@ -251,6 +251,22 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	sort.Strings(stalePlugins)
 	sort.Strings(missingPlugins)
 
+	// Build set of plugins in the active profile
+	pluginsInProfile := make(map[string]bool)
+	if activeProfile != "none" && activeProfile != "" {
+		homeDir, _ := os.UserHomeDir()
+		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
+		savedProfile, err := profile.Load(profilesDir, activeProfile)
+		if err != nil {
+			savedProfile, err = profile.GetEmbeddedProfile(activeProfile)
+		}
+		if err == nil {
+			for _, p := range savedProfile.Plugins {
+				pluginsInProfile[p] = true
+			}
+		}
+	}
+
 	// Print plugins summary with scope information
 	fmt.Println()
 	fmt.Println(ui.RenderSection("Plugins", enabledCount))
@@ -264,7 +280,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 		for _, name := range pluginNames {
 			scope := pluginScopes[name]
-			fmt.Printf("  %s %s %s\n", ui.Success(ui.SymbolSuccess), name, ui.Muted(fmt.Sprintf("(%s)", scope)))
+			// Mark plugins not in profile with a different symbol
+			symbol := ui.Success(ui.SymbolSuccess)
+			suffix := ui.Muted(fmt.Sprintf("(%s)", scope))
+			if activeProfile != "none" && activeProfile != "" && !pluginsInProfile[name] {
+				symbol = ui.Warning("⊕") // Use ⊕ for plugins not in profile (drift)
+				suffix = ui.Muted(fmt.Sprintf("(%s, not in profile)", scope))
+			}
+			fmt.Printf("  %s %s %s\n", symbol, name, suffix)
 		}
 	}
 	// Only show stale plugins if there are any
