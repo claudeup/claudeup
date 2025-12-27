@@ -49,7 +49,7 @@ var _ = Describe("profile command aliases", func() {
 		env.Cleanup()
 	})
 
-	It("supports 'profile apply' as an alias for 'profile use'", func() {
+	It("supports 'profile use' as an alias for 'profile apply'", func() {
 		// Test that 'profile apply' works
 		result := env.Run("profile", "apply", "test-alias", "-y")
 		Expect(result.ExitCode).To(Equal(0))

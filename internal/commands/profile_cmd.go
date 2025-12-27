@@ -242,7 +242,7 @@ var profileSyncCmd = &cobra.Command{
 	Long: `Install plugins defined in the project's .claudeup.json file.
 
 This command is intended for team members who clone a repository
-that has been configured with 'claudeup profile use --scope project'.
+that has been configured with 'claudeup profile apply --scope project'.
 
 MCP servers from .mcp.json are loaded automatically by Claude Code.
 This command syncs plugins that require explicit installation.`,
@@ -412,7 +412,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("%s Use 'claudeup profile show <name>' for details\n", ui.Muted(ui.SymbolArrow))
-	fmt.Printf("%s Use 'claudeup profile use <name>' to apply a profile\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile apply <name>' to apply a profile\n", ui.Muted(ui.SymbolArrow))
 
 	return nil
 }
@@ -587,7 +587,7 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 			// If profile has a post-apply hook (wizard), show instructions
 			if p.PostApply != nil {
 				ui.PrintInfo("This profile uses an interactive wizard to configure plugins.")
-				fmt.Printf("  Run: %s\n", ui.Bold(fmt.Sprintf("claudeup profile use %s --setup", name)))
+				fmt.Printf("  Run: %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --setup", name)))
 			} else {
 				ui.PrintInfo("Note: This profile does not manage plugins.")
 				fmt.Println("      Your existing plugins will remain unchanged.")
@@ -743,7 +743,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		// Error ignored: missing/corrupt config is handled same as no active profile
 		cfg, _ := config.Load()
 		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
-			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile use <name>' first")
+			return fmt.Errorf("no profile name given and no active profile set. Use 'claudeup profile save <name>' or 'claudeup profile apply <name>' first")
 		}
 		name = cfg.Preferences.ActiveProfile
 		isActiveProfile = true
@@ -823,7 +823,7 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 		// Error ignored: missing/corrupt config is handled same as no active profile
 		cfg, _ := config.Load()
 		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
-			return fmt.Errorf("no active profile set. Use 'claudeup profile use <name>' to apply a profile")
+			return fmt.Errorf("no active profile set. Use 'claudeup profile apply <name>' to apply a profile")
 		}
 		name = cfg.Preferences.ActiveProfile
 	}
@@ -1164,7 +1164,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	applyInput, err := reader.ReadString('\n')
 	if err != nil {
 		// Default to not applying on error
-		fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile use %s", name)))
+		fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s", name)))
 		return nil
 	}
 	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
@@ -1188,7 +1188,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 				ui.PrintInfo(fmt.Sprintf("Applied profile %q at user scope.", name))
 				fmt.Printf("  Note: This directory has an existing project config (%q).\n", existingConfig.Profile)
 				fmt.Printf("  Use '%s' to apply at project level.\n",
-					ui.Bold(fmt.Sprintf("claudeup profile use %s --scope project", name)))
+					ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope project", name)))
 			}
 		}
 
@@ -1214,7 +1214,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile use %s", name)))
+	fmt.Printf("Profile saved. Use '%s' to apply.\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s", name)))
 	return nil
 }
 
@@ -1350,7 +1350,7 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 
 	if activeProfile == "" {
 		ui.PrintInfo("No profile is currently active.")
-		fmt.Printf("  %s Use 'claudeup profile use <name>' to apply a profile.\n", ui.Muted(ui.SymbolArrow))
+		fmt.Printf("  %s Use 'claudeup profile apply <name>' to apply a profile.\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
@@ -1539,7 +1539,7 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	// If we deleted the active profile, tell user to select a new one
 	if isActive {
 		fmt.Println()
-		fmt.Println(ui.Muted("→ Run 'claudeup profile use <name>' to select a new active profile"))
+		fmt.Println(ui.Muted("→ Run 'claudeup profile apply <name>' to select a new active profile"))
 	}
 
 	return nil
@@ -1664,7 +1664,7 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 
 	// Check for .claudeup.json
 	if !profile.ProjectConfigExists(cwd) {
-		return fmt.Errorf("no %s found in current directory.\nRun `claudeup profile use <name> --scope project` to create one", profile.ProjectConfigFile)
+		return fmt.Errorf("no %s found in current directory.\nRun `claudeup profile apply <name> --scope project` to create one", profile.ProjectConfigFile)
 	}
 
 	opts := profile.SyncOptions{
