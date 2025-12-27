@@ -387,11 +387,11 @@ var _ = Describe("profile delete", func() {
 			Expect(result.Stdout).To(ContainSubstring("currently active"))
 		})
 
-		It("tells user to run 'profile use' after deletion", func() {
+		It("tells user to run 'profile apply' after deletion", func() {
 			result := env.RunWithInput("y\n", "profile", "delete", "active-profile")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("profile use"))
+			Expect(result.Stdout).To(ContainSubstring("profile apply"))
 		})
 
 		It("clears the active profile from config", func() {
