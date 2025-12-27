@@ -465,13 +465,7 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 		return nil, fmt.Errorf("failed to write local settings.json: %w", err)
 	}
 
-	// 6. Write .claudeup.local.json
-	localCfg := NewProjectConfig(profile)
-	if err := SaveLocalConfig(opts.ProjectDir, localCfg); err != nil {
-		return nil, fmt.Errorf("failed to write %s: %w", LocalConfigFile, err)
-	}
-
-	// 7. Update projects registry
+	// 6. Update projects registry
 	registry, err := config.LoadProjectsRegistry()
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("load registry: %w", err))

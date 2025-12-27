@@ -307,9 +307,9 @@ var profileCleanScope string
 var profileCleanCmd = &cobra.Command{
 	Use:   "clean <plugin>",
 	Short: "Remove orphaned plugin from config and profile",
-	Long: `Remove a plugin from .claudeup.json or .claudeup.local.json.
+	Long: `Remove orphaned plugins from project or local scope.
 
-This command removes plugins that are tracked in config files but are no longer installed.
+This command removes plugins that are enabled but no longer installed.
 If the plugin is also in your saved profile definition, this command will offer to
 remove it from the profile as well (preventing future reinstall attempts).
 
@@ -348,10 +348,11 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Try to remove from config file if it exists
+	// Try to remove from config file if it exists (only for project scope)
+	// For local scope, we only use .claude/settings.local.json
 	removedFromConfig := false
 	var cfg *profile.ProjectConfig
-	if profile.ConfigExistsForScope(projectDir, scope) {
+	if scope == profile.ScopeProject && profile.ConfigExistsForScope(projectDir, scope) {
 		var err error
 		cfg, err = profile.LoadConfigForScope(projectDir, scope)
 		if err != nil {
@@ -402,19 +403,24 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 
 	// Success message
 	scopeName := scope.String()
-	configFile := ".claudeup.json"
 	settingsFile := ".claude/settings.json"
 	if scope == profile.ScopeLocal {
-		configFile = ".claudeup.local.json"
 		settingsFile = ".claude/settings.local.json"
-	}
-
-	if removedFromConfig && removedFromSettings {
-		ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s, %s)", pluginName, scopeName, configFile, settingsFile))
-	} else if removedFromSettings {
-		ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, settingsFile))
+		if removedFromSettings {
+			ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, settingsFile))
+		} else {
+			return fmt.Errorf("plugin %q not found in %s scope settings", pluginName, scope.String())
+		}
 	} else {
-		ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, configFile))
+		// For project scope, we may update both .claudeup.json and settings
+		configFile := ".claudeup.json"
+		if removedFromConfig && removedFromSettings {
+			ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s, %s)", pluginName, scopeName, configFile, settingsFile))
+		} else if removedFromSettings {
+			ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, settingsFile))
+		} else if removedFromConfig {
+			ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, configFile))
+		}
 	}
 
 	// Check if plugin is also in the saved profile definition
@@ -1250,7 +1256,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	// Check for config drift (orphaned tracking entries)
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err == nil {
-		configDrift, err := profile.DetectConfigDrift(cwd, plugins)
+		configDrift, err := profile.DetectConfigDrift(claudeDir, cwd, plugins)
 		if err == nil && len(configDrift) > 0 {
 			// Group by scope
 			driftByScope := make(map[profile.Scope][]string)
@@ -1291,7 +1297,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 
 			// Show local scope drift
 			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
-				fmt.Printf("  %s %d orphaned entr%s:\n", ui.Muted(".claudeup.local.json"), len(localDrift), pluralYIES(len(localDrift)))
+				fmt.Printf("  %s %d orphaned entr%s:\n", ui.Muted(".claude/settings.local.json"), len(localDrift), pluralYIES(len(localDrift)))
 				for _, pluginName := range localDrift {
 					suffix := ""
 					if pluginsInProfile[pluginName] {
