@@ -23,7 +23,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"version": 1, "newField": "value"}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeTrue())
@@ -42,7 +42,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"version": 1}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeTrue())
@@ -61,7 +61,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"version": 2}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeTrue())
@@ -88,7 +88,7 @@ var _ = Describe("DiffSnapshots", func() {
 				}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeTrue())
@@ -107,7 +107,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Size: 1500,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeFalse())
@@ -125,7 +125,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Size: 1500,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.Summary).To(ContainSubstring("+500"))
 		})
@@ -140,7 +140,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"version": 1}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.Summary).To(ContainSubstring("created"))
@@ -156,7 +156,7 @@ var _ = Describe("DiffSnapshots", func() {
 			}
 			after := (*events.Snapshot)(nil)
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.Summary).To(ContainSubstring("deleted"))
@@ -176,7 +176,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"version": 1}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeFalse())
 		})
@@ -195,7 +195,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{invalid json syntax`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeTrue())
@@ -214,7 +214,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{also not valid`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.ContentAvailable).To(BeTrue())
@@ -235,7 +235,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"items": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.Summary).To(ContainSubstring("~ items"))
@@ -254,7 +254,7 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"deep": [[[[["too deep"]]]]]}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.Summary).To(ContainSubstring("~ deep"))
@@ -273,11 +273,72 @@ var _ = Describe("DiffSnapshots", func() {
 				Content: `{"items": []}`,
 			}
 
-			result := events.DiffSnapshots(before, after)
+			result := events.DiffSnapshots(before, after, false)
 
 			Expect(result.HasChanges).To(BeTrue())
 			Expect(result.Summary).To(ContainSubstring("~ items"))
 			Expect(result.Summary).To(ContainSubstring("[]"))
+		})
+
+		It("truncates nested objects by default", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"plugins": {"name": "plugin1", "version": "1.0"}}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    150,
+				Content: `{"plugins": {"name": "plugin2", "version": "2.0"}}`,
+			}
+
+			result := events.DiffSnapshots(before, after, false)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ plugins"))
+			Expect(result.Summary).To(ContainSubstring("{...}"))
+		})
+	})
+
+	Context("full diff mode", func() {
+		It("shows complete nested object details when full=true", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"plugins": {"name": "plugin1", "version": "1.0"}}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    150,
+				Content: `{"plugins": {"name": "plugin2", "version": "2.0"}}`,
+			}
+
+			result := events.DiffSnapshots(before, after, true)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).To(ContainSubstring("~ plugins"))
+			Expect(result.Summary).NotTo(ContainSubstring("{...}"))
+			Expect(result.Summary).To(ContainSubstring("plugin1"))
+			Expect(result.Summary).To(ContainSubstring("plugin2"))
+		})
+
+		It("shows all array items when full=true", func() {
+			before := &events.Snapshot{
+				Hash:    "abc123",
+				Size:    100,
+				Content: `{"items": [1, 2, 3]}`,
+			}
+			after := &events.Snapshot{
+				Hash:    "def456",
+				Size:    200,
+				Content: `{"items": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}`,
+			}
+
+			result := events.DiffSnapshots(before, after, true)
+
+			Expect(result.HasChanges).To(BeTrue())
+			Expect(result.Summary).NotTo(ContainSubstring("...7 more"))
+			Expect(result.Summary).To(ContainSubstring("10"))
 		})
 	})
 })

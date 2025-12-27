@@ -14,6 +14,7 @@ import (
 
 var (
 	diffFile string
+	diffFull bool
 )
 
 var eventsDiffCmd = &cobra.Command{
@@ -21,11 +22,12 @@ var eventsDiffCmd = &cobra.Command{
 	Short: "Show detailed changes for a file operation",
 	Long: `Display a human-readable diff of what changed in a file operation.
 
-By default, shows the most recent change to the specified file.
+By default, shows the most recent change to the specified file with nested
+objects truncated for readability. Use --full to see complete nested structures.
 
 Examples:
   claudeup events diff --file ~/.claude/settings.json
-  claudeup events diff --file ~/.claude/plugins/installed_plugins.json`,
+  claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full`,
 	Args: cobra.NoArgs,
 	RunE: runEventsDiff,
 }
@@ -34,6 +36,7 @@ func init() {
 	eventsCmd.AddCommand(eventsDiffCmd)
 
 	eventsDiffCmd.Flags().StringVar(&diffFile, "file", "", "File path to show diff for (required)")
+	eventsDiffCmd.Flags().BoolVar(&diffFull, "full", false, "Show complete nested objects without truncation")
 	eventsDiffCmd.MarkFlagRequired("file")
 }
 
@@ -95,7 +98,7 @@ func runEventsDiff(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	// Generate and display diff
-	diffResult := events.DiffSnapshots(event.Before, event.After)
+	diffResult := events.DiffSnapshots(event.Before, event.After, diffFull)
 
 	if !diffResult.HasChanges {
 		ui.PrintInfo("No changes detected in this operation.")
