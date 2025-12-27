@@ -1,10 +1,13 @@
 package profile
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/claudeup/claudeup/internal/claude"
 )
 
 func TestSaveAndLoadProjectConfig(t *testing.T) {
@@ -216,7 +219,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -252,7 +255,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -272,21 +275,31 @@ func TestDetectConfigDrift(t *testing.T) {
 		}
 	})
 
-	t.Run("detects drift from local config", func(t *testing.T) {
+	t.Run("detects drift from local settings", func(t *testing.T) {
 		tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 		if err != nil {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
 		defer os.RemoveAll(tempDir)
-		// Create local config with plugins
-		localCfg := &ProjectConfig{
-			Profile: "local-profile",
-			Plugins: []string{
-				"local-plugin-a@marketplace",  // NOT installed (drift)
+		// Create .claude directory
+		claudeDir := filepath.Join(tempDir, ".claude")
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatalf("failed to create .claude dir: %v", err)
+		}
+
+		// Create local settings with enabled plugins
+		localSettings := &claude.Settings{
+			EnabledPlugins: map[string]bool{
+				"local-plugin-a@marketplace": true, // NOT installed (drift)
 			},
 		}
-		if err := SaveLocalConfig(tempDir, localCfg); err != nil {
-			t.Fatalf("SaveLocalConfig failed: %v", err)
+		settingsPath := filepath.Join(claudeDir, "settings.local.json")
+		data, err := json.MarshalIndent(localSettings, "", "  ")
+		if err != nil {
+			t.Fatalf("failed to marshal settings: %v", err)
+		}
+		if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+			t.Fatalf("failed to write settings: %v", err)
 		}
 
 		// Create mock registry with no plugins installed
@@ -294,7 +307,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			plugins: map[string]bool{},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -328,15 +341,25 @@ func TestDetectConfigDrift(t *testing.T) {
 			t.Fatalf("SaveProjectConfig failed: %v", err)
 		}
 
-		// Create local config
-		localCfg := &ProjectConfig{
-			Profile: "local-profile",
-			Plugins: []string{
-				"local-plugin@marketplace",  // NOT installed (drift)
+		// Create .claude directory
+		claudeDir := filepath.Join(tempDir, ".claude")
+		if err := os.MkdirAll(claudeDir, 0755); err != nil {
+			t.Fatalf("failed to create .claude dir: %v", err)
+		}
+
+		// Create local settings with enabled plugins
+		localSettings := &claude.Settings{
+			EnabledPlugins: map[string]bool{
+				"local-plugin@marketplace": true, // NOT installed (drift)
 			},
 		}
-		if err := SaveLocalConfig(tempDir, localCfg); err != nil {
-			t.Fatalf("SaveLocalConfig failed: %v", err)
+		settingsPath := filepath.Join(claudeDir, "settings.local.json")
+		data, err := json.MarshalIndent(localSettings, "", "  ")
+		if err != nil {
+			t.Fatalf("failed to marshal settings: %v", err)
+		}
+		if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+			t.Fatalf("failed to write settings: %v", err)
 		}
 
 		// Create mock registry with no plugins installed
@@ -344,7 +367,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			plugins: map[string]bool{},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -393,7 +416,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}

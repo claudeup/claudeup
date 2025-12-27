@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for scope-aware config drift cleanup with profile clean command
-// ABOUTME: Tests drift detection and cleanup for plugins in .claudeup.json and .claudeup.local.json
+// ABOUTME: Tests drift detection and cleanup for plugins across project and local scopes
 package acceptance
 
 import (
@@ -84,19 +84,17 @@ var _ = Describe("Profile clean command for config drift", func() {
 			})
 		})
 
-		Context("when plugins in .claudeup.local.json are not installed", func() {
+		Context("when plugins in .claude/settings.local.json are not installed", func() {
 			BeforeEach(func() {
-				// Create .claudeup.local.json with plugins
-				localConfig := map[string]interface{}{
-					"version": "1",
-					"profile": "local-profile",
-					"plugins": []string{
-						"local-missing-plugin@marketplace",
+				// Create .claude/settings.local.json with enabled plugins
+				localSettings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{
+						"local-missing-plugin@marketplace": true,
 					},
 				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.local.json"), localConfig)
+				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.local.json"), localSettings)
 
-				// Create minimal settings
+				// Create minimal user settings
 				settings := map[string]interface{}{
 					"enabledPlugins": map[string]bool{},
 				}
@@ -108,18 +106,16 @@ var _ = Describe("Profile clean command for config drift", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Configuration Drift Detected"))
-				Expect(result.Stdout).To(ContainSubstring("orphaned config entry"))
+				Expect(result.Stdout).To(ContainSubstring("enabled but not installed"))
 				Expect(result.Stdout).To(ContainSubstring("local-missing-plugin@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(local scope)"))
 			})
 
 			It("doctor should show config drift from local scope", func() {
 				result := env.RunInDir(projectDir, "doctor")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("orphaned config entry"))
+				Expect(result.Stdout).To(ContainSubstring("enabled but not installed"))
 				Expect(result.Stdout).To(ContainSubstring("local-missing-plugin@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(local scope)"))
 			})
 		})
 
@@ -135,17 +131,15 @@ var _ = Describe("Profile clean command for config drift", func() {
 				}
 				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
 
-				// Create local config
-				localConfig := map[string]interface{}{
-					"version": "1",
-					"profile": "local-profile",
-					"plugins": []string{
-						"local-missing@marketplace",
+				// Create local settings with enabled plugins
+				localSettings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{
+						"local-missing@marketplace": true,
 					},
 				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.local.json"), localConfig)
+				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.local.json"), localSettings)
 
-				// Create minimal settings
+				// Create minimal user settings
 				settings := map[string]interface{}{
 					"enabledPlugins": map[string]bool{},
 				}
@@ -158,9 +152,9 @@ var _ = Describe("Profile clean command for config drift", func() {
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Configuration Drift Detected"))
 				Expect(result.Stdout).To(ContainSubstring("project-missing@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(project scope)"))
 				Expect(result.Stdout).To(ContainSubstring("local-missing@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(local scope)"))
+				// Both plugins show as "enabled but not installed"
+				Expect(result.Stdout).To(ContainSubstring("enabled but not installed"))
 			})
 		})
 	})
@@ -206,30 +200,30 @@ var _ = Describe("Profile clean command for config drift", func() {
 
 		Context("removing plugin from local scope", func() {
 			BeforeEach(func() {
-				// Create .claudeup.local.json with plugins
-				localConfig := map[string]interface{}{
-					"version": "1",
-					"profile": "local-profile",
-					"plugins": []string{
-						"local-a@marketplace",
-						"local-b@marketplace",
+				// Create .claude/settings.local.json with enabled plugins
+				localSettings := map[string]interface{}{
+					"enabledPlugins": map[string]bool{
+						"local-a@marketplace": true,
+						"local-b@marketplace": true,
 					},
 				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.local.json"), localConfig)
+				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.local.json"), localSettings)
 			})
 
-			It("should remove plugin from .claudeup.local.json", func() {
+			It("should remove plugin from .claude/settings.local.json", func() {
 				result := env.RunInDir(projectDir, "profile", "clean", "--scope", "local", "local-a@marketplace")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Removed local-a@marketplace from local scope"))
-				Expect(result.Stdout).To(ContainSubstring(".claudeup.local.json"))
+				Expect(result.Stdout).To(ContainSubstring(".claude/settings.local.json"))
 
 				// Verify the file was updated
-				updatedConfig := helpers.LoadJSON(filepath.Join(projectDir, ".claudeup.local.json"))
-				plugins := updatedConfig["plugins"].([]interface{})
-				Expect(plugins).To(HaveLen(1))
-				Expect(plugins[0]).To(Equal("local-b@marketplace"))
+				updatedSettings := helpers.LoadJSON(filepath.Join(projectDir, ".claude", "settings.local.json"))
+				enabledPlugins := updatedSettings["enabledPlugins"].(map[string]interface{})
+				Expect(enabledPlugins).To(HaveLen(1))
+				_, existsA := enabledPlugins["local-a@marketplace"]
+				Expect(existsA).To(BeFalse())
+				Expect(enabledPlugins["local-b@marketplace"]).To(BeTrue())
 			})
 		})
 

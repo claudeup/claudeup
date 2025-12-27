@@ -277,8 +277,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderSection("MCP Servers", -1))
 	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.Muted(ui.SymbolArrow))
 
-	// Check for config drift (plugins in .claudeup.json/.claudeup.local.json but not installed)
-	configDrift, err := profile.DetectConfigDrift(projectDir, plugins)
+	// Check for config drift (enabled plugins that are not installed)
+	configDrift, err := profile.DetectConfigDrift(claudeDir, projectDir, plugins)
 	if err != nil {
 		// Don't fail the whole command, but warn about config corruption
 		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))
