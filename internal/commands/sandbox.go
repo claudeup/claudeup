@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/sandbox"
 	"github.com/claudeup/claudeup/internal/secrets"
@@ -24,6 +25,7 @@ var (
 	sandboxClean      bool
 	sandboxImage      string
 	sandboxEphemeral  bool
+	sandboxCopyAuth   bool
 )
 
 var sandboxCmd = &cobra.Command{
@@ -64,10 +66,12 @@ func init() {
 	sandboxCmd.Flags().BoolVar(&sandboxClean, "clean", false, "Reset sandbox state for profile")
 	sandboxCmd.Flags().StringVar(&sandboxImage, "image", "", "Override sandbox image")
 	sandboxCmd.Flags().BoolVar(&sandboxEphemeral, "ephemeral", false, "Force ephemeral mode (no persistence)")
+	sandboxCmd.Flags().BoolVar(&sandboxCopyAuth, "copy-auth", false, "Copy authentication from ~/.claude.json")
 }
 
 func runSandbox(cmd *cobra.Command, args []string) error {
-	claudePMDir := filepath.Join(profile.MustHomeDir(), ".claudeup")
+	homeDir := profile.MustHomeDir()
+	claudePMDir := filepath.Join(homeDir, ".claudeup")
 
 	// Handle --clean
 	if sandboxClean {
@@ -133,6 +137,13 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 	// Resolve secrets
 	if err := resolveSecrets(&opts); err != nil {
 		return fmt.Errorf("failed to resolve secrets: %w", err)
+	}
+
+	// Copy authentication if requested
+	if shouldCopyAuth(opts.Profile) {
+		if err := sandbox.CopyAuthFile(homeDir, claudePMDir, opts.Profile); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Failed to copy authentication: %v", err))
+		}
 	}
 
 	// Ensure image exists
@@ -207,6 +218,27 @@ func resolveSecrets(opts *sandbox.Options) error {
 	}
 
 	return nil
+}
+
+func shouldCopyAuth(profile string) bool {
+	// Only copy auth for profile-based sandboxes
+	if profile == "" {
+		return false
+	}
+
+	// Check if flag is explicitly set
+	if sandboxCopyAuth {
+		return true
+	}
+
+	// Check config setting
+	cfg, err := config.Load()
+	if err != nil {
+		// If config can't be loaded, default to not copying
+		return false
+	}
+
+	return cfg.Sandbox.CopyAuth
 }
 
 func printSandboxInfo(opts sandbox.Options) {

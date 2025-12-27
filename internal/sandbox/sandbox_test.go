@@ -185,3 +185,105 @@ func TestDefaultImage(t *testing.T) {
 		t.Errorf("unexpected default image: %s", image)
 	}
 }
+
+func TestCopyAuthFile(t *testing.T) {
+	t.Run("copies auth file to sandbox state directory", func(t *testing.T) {
+		// Setup temp directories
+		homeDir := t.TempDir()
+		claudePMDir := t.TempDir()
+		profile := "test-profile"
+
+		// Create source .claude.json
+		sourceFile := filepath.Join(homeDir, ".claude.json")
+		authContent := []byte(`{"oauthAccount": {"email": "test@example.com"}}`)
+		if err := os.WriteFile(sourceFile, authContent, 0600); err != nil {
+			t.Fatalf("failed to create source auth file: %v", err)
+		}
+
+		// Copy auth file
+		if err := CopyAuthFile(homeDir, claudePMDir, profile); err != nil {
+			t.Fatalf("CopyAuthFile failed: %v", err)
+		}
+
+		// Verify destination file exists and has correct content
+		stateDir := filepath.Join(claudePMDir, "sandboxes", profile)
+		destFile := filepath.Join(stateDir, ".claude.json")
+
+		destContent, err := os.ReadFile(destFile)
+		if err != nil {
+			t.Fatalf("failed to read destination file: %v", err)
+		}
+
+		if string(destContent) != string(authContent) {
+			t.Errorf("content mismatch: got %q, want %q", destContent, authContent)
+		}
+
+		// Verify file permissions
+		info, err := os.Stat(destFile)
+		if err != nil {
+			t.Fatalf("failed to stat destination file: %v", err)
+		}
+		if info.Mode().Perm() != 0600 {
+			t.Errorf("wrong permissions: got %o, want 0600", info.Mode().Perm())
+		}
+	})
+
+	t.Run("returns error when source file doesn't exist", func(t *testing.T) {
+		homeDir := t.TempDir()
+		claudePMDir := t.TempDir()
+
+		err := CopyAuthFile(homeDir, claudePMDir, "test-profile")
+		if err == nil {
+			t.Error("expected error when source file doesn't exist")
+		}
+	})
+
+	t.Run("returns error for empty profile", func(t *testing.T) {
+		homeDir := t.TempDir()
+		claudePMDir := t.TempDir()
+
+		err := CopyAuthFile(homeDir, claudePMDir, "")
+		if err == nil {
+			t.Error("expected error for empty profile")
+		}
+	})
+
+	t.Run("overwrites existing auth file", func(t *testing.T) {
+		homeDir := t.TempDir()
+		claudePMDir := t.TempDir()
+		profile := "test-profile"
+
+		// Create source file
+		sourceFile := filepath.Join(homeDir, ".claude.json")
+		newContent := []byte(`{"oauthAccount": {"email": "new@example.com"}}`)
+		if err := os.WriteFile(sourceFile, newContent, 0600); err != nil {
+			t.Fatalf("failed to create source file: %v", err)
+		}
+
+		// Create state directory with existing auth file
+		stateDir := filepath.Join(claudePMDir, "sandboxes", profile)
+		if err := os.MkdirAll(stateDir, 0755); err != nil {
+			t.Fatalf("failed to create state dir: %v", err)
+		}
+		destFile := filepath.Join(stateDir, ".claude.json")
+		oldContent := []byte(`{"oauthAccount": {"email": "old@example.com"}}`)
+		if err := os.WriteFile(destFile, oldContent, 0600); err != nil {
+			t.Fatalf("failed to create existing auth file: %v", err)
+		}
+
+		// Copy should overwrite
+		if err := CopyAuthFile(homeDir, claudePMDir, profile); err != nil {
+			t.Fatalf("CopyAuthFile failed: %v", err)
+		}
+
+		// Verify new content
+		destContent, err := os.ReadFile(destFile)
+		if err != nil {
+			t.Fatalf("failed to read destination file: %v", err)
+		}
+
+		if string(destContent) != string(newContent) {
+			t.Errorf("content not overwritten: got %q, want %q", destContent, newContent)
+		}
+	})
+}

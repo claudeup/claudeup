@@ -10,10 +10,11 @@ import (
 
 // GlobalConfig represents the global configuration file structure
 type GlobalConfig struct {
-	DisabledMCPServers []string           `json:"disabledMcpServers"`
-	ClaudeDir          string             `json:"claudeDir,omitempty"`
-	Preferences        Preferences        `json:"preferences"`
-	Monitoring         MonitoringConfig   `json:"monitoring"`
+	DisabledMCPServers []string         `json:"disabledMcpServers"`
+	ClaudeDir          string           `json:"claudeDir,omitempty"`
+	Preferences        Preferences      `json:"preferences"`
+	Monitoring         MonitoringConfig `json:"monitoring"`
+	Sandbox            Sandbox          `json:"sandbox"`
 }
 
 // Preferences represents user preferences
@@ -45,6 +46,11 @@ type RetentionConfig struct {
 	MaxAge    string `json:"maxAge"` // "90d", "30d", etc.
 }
 
+// Sandbox represents sandbox-related preferences
+type Sandbox struct {
+	CopyAuth bool `json:"copyAuth"`
+}
+
 // DefaultConfig returns a new config with default values
 func DefaultConfig() *GlobalConfig {
 	homeDir, _ := os.UserHomeDir()
@@ -73,6 +79,9 @@ func DefaultConfig() *GlobalConfig {
 				MaxEvents: 10000,
 				MaxAge:    "90d",
 			},
+		},
+		Sandbox: Sandbox{
+			CopyAuth: false,
 		},
 	}
 }

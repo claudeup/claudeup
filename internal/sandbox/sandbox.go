@@ -86,3 +86,37 @@ func CleanState(claudePMDir, profile string) error {
 func DefaultImage() string {
 	return "ghcr.io/claudeup/claudeup-sandbox:latest"
 }
+
+// CopyAuthFile copies the user's .claude.json file to the sandbox state directory
+// This allows sandboxes to use the user's existing authentication without interactive prompts
+func CopyAuthFile(homeDir, claudePMDir, profile string) error {
+	if profile == "" {
+		return fmt.Errorf("profile name required")
+	}
+
+	// Source: user's .claude.json in home directory
+	sourceFile := filepath.Join(homeDir, ".claude.json")
+	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
+		return fmt.Errorf("auth file not found at %s", sourceFile)
+	}
+
+	// Destination: sandbox state directory
+	stateDir, err := StateDir(claudePMDir, profile)
+	if err != nil {
+		return fmt.Errorf("failed to get state directory: %w", err)
+	}
+
+	destFile := filepath.Join(stateDir, ".claude.json")
+
+	// Copy the file
+	data, err := os.ReadFile(sourceFile)
+	if err != nil {
+		return fmt.Errorf("failed to read auth file: %w", err)
+	}
+
+	if err := os.WriteFile(destFile, data, 0600); err != nil {
+		return fmt.Errorf("failed to write auth file: %w", err)
+	}
+
+	return nil
+}
