@@ -31,8 +31,8 @@ info "Using --scope user to set it as your default"
 echo
 
 # In temp mode, we need to handle the case where no profiles exist
-if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply base-tools --scope user
+if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply default --scope user
 else
     info "In a real installation, you would run:"
     echo -e "${YELLOW}\$ claudeup profile apply <profile-name> --scope user${NC}"

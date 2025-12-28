@@ -36,8 +36,8 @@ info "Let's look at a built-in profile to understand the structure"
 echo
 
 # Try to show a common profile, fall back gracefully
-if $EXAMPLE_CLAUDEUP_BIN profile show base-tools &>/dev/null; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile show base-tools
+if $EXAMPLE_CLAUDEUP_BIN profile show default &>/dev/null; then
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile show default
 else
     info "No built-in profiles available in this environment"
     info "In a real installation, you'd see plugins, MCP servers, and settings"

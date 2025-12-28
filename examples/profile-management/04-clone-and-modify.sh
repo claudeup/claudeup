@@ -30,11 +30,11 @@ step "Create a copy with a new name"
 info "This copies all plugins, MCP servers, and settings"
 echo
 
-if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile clone base-tools my-customized
+if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile clone default my-customized
 else
     info "Command: claudeup profile clone <source> <new-name>"
-    info "Example: claudeup profile clone base-tools my-customized"
+    info "Example: claudeup profile clone default my-customized"
 fi
 pause
 

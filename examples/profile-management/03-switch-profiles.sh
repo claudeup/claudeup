@@ -31,8 +31,8 @@ info "The diff command shows differences between a profile and current state"
 echo
 
 # Try to show diff, handle gracefully if no profiles
-if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile diff base-tools || info "No differences or profile not found"
+if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile diff default || info "No differences or profile not found"
 else
     info "Example diff output would show:"
     info "  + plugins being added"
@@ -50,8 +50,8 @@ info "  • Keep plugins that exist in both"
 info "  • Optionally remove plugins not in the target (with --reset)"
 echo
 
-if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply base-tools --scope user
+if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply default --scope user
 else
     info "Command: claudeup profile apply <profile-name> --scope user"
 fi

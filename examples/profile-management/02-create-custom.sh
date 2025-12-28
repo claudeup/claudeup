@@ -51,7 +51,7 @@ pause
 section "3. Alternative: Clone and Modify"
 
 info "Another approach is to clone an existing profile:"
-echo -e "${YELLOW}\$ claudeup profile clone base-tools my-custom-profile${NC}"
+echo -e "${YELLOW}\$ claudeup profile clone default my-custom-profile${NC}"
 echo
 info "This copies all settings from the source profile,"
 info "which you can then modify."
