@@ -21,7 +21,7 @@ pause
 section "1. View Current Plugin States"
 
 step "List plugins to see which are enabled/disabled"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN plugin list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" plugin list
 pause
 
 section "2. Disable a Plugin"

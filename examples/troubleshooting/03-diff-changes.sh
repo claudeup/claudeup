@@ -21,7 +21,7 @@ pause
 section "1. Find a Change to Inspect"
 
 step "List recent events to find an interesting change"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN events --limit 5"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" events --limit 5
 pause
 
 section "2. View the Diff"

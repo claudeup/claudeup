@@ -21,7 +21,7 @@ pause
 section "1. Current State (Before)"
 
 step "Check the current profile status"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile current" || info "No profile currently active"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile current || info "No profile currently active"
 pause
 
 section "2. Apply a Profile"
@@ -32,7 +32,7 @@ echo
 
 # In temp mode, we need to handle the case where no profiles exist
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN profile apply base-tools --scope user"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply base-tools --scope user
 else
     info "In a real installation, you would run:"
     echo -e "${YELLOW}\$ claudeup profile apply <profile-name> --scope user${NC}"
@@ -44,10 +44,10 @@ pause
 section "3. Verify the Change"
 
 step "Check that the profile is now active"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile current" || info "Profile status updated"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile current || info "Profile status updated"
 
 step "View the updated status"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN status"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" status
 pause
 
 section "Summary"

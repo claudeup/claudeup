@@ -21,7 +21,7 @@ pause
 section "1. List Available Profiles"
 
 step "See what profiles you can switch to"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 pause
 
 section "2. Preview Changes with Diff"
@@ -32,7 +32,7 @@ echo
 
 # Try to show diff, handle gracefully if no profiles
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN profile diff base-tools" || info "No differences or profile not found"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile diff base-tools || info "No differences or profile not found"
 else
     info "Example diff output would show:"
     info "  + plugins being added"
@@ -51,7 +51,7 @@ info "  • Optionally remove plugins not in the target (with --reset)"
 echo
 
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN profile apply base-tools --scope user"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply base-tools --scope user
 else
     info "Command: claudeup profile apply <profile-name> --scope user"
 fi
@@ -60,7 +60,7 @@ pause
 section "4. Verify the Switch"
 
 step "Confirm the new profile is active"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile current" || true
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile current || true
 pause
 
 section "Summary"

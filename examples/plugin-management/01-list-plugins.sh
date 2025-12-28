@@ -20,7 +20,7 @@ pause
 section "1. List All Plugins"
 
 step "View installed plugins"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN plugin list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" plugin list
 
 info "Plugin states:"
 info "  • enabled  - Active and providing functionality"
@@ -30,7 +30,7 @@ pause
 section "2. View Plugin Details in Status"
 
 step "Get a complete overview including plugins"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN status"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" status
 
 info "Status shows plugins grouped by marketplace"
 pause
@@ -39,7 +39,7 @@ section "3. Understanding Plugin Sources"
 
 info "Plugins come from marketplaces (plugin repositories):"
 echo
-run_cmd "$EXAMPLE_CLAUDEUP_BIN marketplace list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" marketplace list
 
 info "Each marketplace provides different plugins."
 info "Use 'claude plugin install' to add new plugins."

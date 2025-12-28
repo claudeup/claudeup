@@ -20,7 +20,7 @@ pause
 section "1. Run Diagnostics"
 
 step "Check for common issues"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN doctor"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" doctor
 
 info "Doctor checks for:"
 info "  • Missing plugin files"
@@ -36,7 +36,7 @@ info "The cleanup command can fix many issues doctor finds"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN cleanup --dry-run"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" cleanup --dry-run
     info "Remove --dry-run to actually apply fixes"
 else
     info "Command: claudeup cleanup"

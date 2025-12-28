@@ -21,7 +21,7 @@ pause
 section "1. View Recent Events"
 
 step "See the most recent file operations"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN events --limit 10"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" events --limit 10
 
 info "Events show:"
 info "  • When changes happened"
@@ -49,7 +49,7 @@ pause
 section "3. Generate Audit Report"
 
 step "Get a comprehensive timeline"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN events audit --since 7d" || \
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" events audit --since 7d || \
     info "Audit report would show grouped timeline"
 
 info "Audit reports group events by date and show:"

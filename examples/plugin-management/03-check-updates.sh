@@ -20,7 +20,7 @@ pause
 section "1. Check for Updates"
 
 step "See if any updates are available"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN update --check" || \
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" update --check || \
     info "Update check would show available updates"
 pause
 
@@ -31,7 +31,7 @@ info "This fetches latest versions from all marketplaces"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN update"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" update
 else
     info "Command: claudeup update"
     info "(Skipped in temp mode - no real plugins to update)"
@@ -41,7 +41,7 @@ pause
 section "3. Verify After Update"
 
 step "Check status after updating"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN status"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" status
 pause
 
 section "Summary"

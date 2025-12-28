@@ -35,7 +35,7 @@ step "Install plugins defined in .claudeup.json"
 info "The sync command ensures you have all required plugins"
 echo
 
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile sync" || \
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile sync || \
     info "Sync would install any missing plugins"
 pause
 

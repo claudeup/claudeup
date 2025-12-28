@@ -21,7 +21,7 @@ pause
 section "1. List Available Profiles"
 
 step "See all profiles (built-in and custom)"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 
 info "Profile markers:"
 info "  • * = currently active (highest precedence)"
@@ -37,7 +37,7 @@ echo
 
 # Try to show a common profile, fall back gracefully
 if $EXAMPLE_CLAUDEUP_BIN profile show base-tools &>/dev/null; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN profile show base-tools"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile show base-tools
 else
     info "No built-in profiles available in this environment"
     info "In a real installation, you'd see plugins, MCP servers, and settings"

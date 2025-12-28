@@ -36,7 +36,7 @@ echo
 if [[ "$EXAMPLE_INTERACTIVE" == "true" && "$EXAMPLE_REAL_MODE" == "true" ]]; then
     info "Running the interactive wizard..."
     echo
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN profile create"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile create
 else
     info "To create a profile interactively, run:"
     echo -e "${YELLOW}\$ claudeup profile create${NC}"

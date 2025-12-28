@@ -21,7 +21,7 @@ pause
 section "1. Choose a Base Profile"
 
 step "List profiles to find a good starting point"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 pause
 
 section "2. Clone the Profile"
@@ -31,7 +31,7 @@ info "This copies all plugins, MCP servers, and settings"
 echo
 
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "base-tools"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN profile clone base-tools my-customized"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile clone base-tools my-customized
 else
     info "Command: claudeup profile clone <source> <new-name>"
     info "Example: claudeup profile clone base-tools my-customized"
@@ -53,7 +53,7 @@ pause
 section "4. Verify Your Changes"
 
 step "View the modified profile"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN profile show my-customized" || \
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile show my-customized || \
     info "In a real installation, this shows the profile contents"
 pause
 

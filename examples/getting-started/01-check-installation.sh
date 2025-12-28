@@ -21,13 +21,13 @@ pause
 section "1. Check claudeup Version"
 
 step "Verify claudeup is available and check its version"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN --version"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" --version
 pause
 
 section "2. View Installation Status"
 
 step "Get an overview of your Claude Code installation"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN status"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" status
 
 info "The status command shows:"
 info "  • Installed plugins and their state"
@@ -38,7 +38,7 @@ pause
 section "3. Run Diagnostics"
 
 step "Check for common issues with claudeup doctor"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN doctor"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" doctor
 
 info "The doctor command checks for:"
 info "  • Missing or corrupted plugin files"
