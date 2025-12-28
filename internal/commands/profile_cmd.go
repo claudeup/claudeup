@@ -354,18 +354,24 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 	// edit the profile definition itself.
 	scopeForSettings := profileCleanScope // "project" or "local"
 	settings, err := claude.LoadSettingsForScope(scopeForSettings, claudeDir, projectDir)
-	if err == nil && settings != nil && settings.IsPluginEnabled(pluginName) {
-		// Remove the plugin entirely (not just disable) to prevent Claude validation errors
-		if settings.EnabledPlugins != nil {
-			delete(settings.EnabledPlugins, pluginName)
-		}
-
-		// Save updated settings
-		if err := claude.SaveSettingsForScope(scopeForSettings, claudeDir, projectDir, settings); err != nil {
-			return fmt.Errorf("failed to remove from settings: %w", err)
-		}
-	} else {
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+	if settings == nil {
+		return fmt.Errorf("no settings file found at %s scope", scope.String())
+	}
+	if !settings.IsPluginEnabled(pluginName) {
 		return fmt.Errorf("plugin %q not found in %s scope settings", pluginName, scope.String())
+	}
+
+	// Remove the plugin entirely (not just disable) to prevent Claude validation errors
+	if settings.EnabledPlugins != nil {
+		delete(settings.EnabledPlugins, pluginName)
+	}
+
+	// Save updated settings
+	if err := claude.SaveSettingsForScope(scopeForSettings, claudeDir, projectDir, settings); err != nil {
+		return fmt.Errorf("failed to remove from settings: %w", err)
 	}
 
 	// Success message
@@ -1731,18 +1737,19 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	if profile.ProjectConfigExists(cwd) {
 		projectCfg, err := profile.LoadProjectConfig(cwd)
 		if err == nil {
-			p, _ := loadProfileWithFallback(profilesDir, projectCfg.Profile)
+			p, err := loadProfileWithFallback(profilesDir, projectCfg.Profile)
+			if err != nil {
+				return fmt.Errorf("failed to load profile %q: %w", projectCfg.Profile, err)
+			}
 
 			fmt.Println(ui.RenderDetail("Current profile", ui.Bold(projectCfg.Profile)))
 			fmt.Printf("  %s\n", ui.Info("(project scope)"))
-			if p != nil && p.Description != "" {
+			if p.Description != "" {
 				fmt.Printf("  %s\n", ui.Muted(p.Description))
 			}
 			fmt.Println()
-			if p != nil {
-				fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-				fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
-			}
+			fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+			fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 
 			// Check for .mcp.json
 			if profile.MCPJSONExists(cwd) {
@@ -1760,19 +1767,20 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	registry, err := config.LoadProjectsRegistry()
 	if err == nil {
 		if entry, ok := registry.GetProject(cwd); ok {
-			p, _ := loadProfileWithFallback(profilesDir, entry.Profile)
+			p, err := loadProfileWithFallback(profilesDir, entry.Profile)
+			if err != nil {
+				return fmt.Errorf("failed to load profile %q: %w", entry.Profile, err)
+			}
 
 			fmt.Println(ui.RenderDetail("Current profile", ui.Bold(entry.Profile)))
 			fmt.Printf("  %s\n", ui.Info("(local scope)"))
-			if p != nil && p.Description != "" {
+			if p.Description != "" {
 				fmt.Printf("  %s\n", ui.Muted(p.Description))
 			}
 			fmt.Println()
-			if p != nil {
-				fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-				fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
-				fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
-			}
+			fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+			fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+			fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 			return nil
 		}
 	}

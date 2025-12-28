@@ -136,24 +136,20 @@ type PluginChecker interface {
 // DetectConfigDrift finds plugins that are enabled but not installed
 func DetectConfigDrift(profilesDir, claudeDir, projectDir string, pluginChecker PluginChecker) ([]DriftedPlugin, error) {
 	var drift []DriftedPlugin
-	var firstError error
+	var errors []error
 
 	// Check project scope (.claudeup.json)
 	if ProjectConfigExists(projectDir) {
 		projectCfg, err := LoadProjectConfig(projectDir)
 		if err != nil {
 			// Record the error but continue checking other scopes
-			if firstError == nil {
-				firstError = fmt.Errorf("failed to load %s: %w", ProjectConfigFile, err)
-			}
+			errors = append(errors, fmt.Errorf("failed to load %s: %w", ProjectConfigFile, err))
 		} else {
 			// Load the profile to get its plugin list
 			prof, err := Load(profilesDir, projectCfg.Profile)
 			if err != nil {
 				// Record the error but continue checking other scopes
-				if firstError == nil {
-					firstError = fmt.Errorf("failed to load profile %q: %w", projectCfg.Profile, err)
-				}
+				errors = append(errors, fmt.Errorf("failed to load profile %q: %w", projectCfg.Profile, err))
 			} else {
 				// Check if plugins from profile are installed
 				for _, pluginName := range prof.Plugins {
@@ -174,9 +170,7 @@ func DetectConfigDrift(profilesDir, claudeDir, projectDir string, pluginChecker 
 		localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 		if err != nil {
 			// Record the error but continue checking other scopes
-			if firstError == nil {
-				firstError = fmt.Errorf("failed to load .claude/settings.local.json: %w", err)
-			}
+			errors = append(errors, fmt.Errorf("failed to load .claude/settings.local.json: %w", err))
 		} else {
 			// Check each enabled plugin in local settings
 			for pluginName := range localSettings.EnabledPlugins {
@@ -190,5 +184,17 @@ func DetectConfigDrift(profilesDir, claudeDir, projectDir string, pluginChecker 
 		}
 	}
 
-	return drift, firstError
+	// Combine all errors if any occurred
+	if len(errors) > 0 {
+		var errMsg string
+		for i, e := range errors {
+			if i > 0 {
+				errMsg += "; "
+			}
+			errMsg += e.Error()
+		}
+		return drift, fmt.Errorf("encountered errors while checking drift: %s", errMsg)
+	}
+
+	return drift, nil
 }

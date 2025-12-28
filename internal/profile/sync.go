@@ -29,6 +29,10 @@ func Sync(profilesDir, projectDir, claudeDir string, opts SyncOptions) (*SyncRes
 
 // SyncWithExecutor syncs using the provided executor
 func SyncWithExecutor(profilesDir, projectDir, claudeDir string, opts SyncOptions, executor CommandExecutor) (*SyncResult, error) {
+	if profilesDir == "" {
+		return nil, fmt.Errorf("profiles directory not specified")
+	}
+
 	// Load .claudeup.json
 	cfg, err := LoadProjectConfig(projectDir)
 	if err != nil {

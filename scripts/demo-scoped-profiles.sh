@@ -385,16 +385,87 @@ scenario_local_scope() {
     echo "✓ No .claudeup.local.json created (refactor verified)"
 }
 
-# Scenario 4: All Scopes Together
+# Scenario 4: Profile Sync (Team Collaboration)
+scenario_profile_sync() {
+    print_section "Scenario: Profile Sync (Team Collaboration)"
+
+    print_step "1. Apply 'backend-stack' profile at project scope"
+    print_command "claudeup profile apply backend-stack --scope project"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile apply backend-stack --scope project
+    print_info "Profile applied - creates .claudeup.json pointing to 'backend-stack'"
+    pause
+
+    print_step "2. Show .claudeup.json (what gets committed to git)"
+    print_command "cat .claudeup.json"
+    cat .claudeup.json | jq '.' 2>/dev/null || cat .claudeup.json
+    print_info ".claudeup.json is just a pointer to the profile, not a copy of its contents"
+    pause
+
+    print_step "3. Show profile definition (in ~/.claudeup/profiles/)"
+    print_command "cat ~/.claudeup/profiles/backend-stack.json"
+    cat "$TEST_DIR/.claudeup/profiles/backend-stack.json" | jq '.' 2>/dev/null || cat "$TEST_DIR/.claudeup/profiles/backend-stack.json"
+    print_info "This is the actual profile definition with plugins and marketplaces"
+    pause
+
+    print_step "4. Simulate team member cloning the repo (remove local Claude settings)"
+    print_info "Removing .claude/settings.json to simulate fresh clone..."
+    rm -f .claude/settings.json
+    print_info "Team member has .claudeup.json but no plugins installed yet"
+    pause
+
+    print_step "5. Show current plugin state (none installed at project scope)"
+    print_command "claude plugin list --scope project"
+    claude plugin list --scope project 2>&1 || print_info "No plugins installed yet"
+    pause
+
+    print_step "6. Run profile sync to install plugins from .claudeup.json"
+    print_command "claudeup profile sync"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile sync
+    print_info "Sync reads .claudeup.json, loads profile 'backend-stack', installs all plugins at project scope"
+    pause
+
+    print_step "7. Verify plugins were installed at project scope"
+    print_command "cat .claude/settings.json"
+    echo "Project scope plugins after sync:"
+    cat .claude/settings.json | jq '.enabledPlugins' 2>/dev/null || cat .claude/settings.json
+    print_info "Should show backend-stack plugins: gopls-lsp, backend-development, tdd-workflows, debugging-toolkit"
+    pause
+
+    print_step "8. Verify sync is idempotent (run again)"
+    print_command "claudeup profile sync"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile sync
+    print_info "Sync skips already-installed plugins"
+    pause
+
+    print_section "Profile Sync Complete"
+    cat <<'EOF'
+✓ Team Workflow Demonstrated:
+  1. Developer applies profile → .claudeup.json created
+  2. .claudeup.json committed to git (just a pointer)
+  3. Team member clones repo
+  4. Team member runs 'claudeup profile sync'
+  5. All plugins installed automatically at project scope
+
+Key Insights:
+  - .claudeup.json is minimal (just profile name + timestamp)
+  - Profile definitions live in ~/.claudeup/profiles/
+  - Sync loads profile and installs its plugins
+  - Sync is idempotent (safe to run multiple times)
+EOF
+}
+
+# Scenario 5: All Scopes Together
 scenario_all_scopes() {
     print_section "Scenario: All Scopes Complete Demo"
 
-    # Run all three scope scenarios
+    # Run all scope scenarios
     scenario_user_scope
     echo ""
     scenario_project_scope
     echo ""
     scenario_local_scope
+    echo ""
+    scenario_profile_sync
     echo ""
 
     # Show accumulated state
@@ -422,11 +493,17 @@ scenario_all_scopes() {
   - Profile: docker-tools
   - No .claudeup.local.json (refactor verified)
 
+✓ Profile Sync
+  - Team collaboration via .claudeup.json
+  - Profile definitions in ~/.claudeup/profiles/
+  - Sync installs plugins at project scope
+
 Key Architecture:
   - User scope: ~/.claude/settings.json only
   - Project scope: .claudeup.json + .claude/settings.json
   - Local scope: .claude/settings.local.json only
   - Settings merge with precedence: local > project > user
+  - .claudeup.json is a pointer, not a copy
 EOF
 }
 
@@ -439,10 +516,11 @@ show_menu() {
     echo "  1) User scope lifecycle (apply → drift → clean)"
     echo "  2) Project scope lifecycle (apply → drift → clean)"
     echo "  3) Local scope lifecycle (apply → drift → clean)"
-    echo "  4) All scopes complete demo"
-    echo "  5) Exit"
+    echo "  4) Profile sync (team collaboration)"
+    echo "  5) All scopes complete demo"
+    echo "  6) Exit"
     echo ""
-    read -rp "Enter selection [1-5]: " choice
+    read -rp "Enter selection [1-6]: " choice
     echo ""
 
     case $choice in
@@ -463,10 +541,15 @@ show_menu() {
             ;;
         4)
             setup_environment
-            scenario_all_scopes
+            scenario_profile_sync
             cleanup_environment
             ;;
         5)
+            setup_environment
+            scenario_all_scopes
+            cleanup_environment
+            ;;
+        6)
             echo "Exiting..."
             exit 0
             ;;
