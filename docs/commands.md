@@ -29,7 +29,7 @@ claudeup profile show <name>                 # Display profile contents
 claudeup profile current                     # Show active profile (with scope)
 claudeup profile save [name]                 # Save current setup as profile
 claudeup profile create <name>               # Create profile with wizard
-claudeup profile use <name>                  # Apply a profile (user scope)
+claudeup profile apply <name>                # Apply a profile (user scope)
 claudeup profile suggest                     # Suggest profile for current project
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
@@ -47,14 +47,14 @@ Apply profiles at project scope for team sharing:
 
 ```bash
 # Apply profile to current project (creates .mcp.json + .claudeup.json)
-claudeup profile use frontend --scope project
+claudeup profile apply frontend --scope project
 
 # Team members clone and sync plugins
 claudeup profile sync              # Install plugins from .claudeup.json
 claudeup profile sync --dry-run    # Preview without changes
 
 # Apply profile locally only (not shared via git)
-claudeup profile use frontend --scope local
+claudeup profile apply frontend --scope local
 ```
 
 **Scope options:**
@@ -65,7 +65,7 @@ claudeup profile use frontend --scope local
 | `project` | `.mcp.json` | project-scoped | Yes (via git) |
 | `local` | `~/.claude.json` | local-scoped | No |
 
-**`profile use` flags:**
+**`profile apply` flags:**
 
 | Flag | Description |
 |------|-------------|
@@ -83,10 +83,10 @@ The `--reset` flag clears the target scope before applying the profile:
 
 ```bash
 # Replace user scope with new profile (instead of merging)
-claudeup profile use backend-stack --reset
+claudeup profile apply backend-stack --reset
 
 # Replace without prompts (for scripting)
-claudeup profile use backend-stack --reset -y
+claudeup profile apply backend-stack --reset -y
 ```
 
 A backup is created automatically when using `--reset` (unless `-y` is used).

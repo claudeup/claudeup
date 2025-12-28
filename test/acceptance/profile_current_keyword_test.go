@@ -70,9 +70,9 @@ var _ = Describe("'current' keyword handling", func() {
 		})
 	})
 
-	Describe("profile use current", func() {
+	Describe("profile apply current", func() {
 		It("rejects 'current' as a reserved name", func() {
-			result := env.Run("profile", "use", "current")
+			result := env.Run("profile", "apply", "current")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("reserved"))

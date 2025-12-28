@@ -118,7 +118,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	sort.Strings(missingPlugins)
 
 	// Check for config drift (enabled plugins that are not installed)
-	configDrift, err := profile.DetectConfigDrift(claudeDir, projectDir, plugins)
+	profilesDir := getProfilesDir()
+	configDrift, err := profile.DetectConfigDrift(profilesDir, claudeDir, projectDir, plugins)
 	if err != nil {
 		// Don't fail the whole command, but warn about config corruption
 		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))
@@ -252,7 +253,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 		if len(missingPlugins) > 0 {
 			if activeProfile != "" && activeProfile != "none" {
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))), 1))
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold("claudeup profile sync"))), 1))
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or remove from settings: "+ui.Bold("claudeup profile clean <plugin-name>")), 1))
 			} else {
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install missing plugins: "+ui.Bold("claude plugin install <name>")), 1))
@@ -270,7 +271,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Remove from config and profile: "+ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s %s", scopeName, d.PluginName))), 1))
 			}
 			if activeProfile != "" && activeProfile != "none" {
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or reinstall if available: "+ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile))), 1))
+				// Check if any drift is in project scope
+				hasProjectDrift := false
+				for _, d := range configDrift {
+					if d.Scope == profile.ScopeProject {
+						hasProjectDrift = true
+						break
+					}
+				}
+				if hasProjectDrift {
+					fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or sync from profile: "+ui.Bold("claudeup profile sync")), 1))
+				} else {
+					fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or reinstall if available: "+ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile))), 1))
+				}
 			}
 		}
 

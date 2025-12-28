@@ -134,7 +134,7 @@ var _ = Describe("profile modification detection", func() {
 		})
 	})
 
-	Describe("profile use command", func() {
+	Describe("profile apply command", func() {
 		Context("when reapplying active profile with unsaved changes", func() {
 			BeforeEach(func() {
 				// Create and activate a profile
@@ -179,14 +179,14 @@ var _ = Describe("profile modification detection", func() {
 			})
 
 			It("allows reapplication (declarative - syncs state)", func() {
-				result := env.Run("profile", "use", "test-profile", "-y")
+				result := env.Run("profile", "apply", "test-profile", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Profile applied"))
 			})
 
 			It("removes the extra plugin to match profile", func() {
-				result := env.Run("profile", "use", "test-profile", "-y")
+				result := env.Run("profile", "apply", "test-profile", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				// Should have removed plugin-b (not in profile)
@@ -226,7 +226,7 @@ var _ = Describe("profile modification detection", func() {
 			})
 
 			It("allows reapplication", func() {
-				result := env.Run("profile", "use", "test-profile", "--force")
+				result := env.Run("profile", "apply", "test-profile", "--force")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Profile applied"))
@@ -254,7 +254,7 @@ var _ = Describe("profile modification detection", func() {
 			})
 
 			It("allows reapplication without force flag", func() {
-				result := env.Run("profile", "use", "test-profile")
+				result := env.Run("profile", "apply", "test-profile")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("No changes needed"))

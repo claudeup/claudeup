@@ -51,7 +51,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("shows progress output during apply", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "multi-plugin-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "multi-plugin-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Non-TTY output should show phase progress
@@ -62,7 +62,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("creates settings.json with enabled plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "multi-plugin-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "multi-plugin-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 
@@ -88,7 +88,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("disables progress output", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "simple-profile", "--scope", "project", "--no-progress", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "simple-profile", "--scope", "project", "--no-progress", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// With --no-progress, we should not see any progress indicators
@@ -122,7 +122,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("skips already-installed plugins without --reinstall", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "reinstall-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "reinstall-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show skip count in progress output
@@ -130,7 +130,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("forces reinstall of already-installed plugins with --reinstall", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "reinstall-profile", "--scope", "project", "--reinstall", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "reinstall-profile", "--scope", "project", "--reinstall", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// With --reinstall, should NOT show "already installed" skip message
@@ -138,7 +138,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("shows --reinstall in help text", func() {
-			result := env.Run("profile", "use", "--help")
+			result := env.Run("profile", "apply", "--help")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("--reinstall"))
@@ -168,7 +168,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("shows no changes when marketplace already installed without --reinstall", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "marketplace-only-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "marketplace-only-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// When marketplace is already installed and there are no plugins,
@@ -180,7 +180,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("attempts reinstall of marketplaces with --reinstall", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "marketplace-only-profile", "--scope", "project", "--reinstall", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "marketplace-only-profile", "--scope", "project", "--reinstall", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// With --reinstall, the marketplace install is attempted (might fail
@@ -197,7 +197,7 @@ var _ = Describe("profile use concurrent apply", func() {
 		})
 
 		It("creates settings.local.json with enabled plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "local-scope-profile", "--scope", "local", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "local-scope-profile", "--scope", "local", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 

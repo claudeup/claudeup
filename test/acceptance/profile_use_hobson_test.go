@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("profile use hobson", func() {
+var _ = Describe("profile apply hobson", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
@@ -29,7 +29,7 @@ var _ = Describe("profile use hobson", func() {
 				result := env.RunWithEnvAndInput(
 					map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
 					"q\n",
-					"profile", "use", "hobson", "-y",
+					"profile", "apply", "hobson", "-y",
 				)
 
 				// Wizard should have started - look for header
@@ -48,7 +48,7 @@ var _ = Describe("profile use hobson", func() {
 			})
 
 			It("does not trigger wizard (not first run)", func() {
-				result := env.Run("profile", "use", "hobson", "-y")
+				result := env.Run("profile", "apply", "hobson", "-y")
 
 				// Wizard should NOT have started
 				Expect(result.Stdout).NotTo(ContainSubstring("Hobson Profile Setup"))
@@ -59,7 +59,7 @@ var _ = Describe("profile use hobson", func() {
 
 	Describe("--no-interactive flag", func() {
 		It("skips the wizard entirely for CI/scripting", func() {
-			result := env.Run("profile", "use", "hobson", "-y", "--no-interactive")
+			result := env.Run("profile", "apply", "hobson", "-y", "--no-interactive")
 
 			// Should succeed without wizard
 			Expect(result.ExitCode).To(Equal(0))
@@ -68,7 +68,7 @@ var _ = Describe("profile use hobson", func() {
 		})
 
 		It("applies profile settings even without wizard", func() {
-			result := env.Run("profile", "use", "hobson", "-y", "--no-interactive")
+			result := env.Run("profile", "apply", "hobson", "-y", "--no-interactive")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should still set up the marketplace
@@ -92,7 +92,7 @@ var _ = Describe("profile use hobson", func() {
 				result := env.RunWithEnvAndInput(
 					map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
 					"q\n",
-					"profile", "use", "hobson", "-y", "--setup",
+					"profile", "apply", "hobson", "-y", "--setup",
 				)
 
 				// Wizard should have started despite existing plugins
@@ -128,7 +128,7 @@ var _ = Describe("profile use hobson", func() {
 				result := env.RunWithEnvAndInput(
 					map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
 					"q\n",
-					"profile", "use", "hobson", "--setup",
+					"profile", "apply", "hobson", "--setup",
 				)
 
 				// Should NOT say "No changes needed" and exit
@@ -168,7 +168,7 @@ var _ = Describe("profile use hobson", func() {
 			result := env.RunWithEnvAndInput(
 				map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
 				"q\n", // Send 'q' to cancel (works in fallback mode)
-				"profile", "use", "hobson", "-y",
+				"profile", "apply", "hobson", "-y",
 			)
 
 			// Wizard should start and show header
@@ -187,7 +187,7 @@ var _ = Describe("profile use hobson", func() {
 			result := env.RunWithEnvAndInput(
 				map[string]string{"PATH": filepath.Dir(binaryPath) + ":" + os.Getenv("PATH")},
 				"q\n", // Quit the prompt-based selection
-				"profile", "use", "hobson", "-y",
+				"profile", "apply", "hobson", "-y",
 			)
 
 			// Wizard should start
@@ -215,7 +215,7 @@ var _ = Describe("profile use hobson", func() {
 				},
 			})
 
-			result := env.Run("profile", "use", "failing-hook", "-y")
+			result := env.Run("profile", "apply", "failing-hook", "-y")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Post-apply hook failed"))

@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("profile use --scope", func() {
+var _ = Describe("profile apply --scope", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
@@ -42,21 +42,21 @@ var _ = Describe("profile use --scope", func() {
 		})
 
 		It("creates .mcp.json in project directory", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(env.MCPJSONExists(projectDir)).To(BeTrue())
 		})
 
 		It("creates .claudeup.json in project directory", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(env.ClaudeupJSONExists(projectDir)).To(BeTrue())
 		})
 
 		It("writes profile name to .claudeup.json", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 
@@ -65,7 +65,7 @@ var _ = Describe("profile use --scope", func() {
 		})
 
 		It("writes MCP servers to .mcp.json", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 
@@ -76,7 +76,7 @@ var _ = Describe("profile use --scope", func() {
 		})
 
 		It("shows git add guidance for created files", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("git add"))
@@ -92,7 +92,7 @@ var _ = Describe("profile use --scope", func() {
 			})
 
 			It("creates .claudeup.json but not .mcp.json", func() {
-				result := env.RunInDir(projectDir, "profile", "use", "no-mcp-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "no-mcp-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(env.ClaudeupJSONExists(projectDir)).To(BeTrue())
@@ -111,7 +111,7 @@ var _ = Describe("profile use --scope", func() {
 			})
 
 			It("warns about overwriting existing config", func() {
-				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("original-profile"))
@@ -123,7 +123,7 @@ var _ = Describe("profile use --scope", func() {
 			})
 
 			It("proceeds with -y flag", func() {
-				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				cfg := env.LoadClaudeupJSON(projectDir)
@@ -137,7 +137,7 @@ var _ = Describe("profile use --scope", func() {
 					"profile": "test-profile",
 				})
 
-				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				// Should NOT show overwrite warning when same profile
@@ -146,7 +146,7 @@ var _ = Describe("profile use --scope", func() {
 
 			It("shows warning with explicit --scope project flag", func() {
 				// Even with explicit scope flag, should warn about overwriting
-				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				// Warning should appear even with explicit --scope project
@@ -161,7 +161,7 @@ var _ = Describe("profile use --scope", func() {
 			})
 
 			It("warns about unreadable config but proceeds", func() {
-				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 				// Should succeed - malformed config is overwritten
 				Expect(result.ExitCode).To(Equal(0))
@@ -172,7 +172,7 @@ var _ = Describe("profile use --scope", func() {
 			})
 
 			It("overwrites malformed config with valid one", func() {
-				result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "project", "-y")
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
 				cfg := env.LoadClaudeupJSON(projectDir)
@@ -195,14 +195,14 @@ var _ = Describe("profile use --scope", func() {
 		})
 
 		It("does not create .claudeup.json in project directory", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "local-profile", "--scope", "local", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(env.ClaudeupJSONExists(projectDir)).To(BeFalse())
 		})
 
 		It("creates entry in projects.json registry", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "local-profile", "--scope", "local", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 
@@ -212,7 +212,7 @@ var _ = Describe("profile use --scope", func() {
 		})
 
 		It("shows confirmation message", func() {
-			result := env.RunInDir(projectDir, "profile", "use", "local-profile", "--scope", "local", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Profile applied"))
@@ -226,7 +226,7 @@ var _ = Describe("profile use --scope", func() {
 				Name: "test-profile",
 			})
 
-			result := env.RunInDir(projectDir, "profile", "use", "test-profile", "--scope", "invalid", "-y")
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "invalid", "-y")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
 		})
@@ -238,7 +238,7 @@ var _ = Describe("profile use --scope", func() {
 				Name: "test-profile",
 			})
 
-			result := env.Run("profile", "use", "test-profile", "--scope", "project", "-y")
+			result := env.Run("profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			// Should succeed when run from a valid directory
 			// May show "no changes" if profile is empty
@@ -247,109 +247,13 @@ var _ = Describe("profile use --scope", func() {
 	})
 })
 
-var _ = Describe("profile sync", func() {
-	var env *helpers.TestEnv
-	var projectDir string
-
-	BeforeEach(func() {
-		env = helpers.NewTestEnv(binaryPath)
-		env.CreateClaudeSettings()
-		projectDir = env.ProjectDir("sync-test-project")
-	})
-
-	Describe("with valid .claudeup.json", func() {
-		BeforeEach(func() {
-			// Create .claudeup.json with plugins
-			env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-				"version": "1",
-				"profile": "test-profile",
-				"plugins": []string{"plugin-a@test", "plugin-b@test"},
-			})
-		})
-
-		It("succeeds with exit code 0", func() {
-			result := env.RunInDir(projectDir, "profile", "sync", "-y")
-
-			// May fail to install plugins (no real marketplace) but command should run
-			Expect(result.Stdout).To(SatisfyAny(
-				ContainSubstring("Sync complete"),
-				ContainSubstring("plugin"),
-			))
-		})
-
-		It("reports plugins to install", func() {
-			result := env.RunInDir(projectDir, "profile", "sync", "-y")
-
-			Expect(result.Stdout).To(ContainSubstring("plugin"))
-		})
-	})
-
-	Describe("--dry-run", func() {
-		BeforeEach(func() {
-			env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-				"version": "1",
-				"profile": "test-profile",
-				"plugins": []string{"dry-run-plugin@test"},
-			})
-		})
-
-		It("shows what would be installed without making changes", func() {
-			result := env.RunInDir(projectDir, "profile", "sync", "--dry-run")
-
-			Expect(result.ExitCode).To(Equal(0))
-			// Dry run output shows count, not plugin names
-			Expect(result.Stdout).To(ContainSubstring("Plugins installed: 1"))
-		})
-
-		It("indicates dry run mode", func() {
-			result := env.RunInDir(projectDir, "profile", "sync", "--dry-run")
-
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(SatisfyAny(
-				ContainSubstring("Dry run"),
-				ContainSubstring("Would sync"),
-			))
-		})
-	})
-
-	Describe("without .claudeup.json", func() {
-		It("fails with helpful error message", func() {
-			emptyDir := env.ProjectDir("empty-project")
-			result := env.RunInDir(emptyDir, "profile", "sync")
-
-			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stdout + result.Stderr).To(ContainSubstring(".claudeup.json"))
-		})
-	})
-
-	Describe("with already installed plugins", func() {
-		BeforeEach(func() {
-			env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-				"version": "1",
-				"profile": "test-profile",
-				"plugins": []string{"existing-plugin@test"},
-			})
-
-			// Mark plugin as already installed
-			env.CreateInstalledPlugins(map[string]interface{}{
-				"existing-plugin@test": []map[string]interface{}{
-					{"scope": "project", "version": "1.0"},
-				},
-			})
-		})
-
-		It("skips already installed plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "sync", "-y")
-
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(SatisfyAny(
-				ContainSubstring("skipped"),
-				ContainSubstring("already"),
-				ContainSubstring("Sync complete"),
-			))
-		})
-	})
-})
+// NOTE: "profile sync" tests removed during .claudeup.json simplification.
+// The old 'profile sync' command expected .claudeup.json to have a 'plugins' field, but the
+// new architecture only stores the profile name. Sync functionality is now handled by
+// 'profile apply' which loads the profile definition and syncs based on that.
+//
+// See recovery doc: ~/.claudeup/prompts/2025-12-27-simplify-claudeup-json.md
+// Unit test coverage for the new architecture exists in internal/profile/*_test.go
 
 var _ = Describe("profile current with scopes", func() {
 	var env *helpers.TestEnv
