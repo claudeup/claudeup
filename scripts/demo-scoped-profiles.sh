@@ -158,14 +158,13 @@ EOF
 {
   "name": "backend-stack",
   "marketplaces": [
-    {"source": "github", "repo": "anthropics/claude-plugins-official"},
+    {"source": "github", "repo": "obra/superpowers-marketplace"},
     {"source": "github", "repo": "wshobson/agents"}
   ],
   "plugins": [
-    "gopls-lsp@claude-plugins-official",
-    "backend-development@claude-code-workflows",
-    "tdd-workflows@claude-code-workflows",
-    "debugging-toolkit@claude-code-workflows"
+    "superpowers@superpowers-marketplace",
+    "backend-api-security@claude-code-workflows",
+    "api-development@claude-code-workflows"
   ]
 }
 EOF
@@ -287,7 +286,7 @@ scenario_project_scope() {
     print_command "cat .claude/settings.json"
     echo "Project scope plugins:"
     cat .claude/settings.json | jq '.enabledPlugins' 2>/dev/null || cat .claude/settings.json
-    print_info "Should show backend-stack plugins: gopls-lsp, backend-development, tdd-workflows, debugging-toolkit"
+    print_info "Should show backend-stack plugins: superpowers, backend-api-security, api-development"
     pause
 
     print_step "3. Create drift by installing extra plugin at project scope"
@@ -434,7 +433,7 @@ scenario_profile_sync() {
     print_command "cat .claude/settings.json"
     echo "Project scope plugins after sync:"
     cat .claude/settings.json | jq '.enabledPlugins' 2>/dev/null || cat .claude/settings.json
-    print_info "Should show backend-stack plugins: gopls-lsp, backend-development, tdd-workflows, debugging-toolkit"
+    print_info "Should show backend-stack plugins: superpowers, backend-api-security, api-development"
     pause
 
     print_step "8. Verify sync is idempotent (run again)"
@@ -444,9 +443,9 @@ scenario_profile_sync() {
     pause
 
     print_step "9. Create drift by uninstalling a plugin"
-    print_info "Simulating drift: uninstalling 'tdd-workflows' from project scope..."
-    print_command "claude plugin uninstall tdd-workflows@claude-code-workflows --scope project"
-    claude plugin uninstall tdd-workflows@claude-code-workflows --scope project
+    print_info "Simulating drift: uninstalling 'api-development' from project scope..."
+    print_command "claude plugin uninstall api-development@claude-code-workflows --scope project"
+    claude plugin uninstall api-development@claude-code-workflows --scope project
     print_info "Plugin removed from project scope but still in profile definition"
     pause
 
@@ -454,13 +453,13 @@ scenario_profile_sync() {
     print_command "cat .claude/settings.json | jq '.enabledPlugins | keys'"
     echo "Currently installed plugins:"
     cat .claude/settings.json | jq '.enabledPlugins | keys' 2>/dev/null || cat .claude/settings.json
-    print_info "Notice 'tdd-workflows' is missing (should have 4 plugins, only has 3)"
+    print_info "Notice 'api-development' is missing (should have 3 plugins, only has 2)"
     pause
 
     print_step "11. Check status to see drift"
     print_command "claudeup status --scope project"
     "$CLAUDEUP_ROOT/bin/claudeup" status --scope project || true
-    print_info "Should show drift: profile expects tdd-workflows but it's not installed"
+    print_info "Should show drift: profile expects api-development but it's not installed"
     pause
 
     print_step "12. Run sync to fix drift"
@@ -473,7 +472,7 @@ scenario_profile_sync() {
     print_command "cat .claude/settings.json | jq '.enabledPlugins | keys'"
     echo "Plugins after sync:"
     cat .claude/settings.json | jq '.enabledPlugins | keys' 2>/dev/null || cat .claude/settings.json
-    print_info "All 4 plugins restored: gopls-lsp, backend-development, tdd-workflows, debugging-toolkit"
+    print_info "All 3 plugins restored: superpowers, backend-api-security, api-development"
     pause
 
     print_section "Profile Sync Complete"
