@@ -164,6 +164,17 @@ warn_real_mode() {
 # =============================================================================
 
 setup_temp_claude_dir() {
+    # Resolve claudeup path to absolute before cd (in case it's relative)
+    if [[ "$EXAMPLE_CLAUDEUP_BIN" != /* ]]; then
+        if [[ -f "$EXAMPLE_CLAUDEUP_BIN" ]]; then
+            # Relative path to a file - resolve to absolute
+            EXAMPLE_CLAUDEUP_BIN=$(cd "$(dirname "$EXAMPLE_CLAUDEUP_BIN")" && pwd)/$(basename "$EXAMPLE_CLAUDEUP_BIN")
+        elif command -v "$EXAMPLE_CLAUDEUP_BIN" &>/dev/null; then
+            # Command in PATH - get full path
+            EXAMPLE_CLAUDEUP_BIN=$(command -v "$EXAMPLE_CLAUDEUP_BIN")
+        fi
+    fi
+
     EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXX")
     export CLAUDE_CONFIG_DIR="$EXAMPLE_TEMP_DIR"
     export CLAUDEUP_HOME="$EXAMPLE_TEMP_DIR/.claudeup"
@@ -171,6 +182,9 @@ setup_temp_claude_dir() {
     # Create basic directory structure
     mkdir -p "$EXAMPLE_TEMP_DIR/plugins"
     mkdir -p "$CLAUDEUP_HOME"
+
+    # Change to temp directory to avoid project-scope contamination
+    cd "$EXAMPLE_TEMP_DIR" || exit 1
 
     success "Created isolated environment: $EXAMPLE_TEMP_DIR"
     info "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
