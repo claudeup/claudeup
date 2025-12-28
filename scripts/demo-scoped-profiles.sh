@@ -480,24 +480,24 @@ scenario_project_scope() {
     print_info "Should show drift for python-development"
     pause
 
-    print_step "5. Sync profile to remove drift at project scope"
-    print_command "claudeup profile sync"
-    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile sync" "Sync to remove drift"
+    print_step "5. Clean up drift at project scope"
+    print_command "claudeup profile apply backend-stack --scope project --reset -y"
+    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile apply backend-stack --scope project --reset -y" "Clean up project scope"
 
     # Verify python-development was removed
     if ! validate_plugin_exists "python-development@claude-code-workflows" ".claude/settings.json" "false"; then
-        print_error "Sync succeeded but drift still exists"
+        print_error "Cleanup succeeded but drift still exists"
         exit 1
     fi
 
     # Verify profile matches again
     if ! validate_plugins_match_profile "backend-stack" ".claude/settings.json"; then
-        print_error "Sync succeeded but plugins don't match profile"
+        print_error "Cleanup succeeded but plugins don't match profile"
         exit 1
     fi
 
-    print_info "Profile synced (removed python-development, restored backend-stack)"
-    print_info "✓ Verified: Drift removed via sync, profile restored"
+    print_info "Project scope cleaned (reset to profile state)"
+    print_info "✓ Verified: Drift removed, profile restored"
     pause
 
     print_step "6. Verify cleanup - check project settings"
@@ -516,7 +516,7 @@ scenario_project_scope() {
     print_section "Project Scope Lifecycle Complete"
     echo "✓ Profile apply at project scope"
     echo "✓ Drift detection at project scope"
-    echo "✓ Profile sync removes drift (recommended for project scope)"
+    echo "✓ Profile clean at project scope"
     echo "✓ Settings updated in .claude/settings.json"
     echo "✓ Config tracked in .claudeup.json"
 }
@@ -782,10 +782,9 @@ scenario_all_scopes() {
   - Profile: base-tools
 
 ✓ Project Scope Lifecycle
-  - Apply, drift, sync at .claude/settings.json
+  - Apply, drift, clean at .claude/settings.json
   - Profile: backend-stack
   - Tracked in .claudeup.json
-  - Uses 'profile sync' (recommended for project scope)
 
 ✓ Local Scope Lifecycle
   - Apply, drift, clean at .claude/settings.local.json
