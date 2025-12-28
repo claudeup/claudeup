@@ -23,6 +23,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 	BeforeEach(func() {
 		binaryPath = helpers.BuildBinary()
 		env = helpers.NewTestEnv(binaryPath)
+		env.CreateClaudeSettings()
 
 		projectDir = env.ProjectDir("test-project")
 		err := os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)
