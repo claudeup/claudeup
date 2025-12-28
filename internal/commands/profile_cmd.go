@@ -1738,24 +1738,28 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 		projectCfg, err := profile.LoadProjectConfig(cwd)
 		if err == nil {
 			p, err := loadProfileWithFallback(profilesDir, projectCfg.Profile)
-			if err != nil {
-				return fmt.Errorf("failed to load profile %q: %w", projectCfg.Profile, err)
-			}
 
 			fmt.Println(ui.RenderDetail("Current profile", ui.Bold(projectCfg.Profile)))
 			fmt.Printf("  %s\n", ui.Info("(project scope)"))
-			if p.Description != "" {
-				fmt.Printf("  %s\n", ui.Muted(p.Description))
-			}
-			fmt.Println()
-			fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-			fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 
-			// Check for .mcp.json
-			if profile.MCPJSONExists(cwd) {
-				mcpCfg, _ := profile.LoadMCPJSON(cwd)
-				if mcpCfg != nil {
-					fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(mcpCfg.MCPServers))), 1))
+			if err != nil {
+				// Profile doesn't exist, show warning but don't fail
+				fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("Profile definition not found: %v", err)))
+			} else {
+				// Profile exists, show full details
+				if p.Description != "" {
+					fmt.Printf("  %s\n", ui.Muted(p.Description))
+				}
+				fmt.Println()
+				fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+				fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+
+				// Check for .mcp.json
+				if profile.MCPJSONExists(cwd) {
+					mcpCfg, _ := profile.LoadMCPJSON(cwd)
+					if mcpCfg != nil {
+						fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(mcpCfg.MCPServers))), 1))
+					}
 				}
 			}
 
@@ -1768,19 +1772,23 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	if err == nil {
 		if entry, ok := registry.GetProject(cwd); ok {
 			p, err := loadProfileWithFallback(profilesDir, entry.Profile)
-			if err != nil {
-				return fmt.Errorf("failed to load profile %q: %w", entry.Profile, err)
-			}
 
 			fmt.Println(ui.RenderDetail("Current profile", ui.Bold(entry.Profile)))
 			fmt.Printf("  %s\n", ui.Info("(local scope)"))
-			if p.Description != "" {
-				fmt.Printf("  %s\n", ui.Muted(p.Description))
+
+			if err != nil {
+				// Profile doesn't exist, show warning but don't fail
+				fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("Profile definition not found: %v", err)))
+			} else {
+				// Profile exists, show full details
+				if p.Description != "" {
+					fmt.Printf("  %s\n", ui.Muted(p.Description))
+				}
+				fmt.Println()
+				fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+				fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+				fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 			}
-			fmt.Println()
-			fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-			fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
-			fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 			return nil
 		}
 	}
