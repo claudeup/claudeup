@@ -407,9 +407,11 @@ scenario_profile_sync() {
     print_info "This is the actual profile definition with plugins and marketplaces"
     pause
 
-    print_step "4. Simulate team member cloning the repo (remove local Claude settings)"
-    print_info "Removing .claude/settings.json to simulate fresh clone..."
+    print_step "4. Simulate team member cloning the repo (remove local Claude settings and plugins)"
+    print_info "Removing .claude/settings.json and installed plugins to simulate fresh clone..."
     rm -f .claude/settings.json
+    rm -rf "$CLAUDE_DIR/plugins"
+    mkdir -p "$CLAUDE_DIR/plugins"
     print_info "Team member has .claudeup.json but no plugins installed yet"
     pause
 
