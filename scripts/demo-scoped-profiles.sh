@@ -443,11 +443,11 @@ scenario_profile_sync() {
     print_info "Sync skips already-installed plugins"
     pause
 
-    print_step "9. Create drift by manually removing a plugin"
-    print_info "Simulating drift: removing 'tdd-workflows' from settings..."
-    print_command "jq 'del(.enabledPlugins[\"tdd-workflows@claude-code-workflows\"])' .claude/settings.json > /tmp/settings.tmp && mv /tmp/settings.tmp .claude/settings.json"
-    jq 'del(.enabledPlugins["tdd-workflows@claude-code-workflows"])' .claude/settings.json > /tmp/settings.tmp && mv /tmp/settings.tmp .claude/settings.json
-    print_info "Plugin removed from .claude/settings.json but still in profile definition"
+    print_step "9. Create drift by uninstalling a plugin"
+    print_info "Simulating drift: uninstalling 'tdd-workflows' from project scope..."
+    print_command "claude plugin uninstall tdd-workflows@claude-code-workflows --scope project"
+    claude plugin uninstall tdd-workflows@claude-code-workflows --scope project
+    print_info "Plugin removed from project scope but still in profile definition"
     pause
 
     print_step "10. Detect drift between profile and installed plugins"
