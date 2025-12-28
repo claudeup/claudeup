@@ -126,6 +126,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 			// Check each scope for drift
 			hasAnyDrift := false
+			hasExtraPlugins := false
+			hasMissingPlugins := false
+			driftScopes := []string{}
+
 			for _, scope := range scopesToCheck {
 				modified, comparisonErr := profile.IsProfileModifiedAtScope(
 					activeProfile,
@@ -158,6 +162,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 						diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, projectDir, scope)
 						if err == nil && diff.HasChanges() {
 							ui.PrintInfo(fmt.Sprintf("  • %s scope: %s", ui.Bold(scope), diff.Summary()))
+
+							// Track drift type for better guidance
+							if len(diff.PluginsAdded) > 0 {
+								hasExtraPlugins = true
+							}
+							if len(diff.PluginsRemoved) > 0 {
+								hasMissingPlugins = true
+							}
+							driftScopes = append(driftScopes, scope)
 						}
 					}
 				}
@@ -166,16 +179,51 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			if hasAnyDrift {
 				fmt.Println()
 				ui.PrintInfo("To sync:")
+
+				// Always show save option
 				if statusScope != "" {
-					ui.PrintInfo(fmt.Sprintf("  • Update profile: 'claudeup profile save --scope %s'", statusScope))
-					if statusScope == "project" {
-						ui.PrintInfo("  • Install missing: 'claudeup profile sync'")
-					} else {
-						ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile apply %s --scope %s'", activeProfile, statusScope))
-					}
+					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope %s'", statusScope))
 				} else {
-					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope <scope>'"))
-					ui.PrintInfo("  • Install missing to match profile: 'claudeup profile sync'")
+					ui.PrintInfo("  • Update profile to match system: 'claudeup profile save --scope <scope>'")
+				}
+
+				// Show appropriate commands based on drift type
+				if hasExtraPlugins && hasMissingPlugins {
+					// Both types of drift - recommend reset
+					if statusScope != "" {
+						ui.PrintInfo(fmt.Sprintf("  • Reset to profile (removes extra, installs missing): 'claudeup profile apply %s --scope %s --reset'", activeProfile, statusScope))
+					} else {
+						ui.PrintInfo(fmt.Sprintf("  • Reset to profile (removes extra, installs missing): 'claudeup profile apply %s --scope <scope> --reset'", activeProfile))
+					}
+				} else if hasExtraPlugins {
+					// Only extra plugins - recommend reset or clean
+					if statusScope != "" {
+						ui.PrintInfo(fmt.Sprintf("  • Remove extra plugins: 'claudeup profile apply %s --scope %s --reset'", activeProfile, statusScope))
+						ui.PrintInfo(fmt.Sprintf("  • Or remove specific plugin: 'claudeup profile clean --scope %s <plugin>'", statusScope))
+					} else {
+						ui.PrintInfo(fmt.Sprintf("  • Remove extra plugins: 'claudeup profile apply %s --scope <scope> --reset'", activeProfile))
+						ui.PrintInfo("  • Or remove specific plugin: 'claudeup profile clean --scope <scope> <plugin>'")
+					}
+				} else if hasMissingPlugins {
+					// Only missing plugins - recommend sync or apply
+					if statusScope == "project" {
+						ui.PrintInfo("  • Install missing plugins: 'claudeup profile sync'")
+					} else if statusScope != "" {
+						ui.PrintInfo(fmt.Sprintf("  • Install missing plugins: 'claudeup profile apply %s --scope %s'", activeProfile, statusScope))
+					} else {
+						// Multiple scopes with drift
+						hasProjectDrift := false
+						for _, s := range driftScopes {
+							if s == "project" {
+								hasProjectDrift = true
+								break
+							}
+						}
+						if hasProjectDrift {
+							ui.PrintInfo("  • Install missing plugins: 'claudeup profile sync' (for project scope)")
+						}
+						ui.PrintInfo(fmt.Sprintf("  • Or install at specific scope: 'claudeup profile apply %s --scope <scope>'", activeProfile))
+					}
 				}
 			}
 		}

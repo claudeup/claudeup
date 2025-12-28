@@ -286,13 +286,69 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("has unsaved changes"))
 		})
 
-		It("should show both sync options", func() {
+		It("should show context-aware sync options for missing plugins", func() {
 			result := env.RunInDir(projectDir, "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("To sync:"))
 			Expect(result.Stdout).To(ContainSubstring("Update profile to match system"))
-			Expect(result.Stdout).To(ContainSubstring("Install missing to match profile"))
+			// Should show specific guidance for missing plugins at project scope
+			Expect(result.Stdout).To(ContainSubstring("Install missing"))
+		})
+	})
+
+	Describe("Drift guidance for extra plugins", func() {
+		BeforeEach(func() {
+			// Set up project profile with 2 plugins
+			projectConfig := map[string]interface{}{
+				"version":       "1",
+				"profile":       "test-profile",
+				"profileSource": "custom",
+				"marketplaces":  []interface{}{},
+				"plugins": []string{
+					"plugin1@marketplace",
+					"plugin2@marketplace",
+				},
+			}
+			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
+
+			// Create profile definition using test env helper
+			env.CreateProfile(&profile.Profile{
+				Name:         "test-profile",
+				Marketplaces: []profile.Marketplace{},
+				Plugins: []string{
+					"plugin1@marketplace",
+					"plugin2@marketplace",
+				},
+			})
+
+			// Project scope: has profile plugins PLUS an extra one
+			projectSettings := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin1@marketplace":      true,
+					"plugin2@marketplace":      true,
+					"extra-plugin@marketplace": true, // Not in profile
+				},
+			}
+			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
+		})
+
+		It("should recommend removing extra plugins with --reset", func() {
+			result := env.RunInDir(projectDir, "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("To sync:"))
+			Expect(result.Stdout).To(ContainSubstring("Update profile to match system"))
+			// Should show specific guidance for removing extra plugins
+			Expect(result.Stdout).To(ContainSubstring("Remove extra plugins"))
+			Expect(result.Stdout).To(ContainSubstring("--reset"))
+		})
+
+		It("should also suggest profile clean command", func() {
+			result := env.RunInDir(projectDir, "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("profile clean"))
 		})
 	})
 })
