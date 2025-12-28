@@ -441,6 +441,39 @@ scenario_profile_sync() {
     print_info "Sync skips already-installed plugins"
     pause
 
+    print_step "9. Create drift by manually removing a plugin"
+    print_info "Simulating drift: removing 'tdd-workflows' from settings..."
+    print_command "jq 'del(.enabledPlugins[\"tdd-workflows@claude-code-workflows\"])' .claude/settings.json > /tmp/settings.tmp && mv /tmp/settings.tmp .claude/settings.json"
+    jq 'del(.enabledPlugins["tdd-workflows@claude-code-workflows"])' .claude/settings.json > /tmp/settings.tmp && mv /tmp/settings.tmp .claude/settings.json
+    print_info "Plugin removed from .claude/settings.json but still in profile definition"
+    pause
+
+    print_step "10. Detect drift between profile and installed plugins"
+    print_command "cat .claude/settings.json | jq '.enabledPlugins | keys'"
+    echo "Currently installed plugins:"
+    cat .claude/settings.json | jq '.enabledPlugins | keys' 2>/dev/null || cat .claude/settings.json
+    print_info "Notice 'tdd-workflows' is missing (should have 4 plugins, only has 3)"
+    pause
+
+    print_step "11. Check status to see drift"
+    print_command "claudeup status --scope project"
+    "$CLAUDEUP_ROOT/bin/claudeup" status --scope project || true
+    print_info "Should show drift: profile expects tdd-workflows but it's not installed"
+    pause
+
+    print_step "12. Run sync to fix drift"
+    print_command "claudeup profile sync"
+    "$CLAUDEUP_ROOT/bin/claudeup" profile sync
+    print_info "Sync detects missing plugin and reinstalls it"
+    pause
+
+    print_step "13. Verify drift is fixed"
+    print_command "cat .claude/settings.json | jq '.enabledPlugins | keys'"
+    echo "Plugins after sync:"
+    cat .claude/settings.json | jq '.enabledPlugins | keys' 2>/dev/null || cat .claude/settings.json
+    print_info "All 4 plugins restored: gopls-lsp, backend-development, tdd-workflows, debugging-toolkit"
+    pause
+
     print_section "Profile Sync Complete"
     cat <<'EOF'
 ✓ Team Workflow Demonstrated:
@@ -450,11 +483,18 @@ scenario_profile_sync() {
   4. Team member runs 'claudeup profile sync'
   5. All plugins installed automatically at project scope
 
+✓ Drift Detection & Repair:
+  6. Plugin manually removed (simulating drift)
+  7. Status shows drift between profile and installed plugins
+  8. Sync detects missing plugins and reinstalls them
+  9. Configuration restored to match profile definition
+
 Key Insights:
   - .claudeup.json is minimal (just profile name + timestamp)
   - Profile definitions live in ~/.claudeup/profiles/
   - Sync loads profile and installs its plugins
   - Sync is idempotent (safe to run multiple times)
+  - Sync detects and fixes drift automatically
 EOF
 }
 
