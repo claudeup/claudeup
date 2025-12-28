@@ -21,11 +21,15 @@ to help protect your work.
 
 ## Running Examples
 
+Run commands from the repository root directory:
+
 By default, examples run in an isolated temp directory (safe to experiment):
 
 ```bash
 ./examples/getting-started/01-check-installation.sh
 ```
+
+Temp mode creates a fresh Claude environment - your real settings are not visible or affected.
 
 To run against your actual Claude installation:
 
@@ -48,6 +52,8 @@ For scripting or CI (no pauses):
 | `plugin-management/` | Control your plugins |
 | `troubleshooting/` | Diagnose and fix issues |
 | `team-setup/` | Share configurations across projects |
+
+The `lib/` directory contains shared utilities used by all example scripts.
 
 ## Flags
 
