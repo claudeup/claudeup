@@ -20,12 +20,7 @@ func TestSaveAndLoadProjectConfig(t *testing.T) {
 
 	// Create config
 	cfg := &ProjectConfig{
-		Profile:       "frontend",
-		ProfileSource: "embedded",
-		Marketplaces: []Marketplace{
-			{Source: "github", Repo: "test/plugins"},
-		},
-		Plugins: []string{"plugin-a", "plugin-b"},
+		Profile: "frontend",
 	}
 
 	// Save
@@ -51,15 +46,6 @@ func TestSaveAndLoadProjectConfig(t *testing.T) {
 	}
 	if loaded.Profile != "frontend" {
 		t.Errorf("Profile = %q, want %q", loaded.Profile, "frontend")
-	}
-	if loaded.ProfileSource != "embedded" {
-		t.Errorf("ProfileSource = %q, want %q", loaded.ProfileSource, "embedded")
-	}
-	if len(loaded.Marketplaces) != 1 {
-		t.Errorf("len(Marketplaces) = %d, want 1", len(loaded.Marketplaces))
-	}
-	if len(loaded.Plugins) != 2 {
-		t.Errorf("len(Plugins) = %d, want 2", len(loaded.Plugins))
 	}
 	if loaded.AppliedAt.IsZero() {
 		t.Error("AppliedAt should be set")
@@ -137,14 +123,8 @@ func TestNewProjectConfig(t *testing.T) {
 	if cfg.Profile != "test-profile" {
 		t.Errorf("Profile = %q, want %q", cfg.Profile, "test-profile")
 	}
-	if cfg.ProfileSource != "custom" {
-		t.Errorf("ProfileSource = %q, want %q", cfg.ProfileSource, "custom")
-	}
-	if len(cfg.Marketplaces) != 1 {
-		t.Errorf("len(Marketplaces) = %d, want 1", len(cfg.Marketplaces))
-	}
-	if len(cfg.Plugins) != 1 {
-		t.Errorf("len(Plugins) = %d, want 1", len(cfg.Plugins))
+	if cfg.AppliedAt.IsZero() {
+		t.Error("AppliedAt should be set")
 	}
 }
 
@@ -211,6 +191,9 @@ func TestDetectConfigDrift(t *testing.T) {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
 		defer os.RemoveAll(tempDir)
+
+		profilesDir := filepath.Join(tempDir, "profiles")
+
 		// Create mock plugin registry with installed plugins
 		mockRegistry := &MockPluginRegistry{
 			plugins: map[string]bool{
@@ -219,7 +202,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(profilesDir, tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -235,14 +218,28 @@ func TestDetectConfigDrift(t *testing.T) {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
 		defer os.RemoveAll(tempDir)
-		// Create project config with plugins
-		projectCfg := &ProjectConfig{
-			Profile: "test-profile",
+
+		// Create profiles directory and test profile
+		profilesDir := filepath.Join(tempDir, "profiles")
+		if err := os.MkdirAll(profilesDir, 0755); err != nil {
+			t.Fatalf("failed to create profiles dir: %v", err)
+		}
+
+		testProfile := &Profile{
+			Name: "test-profile",
 			Plugins: []string{
 				"plugin-a@marketplace",  // installed
 				"plugin-b@marketplace",  // NOT installed (drift)
 				"plugin-c@marketplace",  // NOT installed (drift)
 			},
+		}
+		if err := Save(profilesDir, testProfile); err != nil {
+			t.Fatalf("failed to save test profile: %v", err)
+		}
+
+		// Create project config referencing the profile
+		projectCfg := &ProjectConfig{
+			Profile: "test-profile",
 		}
 		if err := SaveProjectConfig(tempDir, projectCfg); err != nil {
 			t.Fatalf("SaveProjectConfig failed: %v", err)
@@ -255,7 +252,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(profilesDir, tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -307,7 +304,8 @@ func TestDetectConfigDrift(t *testing.T) {
 			plugins: map[string]bool{},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		profilesDir := filepath.Join(tempDir, "profiles")
+		drift, err := DetectConfigDrift(profilesDir, tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -330,12 +328,26 @@ func TestDetectConfigDrift(t *testing.T) {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
 		defer os.RemoveAll(tempDir)
-		// Create project config
-		projectCfg := &ProjectConfig{
-			Profile: "test-profile",
+
+		// Create profiles directory and test profile
+		profilesDir := filepath.Join(tempDir, "profiles")
+		if err := os.MkdirAll(profilesDir, 0755); err != nil {
+			t.Fatalf("failed to create profiles dir: %v", err)
+		}
+
+		testProfile := &Profile{
+			Name: "test-profile",
 			Plugins: []string{
 				"project-plugin@marketplace",  // NOT installed (drift)
 			},
+		}
+		if err := Save(profilesDir, testProfile); err != nil {
+			t.Fatalf("failed to save test profile: %v", err)
+		}
+
+		// Create project config
+		projectCfg := &ProjectConfig{
+			Profile: "test-profile",
 		}
 		if err := SaveProjectConfig(tempDir, projectCfg); err != nil {
 			t.Fatalf("SaveProjectConfig failed: %v", err)
@@ -367,7 +379,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			plugins: map[string]bool{},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(profilesDir, tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}
@@ -396,13 +408,27 @@ func TestDetectConfigDrift(t *testing.T) {
 			t.Fatalf("failed to create temp dir: %v", err)
 		}
 		defer os.RemoveAll(tempDir)
-		// Create project config
-		projectCfg := &ProjectConfig{
-			Profile: "test-profile",
+
+		// Create profiles directory and test profile
+		profilesDir := filepath.Join(tempDir, "profiles")
+		if err := os.MkdirAll(profilesDir, 0755); err != nil {
+			t.Fatalf("failed to create profiles dir: %v", err)
+		}
+
+		testProfile := &Profile{
+			Name: "test-profile",
 			Plugins: []string{
 				"plugin-a@marketplace",
 				"plugin-b@marketplace",
 			},
+		}
+		if err := Save(profilesDir, testProfile); err != nil {
+			t.Fatalf("failed to save test profile: %v", err)
+		}
+
+		// Create project config
+		projectCfg := &ProjectConfig{
+			Profile: "test-profile",
 		}
 		if err := SaveProjectConfig(tempDir, projectCfg); err != nil {
 			t.Fatalf("SaveProjectConfig failed: %v", err)
@@ -416,7 +442,7 @@ func TestDetectConfigDrift(t *testing.T) {
 			},
 		}
 
-		drift, err := DetectConfigDrift(tempDir, tempDir, mockRegistry)
+		drift, err := DetectConfigDrift(profilesDir, tempDir, tempDir, mockRegistry)
 		if err != nil {
 			t.Fatalf("DetectConfigDrift failed: %v", err)
 		}

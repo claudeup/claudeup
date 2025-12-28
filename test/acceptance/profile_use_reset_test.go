@@ -1,4 +1,4 @@
-// ABOUTME: Acceptance tests for profile use --reset flag
+// ABOUTME: Acceptance tests for profile apply --reset flag
 // ABOUTME: Tests CLI behavior for clearing scope before applying profile
 package acceptance
 
@@ -12,7 +12,7 @@ import (
 	"github.com/claudeup/claudeup/test/helpers"
 )
 
-var _ = Describe("claudeup profile use --reset", func() {
+var _ = Describe("claudeup profile apply --reset", func() {
 	var (
 		env        *helpers.TestEnv
 		binaryPath string
@@ -53,7 +53,7 @@ var _ = Describe("claudeup profile use --reset", func() {
 
 	Describe("with --reset flag", func() {
 		It("should clear scope before applying profile", func() {
-			result := env.Run("profile", "use", "test-profile", "--reset", "-y")
+			result := env.Run("profile", "apply", "test-profile", "--reset", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Scope is cleared, then profile is applied (may show "no changes" if profile is empty)
@@ -65,7 +65,7 @@ var _ = Describe("claudeup profile use --reset", func() {
 		})
 
 		It("should show cleared message", func() {
-			result := env.Run("profile", "use", "test-profile", "--reset", "-y")
+			result := env.Run("profile", "apply", "test-profile", "--reset", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Cleared user scope"))
@@ -74,7 +74,7 @@ var _ = Describe("claudeup profile use --reset", func() {
 
 	Describe("help text", func() {
 		It("should document --reset flag", func() {
-			result := env.Run("profile", "use", "--help")
+			result := env.Run("profile", "apply", "--help")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("--reset"))

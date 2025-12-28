@@ -168,10 +168,10 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				ui.PrintInfo("To sync:")
 				if statusScope != "" {
 					ui.PrintInfo(fmt.Sprintf("  • Update profile: 'claudeup profile save --scope %s'", statusScope))
-					ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile use %s --scope %s'", activeProfile, statusScope))
+					ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile apply %s --scope %s'", activeProfile, statusScope))
 				} else {
 					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope <scope>'"))
-					ui.PrintInfo(fmt.Sprintf("  • Install missing to match profile: 'claudeup profile use %s'", activeProfile))
+					ui.PrintInfo(fmt.Sprintf("  • Install missing to match profile: 'claudeup profile apply %s'", activeProfile))
 				}
 			}
 		}
@@ -301,7 +301,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.Muted(ui.SymbolArrow))
 
 	// Check for config drift (enabled plugins that are not installed)
-	configDrift, err := profile.DetectConfigDrift(claudeDir, projectDir, plugins)
+	profilesDir := getProfilesDir()
+	configDrift, err := profile.DetectConfigDrift(profilesDir, claudeDir, projectDir, plugins)
 	if err != nil {
 		// Don't fail the whole command, but warn about config corruption
 		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))

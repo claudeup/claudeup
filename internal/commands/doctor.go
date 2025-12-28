@@ -118,7 +118,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	sort.Strings(missingPlugins)
 
 	// Check for config drift (enabled plugins that are not installed)
-	configDrift, err := profile.DetectConfigDrift(claudeDir, projectDir, plugins)
+	profilesDir := getProfilesDir()
+	configDrift, err := profile.DetectConfigDrift(profilesDir, claudeDir, projectDir, plugins)
 	if err != nil {
 		// Don't fail the whole command, but warn about config corruption
 		ui.PrintWarning(fmt.Sprintf("Config file error: %v", err))

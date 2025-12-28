@@ -18,12 +18,9 @@ const ProjectConfigFile = ".claudeup.json"
 
 // ProjectConfig represents the contents of a .claudeup.json file
 type ProjectConfig struct {
-	Version       string        `json:"version"`
-	Profile       string        `json:"profile"`
-	ProfileSource string        `json:"profileSource,omitempty"` // "embedded" or "custom"
-	Marketplaces  []Marketplace `json:"marketplaces,omitempty"`
-	Plugins       []string      `json:"plugins,omitempty"`
-	AppliedAt     time.Time     `json:"appliedAt"`
+	Version   string    `json:"version"`
+	Profile   string    `json:"profile"`
+	AppliedAt time.Time `json:"appliedAt"`
 }
 
 // LoadProjectConfig reads a .claudeup.json file from the given directory
@@ -89,17 +86,9 @@ func ProjectConfigExists(projectDir string) bool {
 
 // NewProjectConfig creates a ProjectConfig from a Profile
 func NewProjectConfig(p *Profile) *ProjectConfig {
-	source := "custom"
-	if IsEmbeddedProfile(p.Name) {
-		source = "embedded"
-	}
-
 	return &ProjectConfig{
-		Profile:       p.Name,
-		ProfileSource: source,
-		Marketplaces:  p.Marketplaces,
-		Plugins:       p.Plugins,
-		AppliedAt:     time.Now(),
+		Profile:   p.Name,
+		AppliedAt: time.Now(),
 	}
 }
 
@@ -145,7 +134,7 @@ type PluginChecker interface {
 }
 
 // DetectConfigDrift finds plugins that are enabled but not installed
-func DetectConfigDrift(claudeDir, projectDir string, pluginChecker PluginChecker) ([]DriftedPlugin, error) {
+func DetectConfigDrift(profilesDir, claudeDir, projectDir string, pluginChecker PluginChecker) ([]DriftedPlugin, error) {
 	var drift []DriftedPlugin
 	var firstError error
 
@@ -158,12 +147,22 @@ func DetectConfigDrift(claudeDir, projectDir string, pluginChecker PluginChecker
 				firstError = fmt.Errorf("failed to load %s: %w", ProjectConfigFile, err)
 			}
 		} else {
-			for _, pluginName := range projectCfg.Plugins {
-				if !pluginChecker.IsPluginInstalled(pluginName) {
-					drift = append(drift, DriftedPlugin{
-						PluginName: pluginName,
-						Scope:      ScopeProject,
-					})
+			// Load the profile to get its plugin list
+			prof, err := Load(profilesDir, projectCfg.Profile)
+			if err != nil {
+				// Record the error but continue checking other scopes
+				if firstError == nil {
+					firstError = fmt.Errorf("failed to load profile %q: %w", projectCfg.Profile, err)
+				}
+			} else {
+				// Check if plugins from profile are installed
+				for _, pluginName := range prof.Plugins {
+					if !pluginChecker.IsPluginInstalled(pluginName) {
+						drift = append(drift, DriftedPlugin{
+							PluginName: pluginName,
+							Scope:      ScopeProject,
+						})
+					}
 				}
 			}
 		}

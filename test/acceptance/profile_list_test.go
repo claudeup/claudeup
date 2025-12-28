@@ -168,7 +168,7 @@ var _ = Describe("profile list", func() {
 			Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+profile-b`))
 
 			// Use profile-b (should say "No changes needed" since both are empty)
-			result = env.RunWithInput("y\n", "profile", "use", "profile-b")
+			result = env.RunWithInput("y\n", "profile", "apply", "profile-b")
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("No changes needed"))
 
