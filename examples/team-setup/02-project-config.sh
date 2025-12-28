@@ -39,30 +39,32 @@ pause
 
 section "2. Create a Project Config"
 
-step "Generate .claudeup.json from current state"
-info "This captures your project's plugin requirements"
+step "Apply a profile at project scope"
+info "Applying a profile with --scope project creates .claudeup.json automatically"
+info "This file captures the project's plugin requirements for the team"
 echo
 
 # In real mode, actually create it
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "Creating .claudeup.json in current directory..."
-    # Note: claudeup doesn't have a direct command for this yet
-    info "Command: claudeup profile save --output .claudeup.json"
+    info "Applying profile to project scope..."
+    info "Command: claudeup profile apply <profile-name> --scope project"
 else
     info "In your project, run:"
-    echo -e "${YELLOW}\$ claudeup profile save --output .claudeup.json${NC}"
+    echo -e "${YELLOW}\$ claudeup profile apply <profile-name> --scope project${NC}"
+    echo
+    info "This creates .claudeup.json with the profile's plugin requirements"
 fi
 pause
 
 section "3. Sync Team Configuration"
 
-step "Apply project configuration"
-info "When a teammate clones the repo, they can sync:"
+step "Teammates sync the project configuration"
+info "After cloning the repo, teammates run sync to install the plugins:"
 echo
 echo -e "${YELLOW}\$ claudeup profile sync${NC}"
 echo
 
-info "This installs all plugins defined in .claudeup.json"
+info "This reads .claudeup.json and installs all required plugins"
 pause
 
 section "4. Git Integration"
