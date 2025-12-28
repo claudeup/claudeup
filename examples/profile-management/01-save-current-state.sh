@@ -2,7 +2,7 @@
 # ABOUTME: Example showing how to save current Claude setup as a profile
 # ABOUTME: Demonstrates profile save command
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment

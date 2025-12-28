@@ -2,7 +2,7 @@
 # ABOUTME: Example showing the interactive profile creation wizard
 # ABOUTME: Demonstrates profile create command
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment

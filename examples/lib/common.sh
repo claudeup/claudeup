@@ -81,9 +81,8 @@ pause() {
 }
 
 run_cmd() {
-    local cmd="$*"
-    echo -e "${YELLOW}\$ ${cmd}${NC}"
-    eval "$cmd"
+    echo -e "${YELLOW}\$ $*${NC}"
+    "$@"
 }
 
 # =============================================================================
@@ -113,6 +112,7 @@ check_claude_config_dir_override() {
 check_git_clean() {
     local claude_dir="${HOME}/.claude"
 
+    # shellcheck disable=SC2088 # Tilde in quotes is intentional for display
     if [[ ! -d "$claude_dir/.git" ]]; then
         warn "~/.claude is not a git repository"
         warn "Consider initializing git for safety: cd ~/.claude && git init && git add -A && git commit -m 'Initial'"
@@ -121,6 +121,7 @@ check_git_clean() {
 
     if ! git -C "$claude_dir" diff --quiet 2>/dev/null || \
        ! git -C "$claude_dir" diff --cached --quiet 2>/dev/null; then
+        # shellcheck disable=SC2088 # Tilde in quotes is intentional for display
         error "~/.claude has uncommitted changes"
         error "Please commit or stash changes before running in --real mode"
         echo ""
@@ -128,6 +129,7 @@ check_git_clean() {
         exit 1
     fi
 
+    # shellcheck disable=SC2088 # Tilde in quotes is intentional for display
     success "~/.claude git status is clean"
 }
 
@@ -193,8 +195,17 @@ setup_temp_claude_dir() {
 
 cleanup_temp_dir() {
     if [[ -n "$EXAMPLE_TEMP_DIR" && -d "$EXAMPLE_TEMP_DIR" ]]; then
-        rm -rf "$EXAMPLE_TEMP_DIR"
-        success "Cleaned up temp directory"
+        # Safety: Only delete directories matching our temp pattern
+        case "$EXAMPLE_TEMP_DIR" in
+            /tmp/claudeup-example-*)
+                rm -rf "$EXAMPLE_TEMP_DIR"
+                success "Cleaned up temp directory"
+                ;;
+            *)
+                error "Refusing to delete unexpected directory: $EXAMPLE_TEMP_DIR"
+                error "Expected pattern: /tmp/claudeup-example-*"
+                ;;
+        esac
     fi
 }
 
