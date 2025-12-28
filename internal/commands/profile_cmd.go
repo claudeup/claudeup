@@ -1154,6 +1154,37 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 						fmt.Printf("    - %s\n", p)
 					}
 				}
+
+				// Show actionable guidance based on drift type
+				fmt.Println()
+				hasExtra := len(diff.PluginsAdded) > 0
+				hasMissing := len(diff.PluginsRemoved) > 0
+
+				if hasExtra && hasMissing {
+					// Both types of drift
+					fmt.Printf("  %s Reset to profile (removes extra, installs missing):\n", ui.Muted(ui.SymbolArrow))
+					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --reset", name, activeScope)))
+				} else if hasExtra {
+					// Only extra plugins
+					fmt.Printf("  %s Remove extra plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsAdded)))
+					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --reset", name, activeScope)))
+					if len(diff.PluginsAdded) == 1 {
+						fmt.Printf("  %s Or remove specific plugin:\n", ui.Muted(ui.SymbolArrow))
+						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s %s", activeScope, diff.PluginsAdded[0])))
+					} else {
+						fmt.Printf("  %s Or remove specific plugins:\n", ui.Muted(ui.SymbolArrow))
+						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s <plugin>", activeScope)))
+					}
+				} else if hasMissing {
+					// Only missing plugins
+					if activeScope == "project" {
+						fmt.Printf("  %s Install missing plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsRemoved)))
+						fmt.Printf("    %s\n", ui.Bold("claudeup profile sync"))
+					} else {
+						fmt.Printf("  %s Install missing plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsRemoved)))
+						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s", name, activeScope)))
+					}
+				}
 			}
 			fmt.Println()
 		}
