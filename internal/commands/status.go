@@ -168,10 +168,14 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				ui.PrintInfo("To sync:")
 				if statusScope != "" {
 					ui.PrintInfo(fmt.Sprintf("  • Update profile: 'claudeup profile save --scope %s'", statusScope))
-					ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile apply %s --scope %s'", activeProfile, statusScope))
+					if statusScope == "project" {
+						ui.PrintInfo("  • Install missing: 'claudeup profile sync'")
+					} else {
+						ui.PrintInfo(fmt.Sprintf("  • Install missing: 'claudeup profile apply %s --scope %s'", activeProfile, statusScope))
+					}
 				} else {
 					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope <scope>'"))
-					ui.PrintInfo(fmt.Sprintf("  • Install missing to match profile: 'claudeup profile apply %s'", activeProfile))
+					ui.PrintInfo("  • Install missing to match profile: 'claudeup profile sync'")
 				}
 			}
 		}
@@ -447,8 +451,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				}
 			}
 			if activeProfile != "" && activeProfile != "none" {
-				fmt.Printf("  %s Or reinstall if available: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
+				// Recommend 'profile sync' for project scope, 'profile apply --reinstall' otherwise
+				_, hasProjectDrift := driftByScope[profile.ScopeProject]
+				if hasProjectDrift {
+					fmt.Printf("  %s Or sync from profile: %s\n",
+						ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile sync"))
+				} else {
+					fmt.Printf("  %s Or reinstall if available: %s\n",
+						ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
+				}
 			}
 		}
 	}

@@ -1253,8 +1253,8 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 					fmt.Printf("  %s Remove from config and profile: %s\n",
 						ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile clean --scope project %s", pluginName)))
 				}
-				fmt.Printf("  %s Or reinstall if available: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", name)))
+				fmt.Printf("  %s Or sync from profile: %s\n",
+					ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile sync"))
 				fmt.Println()
 			}
 
