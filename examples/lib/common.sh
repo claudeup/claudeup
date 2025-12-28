@@ -166,12 +166,15 @@ warn_real_mode() {
 setup_temp_claude_dir() {
     EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXX")
     export CLAUDE_CONFIG_DIR="$EXAMPLE_TEMP_DIR"
+    export CLAUDEUP_HOME="$EXAMPLE_TEMP_DIR/.claudeup"
 
     # Create basic directory structure
     mkdir -p "$EXAMPLE_TEMP_DIR/plugins"
+    mkdir -p "$CLAUDEUP_HOME"
 
     success "Created isolated environment: $EXAMPLE_TEMP_DIR"
     info "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
+    info "CLAUDEUP_HOME=$CLAUDEUP_HOME"
 }
 
 cleanup_temp_dir() {
