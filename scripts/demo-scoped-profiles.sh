@@ -414,8 +414,12 @@ scenario_profile_sync() {
     pause
 
     print_step "5. Show current plugin state (none installed at project scope)"
-    print_command "claude plugin list --scope project"
-    claude plugin list --scope project 2>&1 || print_info "No plugins installed yet"
+    print_command "cat .claude/settings.json"
+    if [ -f .claude/settings.json ]; then
+        cat .claude/settings.json | jq '.enabledPlugins' 2>/dev/null || cat .claude/settings.json
+    else
+        print_info "No .claude/settings.json file exists yet - no plugins installed"
+    fi
     pause
 
     print_step "6. Run profile sync to install plugins from .claudeup.json"
