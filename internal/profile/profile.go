@@ -217,6 +217,46 @@ func List(profilesDir string) ([]*Profile, error) {
 	return profiles, nil
 }
 
+// ProfileWithSource wraps a profile with its source location
+type ProfileWithSource struct {
+	*Profile
+	Source string // "user" or "project"
+}
+
+// ListAll returns profiles from both user and project directories.
+// Project profiles take precedence over user profiles with the same name.
+func ListAll(userProfilesDir, projectDir string) ([]*ProfileWithSource, error) {
+	var all []*ProfileWithSource
+	seen := make(map[string]bool)
+
+	// List project profiles first (higher precedence)
+	projectProfilesDir := ProjectProfilesDir(projectDir)
+	projectProfiles, err := List(projectProfilesDir)
+	if err == nil {
+		for _, p := range projectProfiles {
+			all = append(all, &ProfileWithSource{Profile: p, Source: "project"})
+			seen[p.Name] = true
+		}
+	}
+
+	// List user profiles (skip if already in project)
+	userProfiles, err := List(userProfilesDir)
+	if err == nil {
+		for _, p := range userProfiles {
+			if !seen[p.Name] {
+				all = append(all, &ProfileWithSource{Profile: p, Source: "user"})
+			}
+		}
+	}
+
+	// Sort by name
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Name < all[j].Name
+	})
+
+	return all, nil
+}
+
 // Clone creates a deep copy of the profile with a new name
 func (p *Profile) Clone(newName string) *Profile {
 	clone := &Profile{

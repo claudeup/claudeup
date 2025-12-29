@@ -515,9 +515,10 @@ func init() {
 
 func runProfileList(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
+	cwd, _ := os.Getwd()
 
-	// Load user profiles from disk
-	userProfiles, err := profile.List(profilesDir)
+	// Load all profiles from both user and project directories
+	allProfiles, err := profile.ListAll(profilesDir, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to list profiles: %w", err)
 	}
@@ -529,14 +530,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		embeddedProfiles = []*profile.Profile{} // Prevent nil slice panic
 	}
 
-	// Track which profiles exist on disk
-	userProfileNames := make(map[string]bool)
-	for _, p := range userProfiles {
-		userProfileNames[p.Name] = true
+	// Track which profiles exist on disk and their source
+	profileOnDisk := make(map[string]string) // name -> source ("user" or "project")
+	for _, p := range allProfiles {
+		profileOnDisk[p.Name] = p.Source
 	}
 
 	// Get active profiles from all scopes (project, local, user)
-	cwd, _ := os.Getwd()
 	allActiveProfiles := getAllActiveProfiles(cwd)
 
 	// The highest precedence active profile (project > local > user)
@@ -559,13 +559,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	// Check if we have any profiles to show
 	hasBuiltIn := false
 	for _, p := range embeddedProfiles {
-		if !userProfileNames[p.Name] {
+		if _, onDisk := profileOnDisk[p.Name]; !onDisk {
 			hasBuiltIn = true
 			break
 		}
 	}
 
-	if len(userProfiles) == 0 && !hasBuiltIn {
+	if len(allProfiles) == 0 && !hasBuiltIn {
 		ui.PrintInfo("No profiles found.")
 		fmt.Printf("  %s Create one with: claudeup profile save <name>\n", ui.Muted(ui.SymbolArrow))
 		return nil
@@ -604,8 +604,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 				desc = ui.Muted("(no description)")
 			}
 			customized := ""
-			if userProfileNames[p.Name] {
-				customized = ui.Info(" (customized)")
+			if source, onDisk := profileOnDisk[p.Name]; onDisk {
+				customized = ui.Info(fmt.Sprintf(" (customized) [%s]", source))
 			}
 			modified := ""
 			if profileModifications[p.Name] {
@@ -617,8 +617,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Show user profiles section (only ones that aren't customized built-ins)
-	var customProfiles []*profile.Profile
-	for _, p := range userProfiles {
+	var customProfiles []*profile.ProfileWithSource
+	for _, p := range allProfiles {
 		if !profile.IsEmbeddedProfile(p.Name) {
 			customProfiles = append(customProfiles, p)
 		}
@@ -630,6 +630,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		for _, p := range customProfiles {
 			marker, scopeInfo := getProfileMarkerAndScope(p.Name)
 
+			// Show profile definition source
+			sourceInfo := ui.Muted(fmt.Sprintf("[%s]", p.Source))
+
 			desc := p.Description
 			if desc == "" {
 				desc = ui.Muted("(no description)")
@@ -638,13 +641,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if profileModifications[p.Name] {
 				modified = ui.Warning(" (modified)")
 			}
-			fmt.Printf("%s%-20s %s%s%s\n", marker, p.Name, desc, scopeInfo, modified)
+			fmt.Printf("%s%-20s %s %s%s%s\n", marker, p.Name, sourceInfo, desc, scopeInfo, modified)
 		}
 		fmt.Println()
 	}
 
 	// Warn if user has a profile named "current" (now reserved)
-	if userProfileNames["current"] {
+	if _, hasCurrent := profileOnDisk["current"]; hasCurrent {
 		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
 		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()

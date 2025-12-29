@@ -406,3 +406,130 @@ func TestSaveToProject(t *testing.T) {
 		t.Errorf("Description mismatch: got %q", loaded.Description)
 	}
 }
+
+func TestListAll(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+
+	// Create profiles in user directory
+	userProfiles := []*Profile{
+		{Name: "alpha", Description: "user alpha"},
+		{Name: "beta", Description: "user beta"},
+	}
+	for _, p := range userProfiles {
+		if err := Save(userProfilesDir, p); err != nil {
+			t.Fatalf("Failed to save user profile %s: %v", p.Name, err)
+		}
+	}
+
+	// Create profiles in project directory (one with same name as user)
+	projectProfiles := []*Profile{
+		{Name: "alpha", Description: "project alpha"}, // shadows user alpha
+		{Name: "gamma", Description: "project gamma"},
+	}
+	for _, p := range projectProfiles {
+		if err := Save(projectProfilesDir, p); err != nil {
+			t.Fatalf("Failed to save project profile %s: %v", p.Name, err)
+		}
+	}
+
+	// List all profiles
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	// Should have 3 profiles: alpha (project), beta (user), gamma (project)
+	if len(all) != 3 {
+		t.Errorf("Expected 3 profiles, got %d", len(all))
+	}
+
+	// Verify sorted order and sources
+	expected := []struct {
+		name   string
+		source string
+		desc   string
+	}{
+		{"alpha", "project", "project alpha"}, // project shadows user
+		{"beta", "user", "user beta"},
+		{"gamma", "project", "project gamma"},
+	}
+
+	for i, exp := range expected {
+		if all[i].Name != exp.name {
+			t.Errorf("Profile %d: expected name %q, got %q", i, exp.name, all[i].Name)
+		}
+		if all[i].Source != exp.source {
+			t.Errorf("Profile %d (%s): expected source %q, got %q", i, exp.name, exp.source, all[i].Source)
+		}
+		if all[i].Description != exp.desc {
+			t.Errorf("Profile %d (%s): expected desc %q, got %q", i, exp.name, exp.desc, all[i].Description)
+		}
+	}
+}
+
+func TestListAll_EmptyDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// List from nonexistent directories should return empty, not error
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	if len(all) != 0 {
+		t.Errorf("Expected 0 profiles, got %d", len(all))
+	}
+}
+
+func TestListAll_OnlyUserProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// Create profile only in user directory
+	p := &Profile{Name: "myprofile", Description: "user profile"}
+	if err := Save(userProfilesDir, p); err != nil {
+		t.Fatalf("Failed to save profile: %v", err)
+	}
+
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	if len(all) != 1 {
+		t.Errorf("Expected 1 profile, got %d", len(all))
+	}
+	if all[0].Source != "user" {
+		t.Errorf("Expected source 'user', got %q", all[0].Source)
+	}
+}
+
+func TestListAll_OnlyProjectProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// Create profile only in project directory
+	p := &Profile{Name: "myprofile", Description: "project profile"}
+	if err := SaveToProject(projectDir, p); err != nil {
+		t.Fatalf("Failed to save profile: %v", err)
+	}
+
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	if len(all) != 1 {
+		t.Errorf("Expected 1 profile, got %d", len(all))
+	}
+	if all[0].Source != "project" {
+		t.Errorf("Expected source 'project', got %q", all[0].Source)
+	}
+}
