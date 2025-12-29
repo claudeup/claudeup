@@ -379,3 +379,30 @@ func TestLoadWithFallback_CorruptProjectProfile(t *testing.T) {
 		t.Error("Expected error for corrupt project profile, got nil")
 	}
 }
+
+func TestSaveToProject(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "project")
+
+	p := &Profile{Name: "team-profile", Description: "Team shared profile"}
+
+	err := SaveToProject(projectDir, p)
+	if err != nil {
+		t.Fatalf("SaveToProject failed: %v", err)
+	}
+
+	// Verify file exists in correct location
+	expectedPath := filepath.Join(projectDir, ".claudeup", "profiles", "team-profile.json")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("Profile not saved to expected path: %s", expectedPath)
+	}
+
+	// Verify it can be loaded
+	loaded, err := Load(filepath.Join(projectDir, ".claudeup", "profiles"), "team-profile")
+	if err != nil {
+		t.Fatalf("Failed to load saved profile: %v", err)
+	}
+	if loaded.Description != "Team shared profile" {
+		t.Errorf("Description mismatch: got %q", loaded.Description)
+	}
+}

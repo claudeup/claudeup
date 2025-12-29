@@ -154,6 +154,12 @@ func ProjectProfilesDir(projectDir string) string {
 	return filepath.Join(projectDir, ".claudeup", "profiles")
 }
 
+// SaveToProject saves a profile to the project's .claudeup/profiles/ directory
+func SaveToProject(projectDir string, p *Profile) error {
+	profilesDir := ProjectProfilesDir(projectDir)
+	return Save(profilesDir, p)
+}
+
 // LoadWithFallback loads a profile, checking project directory first, then user directory.
 // Returns the profile, the source ("project" or "user"), and any error.
 func LoadWithFallback(userProfilesDir, projectDir, name string) (*Profile, string, error) {
