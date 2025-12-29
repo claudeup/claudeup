@@ -374,3 +374,61 @@ func TestSyncWithExecutor_EmptyPluginsList(t *testing.T) {
 		t.Errorf("PluginsSkipped = %d, want 0", result.PluginsSkipped)
 	}
 }
+
+func TestSyncWithExecutor_LoadsFromProject(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	claudeDir := filepath.Join(tmpDir, "claude")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+
+	// Create directories
+	os.MkdirAll(userProfilesDir, 0755)
+	os.MkdirAll(projectProfilesDir, 0755)
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Create project profile with a specific plugin
+	projectProfile := &Profile{
+		Name:    "team-config",
+		Plugins: []string{"project-plugin@marketplace"},
+	}
+	if err := Save(projectProfilesDir, projectProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create .claudeup.json pointing to the profile
+	cfg := &ProjectConfig{Profile: "team-config"}
+	if err := SaveProjectConfig(projectDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create empty installed_plugins.json
+	emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
+	pluginsData, _ := json.Marshal(emptyPlugins)
+	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
+
+	// Create mock executor that records what plugins are installed
+	executor := newSyncMockExecutor()
+
+	result, err := SyncWithExecutor(userProfilesDir, projectDir, claudeDir, SyncOptions{}, executor)
+	if err != nil {
+		t.Fatalf("Sync failed: %v", err)
+	}
+
+	if result.PluginsInstalled != 1 {
+		t.Errorf("Expected 1 plugin installed, got %d", result.PluginsInstalled)
+	}
+
+	// Verify the correct plugin was installed
+	foundPlugin := false
+	for _, cmd := range executor.commands {
+		if len(cmd) >= 5 && cmd[0] == "plugin" && cmd[1] == "install" && cmd[4] == "project-plugin@marketplace" {
+			foundPlugin = true
+			break
+		}
+	}
+	if !foundPlugin {
+		t.Errorf("Expected project-plugin@marketplace to be installed, commands: %v", executor.commands)
+	}
+}

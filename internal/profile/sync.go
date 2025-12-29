@@ -39,8 +39,8 @@ func SyncWithExecutor(profilesDir, projectDir, claudeDir string, opts SyncOption
 		return nil, fmt.Errorf("no %s found: %w", ProjectConfigFile, err)
 	}
 
-	// Load the profile to get its plugins and marketplaces
-	prof, err := Load(profilesDir, cfg.Profile)
+	// Load the profile - check project first, then user profiles
+	prof, _, err := LoadWithFallback(profilesDir, projectDir, cfg.Profile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load profile %q: %w", cfg.Profile, err)
 	}
