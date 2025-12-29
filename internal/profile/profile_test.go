@@ -275,3 +275,261 @@ func TestProfile_GenerateDescription(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadWithFallback_ProjectFirst(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+
+	// Create profile in BOTH locations with different descriptions
+	userProfile := &Profile{Name: "test", Description: "from user"}
+	projectProfile := &Profile{Name: "test", Description: "from project"}
+
+	if err := os.MkdirAll(userProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(projectProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(userProfilesDir, userProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(projectProfilesDir, projectProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load with fallback - should get project version
+	loaded, source, err := LoadWithFallback(userProfilesDir, projectDir, "test")
+	if err != nil {
+		t.Fatalf("LoadWithFallback failed: %v", err)
+	}
+	if loaded.Description != "from project" {
+		t.Errorf("Expected project profile, got: %s", loaded.Description)
+	}
+	if source != "project" {
+		t.Errorf("Expected source 'project', got: %s", source)
+	}
+}
+
+func TestLoadWithFallback_FallsBackToUser(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// Create profile only in user location
+	userProfile := &Profile{Name: "test", Description: "from user"}
+	if err := os.MkdirAll(userProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(userProfilesDir, userProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load with fallback - should get user version
+	loaded, source, err := LoadWithFallback(userProfilesDir, projectDir, "test")
+	if err != nil {
+		t.Fatalf("LoadWithFallback failed: %v", err)
+	}
+	if loaded.Description != "from user" {
+		t.Errorf("Expected user profile, got: %s", loaded.Description)
+	}
+	if source != "user" {
+		t.Errorf("Expected source 'user', got: %s", source)
+	}
+}
+
+func TestLoadWithFallback_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	_, _, err := LoadWithFallback(userProfilesDir, projectDir, "nonexistent")
+	if err == nil {
+		t.Error("Expected error for nonexistent profile")
+	}
+}
+
+func TestLoadWithFallback_CorruptProjectProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+
+	// Create valid user profile
+	userProfile := &Profile{Name: "test", Description: "from user"}
+	if err := os.MkdirAll(userProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(userProfilesDir, userProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create corrupt project profile
+	if err := os.MkdirAll(projectProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectProfilesDir, "test.json"), []byte("{invalid json}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should return error, not silently fall back
+	_, _, err := LoadWithFallback(userProfilesDir, projectDir, "test")
+	if err == nil {
+		t.Error("Expected error for corrupt project profile, got nil")
+	}
+}
+
+func TestSaveToProject(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectDir := filepath.Join(tmpDir, "project")
+
+	p := &Profile{Name: "team-profile", Description: "Team shared profile"}
+
+	err := SaveToProject(projectDir, p)
+	if err != nil {
+		t.Fatalf("SaveToProject failed: %v", err)
+	}
+
+	// Verify file exists in correct location
+	expectedPath := filepath.Join(projectDir, ".claudeup", "profiles", "team-profile.json")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("Profile not saved to expected path: %s", expectedPath)
+	}
+
+	// Verify it can be loaded
+	loaded, err := Load(filepath.Join(projectDir, ".claudeup", "profiles"), "team-profile")
+	if err != nil {
+		t.Fatalf("Failed to load saved profile: %v", err)
+	}
+	if loaded.Description != "Team shared profile" {
+		t.Errorf("Description mismatch: got %q", loaded.Description)
+	}
+}
+
+func TestListAll(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+
+	// Create profiles in user directory
+	userProfiles := []*Profile{
+		{Name: "alpha", Description: "user alpha"},
+		{Name: "beta", Description: "user beta"},
+	}
+	for _, p := range userProfiles {
+		if err := Save(userProfilesDir, p); err != nil {
+			t.Fatalf("Failed to save user profile %s: %v", p.Name, err)
+		}
+	}
+
+	// Create profiles in project directory (one with same name as user)
+	projectProfiles := []*Profile{
+		{Name: "alpha", Description: "project alpha"}, // shadows user alpha
+		{Name: "gamma", Description: "project gamma"},
+	}
+	for _, p := range projectProfiles {
+		if err := Save(projectProfilesDir, p); err != nil {
+			t.Fatalf("Failed to save project profile %s: %v", p.Name, err)
+		}
+	}
+
+	// List all profiles
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	// Should have 3 profiles: alpha (project), beta (user), gamma (project)
+	if len(all) != 3 {
+		t.Errorf("Expected 3 profiles, got %d", len(all))
+	}
+
+	// Verify sorted order and sources
+	expected := []struct {
+		name   string
+		source string
+		desc   string
+	}{
+		{"alpha", "project", "project alpha"}, // project shadows user
+		{"beta", "user", "user beta"},
+		{"gamma", "project", "project gamma"},
+	}
+
+	for i, exp := range expected {
+		if all[i].Name != exp.name {
+			t.Errorf("Profile %d: expected name %q, got %q", i, exp.name, all[i].Name)
+		}
+		if all[i].Source != exp.source {
+			t.Errorf("Profile %d (%s): expected source %q, got %q", i, exp.name, exp.source, all[i].Source)
+		}
+		if all[i].Description != exp.desc {
+			t.Errorf("Profile %d (%s): expected desc %q, got %q", i, exp.name, exp.desc, all[i].Description)
+		}
+	}
+}
+
+func TestListAll_EmptyDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// List from nonexistent directories should return empty, not error
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	if len(all) != 0 {
+		t.Errorf("Expected 0 profiles, got %d", len(all))
+	}
+}
+
+func TestListAll_OnlyUserProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// Create profile only in user directory
+	p := &Profile{Name: "myprofile", Description: "user profile"}
+	if err := Save(userProfilesDir, p); err != nil {
+		t.Fatalf("Failed to save profile: %v", err)
+	}
+
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	if len(all) != 1 {
+		t.Errorf("Expected 1 profile, got %d", len(all))
+	}
+	if all[0].Source != "user" {
+		t.Errorf("Expected source 'user', got %q", all[0].Source)
+	}
+}
+
+func TestListAll_OnlyProjectProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// Create profile only in project directory
+	p := &Profile{Name: "myprofile", Description: "project profile"}
+	if err := SaveToProject(projectDir, p); err != nil {
+		t.Fatalf("Failed to save profile: %v", err)
+	}
+
+	all, err := ListAll(userProfilesDir, projectDir)
+	if err != nil {
+		t.Fatalf("ListAll failed: %v", err)
+	}
+
+	if len(all) != 1 {
+		t.Errorf("Expected 1 profile, got %d", len(all))
+	}
+	if all[0].Source != "project" {
+		t.Errorf("Expected source 'project', got %q", all[0].Source)
+	}
+}

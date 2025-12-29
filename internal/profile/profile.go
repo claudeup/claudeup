@@ -149,6 +149,40 @@ func Load(profilesDir, name string) (*Profile, error) {
 	return &p, nil
 }
 
+// ProjectProfilesDir returns the path to project-local profiles directory
+func ProjectProfilesDir(projectDir string) string {
+	return filepath.Join(projectDir, ".claudeup", "profiles")
+}
+
+// SaveToProject saves a profile to the project's .claudeup/profiles/ directory
+func SaveToProject(projectDir string, p *Profile) error {
+	profilesDir := ProjectProfilesDir(projectDir)
+	return Save(profilesDir, p)
+}
+
+// LoadWithFallback loads a profile, checking project directory first, then user directory.
+// Returns the profile, the source ("project" or "user"), and any error.
+func LoadWithFallback(userProfilesDir, projectDir, name string) (*Profile, string, error) {
+	// Try project directory first
+	projectProfilesDir := ProjectProfilesDir(projectDir)
+	p, err := Load(projectProfilesDir, name)
+	if err == nil {
+		return p, "project", nil
+	}
+	// Only fall back to user if file doesn't exist (not on parse errors)
+	if !os.IsNotExist(err) {
+		// Project profile exists but failed to load
+		return nil, "", fmt.Errorf("project profile %q exists but failed to load: %w", name, err)
+	}
+
+	// Fall back to user directory
+	p, err = Load(userProfilesDir, name)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not load profile %q from project or user profiles: %w", name, err)
+	}
+	return p, "user", nil
+}
+
 // List returns all profiles in the profiles directory, sorted by name
 func List(profilesDir string) ([]*Profile, error) {
 	entries, err := os.ReadDir(profilesDir)
@@ -181,6 +215,46 @@ func List(profilesDir string) ([]*Profile, error) {
 	})
 
 	return profiles, nil
+}
+
+// ProfileWithSource wraps a profile with its source location
+type ProfileWithSource struct {
+	*Profile
+	Source string // "user" or "project"
+}
+
+// ListAll returns profiles from both user and project directories.
+// Project profiles take precedence over user profiles with the same name.
+func ListAll(userProfilesDir, projectDir string) ([]*ProfileWithSource, error) {
+	var all []*ProfileWithSource
+	seen := make(map[string]bool)
+
+	// List project profiles first (higher precedence)
+	projectProfilesDir := ProjectProfilesDir(projectDir)
+	projectProfiles, err := List(projectProfilesDir)
+	if err == nil {
+		for _, p := range projectProfiles {
+			all = append(all, &ProfileWithSource{Profile: p, Source: "project"})
+			seen[p.Name] = true
+		}
+	}
+
+	// List user profiles (skip if already in project)
+	userProfiles, err := List(userProfilesDir)
+	if err == nil {
+		for _, p := range userProfiles {
+			if !seen[p.Name] {
+				all = append(all, &ProfileWithSource{Profile: p, Source: "user"})
+			}
+		}
+	}
+
+	// Sort by name
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].Name < all[j].Name
+	})
+
+	return all, nil
 }
 
 // Clone creates a deep copy of the profile with a new name

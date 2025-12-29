@@ -38,6 +38,21 @@ claudeup profile apply backend     # Switch to a different profile
 
 Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more →](docs/profiles.md)
 
+### Team Configuration
+
+Share Claude configurations with your team via git:
+
+```bash
+# Team lead: Save profile to project
+claudeup profile save team-config --scope project
+git add .claudeup && git commit -m "Add team profile"
+
+# Team member: Sync after clone/pull
+claudeup profile sync
+```
+
+Project profiles live in `.claudeup/profiles/` and travel with your repository. [Learn more →](docs/team-workflows.md)
+
 ### Sandbox
 
 Run Claude Code in an isolated Docker container for security.
@@ -74,6 +89,7 @@ claudeup update   # Check for updates
 ## Documentation
 
 - [Profiles](docs/profiles.md) - Configuration profiles and secret management
+- [Team Workflows](docs/team-workflows.md) - Sharing configurations via git
 - [Sandbox](docs/sandbox.md) - Running Claude in isolated containers
 - [Commands](docs/commands.md) - Full command reference
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and fixes
