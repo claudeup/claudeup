@@ -275,3 +275,107 @@ func TestProfile_GenerateDescription(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadWithFallback_ProjectFirst(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+
+	// Create profile in BOTH locations with different descriptions
+	userProfile := &Profile{Name: "test", Description: "from user"}
+	projectProfile := &Profile{Name: "test", Description: "from project"}
+
+	if err := os.MkdirAll(userProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(projectProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(userProfilesDir, userProfile); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(projectProfilesDir, projectProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load with fallback - should get project version
+	loaded, source, err := LoadWithFallback(userProfilesDir, projectDir, "test")
+	if err != nil {
+		t.Fatalf("LoadWithFallback failed: %v", err)
+	}
+	if loaded.Description != "from project" {
+		t.Errorf("Expected project profile, got: %s", loaded.Description)
+	}
+	if source != "project" {
+		t.Errorf("Expected source 'project', got: %s", source)
+	}
+}
+
+func TestLoadWithFallback_FallsBackToUser(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	// Create profile only in user location
+	userProfile := &Profile{Name: "test", Description: "from user"}
+	if err := os.MkdirAll(userProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(userProfilesDir, userProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load with fallback - should get user version
+	loaded, source, err := LoadWithFallback(userProfilesDir, projectDir, "test")
+	if err != nil {
+		t.Fatalf("LoadWithFallback failed: %v", err)
+	}
+	if loaded.Description != "from user" {
+		t.Errorf("Expected user profile, got: %s", loaded.Description)
+	}
+	if source != "user" {
+		t.Errorf("Expected source 'user', got: %s", source)
+	}
+}
+
+func TestLoadWithFallback_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+
+	_, _, err := LoadWithFallback(userProfilesDir, projectDir, "nonexistent")
+	if err == nil {
+		t.Error("Expected error for nonexistent profile")
+	}
+}
+
+func TestLoadWithFallback_CorruptProjectProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+
+	// Create valid user profile
+	userProfile := &Profile{Name: "test", Description: "from user"}
+	if err := os.MkdirAll(userProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(userProfilesDir, userProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create corrupt project profile
+	if err := os.MkdirAll(projectProfilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(projectProfilesDir, "test.json"), []byte("{invalid json}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Should return error, not silently fall back
+	_, _, err := LoadWithFallback(userProfilesDir, projectDir, "test")
+	if err == nil {
+		t.Error("Expected error for corrupt project profile, got nil")
+	}
+}

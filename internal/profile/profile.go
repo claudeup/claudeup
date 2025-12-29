@@ -149,6 +149,34 @@ func Load(profilesDir, name string) (*Profile, error) {
 	return &p, nil
 }
 
+// ProjectProfilesDir returns the path to project-local profiles directory
+func ProjectProfilesDir(projectDir string) string {
+	return filepath.Join(projectDir, ".claudeup", "profiles")
+}
+
+// LoadWithFallback loads a profile, checking project directory first, then user directory.
+// Returns the profile, the source ("project" or "user"), and any error.
+func LoadWithFallback(userProfilesDir, projectDir, name string) (*Profile, string, error) {
+	// Try project directory first
+	projectProfilesDir := ProjectProfilesDir(projectDir)
+	p, err := Load(projectProfilesDir, name)
+	if err == nil {
+		return p, "project", nil
+	}
+	// Only fall back to user if file doesn't exist (not on parse errors)
+	if !os.IsNotExist(err) {
+		// Project profile exists but failed to load
+		return nil, "", fmt.Errorf("project profile %q exists but failed to load: %w", name, err)
+	}
+
+	// Fall back to user directory
+	p, err = Load(userProfilesDir, name)
+	if err != nil {
+		return nil, "", fmt.Errorf("could not load profile %q from project or user profiles: %w", name, err)
+	}
+	return p, "user", nil
+}
+
 // List returns all profiles in the profiles directory, sorted by name
 func List(profilesDir string) ([]*Profile, error) {
 	entries, err := os.ReadDir(profilesDir)
