@@ -115,8 +115,24 @@ var profileSaveCmd = &cobra.Command{
 	Short: "Save current Claude Code state to a profile",
 	Long: `Saves your current Claude Code configuration (plugins, MCP servers, marketplaces) to a profile.
 
+SCOPES:
+  --scope user     Save to ~/.claudeup/profiles/ (personal profile)
+  --scope project  Save to .claudeup/profiles/ (shareable with team)
+
+If --scope is not specified, uses context-aware default:
+  - project scope if .claudeup.json exists in current directory
+  - user scope otherwise
+
 If no name is given, saves to the currently active profile.
 If the profile exists, prompts for confirmation unless -y is used.`,
+	Example: `  # Save to user scope (default in non-project directories)
+  claudeup profile save my-tools
+
+  # Save to project scope (for team sharing)
+  claudeup profile save team-config --scope project
+
+  # Explicitly save to user scope
+  claudeup profile save my-tools --scope user`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileSave,
 }
@@ -301,6 +317,9 @@ var (
 // Flags for profile sync command
 var profileSyncDryRun bool
 
+// Flags for profile save command
+var profileSaveScope string
+
 // Flags for profile clean command
 var profileCleanScope string
 
@@ -475,6 +494,7 @@ func init() {
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
 
 	profileSaveCmd.Flags().StringVar(&profileSaveDescription, "description", "", "Custom description for the profile")
+	profileSaveCmd.Flags().StringVar(&profileSaveScope, "scope", "", "Where to save: 'user' or 'project' (default: project if .claudeup.json exists, otherwise user)")
 
 	// Add flags to profile apply command
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
@@ -945,7 +965,35 @@ func cleanupStalePlugins(claudeDir string) {
 }
 
 func runProfileSave(cmd *cobra.Command, args []string) error {
-	profilesDir := getProfilesDir()
+	// Determine scope from flag or context-aware default
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	var scope string
+	if profileSaveScope != "" {
+		// Explicit scope from flag
+		if profileSaveScope != "user" && profileSaveScope != "project" {
+			return fmt.Errorf("invalid scope %q: must be 'user' or 'project'", profileSaveScope)
+		}
+		scope = profileSaveScope
+	} else {
+		// Context-aware default: project if .claudeup.json exists, otherwise user
+		if profile.ProjectConfigExists(cwd) {
+			scope = "project"
+		} else {
+			scope = "user"
+		}
+	}
+
+	// Determine profiles directory based on scope
+	var profilesDir string
+	if scope == "project" {
+		profilesDir = profile.ProjectProfilesDir(cwd)
+	} else {
+		profilesDir = getProfilesDir()
+	}
 
 	// Determine profile name
 	var name string
@@ -973,7 +1021,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
 		if !isActiveProfile && !config.YesFlag {
-			fmt.Printf("%s Profile %q already exists. ", ui.Warning(ui.SymbolWarning), name)
+			fmt.Printf("%s Profile %q already exists at %s scope. ", ui.Warning(ui.SymbolWarning), name, scope)
 			choice := promptChoice("Overwrite?", "n")
 			if choice != "y" && choice != "yes" {
 				ui.PrintMuted("Cancelled.")
@@ -1014,21 +1062,29 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	// Update active profile in config
-	cfg, err := config.Load()
-	if err != nil {
-		cfg = config.DefaultConfig()
-	}
-	cfg.Preferences.ActiveProfile = name
-	if err := config.Save(cfg); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+	// Only update active profile in config for user-scope saves
+	if scope == "user" {
+		cfg, err := config.Load()
+		if err != nil {
+			cfg = config.DefaultConfig()
+		}
+		cfg.Preferences.ActiveProfile = name
+		if err := config.Save(cfg); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+		}
 	}
 
-	ui.PrintSuccess(fmt.Sprintf("Saved profile %q", name))
+	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s scope)", name, scope))
 	fmt.Println()
 	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
 	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+
+	// Show commit hint for project scope
+	if scope == "project" {
+		fmt.Println()
+		fmt.Printf("%s Consider adding to git: %s\n", ui.Muted(ui.SymbolArrow), ui.Bold(".claudeup/profiles/"))
+	}
 
 	return nil
 }
