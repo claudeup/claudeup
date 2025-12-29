@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ABOUTME: Example showing how to use .claudeup.json for project configuration
-# ABOUTME: Demonstrates project-level config file usage
+# ABOUTME: Example showing how to share profiles via project-local storage
+# ABOUTME: Demonstrates profile save --scope project and .claudeup/profiles/
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
@@ -9,65 +9,80 @@ setup_environment
 
 cat <<'EOF'
 ╔════════════════════════════════════════════════════════════════╗
-║             Team Setup: Project Configuration                  ║
+║         Team Setup: Project-Local Profile Sharing              ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Use .claudeup.json to define project-specific Claude configuration
-that travels with your repository.
+Share Claude Code profiles with your team by storing them directly
+in your project repository.
 
 EOF
 pause
 
-section "1. The .claudeup.json File"
+section "1. Two Ways to Share Configuration"
 
-info "Place .claudeup.json in your project root to define:"
-info "  • Required plugins for the project"
-info "  • Recommended profiles"
-info "  • MCP server configurations"
+info "claudeup offers two complementary approaches:"
 echo
-
-step "Example .claudeup.json structure"
-cat <<'EXAMPLE'
-{
-  "plugins": [
-    "superpowers@superpowers-marketplace",
-    "backend-development@claude-code-workflows"
-  ]
-}
-EXAMPLE
+info "  A. Project-local profiles (.claudeup/profiles/)"
+info "     • Store profile definitions in your repo"
+info "     • Team members get profiles when they clone"
+info "     • Profiles are versioned with your code"
+echo
+info "  B. Project config file (.claudeup.json)"
+info "     • Define required plugins for the project"
+info "     • Install plugins on sync"
+echo
+info "This example focuses on project-local profiles (A)"
 pause
 
-section "2. Create a Project Config"
+section "2. Save a Profile to Project Scope"
 
-step "Apply a profile at project scope"
-info "Applying a profile with --scope project creates .claudeup.json automatically"
-info "This file captures the project's plugin requirements for the team"
+step "Use --scope project to save profile in the repo"
 echo
-
-# In real mode, actually create it
-if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "Applying profile to project scope..."
-    info "Command: claudeup profile apply <profile-name> --scope project"
-else
-    info "In your project, run:"
-    echo -e "${YELLOW}\$ claudeup profile apply <profile-name> --scope project${NC}"
-    echo
-    info "This creates .claudeup.json with the profile's plugin requirements"
-fi
+info "When you run:"
+echo -e "${YELLOW}\$ claudeup profile save team-config --scope project${NC}"
+echo
+info "claudeup creates:"
+info "  .claudeup/profiles/team-config.json"
+echo
+info "This file contains:"
+info "  • Snapshot of current Claude plugins"
+info "  • Settings configuration"
+info "  • Description and metadata"
 pause
 
-section "3. Sync Team Configuration"
+section "3. Context-Aware Default"
 
-step "Teammates sync the project configuration"
-info "After cloning the repo, teammates run sync to install the plugins:"
+step "Smart scoping when .claudeup.json exists"
 echo
-echo -e "${YELLOW}\$ claudeup profile sync${NC}"
+info "claudeup detects project context:"
 echo
-
-info "This reads .claudeup.json and installs all required plugins"
+info "  If .claudeup.json exists in current directory:"
+info "    → profile save defaults to project scope"
+echo
+info "  Otherwise:"
+info "    → profile save defaults to user scope (~/.claudeup/profiles/)"
+echo
+info "You can always override with --scope user or --scope project"
 pause
 
-section "4. Git Integration"
+section "4. Directory Structure"
+
+step "Where project profiles are stored"
+cat <<'STRUCTURE'
+your-project/
+├── .claudeup/
+│   └── profiles/
+│       ├── team-config.json     # Shared team profile
+│       └── frontend-dev.json    # Role-specific profile
+├── .claudeup.json               # Project plugin requirements
+├── .gitignore
+└── src/
+STRUCTURE
+echo
+info "The .claudeup/profiles/ directory should be committed to git"
+pause
+
+section "5. Git Integration"
 
 info "Recommended .gitignore entries:"
 cat <<'GITIGNORE'
@@ -77,17 +92,40 @@ cat <<'GITIGNORE'
 # Keep these tracked for team sharing:
 # .claude/settings.json
 # .claudeup.json
+# .claudeup/profiles/
 GITIGNORE
+echo
+info "Note: .claudeup/profiles/ should NOT be ignored"
+pause
+
+section "6. Full Workflow Example"
+
+step "Team lead creates shared profile"
+echo -e "${YELLOW}\$ cd your-project${NC}"
+echo -e "${YELLOW}\$ claudeup profile save team-config --scope project${NC}"
+echo -e "${YELLOW}\$ git add .claudeup/profiles/${NC}"
+echo -e "${YELLOW}\$ git commit -m \"Add team Claude profile\"${NC}"
+echo -e "${YELLOW}\$ git push${NC}"
+echo
+step "Team member applies after clone"
+echo -e "${YELLOW}\$ git clone <repo-url>${NC}"
+echo -e "${YELLOW}\$ cd your-project${NC}"
+echo -e "${YELLOW}\$ claudeup profile sync${NC}"
+echo
+info "The sync command finds profiles in .claudeup/profiles/"
 pause
 
 section "Summary"
 
-success "You can share Claude configuration via git"
+success "You can share profiles via your project repository"
+echo
+info "Key commands:"
+info "  claudeup profile save <name> --scope project"
+info "  claudeup profile sync"
 echo
 info "Key files:"
-info "  .claudeup.json              Project plugin requirements"
-info "  .claude/settings.json       Project Claude settings"
-info "  .claude/settings.local.json Personal overrides (git-ignored)"
+info "  .claudeup/profiles/     Project-local profile storage"
+info "  .claudeup.json          Project plugin requirements"
 echo
 
 prompt_cleanup
