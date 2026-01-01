@@ -79,12 +79,26 @@ claudeup mcp disable plugin:server    # Disable just an MCP server
 ### Diagnostics & Maintenance
 
 ```bash
-claudeup doctor   # Diagnose issues
-claudeup cleanup  # Fix plugin path problems
-claudeup update   # Check for updates
+claudeup doctor     # Diagnose issues
+claudeup cleanup    # Fix plugin path problems
+claudeup outdated   # Check for updates
+claudeup update     # Update claudeup CLI
+claudeup upgrade    # Update plugins and marketplaces
 ```
 
 [Troubleshooting guide →](docs/troubleshooting.md)
+
+## Commands
+
+### Update Commands
+
+| Command | Description |
+|---------|-------------|
+| `claudeup update` | Update the claudeup CLI to the latest version |
+| `claudeup upgrade` | Update marketplaces and plugins |
+| `claudeup outdated` | Show available updates for CLI, marketplaces, and plugins |
+
+For the complete command reference, see [Full command reference →](docs/commands.md)
 
 ## Environment Variables
 
