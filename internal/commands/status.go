@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
@@ -84,8 +85,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Check for unsaved profile changes (scope-aware)
 	if activeProfile != "none" && activeProfile != "" {
-		homeDir, _ := os.UserHomeDir()
-		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
+		profilesDir := filepath.Join(config.MustClaudeupHome(), "profiles")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 		// Check if profile file exists (both disk and embedded)
@@ -306,8 +306,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	// Build set of plugins in the active profile
 	pluginsInProfile := make(map[string]bool)
 	if activeProfile != "none" && activeProfile != "" {
-		homeDir, _ := os.UserHomeDir()
-		profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
+		profilesDir := filepath.Join(config.MustClaudeupHome(), "profiles")
 		savedProfile, err := profile.Load(profilesDir, activeProfile)
 		if err != nil {
 			savedProfile, err = profile.GetEmbeddedProfile(activeProfile)
