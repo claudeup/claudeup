@@ -18,6 +18,14 @@ func TestMustClaudeupHome(t *testing.T) {
 		}
 	})
 
+	t.Run("trims whitespace from CLAUDEUP_HOME", func(t *testing.T) {
+		t.Setenv("CLAUDEUP_HOME", "  /custom/path  ")
+		got := MustClaudeupHome()
+		if got != "/custom/path" {
+			t.Errorf("got %q, want /custom/path", got)
+		}
+	})
+
 	t.Run("falls back to ~/.claudeup when not set", func(t *testing.T) {
 		t.Setenv("CLAUDEUP_HOME", "")
 		got := MustClaudeupHome()
@@ -26,5 +34,25 @@ func TestMustClaudeupHome(t *testing.T) {
 		if got != want {
 			t.Errorf("got %q, want %q", got, want)
 		}
+	})
+
+	t.Run("panics on whitespace-only CLAUDEUP_HOME", func(t *testing.T) {
+		t.Setenv("CLAUDEUP_HOME", "   ")
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expected panic for whitespace-only CLAUDEUP_HOME")
+			}
+		}()
+		MustClaudeupHome()
+	})
+
+	t.Run("panics on relative path CLAUDEUP_HOME", func(t *testing.T) {
+		t.Setenv("CLAUDEUP_HOME", "relative/path")
+		defer func() {
+			if r := recover(); r == nil {
+				t.Error("expected panic for relative path CLAUDEUP_HOME")
+			}
+		}()
+		MustClaudeupHome()
 	})
 }
