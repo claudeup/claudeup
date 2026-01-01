@@ -1,5 +1,5 @@
-// ABOUTME: Update command implementation for checking and applying updates
-// ABOUTME: Checks marketplaces and plugins for available updates
+// ABOUTME: Upgrade command for updating marketplaces and plugins
+// ABOUTME: Checks git repos for updates and applies them
 package commands
 
 import (
@@ -15,28 +15,28 @@ import (
 )
 
 var (
-	updateCheckOnly bool
+	upgradeCheckOnly bool
 )
 
-var updateCmd = &cobra.Command{
-	Use:   "update",
-	Short: "Check for and apply updates to marketplaces and plugins",
-	Long: `Check if marketplaces or plugins have updates available and optionally apply them.
+var upgradeCmd = &cobra.Command{
+	Use:   "upgrade",
+	Short: "Check for and apply upgrades to marketplaces and plugins",
+	Long: `Check if marketplaces or plugins have upgrades available and optionally apply them.
 
-By default, checks for updates and prompts to install them.
+By default, checks for upgrades and prompts to install them.
 Use --check-only to see what's available without making changes.`,
-	Example: `  # Check for updates and interactively select which to apply
-  claudeup update
+	Example: `  # Check for upgrades and interactively select which to apply
+  claudeup upgrade
 
-  # Only check what updates are available
-  claudeup update --check-only`,
+  # Only check what upgrades are available
+  claudeup upgrade --check-only`,
 	Args: cobra.NoArgs,
-	RunE: runUpdate,
+	RunE: runUpgrade,
 }
 
 func init() {
-	rootCmd.AddCommand(updateCmd)
-	updateCmd.Flags().BoolVar(&updateCheckOnly, "check-only", false, "Check for updates without applying them")
+	rootCmd.AddCommand(upgradeCmd)
+	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check-only", false, "Check for updates without applying them")
 }
 
 type MarketplaceUpdate struct {
@@ -53,7 +53,7 @@ type PluginUpdate struct {
 	LatestCommit  string
 }
 
-func runUpdate(cmd *cobra.Command, args []string) error {
+func runUpgrade(cmd *cobra.Command, args []string) error {
 	ui.PrintInfo("Checking for updates...")
 
 	// Load marketplaces
@@ -108,7 +108,7 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if updateCheckOnly {
+	if upgradeCheckOnly {
 		if len(outdatedMarketplaces) > 0 {
 			fmt.Println()
 			ui.PrintWarning(fmt.Sprintf("%d marketplace updates available:", len(outdatedMarketplaces)))
