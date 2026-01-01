@@ -179,14 +179,7 @@ setup_temp_claude_dir() {
 
     EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXXXXXXX")
 
-    # Save real HOME for any operations that need it
-    EXAMPLE_REAL_HOME="$HOME"
-    export EXAMPLE_REAL_HOME
-
-    # Override HOME so claudeup's config.json is isolated
-    # This is necessary because claudeup reads ~/.claudeup/config.json
-    # which contains the active profile setting
-    export HOME="$EXAMPLE_TEMP_DIR"
+    # Set isolated directories for Claude and claudeup
     export CLAUDE_CONFIG_DIR="$EXAMPLE_TEMP_DIR/.claude"
     export CLAUDEUP_HOME="$EXAMPLE_TEMP_DIR/.claudeup"
 
@@ -198,8 +191,8 @@ setup_temp_claude_dir() {
     cd "$EXAMPLE_TEMP_DIR" || exit 1
 
     success "Created isolated environment: $EXAMPLE_TEMP_DIR"
-    info "HOME=$HOME (isolated)"
     info "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
+    info "CLAUDEUP_HOME=$CLAUDEUP_HOME"
 }
 
 cleanup_temp_dir() {
