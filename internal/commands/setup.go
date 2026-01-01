@@ -320,7 +320,7 @@ func promptClaudeUpgrade(currentVersion string) error {
 }
 
 func getProfilesDir() string {
-	return filepath.Join(profile.MustHomeDir(), ".claudeup", "profiles")
+	return filepath.Join(config.MustClaudeupHome(), "profiles")
 }
 
 func hasContent(p *profile.Profile) bool {
