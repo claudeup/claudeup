@@ -144,3 +144,11 @@ var _ = Describe("ReplaceBinary", func() {
 		Expect(os.IsNotExist(err)).To(BeTrue())
 	})
 })
+
+var _ = Describe("Update", func() {
+	It("returns AlreadyUpToDate when versions match", func() {
+		result := Update("v1.0.0", "v1.0.0", "")
+		Expect(result.AlreadyUpToDate).To(BeTrue())
+		Expect(result.Error).NotTo(HaveOccurred())
+	})
+})
