@@ -14,29 +14,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	upgradeCheckOnly bool
-)
-
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
-	Short: "Check for and apply upgrades to marketplaces and plugins",
-	Long: `Check if marketplaces or plugins have upgrades available and optionally apply them.
-
-By default, checks for upgrades and prompts to install them.
-Use --check-only to see what's available without making changes.`,
-	Example: `  # Check for upgrades and interactively select which to apply
-  claudeup upgrade
-
-  # Only check what upgrades are available
-  claudeup upgrade --check-only`,
+	Short: "Update marketplaces and plugins to latest versions",
+	Long:  `Update installed marketplaces and plugins to their latest versions.`,
+	Example: `  # Upgrade all outdated marketplaces and plugins
+  claudeup upgrade`,
 	Args: cobra.NoArgs,
 	RunE: runUpgrade,
 }
 
 func init() {
 	rootCmd.AddCommand(upgradeCmd)
-	upgradeCmd.Flags().BoolVar(&upgradeCheckOnly, "check-only", false, "Check for updates without applying them")
 }
 
 type MarketplaceUpdate struct {
@@ -105,26 +94,6 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderSection("Summary", -1))
 	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
 		ui.PrintSuccess("Everything is up to date!")
-		return nil
-	}
-
-	if upgradeCheckOnly {
-		if len(outdatedMarketplaces) > 0 {
-			fmt.Println()
-			ui.PrintWarning(fmt.Sprintf("%d marketplace updates available:", len(outdatedMarketplaces)))
-			for _, name := range outdatedMarketplaces {
-				fmt.Printf("  %s %s\n", ui.SymbolBullet, name)
-			}
-		}
-		if len(outdatedPlugins) > 0 {
-			fmt.Println()
-			ui.PrintWarning(fmt.Sprintf("%d plugin updates available:", len(outdatedPlugins)))
-			for _, name := range outdatedPlugins {
-				fmt.Printf("  %s %s\n", ui.SymbolBullet, name)
-			}
-		}
-		fmt.Println()
-		fmt.Printf("%s Run without --check-only to apply updates\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
