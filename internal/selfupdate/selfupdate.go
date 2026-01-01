@@ -114,3 +114,28 @@ func GetBinaryURL(version string) string {
 func GetChecksumsURL(version string) string {
 	return fmt.Sprintf("%s/%s/checksums.txt", DefaultAssetURL, version)
 }
+
+// ReplaceBinary atomically replaces the current binary with a new one.
+// On failure, attempts to rollback to the original.
+func ReplaceBinary(currentPath, newPath string) error {
+	backupPath := currentPath + ".old"
+
+	// Step 1: Rename current to backup
+	if err := os.Rename(currentPath, backupPath); err != nil {
+		return fmt.Errorf("failed to backup current binary: %w", err)
+	}
+
+	// Step 2: Move new binary to current location
+	if err := os.Rename(newPath, currentPath); err != nil {
+		// Rollback: restore backup
+		if rbErr := os.Rename(backupPath, currentPath); rbErr != nil {
+			return fmt.Errorf("failed to install new binary (%v) and rollback failed (%v)", err, rbErr)
+		}
+		return fmt.Errorf("failed to install new binary (rolled back): %w", err)
+	}
+
+	// Step 3: Remove backup
+	os.Remove(backupPath) // Ignore error - not critical
+
+	return nil
+}

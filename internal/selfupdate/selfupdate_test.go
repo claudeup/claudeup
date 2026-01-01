@@ -115,3 +115,32 @@ var _ = Describe("VerifyChecksum", func() {
 		Expect(err.Error()).To(ContainSubstring("checksum mismatch"))
 	})
 })
+
+var _ = Describe("ReplaceBinary", func() {
+	var tempDir string
+	var currentBinary string
+	var newBinary string
+
+	BeforeEach(func() {
+		tempDir = GinkgoT().TempDir()
+		currentBinary = filepath.Join(tempDir, "claudeup")
+		Expect(os.WriteFile(currentBinary, []byte("old version"), 0755)).To(Succeed())
+		newBinary = filepath.Join(tempDir, "claudeup-new")
+		Expect(os.WriteFile(newBinary, []byte("new version"), 0755)).To(Succeed())
+	})
+
+	It("replaces current binary with new one", func() {
+		err := ReplaceBinary(currentBinary, newBinary)
+		Expect(err).NotTo(HaveOccurred())
+		content, err := os.ReadFile(currentBinary)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(content)).To(Equal("new version"))
+	})
+
+	It("cleans up backup file on success", func() {
+		err := ReplaceBinary(currentBinary, newBinary)
+		Expect(err).NotTo(HaveOccurred())
+		_, err = os.Stat(currentBinary + ".old")
+		Expect(os.IsNotExist(err)).To(BeTrue())
+	})
+})
