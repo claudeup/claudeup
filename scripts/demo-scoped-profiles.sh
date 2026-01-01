@@ -160,18 +160,14 @@ setup_environment() {
     CLAUDE_DIR="$TEST_DIR/.claude"
     PROJECT_DIR="$TEST_DIR/my-project"
 
-    # Save real HOME before we override it
-    REAL_HOME="$HOME"
-
     print_section "Setup: Creating Test Environment"
     print_info "Test directory: $TEST_DIR"
     print_info "Claude directory: $CLAUDE_DIR"
     print_info "Project directory: $PROJECT_DIR"
 
-    # Set CLAUDE_CONFIG_DIR for all Claude CLI and claudeup commands
+    # Set isolated directories for Claude and claudeup
     export CLAUDE_CONFIG_DIR="$CLAUDE_DIR"
-    # Override HOME so claudeup reads config from demo dir, not real ~/.claudeup
-    export HOME="$TEST_DIR"
+    export CLAUDEUP_HOME="$TEST_DIR/.claudeup"
     # Disable Claude's interactive terminal setup prompt
     export CI=true
 
@@ -196,9 +192,9 @@ setup_environment() {
     print_step "Copying Claude configuration..."
 
     # Copy ~/.claude.json from home directory
-    if [ -f "$REAL_HOME/.claude.json" ]; then
+    if [ -f "$HOME/.claude.json" ]; then
         print_info "Copying ~/.claude.json"
-        cp "$REAL_HOME/.claude.json" "$TEST_DIR/.claude.json"
+        cp "$HOME/.claude.json" "$TEST_DIR/.claude.json"
     fi
 
     # Clone claude-config repo or create minimal config
@@ -340,7 +336,7 @@ cleanup_environment() {
     print_info "To continue exploring:"
     echo "  cd $PROJECT_DIR"
     echo "  export CLAUDE_CONFIG_DIR=$CLAUDE_DIR"
-    echo "  export HOME=$TEST_DIR"
+    echo "  export CLAUDEUP_HOME=$TEST_DIR/.claudeup"
     echo ""
     print_info "To clean up:"
     echo "  rm -rf $TEST_DIR"
