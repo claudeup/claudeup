@@ -86,6 +86,23 @@ claudeup update   # Check for updates
 
 [Troubleshooting guide →](docs/troubleshooting.md)
 
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CLAUDEUP_HOME` | Override claudeup's configuration directory | `~/.claudeup` |
+| `CLAUDE_CONFIG_DIR` | Override Claude Code's configuration directory | `~/.claude` |
+
+### Isolated Testing Environment
+
+Use environment variables to run claudeup in isolation (useful for testing or CI):
+
+```bash
+export CLAUDEUP_HOME="/tmp/test-env/.claudeup"
+export CLAUDE_CONFIG_DIR="/tmp/test-env/.claude"
+claudeup profile apply base-tools
+```
+
 ## Documentation
 
 - [Profiles](docs/profiles.md) - Configuration profiles and secret management
