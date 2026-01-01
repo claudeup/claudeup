@@ -5,6 +5,8 @@ package selfupdate
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -52,5 +54,64 @@ var _ = Describe("CheckLatestVersion", func() {
 		_, err := CheckLatestVersion(server.URL)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("status 404"))
+	})
+})
+
+var _ = Describe("DownloadBinary", func() {
+	var server *httptest.Server
+	var tempDir string
+
+	BeforeEach(func() {
+		tempDir = GinkgoT().TempDir()
+	})
+
+	AfterEach(func() {
+		if server != nil {
+			server.Close()
+		}
+	})
+
+	It("downloads binary to temp file", func() {
+		binaryContent := []byte("fake binary content")
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write(binaryContent)
+		}))
+
+		path, err := DownloadBinary(server.URL, tempDir)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(path).To(BeARegularFile())
+
+		content, err := os.ReadFile(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(content).To(Equal(binaryContent))
+	})
+})
+
+var _ = Describe("VerifyChecksum", func() {
+	var tempDir string
+
+	BeforeEach(func() {
+		tempDir = GinkgoT().TempDir()
+	})
+
+	It("returns nil for valid checksum", func() {
+		content := []byte("test content")
+		filePath := filepath.Join(tempDir, "testfile")
+		Expect(os.WriteFile(filePath, content, 0644)).To(Succeed())
+
+		// Known SHA256 of "test content"
+		expectedHash := "6ae8a75555209fd6c44157c0aed8016e763ff435a19cf186f76863140143ff72"
+		err := VerifyChecksum(filePath, expectedHash)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("returns error for invalid checksum", func() {
+		content := []byte("test content")
+		filePath := filepath.Join(tempDir, "testfile")
+		Expect(os.WriteFile(filePath, content, 0644)).To(Succeed())
+
+		err := VerifyChecksum(filePath, "badhash")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("checksum mismatch"))
 	})
 })
