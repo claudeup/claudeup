@@ -89,47 +89,14 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 	}
 
-	// Summary
-	fmt.Println()
-	fmt.Println(ui.RenderSection("Summary", -1))
+	// If nothing outdated, we're done
 	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
+		fmt.Println()
 		ui.PrintSuccess("Everything is up to date!")
 		return nil
 	}
 
-	// Interactive selection for marketplaces
-	if len(outdatedMarketplaces) > 0 {
-		fmt.Println()
-		selectedMarketplaces, err := ui.SelectFromList(
-			"Select marketplaces to update:",
-			outdatedMarketplaces,
-		)
-		if err != nil {
-			return err
-		}
-		outdatedMarketplaces = selectedMarketplaces
-	}
-
-	// Interactive selection for plugins
-	if len(outdatedPlugins) > 0 {
-		fmt.Println()
-		selectedPlugins, err := ui.SelectFromList(
-			"Select plugins to update:",
-			outdatedPlugins,
-		)
-		if err != nil {
-			return err
-		}
-		outdatedPlugins = selectedPlugins
-	}
-
-	// Check if user selected anything
-	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
-		ui.PrintInfo("No updates selected")
-		return nil
-	}
-
-	// Apply marketplace updates
+	// Apply all marketplace updates
 	if len(outdatedMarketplaces) > 0 {
 		fmt.Println()
 		fmt.Println(ui.RenderSection("Updating Marketplaces", len(outdatedMarketplaces)))
