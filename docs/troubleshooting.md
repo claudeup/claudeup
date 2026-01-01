@@ -92,8 +92,11 @@ claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
 **MCP server configuration issues:**
 
 ```bash
-# Check what changed in MCP configs
-claudeup events diff --file ~/.claude/mcp/mcp.json --full
+# Check what changed in user-level MCP configs
+claudeup events diff --file ~/.claude.json --full
+
+# Check what changed in project-level MCP configs
+claudeup events diff --file ./.mcp.json --full
 ```
 
 **Something changed but you don't know when:**

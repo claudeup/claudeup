@@ -28,17 +28,19 @@ claudeup profile list                        # List available profiles
 claudeup profile show <name>                 # Display profile contents
 claudeup profile current                     # Show active profile (with scope)
 claudeup profile save [name]                 # Save current setup as profile
-claudeup profile create <name>               # Create profile with wizard
+claudeup profile create <name>               # Create profile with interactive wizard
+claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope)
 claudeup profile suggest                     # Suggest profile for current project
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
 claudeup profile reset <name>                # Remove everything a profile installed
 claudeup profile rename <old> <new>          # Rename a custom profile
+claudeup profile clean <plugin>              # Remove orphaned plugin from config
 
 # With description flag
 claudeup profile save my-work --description "My work setup"
-claudeup profile create home --from work --description "Home setup"
+claudeup profile clone home --from work --description "Home setup"
 ```
 
 #### Project-Level Profiles
@@ -178,8 +180,8 @@ Claude Code uses three scope levels (in precedence order):
 
 | Scope | Location | Description |
 |-------|----------|-------------|
-| `local` | `.claude/settings.local.json` | Machine-specific, highest precedence |
-| `project` | `.claude/settings.json` | Project-level, shared via git |
+| `local` | `./.claude/settings.local.json` | Machine-specific, highest precedence |
+| `project` | `./.claude/settings.json` | Project-level, shared via git |
 | `user` | `~/.claude/settings.json` | Global personal defaults |
 
 **`scope list` flags:**
