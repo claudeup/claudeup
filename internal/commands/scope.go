@@ -10,6 +10,7 @@ import (
 
 	"github.com/claudeup/claudeup/internal/backup"
 	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -324,16 +325,13 @@ func runScopeClear(cmd *cobra.Command, args []string) error {
 
 	// Create backup if requested
 	if scopeClearBackup {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
-		}
+		claudeupHome := config.MustClaudeupHome()
 
 		var backupPath string
 		if scope == "local" {
-			backupPath, err = backup.SaveLocalScopeBackup(homeDir, projectDir, settingsPath)
+			backupPath, err = backup.SaveLocalScopeBackup(claudeupHome, projectDir, settingsPath)
 		} else {
-			backupPath, err = backup.SaveScopeBackup(homeDir, scope, settingsPath)
+			backupPath, err = backup.SaveScopeBackup(claudeupHome, scope, settingsPath)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to create backup: %w", err)
@@ -412,10 +410,7 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
+	claudeupHome := config.MustClaudeupHome()
 
 	// Get current directory for local scope
 	projectDir, err := os.Getwd()
@@ -426,9 +421,9 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 	// Get backup info (local scope uses project-specific naming)
 	var backupInfo *backup.BackupInfo
 	if scope == "local" {
-		backupInfo, err = backup.GetLocalBackupInfo(homeDir, projectDir)
+		backupInfo, err = backup.GetLocalBackupInfo(claudeupHome, projectDir)
 	} else {
-		backupInfo, err = backup.GetBackupInfo(homeDir, scope)
+		backupInfo, err = backup.GetBackupInfo(claudeupHome, scope)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to check backup: %w", err)
@@ -463,9 +458,9 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 
 	// Restore (local scope uses project-specific naming)
 	if scope == "local" {
-		err = backup.RestoreLocalScopeBackup(homeDir, projectDir, settingsPath)
+		err = backup.RestoreLocalScopeBackup(claudeupHome, projectDir, settingsPath)
 	} else {
-		err = backup.RestoreScopeBackup(homeDir, scope, settingsPath)
+		err = backup.RestoreScopeBackup(claudeupHome, scope, settingsPath)
 	}
 	if err != nil {
 		return fmt.Errorf("failed to restore backup: %w", err)

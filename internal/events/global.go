@@ -3,9 +3,10 @@
 package events
 
 import (
-	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/claudeup/claudeup/internal/config"
 )
 
 var (
@@ -32,8 +33,7 @@ func SetGlobalTracker(tracker *Tracker) {
 
 // initializeGlobalTracker creates the default global tracker
 func initializeGlobalTracker() *Tracker {
-	homeDir, _ := os.UserHomeDir()
-	eventsDir := filepath.Join(homeDir, ".claudeup", "events")
+	eventsDir := filepath.Join(config.MustClaudeupHome(), "events")
 	logPath := filepath.Join(eventsDir, "operations.log")
 
 	writer, err := NewJSONLWriter(logPath)

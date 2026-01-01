@@ -79,8 +79,7 @@ func DefaultConfig() *GlobalConfig {
 
 // configPath returns the path to the global config file
 func configPath() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".claudeup", "config.json")
+	return filepath.Join(MustClaudeupHome(), "config.json")
 }
 
 // Load reads the global config file, creating it with defaults if it doesn't exist

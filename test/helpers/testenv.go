@@ -61,7 +61,8 @@ func (e *TestEnv) Run(args ...string) *Result {
 func (e *TestEnv) RunWithInput(input string, args ...string) *Result {
 	cmd := exec.Command(e.Binary, args...)
 	cmd.Env = append(os.Environ(),
-		"HOME="+e.TempDir,
+		"CLAUDEUP_HOME="+e.ClaudeupDir,
+		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
 	)
 
 	var stdout, stderr bytes.Buffer
@@ -169,7 +170,8 @@ func (e *TestEnv) RunWithEnv(extraEnv map[string]string, args ...string) *Result
 func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, args ...string) *Result {
 	cmd := exec.Command(e.Binary, args...)
 	cmd.Env = append(os.Environ(),
-		"HOME="+e.TempDir,
+		"CLAUDEUP_HOME="+e.ClaudeupDir,
+		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
 	)
 
 	for k, v := range extraEnv {
@@ -382,7 +384,8 @@ func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
 	cmd := exec.Command(e.Binary, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
-		"HOME="+e.TempDir,
+		"CLAUDEUP_HOME="+e.ClaudeupDir,
+		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
 	)
 
 	var stdout, stderr bytes.Buffer
@@ -412,7 +415,8 @@ func (e *TestEnv) RunInDirWithInput(dir, input string, args ...string) *Result {
 	cmd := exec.Command(e.Binary, args...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
-		"HOME="+e.TempDir,
+		"CLAUDEUP_HOME="+e.ClaudeupDir,
+		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
 	)
 
 	var stdout, stderr bytes.Buffer

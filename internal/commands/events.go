@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/events"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
@@ -50,11 +51,7 @@ func init() {
 
 func runEvents(cmd *cobra.Command, args []string) error {
 	// Get event log path
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
-	eventsDir := filepath.Join(homeDir, ".claudeup", "events")
+	eventsDir := filepath.Join(config.MustClaudeupHome(), "events")
 	logPath := filepath.Join(eventsDir, "operations.log")
 
 	// Check if log file exists

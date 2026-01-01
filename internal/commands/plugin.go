@@ -204,18 +204,13 @@ func runPluginEnable(cmd *cobra.Command, args []string) error {
 
 // saveCurrentStateToProfile saves the current Claude state to a profile
 func saveCurrentStateToProfile(profileName string) error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
 	claudeJSONPath := filepath.Join(filepath.Dir(claudeDir), ".claude.json")
 	snapshot, err := profile.Snapshot(profileName, claudeDir, claudeJSONPath)
 	if err != nil {
 		return err
 	}
 
-	profilesDir := filepath.Join(homeDir, ".claudeup", "profiles")
+	profilesDir := filepath.Join(config.MustClaudeupHome(), "profiles")
 	return profile.Save(profilesDir, snapshot)
 }
 

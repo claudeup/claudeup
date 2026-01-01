@@ -94,6 +94,5 @@ func (r *ProjectsRegistry) RemoveProject(projectPath string) bool {
 }
 
 func projectsPath() string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".claudeup", ProjectsFile)
+	return filepath.Join(MustClaudeupHome(), ProjectsFile)
 }

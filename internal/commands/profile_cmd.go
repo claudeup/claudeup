@@ -699,18 +699,15 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 
 		// Check if there's anything to clear
 		if _, err := os.Stat(settingsPath); err == nil {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("failed to get home directory: %w", err)
-			}
+			claudeupHome := config.MustClaudeupHome()
 
 			// Create backup unless -y (silent mode) is used
 			if !config.YesFlag {
 				var backupPath string
 				if scopeStr == "local" {
-					backupPath, err = backup.SaveLocalScopeBackup(homeDir, cwd, settingsPath)
+					backupPath, err = backup.SaveLocalScopeBackup(claudeupHome, cwd, settingsPath)
 				} else {
-					backupPath, err = backup.SaveScopeBackup(homeDir, scopeStr, settingsPath)
+					backupPath, err = backup.SaveScopeBackup(claudeupHome, scopeStr, settingsPath)
 				}
 				if err != nil {
 					ui.PrintWarning(fmt.Sprintf("Could not create backup: %v", err))
