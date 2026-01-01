@@ -15,12 +15,18 @@ import (
 )
 
 var upgradeCmd = &cobra.Command{
-	Use:   "upgrade",
+	Use:   "upgrade [targets...]",
 	Short: "Update marketplaces and plugins to latest versions",
 	Long:  `Update installed marketplaces and plugins to their latest versions.`,
 	Example: `  # Upgrade all outdated marketplaces and plugins
-  claudeup upgrade`,
-	Args: cobra.NoArgs,
+  claudeup upgrade
+
+  # Upgrade a specific marketplace
+  claudeup upgrade superpowers-marketplace
+
+  # Upgrade a specific plugin
+  claudeup upgrade hookify@claude-code-plugins`,
+	Args: cobra.ArbitraryArgs,
 	RunE: runUpgrade,
 }
 
@@ -42,8 +48,60 @@ type PluginUpdate struct {
 	LatestCommit  string
 }
 
+// parseUpgradeTargets separates positional args into marketplaces and plugins
+// Plugins contain '@' (e.g., "hookify@plugins"), marketplaces don't
+func parseUpgradeTargets(args []string) (marketplaces, plugins []string) {
+	for _, arg := range args {
+		if strings.Contains(arg, "@") {
+			plugins = append(plugins, arg)
+		} else {
+			marketplaces = append(marketplaces, arg)
+		}
+	}
+	return
+}
+
+// findUnmatchedTargets returns targets that don't match any known marketplace or plugin
+func findUnmatchedTargets(targetMarketplaces, targetPlugins []string, marketplaceUpdates []MarketplaceUpdate, pluginUpdates []PluginUpdate) []string {
+	var unmatched []string
+
+	// Check marketplace targets
+	for _, target := range targetMarketplaces {
+		found := false
+		for _, update := range marketplaceUpdates {
+			if update.Name == target {
+				found = true
+				break
+			}
+		}
+		if !found {
+			unmatched = append(unmatched, target)
+		}
+	}
+
+	// Check plugin targets
+	for _, target := range targetPlugins {
+		found := false
+		for _, update := range pluginUpdates {
+			if update.Name == target {
+				found = true
+				break
+			}
+		}
+		if !found {
+			unmatched = append(unmatched, target)
+		}
+	}
+
+	return unmatched
+}
+
 func runUpgrade(cmd *cobra.Command, args []string) error {
 	ui.PrintInfo("Checking for updates...")
+
+	// Parse target filters (if any)
+	targetMarketplaces, targetPlugins := parseUpgradeTargets(args)
+	hasTargets := len(targetMarketplaces) > 0 || len(targetPlugins) > 0
 
 	// Load marketplaces
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
@@ -65,6 +123,26 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	var outdatedMarketplaces []string
 	for _, update := range marketplaceUpdates {
 		if update.HasUpdate {
+			// Filter by target if specified
+			if hasTargets {
+				if len(targetMarketplaces) > 0 {
+					found := false
+					for _, target := range targetMarketplaces {
+						if target == update.Name {
+							found = true
+							break
+						}
+					}
+					if !found {
+						fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
+						continue
+					}
+				} else {
+					// User specified plugins only, skip marketplaces
+					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
+					continue
+				}
+			}
 			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
 			outdatedMarketplaces = append(outdatedMarketplaces, update.Name)
 		} else {
@@ -80,6 +158,26 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	var outdatedPlugins []string
 	for _, update := range pluginUpdates {
 		if update.HasUpdate {
+			// Filter by target if specified
+			if hasTargets {
+				if len(targetPlugins) > 0 {
+					found := false
+					for _, target := range targetPlugins {
+						if target == update.Name {
+							found = true
+							break
+						}
+					}
+					if !found {
+						fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
+						continue
+					}
+				} else {
+					// User specified marketplaces only, skip plugins
+					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
+					continue
+				}
+			}
 			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
 			outdatedPlugins = append(outdatedPlugins, update.Name)
 		}
@@ -87,6 +185,17 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 	if len(outdatedPlugins) == 0 {
 		fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
+	}
+
+	// Warn about unmatched targets
+	if hasTargets {
+		unmatchedTargets := findUnmatchedTargets(targetMarketplaces, targetPlugins, marketplaceUpdates, pluginUpdates)
+		if len(unmatchedTargets) > 0 {
+			fmt.Println()
+			for _, target := range unmatchedTargets {
+				ui.PrintWarning(fmt.Sprintf("Unknown target: %s", target))
+			}
+		}
 	}
 
 	// If nothing outdated, we're done
