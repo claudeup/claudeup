@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/internal/sandbox"
 	"github.com/claudeup/claudeup/internal/secrets"
@@ -67,7 +68,7 @@ func init() {
 }
 
 func runSandbox(cmd *cobra.Command, args []string) error {
-	claudePMDir := filepath.Join(profile.MustHomeDir(), ".claudeup")
+	claudePMDir := config.MustClaudeupHome()
 
 	// Handle --clean
 	if sandboxClean {
