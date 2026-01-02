@@ -80,6 +80,21 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 		args = append(args, "-v", mountArg)
 	}
 
+	// Credential mounts
+	if len(opts.Credentials) > 0 {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			credMounts, warnings := ResolveCredentialMounts(opts.Credentials, homeDir, "")
+			for _, w := range warnings {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", w)
+			}
+			for _, m := range credMounts {
+				mountArg := fmt.Sprintf("%s:%s:ro", m.Host, m.Container)
+				args = append(args, "-v", mountArg)
+			}
+		}
+	}
+
 	// Environment variables
 	for key, value := range opts.Env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
