@@ -40,3 +40,38 @@ func GetCredentialType(name string) *CredentialType {
 func ValidCredentialTypes() []string {
 	return []string{"git", "ssh", "gh"}
 }
+
+// MergeCredentials combines profile credentials with CLI overrides.
+// Order: start with profile, add additions, remove exclusions.
+// Unknown credential types are silently ignored.
+func MergeCredentials(profile, add, exclude []string) []string {
+	// Build set from profile
+	set := make(map[string]bool)
+	for _, c := range profile {
+		if GetCredentialType(c) != nil {
+			set[c] = true
+		}
+	}
+
+	// Add CLI additions
+	for _, c := range add {
+		if GetCredentialType(c) != nil {
+			set[c] = true
+		}
+	}
+
+	// Remove CLI exclusions
+	for _, c := range exclude {
+		delete(set, c)
+	}
+
+	// Convert to sorted slice for deterministic output
+	result := make([]string, 0, len(set))
+	for _, validType := range ValidCredentialTypes() {
+		if set[validType] {
+			result = append(result, validType)
+		}
+	}
+
+	return result
+}
