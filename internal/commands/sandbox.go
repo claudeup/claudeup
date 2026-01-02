@@ -96,6 +96,18 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--copy-auth requires --profile (ephemeral mode has no persistent state)")
 	}
 
+	// Validate credential type names early
+	for _, cred := range sandboxCreds {
+		if sandbox.GetCredentialType(cred) == nil {
+			return fmt.Errorf("unknown credential type: %q (valid: git, ssh, gh)", cred)
+		}
+	}
+	for _, cred := range sandboxNoCreds {
+		if sandbox.GetCredentialType(cred) == nil {
+			return fmt.Errorf("unknown credential type: %q (valid: git, ssh, gh)", cred)
+		}
+	}
+
 	// Check Docker availability
 	runner := sandbox.NewDockerRunner(claudePMDir)
 	if err := runner.Available(); err != nil {
@@ -122,7 +134,11 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		// Apply profile's sandbox config (may be empty, that's fine)
 		applyProfileSandboxConfig(&opts, p)
 	} else {
-		// No profile - use CLI credentials directly
+		// Warn if profile is ignored due to ephemeral mode
+		if sandboxProfile != "" && sandboxEphemeral {
+			ui.PrintWarning("--ephemeral overrides --profile; profile credentials and config ignored")
+		}
+		// No profile or ephemeral mode - use CLI credentials directly
 		opts.Credentials = sandbox.MergeCredentials(nil, sandboxCreds, sandboxNoCreds)
 	}
 

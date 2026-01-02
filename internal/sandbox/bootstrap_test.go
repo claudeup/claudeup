@@ -127,4 +127,66 @@ func TestBootstrapFromProfile(t *testing.T) {
 			t.Error("should not be first run after bootstrap")
 		}
 	})
+
+	t.Run("sync updates plugins while preserving other settings", func(t *testing.T) {
+		stateDir := t.TempDir()
+
+		// First bootstrap with plugin1
+		p1 := &profile.Profile{
+			Name:    "test",
+			Plugins: []string{"plugin1@marketplace"},
+		}
+		if err := BootstrapFromProfile(p1, stateDir); err != nil {
+			t.Fatalf("first bootstrap failed: %v", err)
+		}
+
+		// Simulate user adding custom settings
+		settingsPath := filepath.Join(stateDir, "settings.json")
+		customSettings := map[string]interface{}{
+			"enabledPlugins": []string{"plugin1@marketplace"},
+			"theme":          "dark",
+			"fontSize":       14,
+		}
+		customData, _ := json.MarshalIndent(customSettings, "", "  ")
+		if err := os.WriteFile(settingsPath, customData, 0644); err != nil {
+			t.Fatalf("failed to write custom settings: %v", err)
+		}
+
+		// Re-bootstrap with plugin2 (simulating --sync)
+		p2 := &profile.Profile{
+			Name:    "test",
+			Plugins: []string{"plugin2@marketplace"},
+		}
+		if err := BootstrapFromProfile(p2, stateDir); err != nil {
+			t.Fatalf("sync bootstrap failed: %v", err)
+		}
+
+		// Verify settings updated but customizations preserved
+		data, err := os.ReadFile(settingsPath)
+		if err != nil {
+			t.Fatalf("failed to read settings.json: %v", err)
+		}
+
+		var settings map[string]interface{}
+		if err := json.Unmarshal(data, &settings); err != nil {
+			t.Fatalf("failed to parse settings.json: %v", err)
+		}
+
+		// Check plugins updated
+		plugins, ok := settings["enabledPlugins"].([]interface{})
+		if !ok {
+			t.Fatal("enabledPlugins not found or wrong type")
+		}
+		if len(plugins) != 1 || plugins[0] != "plugin2@marketplace" {
+			t.Errorf("expected plugin2@marketplace, got %v", plugins)
+		}
+
+		// Check custom settings preserved
+		if settings["theme"] != "dark" {
+			t.Errorf("expected theme=dark to be preserved, got %v", settings["theme"])
+		}
+		if settings["fontSize"] != float64(14) {
+			t.Errorf("expected fontSize=14 to be preserved, got %v", settings["fontSize"])
+		}
+	})
 }

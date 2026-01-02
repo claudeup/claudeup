@@ -78,14 +78,26 @@ func writeMarketplaces(marketplaces []profile.Marketplace, stateDir string) erro
 }
 
 func writeSettings(plugins []string, stateDir string) error {
-	settings := map[string]interface{}{
-		"enabledPlugins": plugins,
+	settingsPath := filepath.Join(stateDir, "settings.json")
+
+	// Read existing settings to preserve user customizations
+	var settings map[string]interface{}
+	if data, err := os.ReadFile(settingsPath); err == nil {
+		if err := json.Unmarshal(data, &settings); err != nil {
+			// If existing file is malformed, start fresh
+			settings = make(map[string]interface{})
+		}
+	} else {
+		settings = make(map[string]interface{})
 	}
+
+	// Only update enabledPlugins from profile
+	settings["enabledPlugins"] = plugins
 
 	jsonData, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(filepath.Join(stateDir, "settings.json"), jsonData, 0644)
+	return os.WriteFile(settingsPath, jsonData, 0644)
 }

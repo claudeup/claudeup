@@ -12,7 +12,6 @@ type CredentialType struct {
 	Name         string // "git", "ssh", "gh"
 	SourceSuffix string // Path suffix from home dir (e.g., ".gitconfig")
 	TargetPath   string // Container path
-	NeedsExtract bool   // True if credential needs Keychain extraction (macOS)
 }
 
 var credentialTypes = map[string]*CredentialType{
@@ -20,19 +19,16 @@ var credentialTypes = map[string]*CredentialType{
 		Name:         "git",
 		SourceSuffix: ".gitconfig",
 		TargetPath:   "/root/.gitconfig",
-		NeedsExtract: false,
 	},
 	"ssh": {
 		Name:         "ssh",
 		SourceSuffix: ".ssh",
 		TargetPath:   "/root/.ssh",
-		NeedsExtract: false,
 	},
 	"gh": {
 		Name:         "gh",
 		SourceSuffix: ".config/gh",
 		TargetPath:   "/root/.config/gh",
-		NeedsExtract: true, // macOS stores in Keychain
 	},
 }
 
@@ -97,12 +93,20 @@ func ResolveCredentialMounts(credentials []string, homeDir, stateDir string) ([]
 		sourcePath := filepath.Join(homeDir, credType.SourceSuffix)
 
 		// Check if source exists
-		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+		info, err := os.Stat(sourcePath)
+		if os.IsNotExist(err) {
 			warnings = append(warnings, "credential "+name+" not found at "+sourcePath)
 			continue
 		}
 
-		// For now, direct mount. macOS Keychain extraction handled later if needed.
+		// Warn about SSH directory permissions
+		if credType.Name == "ssh" && info.IsDir() {
+			perm := info.Mode().Perm()
+			if perm != 0700 {
+				warnings = append(warnings, "ssh directory has permissions "+perm.String()+", should be 0700; SSH may fail in container")
+			}
+		}
+
 		mounts = append(mounts, Mount{
 			Host:      sourcePath,
 			Container: credType.TargetPath,
