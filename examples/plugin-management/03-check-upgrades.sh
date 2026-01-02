@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ABOUTME: Example showing how to check for and apply plugin updates
-# ABOUTME: Demonstrates update command
+# ABOUTME: Example showing how to check for and apply plugin upgrades
+# ABOUTME: Demonstrates upgrade command
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
@@ -9,7 +9,7 @@ setup_environment
 
 cat <<'EOF'
 ╔════════════════════════════════════════════════════════════════╗
-║           Plugin Management: Check Updates                     ║
+║           Plugin Management: Check Upgrades                    ║
 ╚════════════════════════════════════════════════════════════════╝
 
 Keep your plugins and marketplaces up to date.
@@ -17,30 +17,30 @@ Keep your plugins and marketplaces up to date.
 EOF
 pause
 
-section "1. Check for Updates"
+section "1. Check for Upgrades"
 
-step "See if any updates are available"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" update --check || \
-    info "Update check would show available updates"
+step "See if any upgrades are available"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" upgrade --check || \
+    info "Upgrade check would show available upgrades"
 pause
 
-section "2. Apply Updates"
+section "2. Apply Upgrades"
 
-step "Update all plugins and marketplaces"
+step "Upgrade all plugins and marketplaces"
 info "This fetches latest versions from all marketplaces"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" update
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" upgrade
 else
-    info "Command: claudeup update"
-    info "(Skipped in temp mode - no real plugins to update)"
+    info "Command: claudeup upgrade"
+    info "(Skipped in temp mode - no real plugins to upgrade)"
 fi
 pause
 
-section "3. Verify After Update"
+section "3. Verify After Upgrade"
 
-step "Check status after updating"
+step "Check status after upgrading"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" status
 pause
 
@@ -49,10 +49,10 @@ section "Summary"
 success "You can keep plugins up to date"
 echo
 info "Key commands:"
-info "  claudeup update --check  See available updates"
-info "  claudeup update          Apply all updates"
+info "  claudeup upgrade --check  See available upgrades"
+info "  claudeup upgrade          Apply all upgrades"
 echo
-info "Tip: Run 'claudeup update' regularly to get new features and fixes"
+info "Tip: Run 'claudeup upgrade' regularly to get new features and fixes"
 echo
 
 prompt_cleanup

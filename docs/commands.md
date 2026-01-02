@@ -296,11 +296,28 @@ claudeup cleanup --reinstall  # Show reinstall commands
 
 ### update
 
-Check for and apply updates.
+Update the claudeup CLI to the latest version.
 
 ```bash
-claudeup update              # Apply updates
-claudeup update --check-only # Preview without applying
+claudeup update              # Update to latest version
+claudeup update --check-only # Check for updates without applying
+```
+
+### upgrade
+
+Update marketplaces and plugins.
+
+```bash
+claudeup upgrade              # Update all marketplaces and plugins
+claudeup upgrade --check-only # Preview updates without applying
+```
+
+### outdated
+
+Show available updates for the CLI, marketplaces, and plugins.
+
+```bash
+claudeup outdated  # List what has updates available
 ```
 
 ## Configuration
