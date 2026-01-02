@@ -2,6 +2,11 @@
 // ABOUTME: Maps credential names (git, ssh, gh) to host/container paths.
 package sandbox
 
+import (
+	"os"
+	"path/filepath"
+)
+
 // CredentialType defines a mountable credential
 type CredentialType struct {
 	Name         string // "git", "ssh", "gh"
@@ -74,4 +79,36 @@ func MergeCredentials(profile, add, exclude []string) []string {
 	}
 
 	return result
+}
+
+// ResolveCredentialMounts converts credential names to Docker mounts.
+// Returns mounts and any warnings for missing credentials.
+// stateDir is used for credentials that need extraction (gh on macOS).
+func ResolveCredentialMounts(credentials []string, homeDir, stateDir string) ([]Mount, []string) {
+	var mounts []Mount
+	var warnings []string
+
+	for _, name := range credentials {
+		credType := GetCredentialType(name)
+		if credType == nil {
+			continue // Unknown type, already filtered by MergeCredentials
+		}
+
+		sourcePath := filepath.Join(homeDir, credType.SourceSuffix)
+
+		// Check if source exists
+		if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+			warnings = append(warnings, "credential "+name+" not found at "+sourcePath)
+			continue
+		}
+
+		// For now, direct mount. macOS Keychain extraction handled later if needed.
+		mounts = append(mounts, Mount{
+			Host:      sourcePath,
+			Container: credType.TargetPath,
+			ReadOnly:  true,
+		})
+	}
+
+	return mounts, warnings
 }
