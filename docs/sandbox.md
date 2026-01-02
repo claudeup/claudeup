@@ -67,6 +67,7 @@ claudeup sandbox --image my-image:latest   # Use custom Docker image
 | Flag | Description |
 |------|-------------|
 | `--profile` | Profile for persistent state |
+| `--copy-auth` | Copy authentication from ~/.claude.json |
 | `--mount` | Additional mounts (host:container[:ro]) |
 | `--no-mount` | Don't mount working directory |
 | `--secret` | Additional secrets to inject |
@@ -138,6 +139,41 @@ claudeup sandbox --clean --profile untrusted
 ```
 
 Removes all persistent state for a profile's sandbox, returning it to a fresh state.
+
+## Authentication
+
+By default, sandboxes require interactive authentication on first run (API key entry and workspace trust confirmation). You can bypass this by copying your existing authentication:
+
+```bash
+# Copy authentication for this session only
+claudeup sandbox --profile untrusted --copy-auth
+
+# Or enable it globally in ~/.claudeup/config.json
+{
+  "sandbox": {
+    "copyAuth": true
+  }
+}
+```
+
+**How it works:**
+
+- Copies `~/.claude.json` from your local machine to the sandbox state directory
+- Includes OAuth credentials and workspace trust decisions
+- Only works with profile-based sandboxes (not ephemeral)
+- Subsequent runs of the same profile use the copied authentication
+
+**Security considerations:**
+
+- Your authentication credentials are copied into the sandbox state directory
+- Anyone with access to `~/.claudeup/sandboxes/<profile>/` can see these credentials
+- The credentials work across machines/containers
+- Only enable `copyAuth` if you trust the sandbox environment
+
+**File permissions:**
+
+- State directory: `0700` (owner-only access)
+- Auth file: `0600` (owner-only read/write)
 
 ### Build the local docker image and use it for a shell
 
