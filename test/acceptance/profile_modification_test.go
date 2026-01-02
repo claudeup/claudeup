@@ -294,12 +294,13 @@ var _ = Describe("profile modification detection", func() {
 				os.WriteFile(filepath.Join(env.TempDir, ".claude.json"), data, 0644)
 			})
 
-			It("shows (modified) indicator for active profile", func() {
+			It("shows active profile with asterisk marker", func() {
 				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("test-profile"))
-				Expect(result.Stdout).To(ContainSubstring("(modified)"))
+				// Profile should be marked as active with asterisk
+				Expect(result.Stdout).To(MatchRegexp(`\*\s+test-profile`))
 			})
 		})
 

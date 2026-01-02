@@ -77,6 +77,45 @@ func TestLoadNonexistent(t *testing.T) {
 	}
 }
 
+func TestLoadSetsNameFromFilename(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create directory
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+
+	// Write a profile file without a name field
+	profileJSON := `{
+		"description": "Profile without name field",
+		"plugins": ["plugin1@marketplace", "plugin2@marketplace"]
+	}`
+	profilePath := filepath.Join(profilesDir, "my-profile.json")
+	if err := os.WriteFile(profilePath, []byte(profileJSON), 0644); err != nil {
+		t.Fatalf("Failed to write profile file: %v", err)
+	}
+
+	// Load the profile
+	loaded, err := Load(profilesDir, "my-profile")
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Verify name was set from filename
+	if loaded.Name != "my-profile" {
+		t.Errorf("Name should be set from filename: got %q, want %q", loaded.Name, "my-profile")
+	}
+
+	// Verify other fields loaded correctly
+	if loaded.Description != "Profile without name field" {
+		t.Errorf("Description mismatch: got %q", loaded.Description)
+	}
+	if len(loaded.Plugins) != 2 {
+		t.Errorf("Plugins count mismatch: got %d, want 2", len(loaded.Plugins))
+	}
+}
+
 func TestList(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilesDir := filepath.Join(tmpDir, "profiles")

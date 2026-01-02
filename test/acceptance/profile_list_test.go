@@ -71,12 +71,12 @@ var _ = Describe("profile list", func() {
 				})
 			})
 
-			It("shows built-in profile with (customized) indicator", func() {
+			It("shows built-in profile in Built-in section", func() {
 				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("frontend"))
-				Expect(result.Stdout).To(ContainSubstring("(customized)"))
+				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
 			})
 
 			It("does not show customized built-in in Your profiles section", func() {
@@ -103,12 +103,13 @@ var _ = Describe("profile list", func() {
 				})
 			})
 
-			It("shows customized built-in with indicator in Built-in section", func() {
+			It("shows built-in profiles in Built-in section", func() {
 				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				// default should be in Built-in with (customized)
-				Expect(result.Stdout).To(MatchRegexp(`default.*\(customized\)`))
+				// default should be in Built-in section
+				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
+				Expect(result.Stdout).To(ContainSubstring("default"))
 			})
 
 			It("shows custom profile in Your profiles section", func() {
