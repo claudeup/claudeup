@@ -116,6 +116,37 @@ func TestLoadSetsNameFromFilename(t *testing.T) {
 	}
 }
 
+func TestLoadPreservesJSONNameOverFilename(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+
+	// Write a profile file where JSON name differs from filename
+	// This tests that JSON name takes precedence (explicit user intent)
+	profileJSON := `{
+		"name": "json-specified-name",
+		"description": "Profile with explicit name in JSON"
+	}`
+	profilePath := filepath.Join(profilesDir, "different-filename.json")
+	if err := os.WriteFile(profilePath, []byte(profileJSON), 0644); err != nil {
+		t.Fatalf("Failed to write profile file: %v", err)
+	}
+
+	// Load using the filename
+	loaded, err := Load(profilesDir, "different-filename")
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// JSON name should take precedence over filename
+	if loaded.Name != "json-specified-name" {
+		t.Errorf("JSON name should take precedence: got %q, want %q", loaded.Name, "json-specified-name")
+	}
+}
+
 func TestList(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilesDir := filepath.Join(tmpDir, "profiles")
