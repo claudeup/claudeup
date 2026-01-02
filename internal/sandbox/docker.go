@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/claudeup/claudeup/internal/profile"
 )
 
 // DockerRunner implements Runner using Docker
@@ -36,6 +39,26 @@ func (r *DockerRunner) Available() error {
 func (r *DockerRunner) Run(opts Options) error {
 	if err := r.Available(); err != nil {
 		return err
+	}
+
+	// Bootstrap profile settings on first run or sync
+	if opts.Profile != "" {
+		stateDir, err := StateDir(r.ClaudePMDir, opts.Profile)
+		if err != nil {
+			return fmt.Errorf("failed to get state directory: %w", err)
+		}
+
+		if IsFirstRun(stateDir) || opts.Sync {
+			// Load profile and bootstrap
+			profilesDir := filepath.Join(r.ClaudePMDir, "profiles")
+			p, err := profile.Load(profilesDir, opts.Profile)
+			if err != nil {
+				return fmt.Errorf("failed to load profile for bootstrap: %w", err)
+			}
+			if err := BootstrapFromProfile(p, stateDir); err != nil {
+				return fmt.Errorf("failed to bootstrap sandbox: %w", err)
+			}
+		}
 	}
 
 	args := r.buildArgs(opts)
