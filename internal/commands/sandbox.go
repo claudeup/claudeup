@@ -84,6 +84,11 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Validate --copy-auth requires --profile
+	if sandboxCopyAuth && sandboxProfile == "" {
+		return fmt.Errorf("--copy-auth requires --profile (ephemeral mode has no persistent state)")
+	}
+
 	// Check Docker availability
 	runner := sandbox.NewDockerRunner(claudePMDir)
 	if err := runner.Available(); err != nil {

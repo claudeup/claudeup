@@ -170,6 +170,11 @@ claudeup sandbox --profile untrusted --copy-auth
 - The credentials work across machines/containers
 - Only enable `copyAuth` if you trust the sandbox environment
 
+**File permissions:**
+
+- State directory: `0700` (owner-only access)
+- Auth file: `0600` (owner-only read/write)
+
 ### Build the local docker image and use it for a shell
 
 ```bash
