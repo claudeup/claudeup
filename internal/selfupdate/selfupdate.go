@@ -188,12 +188,18 @@ func copyFile(src, dst string) error {
 	return err
 }
 
-// UpdateResult contains the outcome of an update attempt
+// UpdateResult contains the outcome of a claudeup binary update attempt.
+// Callers should check AlreadyUpToDate first, then Error, before using
+// OldVersion and NewVersion to report the update to the user.
 type UpdateResult struct {
+	// AlreadyUpToDate is true when current version >= latest version
 	AlreadyUpToDate bool
-	OldVersion      string
-	NewVersion      string
-	Error           error
+	// OldVersion is the version before the update attempt
+	OldVersion string
+	// NewVersion is the target version for the update
+	NewVersion string
+	// Error contains any error that occurred during the update
+	Error error
 }
 
 // Update checks for and applies updates to the claudeup binary

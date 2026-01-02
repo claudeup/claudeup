@@ -39,7 +39,9 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 
 	latestVersion, err := selfupdate.CheckLatestVersion(selfupdate.DefaultAPIURL)
 	if err != nil {
-		fmt.Printf("  %s claudeup: %s (%s)\n", ui.Warning(ui.SymbolWarning), ui.Muted("Unable to check"), ui.Muted(err.Error()))
+		fmt.Printf("  %s claudeup: %s\n", ui.Warning(ui.SymbolWarning), ui.Muted("Unable to check for updates"))
+		fmt.Printf("    %s %s\n", ui.Muted("Error:"), ui.Muted(err.Error()))
+		fmt.Printf("    %s\n", ui.Muted("Check your network connection or try again later"))
 	} else if selfupdate.IsNewer(currentVersion, latestVersion) {
 		fmt.Printf("  %s claudeup %s %s %s\n", ui.Warning(ui.SymbolWarning), currentVersion, ui.SymbolArrow, ui.Success(latestVersion))
 	} else {

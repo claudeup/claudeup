@@ -3,10 +3,12 @@
 package selfupdate
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -180,5 +182,82 @@ var _ = Describe("ValidateVersion", func() {
 	It("rejects versions with path traversal", func() {
 		err := ValidateVersion("../../../etc/passwd")
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("fetchExpectedChecksum", func() {
+	var server *httptest.Server
+
+	AfterEach(func() {
+		if server != nil {
+			server.Close()
+		}
+	})
+
+	It("parses checksum from valid checksums.txt", func() {
+		// Use valid 64-character hex checksums
+		// Build the binary name dynamically to match the test platform
+		binaryName := fmt.Sprintf("claudeup-%s-%s", runtime.GOOS, runtime.GOARCH)
+		// Valid SHA256 hash is exactly 64 hex characters
+		validHash := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+		checksumContent := fmt.Sprintf("%s  %s\n", validHash, binaryName)
+
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(checksumContent))
+		}))
+
+		hash, err := fetchExpectedChecksum(server.URL, "v1.0.0")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(hash).To(Equal(validHash))
+	})
+
+	It("returns error when platform checksum not found", func() {
+		// Checksums file exists but doesn't have entry for current platform
+		checksumContent := "abc123def456abc123def456abc123def456abc123def456abc123def456abcd1234  claudeup-unknown-platform\n"
+
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(checksumContent))
+		}))
+
+		_, err := fetchExpectedChecksum(server.URL, "v1.0.0")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("checksum not found for"))
+	})
+
+	It("returns error for invalid checksum format (wrong field count)", func() {
+		// Malformed line with only one field
+		binaryName := "claudeup-" + "darwin-arm64"
+		checksumContent := "abc123" + binaryName + "\n" // Missing space separator
+
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(checksumContent))
+		}))
+
+		_, err := fetchExpectedChecksum(server.URL, "v1.0.0")
+		Expect(err).To(HaveOccurred())
+		// Either "not found" because the suffix doesn't match, or "invalid format"
+	})
+
+	It("returns error for invalid checksum length", func() {
+		// Checksum with wrong length (not 64 chars)
+		checksumContent := "short  claudeup-darwin-arm64\n"
+
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(checksumContent))
+		}))
+
+		_, err := fetchExpectedChecksum(server.URL, "v1.0.0")
+		Expect(err).To(HaveOccurred())
+		// Will return "not found" because line parsing fails validation
+	})
+
+	It("returns error when checksums file download fails", func() {
+		server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+
+		_, err := fetchExpectedChecksum(server.URL, "v1.0.0")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("status 404"))
 	})
 })

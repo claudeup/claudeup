@@ -46,6 +46,8 @@ func init() {
 	rootCmd.AddCommand(upgradeCmd)
 }
 
+// MarketplaceUpdate represents the update status of an installed marketplace.
+// HasUpdate indicates whether a newer version is available on the remote.
 type MarketplaceUpdate struct {
 	Name          string
 	HasUpdate     bool
@@ -53,6 +55,8 @@ type MarketplaceUpdate struct {
 	LatestCommit  string
 }
 
+// PluginUpdate represents the update status of an installed plugin.
+// HasUpdate indicates whether the plugin's source marketplace has newer commits.
 type PluginUpdate struct {
 	Name          string
 	HasUpdate     bool
@@ -284,16 +288,17 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 		// Fetch from remote with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
 		fetchCmd := exec.CommandContext(ctx, "git", "-C", marketplace.InstallLocation, "fetch", "origin")
-		if err := fetchCmd.Run(); err != nil {
-			cancel()
-			// Fetch failed - warn but continue with potentially stale data
+		fetchErr := fetchCmd.Run()
+		cancel()
+		if fetchErr != nil {
+			// Fetch failed - warn user and mark as unable to check
+			fmt.Fprintf(os.Stderr, "  %s %s: %s (git fetch failed)\n", ui.Warning(ui.SymbolWarning), name, ui.Muted("Unable to check for updates"))
 			updates = append(updates, MarketplaceUpdate{
 				Name:      name,
 				HasUpdate: false,
 			})
 			continue
 		}
-		cancel()
 
 		// Get remote commit
 		remoteCmd := exec.Command("git", "-C", marketplace.InstallLocation, "rev-parse", "origin/HEAD")
