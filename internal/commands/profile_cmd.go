@@ -530,36 +530,22 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		embeddedProfiles = []*profile.Profile{} // Prevent nil slice panic
 	}
 
-	// Track which profiles exist on disk and their source
-	profileOnDisk := make(map[string]string) // name -> source ("user" or "project")
+	// Track which profiles exist on disk
+	profileOnDisk := make(map[string]bool)
 	for _, p := range allProfiles {
-		profileOnDisk[p.Name] = p.Source
+		profileOnDisk[p.Name] = true
 	}
 
 	// Get active profiles from all scopes (project, local, user)
 	allActiveProfiles := getAllActiveProfiles(cwd)
 
 	// The highest precedence active profile (project > local > user)
-	activeProfile, activeScope := getActiveProfile(cwd)
-
-	// Only check the highest precedence active profile for modifications.
-	// Lower precedence profiles are overridden and their modification status is irrelevant.
-	// We compare against the scope where the profile is active, not the combined configuration,
-	// to accurately reflect whether the profile itself has been modified at that scope.
-	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-	profileModifications := make(map[string]bool) // profileName -> isModified
-
-	if activeProfile != "" && activeScope != "" {
-		modified, err := profile.IsProfileModifiedAtScope(activeProfile, profilesDir, claudeDir, claudeJSONPath, cwd, activeScope)
-		if err == nil {
-			profileModifications[activeProfile] = modified
-		}
-	}
+	activeProfile, _ := getActiveProfile(cwd)
 
 	// Check if we have any profiles to show
 	hasBuiltIn := false
 	for _, p := range embeddedProfiles {
-		if _, onDisk := profileOnDisk[p.Name]; !onDisk {
+		if !profileOnDisk[p.Name] {
 			hasBuiltIn = true
 			break
 		}
@@ -571,52 +557,35 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Helper to get profile marker and scope info
-	getProfileMarkerAndScope := func(profileName string) (marker string, scopeInfo string) {
-		marker = "  "
-		// Find if this profile is active at any scope
+	// Helper to get profile marker (active indicator)
+	getProfileMarker := func(profileName string) string {
 		for _, ap := range allActiveProfiles {
 			if ap.Name == profileName {
 				if ap.Name == activeProfile {
-					// Highest precedence - gets the * marker
-					marker = ui.Success("* ")
-				} else {
-					// Active at a lower precedence scope
-					marker = ui.Muted("○ ")
+					return ui.Success("* ")
 				}
-				// Show scope if profile is active
-				scopeInfo = ui.Muted(fmt.Sprintf(" [%s]", ap.Scope))
-				break
+				return ui.Muted("○ ")
 			}
 		}
-		return marker, scopeInfo
+		return "  "
 	}
 
-	// Show built-in profiles section (all of them, noting which are customized)
+	// Show built-in profiles section
 	if len(embeddedProfiles) > 0 {
-		fmt.Println(ui.RenderSection("Built-in profiles", len(embeddedProfiles)))
+		fmt.Println(ui.Bold("Built-in profiles"))
 		fmt.Println()
 		for _, p := range embeddedProfiles {
-			marker, scopeInfo := getProfileMarkerAndScope(p.Name)
-
+			marker := getProfileMarker(p.Name)
 			desc := p.Description
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
-			customized := ""
-			if source, onDisk := profileOnDisk[p.Name]; onDisk {
-				customized = ui.Info(fmt.Sprintf(" (customized) [%s]", source))
-			}
-			modified := ""
-			if profileModifications[p.Name] {
-				modified = ui.Warning(" (modified)")
-			}
-			fmt.Printf("%s%-20s %s%s%s%s\n", marker, p.Name, desc, customized, scopeInfo, modified)
+			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
 		}
 		fmt.Println()
 	}
 
-	// Show user profiles section (only ones that aren't customized built-ins)
+	// Show user profiles section (exclude profiles that shadow built-ins)
 	var customProfiles []*profile.ProfileWithSource
 	for _, p := range allProfiles {
 		if !profile.IsEmbeddedProfile(p.Name) {
@@ -625,29 +594,21 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(customProfiles) > 0 {
-		fmt.Println(ui.RenderSection("Your profiles", len(customProfiles)))
+		fmt.Println(ui.Bold("Your profiles"))
 		fmt.Println()
 		for _, p := range customProfiles {
-			marker, scopeInfo := getProfileMarkerAndScope(p.Name)
-
-			// Show profile definition source
-			sourceInfo := ui.Muted(fmt.Sprintf("[%s]", p.Source))
-
+			marker := getProfileMarker(p.Name)
 			desc := p.Description
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
-			modified := ""
-			if profileModifications[p.Name] {
-				modified = ui.Warning(" (modified)")
-			}
-			fmt.Printf("%s%-20s %s %s%s%s\n", marker, p.Name, sourceInfo, desc, scopeInfo, modified)
+			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
 		}
 		fmt.Println()
 	}
 
 	// Warn if user has a profile named "current" (now reserved)
-	if _, hasCurrent := profileOnDisk["current"]; hasCurrent {
+	if profileOnDisk["current"] {
 		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
 		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()

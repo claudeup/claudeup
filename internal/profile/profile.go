@@ -149,6 +149,11 @@ func Load(profilesDir, name string) (*Profile, error) {
 		return nil, err
 	}
 
+	// Set name from filename if not present in JSON
+	if p.Name == "" {
+		p.Name = name
+	}
+
 	return &p, nil
 }
 
