@@ -140,7 +140,16 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 
 	// Copy authentication if requested
 	if shouldCopyAuth(opts.Profile) {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
 		if err := sandbox.CopyAuthFile(homeDir, claudePMDir, opts.Profile); err != nil {
+			// If user explicitly requested --copy-auth, fail hard
+			if sandboxCopyAuth {
+				return fmt.Errorf("--copy-auth failed: %w", err)
+			}
+			// Otherwise just warn (config setting default)
 			ui.PrintWarning(fmt.Sprintf("Failed to copy authentication: %v", err))
 		}
 	}

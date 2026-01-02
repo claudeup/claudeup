@@ -33,6 +33,23 @@ func TestStateDir(t *testing.T) {
 			t.Error("expected error for empty profile")
 		}
 	})
+
+	t.Run("creates directory with restricted permissions", func(t *testing.T) {
+		dir, err := StateDir(tmpDir, "perm-test")
+		if err != nil {
+			t.Fatalf("StateDir failed: %v", err)
+		}
+
+		info, err := os.Stat(dir)
+		if err != nil {
+			t.Fatalf("failed to stat directory: %v", err)
+		}
+
+		// Directory should be owner-only (0700)
+		if info.Mode().Perm() != 0700 {
+			t.Errorf("wrong permissions: got %o, want 0700", info.Mode().Perm())
+		}
+	})
 }
 
 func TestCleanState(t *testing.T) {

@@ -61,7 +61,7 @@ func StateDir(claudePMDir, profile string) (string, error) {
 	}
 
 	dir := filepath.Join(claudePMDir, "sandboxes", profile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create sandbox state dir: %w", err)
 	}
 
@@ -96,8 +96,11 @@ func CopyAuthFile(homeDir, claudePMDir, profile string) error {
 
 	// Source: user's .claude.json in home directory
 	sourceFile := filepath.Join(homeDir, ".claude.json")
-	if _, err := os.Stat(sourceFile); os.IsNotExist(err) {
-		return fmt.Errorf("auth file not found at %s", sourceFile)
+	if _, err := os.Stat(sourceFile); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("auth file not found at %s", sourceFile)
+		}
+		return fmt.Errorf("failed to check auth file: %w", err)
 	}
 
 	// Destination: sandbox state directory
