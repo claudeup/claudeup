@@ -28,17 +28,19 @@ claudeup profile list                        # List available profiles
 claudeup profile show <name>                 # Display profile contents
 claudeup profile current                     # Show active profile (with scope)
 claudeup profile save [name]                 # Save current setup as profile
-claudeup profile create <name>               # Create profile with wizard
-claudeup profile use <name>                  # Apply a profile (user scope)
+claudeup profile create <name>               # Create profile with interactive wizard
+claudeup profile clone <name>                # Clone an existing profile
+claudeup profile apply <name>                # Apply a profile (user scope)
 claudeup profile suggest                     # Suggest profile for current project
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
 claudeup profile reset <name>                # Remove everything a profile installed
 claudeup profile rename <old> <new>          # Rename a custom profile
+claudeup profile clean <plugin>              # Remove orphaned plugin from config
 
 # With description flag
 claudeup profile save my-work --description "My work setup"
-claudeup profile create home --from work --description "Home setup"
+claudeup profile clone home --from work --description "Home setup"
 ```
 
 #### Project-Level Profiles
@@ -47,14 +49,14 @@ Apply profiles at project scope for team sharing:
 
 ```bash
 # Apply profile to current project (creates .mcp.json + .claudeup.json)
-claudeup profile use frontend --scope project
+claudeup profile apply frontend --scope project
 
 # Team members clone and sync plugins
 claudeup profile sync              # Install plugins from .claudeup.json
 claudeup profile sync --dry-run    # Preview without changes
 
 # Apply profile locally only (not shared via git)
-claudeup profile use frontend --scope local
+claudeup profile apply frontend --scope local
 ```
 
 **Scope options:**
@@ -65,7 +67,7 @@ claudeup profile use frontend --scope local
 | `project` | `.mcp.json` | project-scoped | Yes (via git) |
 | `local` | `~/.claude.json` | local-scoped | No |
 
-**`profile use` flags:**
+**`profile apply` flags:**
 
 | Flag | Description |
 |------|-------------|
@@ -83,10 +85,10 @@ The `--reset` flag clears the target scope before applying the profile:
 
 ```bash
 # Replace user scope with new profile (instead of merging)
-claudeup profile use backend-stack --reset
+claudeup profile apply backend-stack --reset
 
 # Replace without prompts (for scripting)
-claudeup profile use backend-stack --reset -y
+claudeup profile apply backend-stack --reset -y
 ```
 
 A backup is created automatically when using `--reset` (unless `-y` is used).
@@ -178,8 +180,8 @@ Claude Code uses three scope levels (in precedence order):
 
 | Scope | Location | Description |
 |-------|----------|-------------|
-| `local` | `.claude/settings.local.json` | Machine-specific, highest precedence |
-| `project` | `.claude/settings.json` | Project-level, shared via git |
+| `local` | `./.claude/settings.local.json` | Machine-specific, highest precedence |
+| `project` | `./.claude/settings.json` | Project-level, shared via git |
 | `user` | `~/.claude/settings.json` | Global personal defaults |
 
 **`scope list` flags:**
@@ -294,11 +296,28 @@ claudeup cleanup --reinstall  # Show reinstall commands
 
 ### update
 
-Check for and apply updates.
+Update the claudeup CLI to the latest version.
 
 ```bash
-claudeup update              # Apply updates
-claudeup update --check-only # Preview without applying
+claudeup update              # Update to latest version
+claudeup update --check-only # Check for updates without applying
+```
+
+### upgrade
+
+Update marketplaces and plugins.
+
+```bash
+claudeup upgrade              # Update all marketplaces and plugins
+claudeup upgrade --check-only # Preview updates without applying
+```
+
+### outdated
+
+Show available updates for the CLI, marketplaces, and plugins.
+
+```bash
+claudeup outdated  # List what has updates available
 ```
 
 ## Configuration

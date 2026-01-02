@@ -1,34 +1,11 @@
 {
   "enabledPlugins": {
-    "backend-api-security@claude-code-workflows": true,
     "backend-development@claude-code-workflows": true,
     "claude-mem@thedotmack": true,
     "code-documentation@claude-code-workflows": true,
-    "code-refactoring@claude-code-workflows": true,
-    "code-review-ai@claude-code-workflows": true,
-    "codebase-cleanup@claude-code-workflows": true,
-    "commit-commands@claude-code-plugins": true,
-    "comprehensive-review@claude-code-workflows": true,
-    "debugging-toolkit@claude-code-workflows": true,
-    "dependency-management@claude-code-workflows": true,
-    "developer-essentials@claude-code-workflows": true,
-    "documentation-generation@claude-code-workflows": true,
     "elements-of-style@superpowers-marketplace": true,
-    "error-debugging@claude-code-workflows": true,
-    "frontend-design@claude-code-plugins": true,
-    "full-stack-orchestration@claude-code-workflows": true,
-    "git-pr-workflows@claude-code-workflows": true,
-    "javascript-typescript@claude-code-workflows": true,
-    "multi-platform-apps@claude-code-workflows": true,
-    "performance-testing-review@claude-code-workflows": true,
-    "python-development@claude-code-workflows": true,
-    "security-compliance@claude-code-workflows": true,
-    "security-scanning@claude-code-workflows": true,
-    "shell-scripting@claude-code-workflows": true,
     "superpowers@superpowers-marketplace": true,
-    "systems-programming@claude-code-workflows": true,
     "tdd-workflows@claude-code-workflows": true,
-    "unit-testing@claude-code-workflows": true,
-    "web-scripting@claude-code-workflows": true
+    "unit-testing@claude-code-workflows": true
   }
 }

@@ -23,26 +23,36 @@ type SyncOptions struct {
 }
 
 // Sync installs plugins from .claudeup.json at project scope
-func Sync(projectDir, claudeDir string, opts SyncOptions) (*SyncResult, error) {
-	return SyncWithExecutor(projectDir, claudeDir, opts, &DefaultExecutor{ClaudeDir: claudeDir})
+func Sync(profilesDir, projectDir, claudeDir string, opts SyncOptions) (*SyncResult, error) {
+	return SyncWithExecutor(profilesDir, projectDir, claudeDir, opts, &DefaultExecutor{ClaudeDir: claudeDir})
 }
 
 // SyncWithExecutor syncs using the provided executor
-func SyncWithExecutor(projectDir, claudeDir string, opts SyncOptions, executor CommandExecutor) (*SyncResult, error) {
+func SyncWithExecutor(profilesDir, projectDir, claudeDir string, opts SyncOptions, executor CommandExecutor) (*SyncResult, error) {
+	if profilesDir == "" {
+		return nil, fmt.Errorf("profiles directory not specified")
+	}
+
 	// Load .claudeup.json
 	cfg, err := LoadProjectConfig(projectDir)
 	if err != nil {
 		return nil, fmt.Errorf("no %s found: %w", ProjectConfigFile, err)
 	}
 
+	// Load the profile - check project first, then user profiles
+	prof, _, err := LoadWithFallback(profilesDir, projectDir, cfg.Profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load profile %q: %w", cfg.Profile, err)
+	}
+
 	result := &SyncResult{}
 
 	if opts.DryRun {
-		return dryRunSync(cfg, claudeDir)
+		return dryRunSync(prof, claudeDir)
 	}
 
 	// 1. Add marketplaces (user-level, idempotent)
-	for _, m := range cfg.Marketplaces {
+	for _, m := range prof.Marketplaces {
 		key := marketplaceKey(m)
 		if key == "" {
 			continue
@@ -62,7 +72,7 @@ func SyncWithExecutor(projectDir, claudeDir string, opts SyncOptions, executor C
 	installedPlugins := getInstalledPluginsFromDir(claudeDir)
 
 	// 3. Install plugins with project scope
-	for _, plugin := range cfg.Plugins {
+	for _, plugin := range prof.Plugins {
 		if installedPlugins[plugin] {
 			result.PluginsSkipped++
 			continue
@@ -83,11 +93,11 @@ func SyncWithExecutor(projectDir, claudeDir string, opts SyncOptions, executor C
 	return result, nil
 }
 
-func dryRunSync(cfg *ProjectConfig, claudeDir string) (*SyncResult, error) {
+func dryRunSync(prof *Profile, claudeDir string) (*SyncResult, error) {
 	result := &SyncResult{}
 	installedPlugins := getInstalledPluginsFromDir(claudeDir)
 
-	for _, plugin := range cfg.Plugins {
+	for _, plugin := range prof.Plugins {
 		if installedPlugins[plugin] {
 			result.PluginsSkipped++
 		} else {
@@ -95,7 +105,7 @@ func dryRunSync(cfg *ProjectConfig, claudeDir string) (*SyncResult, error) {
 		}
 	}
 
-	result.MarketplacesAdded = len(cfg.Marketplaces)
+	result.MarketplacesAdded = len(prof.Marketplaces)
 	return result, nil
 }
 

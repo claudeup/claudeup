@@ -70,8 +70,7 @@ func init() {
 }
 
 func runSandbox(cmd *cobra.Command, args []string) error {
-	homeDir := profile.MustHomeDir()
-	claudePMDir := filepath.Join(homeDir, ".claudeup")
+	claudePMDir := config.MustClaudeupHome()
 
 	// Handle --clean
 	if sandboxClean {

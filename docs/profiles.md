@@ -13,7 +13,8 @@ Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use
 claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
 claudeup profile save [name]       # Save current setup as a profile
-claudeup profile create <name>     # Create a profile by copying an existing one
+claudeup profile create <name>     # Create a new profile with interactive wizard
+claudeup profile clone <name>      # Clone an existing profile
 claudeup profile apply <name>        # Apply a profile
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile delete <name>     # Delete a custom user profile
@@ -99,7 +100,7 @@ To disable a plugin from a lower scope, explicitly set it to `false`:
 |-------|----------|---------|----------|
 | **User** | `~/.claude/settings.json` | No | Personal default plugins used everywhere |
 | **Project** | `.claude/settings.json` | Yes (via git) | Project-specific plugins, shared with team |
-| **Local** | `~/.claude/settings.local.json` | No (gitignored) | Machine-specific plugins, personal overrides |
+| **Local** | `./.claude/settings.local.json` | No (gitignored) | Machine-specific plugins, personal overrides |
 
 ### Project Scope Files
 
@@ -388,23 +389,30 @@ claudeup profile save my-work
 
 ### Creating Profiles from Existing Ones
 
-Use `profile create` to copy an existing profile with a new name:
+Use `profile clone` to copy an existing profile with a new name:
 
 ```bash
-# Interactive selection
-claudeup profile create home-setup
+# Clone from specific profile
+claudeup profile clone home-setup --from work
 
-# Copy from specific profile
-claudeup profile create home-setup --from work
+# Clone with custom description
+claudeup profile clone home-setup --from work --description "Personal development"
 
-# Copy with custom description
-claudeup profile create home-setup --from work --description "Personal development"
-
-# Copy from active profile (with -y flag)
-claudeup profile create backup -y
+# Clone from active profile (with -y flag)
+claudeup profile clone backup -y
 ```
 
-Like `profile save`, created profiles inherit the source's description (if custom) or get an auto-generated one (if the source had the old generic description).
+Like `profile save`, cloned profiles inherit the source's description (if custom) or get an auto-generated one (if the source had the old generic description).
+
+### Creating New Profiles with Wizard
+
+Use `profile create` for an interactive wizard that guides you through creating a new profile:
+
+```bash
+claudeup profile create my-new-profile
+```
+
+The wizard prompts you to select marketplaces, plugins, and configure MCP servers step by step.
 
 ## Profile Structure
 

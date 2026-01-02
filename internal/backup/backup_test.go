@@ -12,13 +12,14 @@ import (
 
 func TestEnsureBackupDir(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
-	backupDir, err := EnsureBackupDir(tempDir)
+	backupDir, err := EnsureBackupDir(claudeupHome)
 	if err != nil {
 		t.Fatalf("EnsureBackupDir failed: %v", err)
 	}
 
-	expected := filepath.Join(tempDir, ".claudeup", "backups")
+	expected := filepath.Join(claudeupHome, "backups")
 	if backupDir != expected {
 		t.Errorf("got %s, want %s", backupDir, expected)
 	}
@@ -32,28 +33,19 @@ func TestEnsureBackupDir(t *testing.T) {
 	}
 }
 
-func TestValidateHomeDirRelativePath(t *testing.T) {
+func TestValidateClaudeupHomeRelativePath(t *testing.T) {
 	_, err := EnsureBackupDir("relative/path")
 	if err == nil {
 		t.Error("expected error for relative path")
 	}
-	if !strings.Contains(err.Error(), "absolute path") {
-		t.Errorf("expected 'absolute path' in error, got: %v", err)
-	}
-}
-
-func TestValidateHomeDirNotExist(t *testing.T) {
-	_, err := EnsureBackupDir("/nonexistent/path/that/does/not/exist")
-	if err == nil {
-		t.Error("expected error for non-existent path")
-	}
-	if !strings.Contains(err.Error(), "does not exist") {
-		t.Errorf("expected 'does not exist' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "claudeupHome must be an absolute path") {
+		t.Errorf("expected 'claudeupHome must be an absolute path' in error, got: %v", err)
 	}
 }
 
 func TestCopyFileRejectsSourceSymlink(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create a real file
 	realFile := filepath.Join(tempDir, "real.txt")
@@ -68,7 +60,7 @@ func TestCopyFileRejectsSourceSymlink(t *testing.T) {
 	}
 
 	// Try to save backup from symlink (should fail)
-	_, err := SaveScopeBackup(tempDir, "user", symlinkPath)
+	_, err := SaveScopeBackup(claudeupHome, "user", symlinkPath)
 	if err == nil {
 		t.Error("expected error when source is a symlink")
 	}
@@ -79,9 +71,10 @@ func TestCopyFileRejectsSourceSymlink(t *testing.T) {
 
 func TestCopyFileRejectsDestinationSymlink(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create backup directory
-	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	backupDir := filepath.Join(claudeupHome, "backups")
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -105,7 +98,7 @@ func TestCopyFileRejectsDestinationSymlink(t *testing.T) {
 	}
 
 	// Try to save backup (should fail because destination is a symlink)
-	_, err := SaveScopeBackup(tempDir, "user", srcFile)
+	_, err := SaveScopeBackup(claudeupHome, "user", srcFile)
 	if err == nil {
 		t.Error("expected error when destination is a symlink")
 	}
@@ -125,6 +118,7 @@ func TestCopyFileRejectsDestinationSymlink(t *testing.T) {
 
 func TestSaveUserScopeBackup(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create a mock settings file
 	claudeDir := filepath.Join(tempDir, ".claude")
@@ -137,7 +131,7 @@ func TestSaveUserScopeBackup(t *testing.T) {
 	}
 
 	// Save backup
-	backupPath, err := SaveScopeBackup(tempDir, "user", settingsPath)
+	backupPath, err := SaveScopeBackup(claudeupHome, "user", settingsPath)
 	if err != nil {
 		t.Fatalf("SaveScopeBackup failed: %v", err)
 	}
@@ -159,6 +153,7 @@ func TestSaveUserScopeBackup(t *testing.T) {
 
 func TestSaveLocalScopeBackup(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create a mock local settings file
 	projectDir := filepath.Join(tempDir, "my-project")
@@ -171,7 +166,7 @@ func TestSaveLocalScopeBackup(t *testing.T) {
 	}
 
 	// Save backup with project path
-	backupPath, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	backupPath, err := SaveLocalScopeBackup(claudeupHome, projectDir, settingsPath)
 	if err != nil {
 		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
 	}
@@ -199,9 +194,10 @@ func TestSaveLocalScopeBackup(t *testing.T) {
 
 func TestRestoreScopeBackup(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create backup directory and file
-	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	backupDir := filepath.Join(claudeupHome, "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +217,7 @@ func TestRestoreScopeBackup(t *testing.T) {
 	}
 
 	// Restore backup
-	err := RestoreScopeBackup(tempDir, "user", settingsPath)
+	err := RestoreScopeBackup(claudeupHome, "user", settingsPath)
 	if err != nil {
 		t.Fatalf("RestoreScopeBackup failed: %v", err)
 	}
@@ -238,8 +234,9 @@ func TestRestoreScopeBackup(t *testing.T) {
 
 func TestRestoreScopeBackupNotFound(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
-	err := RestoreScopeBackup(tempDir, "user", "/nonexistent/path")
+	err := RestoreScopeBackup(claudeupHome, "user", "/nonexistent/path")
 	if err == nil {
 		t.Error("expected error for missing backup")
 	}
@@ -250,9 +247,10 @@ func TestRestoreScopeBackupNotFound(t *testing.T) {
 
 func TestGetBackupInfo(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create backup
-	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	backupDir := filepath.Join(claudeupHome, "backups")
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +259,7 @@ func TestGetBackupInfo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	info, err := GetBackupInfo(tempDir, "user")
+	info, err := GetBackupInfo(claudeupHome, "user")
 	if err != nil {
 		t.Fatalf("GetBackupInfo failed: %v", err)
 	}
@@ -279,8 +277,9 @@ func TestGetBackupInfo(t *testing.T) {
 
 func TestGetBackupInfoNotFound(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
-	info, err := GetBackupInfo(tempDir, "user")
+	info, err := GetBackupInfo(claudeupHome, "user")
 	if err != nil {
 		t.Fatalf("GetBackupInfo failed: %v", err)
 	}
@@ -295,12 +294,13 @@ func TestGetBackupInfoNotFound(t *testing.T) {
 
 func TestRestoreLocalScopeBackup(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create a project directory
 	projectDir := filepath.Join(tempDir, "my-project")
 
 	// Create backup directory with project-specific naming
-	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	backupDir := filepath.Join(claudeupHome, "backups")
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestRestoreLocalScopeBackup(t *testing.T) {
 	}
 
 	// Save the backup
-	_, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	_, err := SaveLocalScopeBackup(claudeupHome, projectDir, settingsPath)
 	if err != nil {
 		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestRestoreLocalScopeBackup(t *testing.T) {
 	}
 
 	// Restore the backup
-	err = RestoreLocalScopeBackup(tempDir, projectDir, settingsPath)
+	err = RestoreLocalScopeBackup(claudeupHome, projectDir, settingsPath)
 	if err != nil {
 		t.Fatalf("RestoreLocalScopeBackup failed: %v", err)
 	}
@@ -343,9 +343,10 @@ func TestRestoreLocalScopeBackup(t *testing.T) {
 
 func TestRestoreLocalScopeBackupNotFound(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 	projectDir := filepath.Join(tempDir, "nonexistent-project")
 
-	err := RestoreLocalScopeBackup(tempDir, projectDir, "/nonexistent/path")
+	err := RestoreLocalScopeBackup(claudeupHome, projectDir, "/nonexistent/path")
 	if err == nil {
 		t.Error("expected error for missing backup")
 	}
@@ -356,6 +357,7 @@ func TestRestoreLocalScopeBackupNotFound(t *testing.T) {
 
 func TestGetLocalBackupInfo(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 	projectDir := filepath.Join(tempDir, "my-project")
 
 	// Create and save a local scope backup
@@ -368,13 +370,13 @@ func TestGetLocalBackupInfo(t *testing.T) {
 	}
 
 	// Save backup
-	_, err := SaveLocalScopeBackup(tempDir, projectDir, settingsPath)
+	_, err := SaveLocalScopeBackup(claudeupHome, projectDir, settingsPath)
 	if err != nil {
 		t.Fatalf("SaveLocalScopeBackup failed: %v", err)
 	}
 
 	// Get backup info
-	info, err := GetLocalBackupInfo(tempDir, projectDir)
+	info, err := GetLocalBackupInfo(claudeupHome, projectDir)
 	if err != nil {
 		t.Fatalf("GetLocalBackupInfo failed: %v", err)
 	}
@@ -392,9 +394,10 @@ func TestGetLocalBackupInfo(t *testing.T) {
 
 func TestGetLocalBackupInfoNotFound(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 	projectDir := filepath.Join(tempDir, "nonexistent-project")
 
-	info, err := GetLocalBackupInfo(tempDir, projectDir)
+	info, err := GetLocalBackupInfo(claudeupHome, projectDir)
 	if err != nil {
 		t.Fatalf("GetLocalBackupInfo failed: %v", err)
 	}
@@ -406,6 +409,7 @@ func TestGetLocalBackupInfoNotFound(t *testing.T) {
 
 func TestBackupEmptySettingsFile(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create an empty settings file
 	claudeDir := filepath.Join(tempDir, ".claude")
@@ -418,7 +422,7 @@ func TestBackupEmptySettingsFile(t *testing.T) {
 	}
 
 	// Backup should succeed
-	backupPath, err := SaveScopeBackup(tempDir, "user", settingsPath)
+	backupPath, err := SaveScopeBackup(claudeupHome, "user", settingsPath)
 	if err != nil {
 		t.Fatalf("SaveScopeBackup failed on empty file: %v", err)
 	}
@@ -433,7 +437,7 @@ func TestBackupEmptySettingsFile(t *testing.T) {
 	}
 
 	// GetBackupInfo should handle empty file gracefully
-	info, err := GetBackupInfo(tempDir, "user")
+	info, err := GetBackupInfo(claudeupHome, "user")
 	if err != nil {
 		t.Fatalf("GetBackupInfo failed on empty file: %v", err)
 	}
@@ -447,9 +451,10 @@ func TestBackupEmptySettingsFile(t *testing.T) {
 
 func TestRestoreWhenTargetDirectoryMissing(t *testing.T) {
 	tempDir := t.TempDir()
+	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	// Create backup
-	backupDir := filepath.Join(tempDir, ".claudeup", "backups")
+	backupDir := filepath.Join(claudeupHome, "backups")
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +467,7 @@ func TestRestoreWhenTargetDirectoryMissing(t *testing.T) {
 	settingsPath := filepath.Join(tempDir, "nonexistent-dir", "settings.json")
 
 	// Restore should fail because target directory doesn't exist
-	err := RestoreScopeBackup(tempDir, "user", settingsPath)
+	err := RestoreScopeBackup(claudeupHome, "user", settingsPath)
 	if err == nil {
 		t.Error("expected error when target directory doesn't exist")
 	}

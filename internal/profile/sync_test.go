@@ -8,6 +8,34 @@ import (
 	"testing"
 )
 
+// Helper to create a test profile with plugins and return profilesDir
+func setupTestProfile(t *testing.T, projectDir string, plugins []string, marketplaces []Marketplace) string {
+	profilesDir := filepath.Join(projectDir, "profiles")
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("failed to create profiles dir: %v", err)
+	}
+
+	testProfile := &Profile{
+		Name:         "test-profile",
+		Plugins:      plugins,
+		Marketplaces: marketplaces,
+	}
+	if err := Save(profilesDir, testProfile); err != nil {
+		t.Fatalf("failed to save test profile: %v", err)
+	}
+
+	// Create .claudeup.json referencing the profile
+	cfg := &ProjectConfig{
+		Version: "1",
+		Profile: "test-profile",
+	}
+	if err := SaveProjectConfig(projectDir, cfg); err != nil {
+		t.Fatalf("failed to save project config: %v", err)
+	}
+
+	return profilesDir
+}
+
 // syncMockExecutor records commands for testing sync operations
 type syncMockExecutor struct {
 	commands      [][]string
@@ -83,18 +111,10 @@ func TestSyncWithExecutor_InstallsPlugins(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	// Create .claudeup.json with plugins
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Marketplaces: []Marketplace{
-			{Source: "github", Repo: "test/plugins"},
-		},
-		Plugins: []string{"plugin-a@test-plugins", "plugin-b@test-plugins"},
-	}
-	if err := SaveProjectConfig(projectDir, cfg); err != nil {
-		t.Fatalf("failed to save project config: %v", err)
-	}
+	// Create test profile with plugins
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{"plugin-a@test-plugins", "plugin-b@test-plugins"},
+		[]Marketplace{{Source: "github", Repo: "test/plugins"}})
 
 	// Create empty installed_plugins.json (no plugins installed)
 	emptyPlugins := map[string]interface{}{
@@ -106,7 +126,7 @@ func TestSyncWithExecutor_InstallsPlugins(t *testing.T) {
 
 	// Run sync
 	executor := newSyncMockExecutor()
-	result, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 	if err != nil {
 		t.Fatalf("SyncWithExecutor failed: %v", err)
 	}
@@ -147,13 +167,10 @@ func TestSyncWithExecutor_SkipsExistingPlugins(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	// Create .claudeup.json
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Plugins: []string{"existing-plugin@test", "new-plugin@test"},
-	}
-	SaveProjectConfig(projectDir, cfg)
+	// Create test profile
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{"existing-plugin@test", "new-plugin@test"},
+		nil)
 
 	// Create installed_plugins.json with one plugin already installed
 	installedPlugins := map[string]interface{}{
@@ -166,7 +183,7 @@ func TestSyncWithExecutor_SkipsExistingPlugins(t *testing.T) {
 	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
 
 	executor := newSyncMockExecutor()
-	result, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 	if err != nil {
 		t.Fatalf("SyncWithExecutor failed: %v", err)
 	}
@@ -185,16 +202,10 @@ func TestSyncWithExecutor_DryRun(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	// Create .claudeup.json
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Marketplaces: []Marketplace{
-			{Source: "github", Repo: "test/plugins"},
-		},
-		Plugins: []string{"plugin-a@test", "plugin-b@test"},
-	}
-	SaveProjectConfig(projectDir, cfg)
+	// Create test profile
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{"plugin-a@test", "plugin-b@test"},
+		[]Marketplace{{Source: "github", Repo: "test/plugins"}})
 
 	// Empty installed plugins
 	emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
@@ -202,7 +213,7 @@ func TestSyncWithExecutor_DryRun(t *testing.T) {
 	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
 
 	executor := newSyncMockExecutor()
-	result, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{DryRun: true}, executor)
+	result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{DryRun: true}, executor)
 	if err != nil {
 		t.Fatalf("SyncWithExecutor failed: %v", err)
 	}
@@ -226,7 +237,8 @@ func TestSyncWithExecutor_NoProjectConfig(t *testing.T) {
 	claudeDir := t.TempDir()
 
 	executor := newSyncMockExecutor()
-	_, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	profilesDir := filepath.Join(projectDir, "profiles")
+	_, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 	if err == nil {
 		t.Error("expected error for missing .claudeup.json")
 	}
@@ -241,12 +253,9 @@ func TestSyncWithExecutor_HandlesPluginInstallFailure(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Plugins: []string{"good-plugin@test", "bad-plugin@test"},
-	}
-	SaveProjectConfig(projectDir, cfg)
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{"good-plugin@test", "bad-plugin@test"},
+		nil)
 
 	emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
 	pluginsData, _ := json.Marshal(emptyPlugins)
@@ -256,7 +265,7 @@ func TestSyncWithExecutor_HandlesPluginInstallFailure(t *testing.T) {
 	// Make bad-plugin fail
 	executor.failOn["plugin install --scope"] = true
 
-	result, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 	if err != nil {
 		t.Fatalf("SyncWithExecutor failed: %v", err)
 	}
@@ -273,12 +282,9 @@ func TestSyncWithExecutor_HandlesAlreadyInstalledOutput(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Plugins: []string{"plugin@test"},
-	}
-	SaveProjectConfig(projectDir, cfg)
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{"plugin@test"},
+		nil)
 
 	// Plugin not in installed_plugins.json but CLI says "already installed"
 	emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
@@ -288,7 +294,7 @@ func TestSyncWithExecutor_HandlesAlreadyInstalledOutput(t *testing.T) {
 	executor := newSyncMockExecutor()
 	executor.alreadyExists["plugin@test"] = true
 
-	result, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 	if err != nil {
 		t.Fatalf("SyncWithExecutor failed: %v", err)
 	}
@@ -308,15 +314,9 @@ func TestSyncWithExecutor_Idempotent(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Marketplaces: []Marketplace{
-			{Source: "github", Repo: "test/plugins"},
-		},
-		Plugins: []string{"plugin@test"},
-	}
-	SaveProjectConfig(projectDir, cfg)
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{"plugin@test"},
+		[]Marketplace{{Source: "github", Repo: "test/plugins"}})
 
 	// Plugin already installed
 	installedPlugins := map[string]interface{}{
@@ -330,10 +330,10 @@ func TestSyncWithExecutor_Idempotent(t *testing.T) {
 
 	// Run sync twice
 	executor := newSyncMockExecutor()
-	result1, _ := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	result1, _ := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 
 	executor2 := newSyncMockExecutor()
-	result2, _ := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor2)
+	result2, _ := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor2)
 
 	// Both runs should have same result - nothing new to install
 	if result1.PluginsSkipped != result2.PluginsSkipped {
@@ -352,20 +352,17 @@ func TestSyncWithExecutor_EmptyPluginsList(t *testing.T) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	os.MkdirAll(pluginsDir, 0755)
 
-	// .claudeup.json with no plugins
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Plugins: []string{},
-	}
-	SaveProjectConfig(projectDir, cfg)
+	// Create test profile with empty plugins list
+	profilesDir := setupTestProfile(t, projectDir,
+		[]string{},
+		nil)
 
 	emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
 	pluginsData, _ := json.Marshal(emptyPlugins)
 	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
 
 	executor := newSyncMockExecutor()
-	result, err := SyncWithExecutor(projectDir, claudeDir, SyncOptions{}, executor)
+	result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, SyncOptions{}, executor)
 	if err != nil {
 		t.Fatalf("SyncWithExecutor failed: %v", err)
 	}
@@ -375,5 +372,63 @@ func TestSyncWithExecutor_EmptyPluginsList(t *testing.T) {
 	}
 	if result.PluginsSkipped != 0 {
 		t.Errorf("PluginsSkipped = %d, want 0", result.PluginsSkipped)
+	}
+}
+
+func TestSyncWithExecutor_LoadsFromProject(t *testing.T) {
+	tmpDir := t.TempDir()
+	userProfilesDir := filepath.Join(tmpDir, "user-profiles")
+	projectDir := filepath.Join(tmpDir, "project")
+	claudeDir := filepath.Join(tmpDir, "claude")
+	projectProfilesDir := filepath.Join(projectDir, ".claudeup", "profiles")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+
+	// Create directories
+	os.MkdirAll(userProfilesDir, 0755)
+	os.MkdirAll(projectProfilesDir, 0755)
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Create project profile with a specific plugin
+	projectProfile := &Profile{
+		Name:    "team-config",
+		Plugins: []string{"project-plugin@marketplace"},
+	}
+	if err := Save(projectProfilesDir, projectProfile); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create .claudeup.json pointing to the profile
+	cfg := &ProjectConfig{Profile: "team-config"}
+	if err := SaveProjectConfig(projectDir, cfg); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create empty installed_plugins.json
+	emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
+	pluginsData, _ := json.Marshal(emptyPlugins)
+	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
+
+	// Create mock executor that records what plugins are installed
+	executor := newSyncMockExecutor()
+
+	result, err := SyncWithExecutor(userProfilesDir, projectDir, claudeDir, SyncOptions{}, executor)
+	if err != nil {
+		t.Fatalf("Sync failed: %v", err)
+	}
+
+	if result.PluginsInstalled != 1 {
+		t.Errorf("Expected 1 plugin installed, got %d", result.PluginsInstalled)
+	}
+
+	// Verify the correct plugin was installed
+	foundPlugin := false
+	for _, cmd := range executor.commands {
+		if len(cmd) >= 5 && cmd[0] == "plugin" && cmd[1] == "install" && cmd[4] == "project-plugin@marketplace" {
+			foundPlugin = true
+			break
+		}
+	}
+	if !foundPlugin {
+		t.Errorf("Expected project-plugin@marketplace to be installed, commands: %v", executor.commands)
 	}
 }

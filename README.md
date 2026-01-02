@@ -38,6 +38,21 @@ claudeup profile apply backend     # Switch to a different profile
 
 Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more →](docs/profiles.md)
 
+### Team Configuration
+
+Share Claude configurations with your team via git:
+
+```bash
+# Team lead: Save profile to project
+claudeup profile save team-config --scope project
+git add .claudeup && git commit -m "Add team profile"
+
+# Team member: Sync after clone/pull
+claudeup profile sync
+```
+
+Project profiles live in `.claudeup/profiles/` and travel with your repository. [Learn more →](docs/team-workflows.md)
+
 ### Sandbox
 
 Run Claude Code in an isolated Docker container for security.
@@ -64,16 +79,48 @@ claudeup mcp disable plugin:server    # Disable just an MCP server
 ### Diagnostics & Maintenance
 
 ```bash
-claudeup doctor   # Diagnose issues
-claudeup cleanup  # Fix plugin path problems
-claudeup update   # Check for updates
+claudeup doctor     # Diagnose issues
+claudeup cleanup    # Fix plugin path problems
+claudeup outdated   # Check for updates
+claudeup update     # Update claudeup CLI
+claudeup upgrade    # Update plugins and marketplaces
 ```
 
 [Troubleshooting guide →](docs/troubleshooting.md)
 
+## Commands
+
+### Update Commands
+
+| Command | Description |
+|---------|-------------|
+| `claudeup update` | Update the claudeup CLI to the latest version |
+| `claudeup upgrade` | Update marketplaces and plugins |
+| `claudeup outdated` | Show available updates for CLI, marketplaces, and plugins |
+
+For the complete command reference, see [Full command reference →](docs/commands.md)
+
+## Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CLAUDEUP_HOME` | Override claudeup's configuration directory | `~/.claudeup` |
+| `CLAUDE_CONFIG_DIR` | Override Claude Code's configuration directory | `~/.claude` |
+
+### Isolated Testing Environment
+
+Use environment variables to run claudeup in isolation (useful for testing or CI):
+
+```bash
+export CLAUDEUP_HOME="/tmp/test-env/.claudeup"
+export CLAUDE_CONFIG_DIR="/tmp/test-env/.claude"
+claudeup profile apply base-tools
+```
+
 ## Documentation
 
 - [Profiles](docs/profiles.md) - Configuration profiles and secret management
+- [Team Workflows](docs/team-workflows.md) - Sharing configurations via git
 - [Sandbox](docs/sandbox.md) - Running Claude in isolated containers
 - [Commands](docs/commands.md) - Full command reference
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and fixes

@@ -138,12 +138,7 @@ func TestProjectConfig_RoundTrip(t *testing.T) {
 	projectDir := t.TempDir()
 
 	cfg := &profile.ProjectConfig{
-		Profile:       "test-profile",
-		ProfileSource: "embedded",
-		Marketplaces: []profile.Marketplace{
-			{Source: "github", Repo: "test/plugins"},
-		},
-		Plugins: []string{"plugin-a@test", "plugin-b@test"},
+		Profile: "test-profile",
 	}
 
 	// Save
@@ -161,15 +156,6 @@ func TestProjectConfig_RoundTrip(t *testing.T) {
 	// Verify
 	if loaded.Profile != cfg.Profile {
 		t.Errorf("Profile = %q, want %q", loaded.Profile, cfg.Profile)
-	}
-	if loaded.ProfileSource != cfg.ProfileSource {
-		t.Errorf("ProfileSource = %q, want %q", loaded.ProfileSource, cfg.ProfileSource)
-	}
-	if len(loaded.Plugins) != 2 {
-		t.Errorf("len(Plugins) = %d, want 2", len(loaded.Plugins))
-	}
-	if len(loaded.Marketplaces) != 1 {
-		t.Errorf("len(Marketplaces) = %d, want 1", len(loaded.Marketplaces))
 	}
 	if loaded.Version != "1" {
 		t.Errorf("Version = %q, want '1'", loaded.Version)
@@ -196,136 +182,7 @@ func TestScopeString(t *testing.T) {
 	}
 }
 
-func TestSyncWithExecutor_InstallsPlugins(t *testing.T) {
-	projectDir := t.TempDir()
-	claudeDir := filepath.Join(t.TempDir(), ".claude")
-	pluginsDir := filepath.Join(claudeDir, "plugins")
-	os.MkdirAll(pluginsDir, 0755)
-
-	// Create .claudeup.json with plugins
-	cfg := &profile.ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Marketplaces: []profile.Marketplace{
-			{Source: "github", Repo: "test/plugins"},
-		},
-		Plugins: []string{"plugin-a@test-plugins", "plugin-b@test-plugins"},
-	}
-	profile.SaveProjectConfig(projectDir, cfg)
-
-	// Create empty installed_plugins.json
-	installedData := []byte(`{"version": 2, "plugins": {}}`)
-	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), installedData, 0644)
-
-	// Mock executor
-	executor := &testMockExecutor{commands: [][]string{}}
-
-	result, err := profile.SyncWithExecutor(projectDir, claudeDir, profile.SyncOptions{}, executor)
-	if err != nil {
-		t.Fatalf("SyncWithExecutor failed: %v", err)
-	}
-
-	if result.PluginsInstalled != 2 {
-		t.Errorf("PluginsInstalled = %d, want 2", result.PluginsInstalled)
-	}
-	if result.MarketplacesAdded != 1 {
-		t.Errorf("MarketplacesAdded = %d, want 1", result.MarketplacesAdded)
-	}
-
-	// Verify marketplace add was called
-	foundMarketplace := false
-	for _, cmd := range executor.commands {
-		if len(cmd) >= 4 && cmd[0] == "plugin" && cmd[1] == "marketplace" && cmd[2] == "add" {
-			foundMarketplace = true
-		}
-	}
-	if !foundMarketplace {
-		t.Error("marketplace add command not found")
-	}
-}
-
-func TestSyncWithExecutor_SkipsExistingPlugins(t *testing.T) {
-	projectDir := t.TempDir()
-	claudeDir := filepath.Join(t.TempDir(), ".claude")
-	pluginsDir := filepath.Join(claudeDir, "plugins")
-	os.MkdirAll(pluginsDir, 0755)
-
-	cfg := &profile.ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Plugins: []string{"existing@test", "new@test"},
-	}
-	profile.SaveProjectConfig(projectDir, cfg)
-
-	// One plugin already installed
-	installedData := []byte(`{
-		"version": 2,
-		"plugins": {
-			"existing@test": [{"scope": "project", "version": "1.0"}]
-		}
-	}`)
-	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), installedData, 0644)
-
-	executor := &testMockExecutor{commands: [][]string{}}
-
-	result, err := profile.SyncWithExecutor(projectDir, claudeDir, profile.SyncOptions{}, executor)
-	if err != nil {
-		t.Fatalf("SyncWithExecutor failed: %v", err)
-	}
-
-	if result.PluginsInstalled != 1 {
-		t.Errorf("PluginsInstalled = %d, want 1", result.PluginsInstalled)
-	}
-	if result.PluginsSkipped != 1 {
-		t.Errorf("PluginsSkipped = %d, want 1", result.PluginsSkipped)
-	}
-}
-
-func TestSyncWithExecutor_DryRun(t *testing.T) {
-	projectDir := t.TempDir()
-	claudeDir := filepath.Join(t.TempDir(), ".claude")
-	pluginsDir := filepath.Join(claudeDir, "plugins")
-	os.MkdirAll(pluginsDir, 0755)
-
-	cfg := &profile.ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-		Plugins: []string{"plugin@test"},
-	}
-	profile.SaveProjectConfig(projectDir, cfg)
-
-	installedData := []byte(`{"version": 2, "plugins": {}}`)
-	os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), installedData, 0644)
-
-	executor := &testMockExecutor{commands: [][]string{}}
-
-	result, err := profile.SyncWithExecutor(projectDir, claudeDir, profile.SyncOptions{DryRun: true}, executor)
-	if err != nil {
-		t.Fatalf("SyncWithExecutor failed: %v", err)
-	}
-
-	// Should report what would be installed
-	if result.PluginsInstalled != 1 {
-		t.Errorf("PluginsInstalled = %d, want 1", result.PluginsInstalled)
-	}
-
-	// But no commands executed
-	if len(executor.commands) != 0 {
-		t.Errorf("Commands executed = %d, want 0", len(executor.commands))
-	}
-}
-
-func TestSyncWithExecutor_NoConfigFile(t *testing.T) {
-	projectDir := t.TempDir()
-	claudeDir := t.TempDir()
-
-	executor := &testMockExecutor{commands: [][]string{}}
-
-	_, err := profile.SyncWithExecutor(projectDir, claudeDir, profile.SyncOptions{}, executor)
-	if err == nil {
-		t.Error("Expected error for missing .claudeup.json")
-	}
-}
+// Sync tests are covered in internal/profile/sync_test.go
 
 func TestNewProjectConfig_FromProfile(t *testing.T) {
 	p := &profile.Profile{
@@ -341,38 +198,8 @@ func TestNewProjectConfig_FromProfile(t *testing.T) {
 	if cfg.Profile != "test-profile" {
 		t.Errorf("Profile = %q, want %q", cfg.Profile, "test-profile")
 	}
-	if len(cfg.Marketplaces) != 1 {
-		t.Errorf("len(Marketplaces) = %d, want 1", len(cfg.Marketplaces))
-	}
-	if len(cfg.Plugins) != 1 {
-		t.Errorf("len(Plugins) = %d, want 1", len(cfg.Plugins))
-	}
-}
-
-func TestNewProjectConfig_EmbeddedProfile(t *testing.T) {
-	// Get an actual embedded profile name
-	profiles, err := profile.ListEmbeddedProfiles()
-	if err != nil || len(profiles) == 0 {
-		t.Skip("No embedded profiles available")
-	}
-
-	p := profiles[0]
-	cfg := profile.NewProjectConfig(p)
-
-	if cfg.ProfileSource != "embedded" {
-		t.Errorf("ProfileSource = %q, want 'embedded'", cfg.ProfileSource)
-	}
-}
-
-func TestNewProjectConfig_CustomProfile(t *testing.T) {
-	p := &profile.Profile{
-		Name: "my-custom-profile", // Not an embedded profile
-	}
-
-	cfg := profile.NewProjectConfig(p)
-
-	if cfg.ProfileSource != "custom" {
-		t.Errorf("ProfileSource = %q, want 'custom'", cfg.ProfileSource)
+	if cfg.AppliedAt.IsZero() {
+		t.Error("AppliedAt should be set")
 	}
 }
 
