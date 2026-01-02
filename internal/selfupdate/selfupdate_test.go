@@ -152,3 +152,33 @@ var _ = Describe("Update", func() {
 		Expect(result.Error).NotTo(HaveOccurred())
 	})
 })
+
+var _ = Describe("ValidateVersion", func() {
+	It("accepts valid semver versions", func() {
+		Expect(ValidateVersion("v1.0.0")).To(Succeed())
+		Expect(ValidateVersion("v1.2.3")).To(Succeed())
+		Expect(ValidateVersion("v10.20.30")).To(Succeed())
+	})
+
+	It("accepts pre-release versions", func() {
+		Expect(ValidateVersion("v1.0.0-beta")).To(Succeed())
+		Expect(ValidateVersion("v1.0.0-rc1")).To(Succeed())
+	})
+
+	It("rejects empty version", func() {
+		err := ValidateVersion("")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cannot be empty"))
+	})
+
+	It("rejects versions with invalid characters", func() {
+		err := ValidateVersion("v1.0.0; rm -rf /")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("invalid character"))
+	})
+
+	It("rejects versions with path traversal", func() {
+		err := ValidateVersion("../../../etc/passwd")
+		Expect(err).To(HaveOccurred())
+	})
+})

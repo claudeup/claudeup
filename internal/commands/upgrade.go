@@ -3,16 +3,28 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/ui"
 	"github.com/spf13/cobra"
 )
+
+const gitTimeout = 30 * time.Second
+
+// truncateHash safely truncates a git commit hash to 7 characters
+func truncateHash(hash string) string {
+	if len(hash) >= 7 {
+		return hash[:7]
+	}
+	return hash
+}
 
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade [targets...]",
@@ -269,9 +281,19 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 		}
 		currentCommit := strings.TrimSpace(string(currentOutput))
 
-		// Fetch from remote
-		fetchCmd := exec.Command("git", "-C", marketplace.InstallLocation, "fetch", "origin")
-		fetchCmd.Run() // Ignore errors
+		// Fetch from remote with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), gitTimeout)
+		fetchCmd := exec.CommandContext(ctx, "git", "-C", marketplace.InstallLocation, "fetch", "origin")
+		if err := fetchCmd.Run(); err != nil {
+			cancel()
+			// Fetch failed - warn but continue with potentially stale data
+			updates = append(updates, MarketplaceUpdate{
+				Name:      name,
+				HasUpdate: false,
+			})
+			continue
+		}
+		cancel()
 
 		// Get remote commit
 		remoteCmd := exec.Command("git", "-C", marketplace.InstallLocation, "rev-parse", "origin/HEAD")
@@ -298,8 +320,8 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 		updates = append(updates, MarketplaceUpdate{
 			Name:          name,
 			HasUpdate:     currentCommit != remoteCommit,
-			CurrentCommit: currentCommit[:7],
-			LatestCommit:  remoteCommit[:7],
+			CurrentCommit: truncateHash(currentCommit),
+			LatestCommit:  truncateHash(remoteCommit),
 		})
 	}
 
@@ -346,8 +368,8 @@ func checkPluginUpdates(plugins *claude.PluginRegistry, marketplaces claude.Mark
 			updates = append(updates, PluginUpdate{
 				Name:          name,
 				HasUpdate:     true,
-				CurrentCommit: plugin.GitCommitSha[:7],
-				LatestCommit:  currentCommit[:7],
+				CurrentCommit: truncateHash(plugin.GitCommitSha),
+				LatestCommit:  truncateHash(currentCommit),
 			})
 		}
 	}
@@ -396,6 +418,11 @@ func updatePlugin(name string, plugins *claude.PluginRegistry) error {
 	if !plugin.IsLocal {
 		// Extract plugin name from full name (e.g., "hookify@claude-code-plugins" -> "hookify")
 		pluginBaseName := strings.Split(name, "@")[0]
+
+		// Sanitize: prevent path traversal attacks
+		if strings.Contains(pluginBaseName, "..") || strings.Contains(pluginBaseName, string(filepath.Separator)) {
+			return fmt.Errorf("invalid plugin name: %s", pluginBaseName)
+		}
 
 		// Find source plugin in marketplace (try /plugins/ and /skills/ subdirectories)
 		var sourcePath string

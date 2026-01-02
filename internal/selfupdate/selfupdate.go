@@ -52,7 +52,8 @@ func CheckLatestVersion(apiURL string) (string, error) {
 	return release.TagName, nil
 }
 
-// DownloadBinary downloads the binary for the current platform to a temp file
+// DownloadBinary downloads the binary from the given URL to a temp file in tempDir.
+// Returns the path to the downloaded file. The caller is responsible for cleanup.
 func DownloadBinary(url, tempDir string) (string, error) {
 	client := &http.Client{Timeout: 5 * time.Minute}
 
@@ -107,9 +108,25 @@ func VerifyChecksum(filePath, expectedHash string) error {
 	return nil
 }
 
-// GetBinaryURL returns the download URL for the current platform
+// GetBinaryURL returns the download URL for the current platform.
+// The version must be in semver format (e.g., "v1.2.3").
 func GetBinaryURL(version string) string {
 	return fmt.Sprintf("%s/%s/claudeup-%s-%s", DefaultAssetURL, version, runtime.GOOS, runtime.GOARCH)
+}
+
+// ValidateVersion checks that a version string is in valid semver format
+func ValidateVersion(version string) error {
+	// Must not be empty
+	if version == "" {
+		return fmt.Errorf("version cannot be empty")
+	}
+	// Allow: alphanumerics, dots, hyphens, v prefix (for pre-release like v1.0.0-beta)
+	for _, c := range version {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '.' || c == '-') {
+			return fmt.Errorf("invalid character in version: %c", c)
+		}
+	}
+	return nil
 }
 
 // GetChecksumsURL returns the checksums file URL for a version
@@ -119,6 +136,7 @@ func GetChecksumsURL(version string) string {
 
 // ReplaceBinary atomically replaces the current binary with a new one.
 // On failure, attempts to rollback to the original.
+// Handles cross-filesystem moves by falling back to copy-then-delete.
 func ReplaceBinary(currentPath, newPath string) error {
 	backupPath := currentPath + ".old"
 
@@ -127,19 +145,47 @@ func ReplaceBinary(currentPath, newPath string) error {
 		return fmt.Errorf("failed to backup current binary: %w", err)
 	}
 
-	// Step 2: Move new binary to current location
+	// Step 2: Move new binary to current location (try rename first, fall back to copy)
 	if err := os.Rename(newPath, currentPath); err != nil {
-		// Rollback: restore backup
-		if rbErr := os.Rename(backupPath, currentPath); rbErr != nil {
-			return fmt.Errorf("failed to install new binary (%v) and rollback failed (%v)", err, rbErr)
+		// Rename failed - might be cross-filesystem, try copy
+		if copyErr := copyFile(newPath, currentPath); copyErr != nil {
+			// Copy also failed - rollback
+			if rbErr := os.Rename(backupPath, currentPath); rbErr != nil {
+				return fmt.Errorf("failed to install new binary (%v) and rollback failed (%v)", copyErr, rbErr)
+			}
+			return fmt.Errorf("failed to install new binary (rolled back): %w", copyErr)
 		}
-		return fmt.Errorf("failed to install new binary (rolled back): %w", err)
+		// Copy succeeded, remove the temp file
+		os.Remove(newPath)
 	}
 
 	// Step 3: Remove backup
 	os.Remove(backupPath) // Ignore error - not critical
 
 	return nil
+}
+
+// copyFile copies a file from src to dst, preserving permissions
+func copyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }
 
 // UpdateResult contains the outcome of an update attempt
@@ -185,6 +231,12 @@ func Update(currentVersion, latestVersion, binaryPath string) UpdateResult {
 		return result
 	}
 	defer os.RemoveAll(tempDir)
+
+	// Validate version format before using in URLs
+	if err := ValidateVersion(latestVersion); err != nil {
+		result.Error = fmt.Errorf("invalid version format: %w", err)
+		return result
+	}
 
 	// Download new binary
 	binaryURL := GetBinaryURL(latestVersion)
@@ -242,9 +294,21 @@ func fetchExpectedChecksum(checksumsURL, version string) (string, error) {
 	for _, line := range lines {
 		if strings.HasSuffix(line, binaryName) {
 			parts := strings.Fields(line)
-			if len(parts) >= 1 {
-				return parts[0], nil
+			if len(parts) != 2 {
+				return "", fmt.Errorf("invalid checksum line format: expected 2 fields, got %d", len(parts))
 			}
+			hash := parts[0]
+			// SHA256 hash must be exactly 64 hex characters
+			if len(hash) != 64 {
+				return "", fmt.Errorf("invalid checksum length: expected 64, got %d", len(hash))
+			}
+			// Validate hex characters
+			for _, c := range hash {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+					return "", fmt.Errorf("invalid checksum: contains non-hex character")
+				}
+			}
+			return hash, nil
 		}
 	}
 
