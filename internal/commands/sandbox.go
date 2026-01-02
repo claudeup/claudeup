@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/claudeup/claudeup/internal/config"
 	"github.com/claudeup/claudeup/internal/profile"
@@ -16,16 +17,19 @@ import (
 )
 
 var (
-	sandboxProfile    string
-	sandboxMounts     []string
-	sandboxNoMount    bool
-	sandboxSecrets    []string
-	sandboxNoSecrets  []string
-	sandboxShell      bool
-	sandboxClean      bool
-	sandboxImage      string
-	sandboxEphemeral  bool
-	sandboxCopyAuth   bool
+	sandboxProfile   string
+	sandboxMounts    []string
+	sandboxNoMount   bool
+	sandboxSecrets   []string
+	sandboxNoSecrets []string
+	sandboxCreds     []string
+	sandboxNoCreds   []string
+	sandboxShell     bool
+	sandboxClean     bool
+	sandboxImage     string
+	sandboxEphemeral bool
+	sandboxCopyAuth  bool
+	sandboxSync      bool
 )
 
 var sandboxCmd = &cobra.Command{
@@ -62,11 +66,14 @@ func init() {
 	sandboxCmd.Flags().BoolVar(&sandboxNoMount, "no-mount", false, "Don't mount working directory")
 	sandboxCmd.Flags().StringSliceVar(&sandboxSecrets, "secret", nil, "Additional secrets to inject")
 	sandboxCmd.Flags().StringSliceVar(&sandboxNoSecrets, "no-secret", nil, "Secrets to exclude")
+	sandboxCmd.Flags().StringSliceVar(&sandboxCreds, "creds", nil, "Credentials to mount (git, ssh, gh)")
+	sandboxCmd.Flags().StringSliceVar(&sandboxNoCreds, "no-creds", nil, "Credentials to exclude")
 	sandboxCmd.Flags().BoolVar(&sandboxShell, "shell", false, "Drop to bash instead of Claude CLI")
 	sandboxCmd.Flags().BoolVar(&sandboxClean, "clean", false, "Reset sandbox state for profile")
 	sandboxCmd.Flags().StringVar(&sandboxImage, "image", "", "Override sandbox image")
 	sandboxCmd.Flags().BoolVar(&sandboxEphemeral, "ephemeral", false, "Force ephemeral mode (no persistence)")
 	sandboxCmd.Flags().BoolVar(&sandboxCopyAuth, "copy-auth", false, "Copy authentication from ~/.claude.json")
+	sandboxCmd.Flags().BoolVar(&sandboxSync, "sync", false, "Re-apply profile settings to sandbox")
 }
 
 func runSandbox(cmd *cobra.Command, args []string) error {
@@ -87,6 +94,18 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 	// Validate --copy-auth requires --profile
 	if sandboxCopyAuth && sandboxProfile == "" {
 		return fmt.Errorf("--copy-auth requires --profile (ephemeral mode has no persistent state)")
+	}
+
+	// Validate credential type names early
+	for _, cred := range sandboxCreds {
+		if sandbox.GetCredentialType(cred) == nil {
+			return fmt.Errorf("unknown credential type: %q (valid: git, ssh, gh)", cred)
+		}
+	}
+	for _, cred := range sandboxNoCreds {
+		if sandbox.GetCredentialType(cred) == nil {
+			return fmt.Errorf("unknown credential type: %q (valid: git, ssh, gh)", cred)
+		}
 	}
 
 	// Check Docker availability
@@ -114,6 +133,13 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		}
 		// Apply profile's sandbox config (may be empty, that's fine)
 		applyProfileSandboxConfig(&opts, p)
+	} else {
+		// Warn if profile is ignored due to ephemeral mode
+		if sandboxProfile != "" && sandboxEphemeral {
+			ui.PrintWarning("--ephemeral overrides --profile; profile credentials and config ignored")
+		}
+		// No profile or ephemeral mode - use CLI credentials directly
+		opts.Credentials = sandbox.MergeCredentials(nil, sandboxCreds, sandboxNoCreds)
 	}
 
 	// Working directory mount
@@ -179,6 +205,9 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 }
 
 func applyProfileSandboxConfig(opts *sandbox.Options, p *profile.Profile) {
+	// Merge profile credentials with CLI overrides
+	opts.Credentials = sandbox.MergeCredentials(p.Sandbox.Credentials, sandboxCreds, sandboxNoCreds)
+
 	// Add profile secrets
 	opts.Secrets = append(opts.Secrets, p.Sandbox.Secrets...)
 
@@ -195,6 +224,9 @@ func applyProfileSandboxConfig(opts *sandbox.Options, p *profile.Profile) {
 	for k, v := range p.Sandbox.Env {
 		opts.Env[k] = v
 	}
+
+	// Set sync flag
+	opts.Sync = sandboxSync
 }
 
 func resolveSecrets(opts *sandbox.Options) error {
@@ -259,7 +291,11 @@ func printSandboxInfo(opts sandbox.Options) {
 	fmt.Println()
 
 	if opts.Profile != "" {
-		fmt.Println(ui.RenderDetail("Profile", ui.Bold(opts.Profile)+" "+ui.Muted("(persistent)")))
+		status := ui.Bold(opts.Profile) + " " + ui.Muted("(persistent)")
+		if opts.Sync {
+			status += " " + ui.Muted("[sync]")
+		}
+		fmt.Println(ui.RenderDetail("Profile", status))
 	} else {
 		fmt.Println(ui.RenderDetail("Mode", "ephemeral"))
 	}
@@ -272,6 +308,10 @@ func printSandboxInfo(opts sandbox.Options) {
 
 	if len(opts.Mounts) > 0 {
 		fmt.Println(ui.RenderDetail("Mounts", fmt.Sprintf("%d additional", len(opts.Mounts))))
+	}
+
+	if len(opts.Credentials) > 0 {
+		fmt.Println(ui.RenderDetail("Credentials", strings.Join(opts.Credentials, ", ")))
 	}
 
 	secretCount := 0

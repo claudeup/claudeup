@@ -20,6 +20,9 @@ type Options struct {
 	// Mounts are additional host:container path mappings
 	Mounts []Mount
 
+	// Credentials are credential type names to mount (git, ssh, gh)
+	Credentials []string
+
 	// Secrets are environment variable names to resolve and inject
 	Secrets []string
 
@@ -34,6 +37,9 @@ type Options struct {
 
 	// Image overrides the default sandbox image
 	Image string
+
+	// Sync forces re-application of profile settings
+	Sync bool
 }
 
 // Mount represents a host-to-container path mapping

@@ -46,6 +46,9 @@ type PostApplyHook struct {
 
 // SandboxConfig defines sandbox-specific settings for a profile
 type SandboxConfig struct {
+	// Credentials are credential types to mount (git, ssh, gh)
+	Credentials []string `json:"credentials,omitempty"`
+
 	// Secrets are secret names to resolve and inject into the sandbox
 	Secrets []string `json:"secrets,omitempty"`
 
@@ -316,6 +319,10 @@ func (p *Profile) Clone(newName string) *Profile {
 	}
 
 	// Deep copy Sandbox
+	if len(p.Sandbox.Credentials) > 0 {
+		clone.Sandbox.Credentials = make([]string, len(p.Sandbox.Credentials))
+		copy(clone.Sandbox.Credentials, p.Sandbox.Credentials)
+	}
 	if len(p.Sandbox.Secrets) > 0 {
 		clone.Sandbox.Secrets = make([]string, len(p.Sandbox.Secrets))
 		copy(clone.Sandbox.Secrets, p.Sandbox.Secrets)
