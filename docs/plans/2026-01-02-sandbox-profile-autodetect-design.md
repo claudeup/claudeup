@@ -48,6 +48,40 @@ When `claudeup sandbox` runs, profile selection follows this order:
 
 MCP servers remain in project scope because they often have project-specific paths or configurations.
 
+## Plugin Installation
+
+Writing config files (`settings.json`, `marketplaces.json`) declares which plugins should be enabled, but doesn't actually install them. Plugins are git repositories that must be cloned from marketplaces.
+
+### Bootstrap Sequence
+
+When `claudeup sandbox` runs with a profile (auto-detected or explicit):
+
+1. **Write config files** - Bootstrap writes `settings.json` and `marketplaces.json` to sandbox state directory
+2. **Run `claudeup sync`** - Clones plugin repositories from configured marketplaces
+3. **Show progress bar** - Provide visual feedback during clone operations (can take time)
+4. **Launch Claude or shell** - Once plugins are installed, start the requested entrypoint
+
+### Progress Bar
+
+Plugin installation involves cloning git repositories, which can be slow. Display a progress bar:
+
+```text
+Using profile 'diego-cap-analyzer' from .claudeup.json
+Syncing plugins...
+  [████████████░░░░░░░░] 3/5 plugins installed
+```
+
+### Skip Sync When Bootstrapped
+
+If the sandbox has already been bootstrapped (`.bootstrapped` sentinel exists) and `--sync` is not specified, skip the sync step. This makes subsequent runs fast.
+
+| Condition | Sync Behavior |
+|-----------|---------------|
+| First run (no `.bootstrapped`) | Run sync with progress |
+| Subsequent runs | Skip sync |
+| `--sync` flag | Force sync with progress |
+| `--ephemeral` | No sync (no profile) |
+
 ## CLI Flag Interactions
 
 | Flags Present | Behavior |
@@ -102,15 +136,19 @@ claudeup sandbox --ephemeral
    - Check for `.claudeup.json` in working directory
    - Print feedback message when auto-detecting
    - Skip detection if `--ephemeral` or `--profile` is set
+   - After bootstrap, call sync with progress bar on first run or `--sync`
 
 2. **`internal/profile/project_config.go`**
    - Add helper: `DetectProfileFromProject(dir string) (string, error)`
 
-### No Changes Needed
+3. **`internal/sandbox/bootstrap.go`** (or new `sync.go`)
+   - Add `SyncPlugins(stateDir string, progress ProgressWriter) error`
+   - Calls existing sync logic with progress reporting
+   - Progress bar shows plugin clone status
 
-- `internal/sandbox/` - Sandbox package doesn't care how the profile was selected
-- `internal/profile/profile.go` - Profile loading logic stays the same
-- Bootstrap process - Already handles plugins and marketplaces correctly
+4. **Progress bar support**
+   - Use a library like `github.com/schollz/progressbar/v3` or simple terminal output
+   - Report: plugin name being installed, N/M progress
 
 ### Pseudocode
 
@@ -129,7 +167,23 @@ func runSandbox(cmd *cobra.Command, args []string) error {
         }
     }
 
-    // Rest of existing logic...
+    // Bootstrap writes config files (existing logic)
+    if profileName != "" {
+        stateDir := sandbox.StateDir(profileName)
+        firstRun := sandbox.IsFirstRun(stateDir)
+
+        if firstRun || syncFlag {
+            // Write settings.json, marketplaces.json
+            sandbox.Bootstrap(stateDir, profile)
+
+            // Sync plugins with progress bar
+            fmt.Println("Syncing plugins...")
+            sandbox.SyncPlugins(stateDir, progressBar)
+        }
+    }
+
+    // Launch container with Claude or shell
+    return sandbox.Run(opts)
 }
 ```
 
@@ -150,5 +204,8 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 3. **Ephemeral skips detection** - Project has `.claudeup.json`, run with `--ephemeral`, verify no profile loaded
 4. **Missing profile error** - `.claudeup.json` references non-existent profile, verify helpful error
 5. **No config file** - No `.claudeup.json`, verify ephemeral mode silently
+6. **Plugin sync on first run** - First sandbox run shows "Syncing plugins..." with progress, plugins installed
+7. **Skip sync on subsequent runs** - Second run skips sync (fast startup)
+8. **Force sync with --sync** - Even after bootstrap, `--sync` re-runs plugin installation
 
 Tests go in `test/acceptance/sandbox_profile_detection_test.go`.
