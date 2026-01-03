@@ -13,3 +13,8 @@ type Result struct {
 func (r *Result) Success() bool {
 	return r.ExitCode == 0
 }
+
+// Combined returns stdout and stderr concatenated
+func (r *Result) Combined() string {
+	return r.Stdout + r.Stderr
+}
