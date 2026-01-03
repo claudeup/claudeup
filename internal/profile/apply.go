@@ -23,6 +23,7 @@ type ApplyOptions struct {
 	DryRun       bool   // If true, don't make changes (not yet implemented)
 	Reinstall    bool   // If true, reinstall even if already installed
 	ShowProgress bool   // If true, use concurrent apply with progress UI (project/local scope only)
+	Progress     ProgressCallback // Optional progress callback for sequential installs
 }
 
 // CommandExecutor runs claude CLI commands
@@ -210,7 +211,7 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath string, secret
 		return applyLocalScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
 	default:
 		// User scope: declarative behavior (removes extras, adds missing)
-		return ApplyWithExecutor(profile, claudeDir, claudeJSONPath, secretChain, executor)
+		return applyUserScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
 	}
 }
 
@@ -467,8 +468,15 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 	return result, nil
 }
 
-// ApplyWithExecutor executes the profile changes using the provided executor
+// ApplyWithExecutor executes the profile changes using the provided executor.
+// This is the legacy API for backward compatibility; use ApplyWithOptions for new code.
 func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, executor CommandExecutor) (*ApplyResult, error) {
+	return applyUserScope(profile, claudeDir, claudeJSONPath, secretChain, ApplyOptions{}, executor)
+}
+
+// applyUserScope applies a profile at user scope with declarative behavior.
+// It computes a diff, removes extras, adds missing plugins/MCP servers.
+func applyUserScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	diff, err := ComputeDiff(profile, claudeDir, claudeJSONPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute diff: %w", err)
@@ -601,7 +609,8 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 
 	// Install plugins using shared function (user scope - no --scope flag)
 	installResult := InstallPluginsWithProgress(diff.PluginsToInstall, executor, InstallPluginsOptions{
-		Scope: "", // empty = user scope (no --scope flag)
+		Scope:    "", // empty = user scope (no --scope flag)
+		Progress: opts.Progress,
 	})
 	result.PluginsInstalled = append(result.PluginsInstalled, installResult.Installed...)
 	result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, installResult.Skipped...)

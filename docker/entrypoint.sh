@@ -6,9 +6,11 @@ set -euo pipefail
 # Sync plugins if .claudeup.json exists in workspace
 if [ -f /workspace/.claudeup.json ]; then
     echo "Syncing plugins..."
-    if ! claudeup profile sync; then
+    sync_output=$(claudeup profile sync 2>&1) || {
         echo "Warning: Plugin sync failed" >&2
-    fi
+        echo "$sync_output" >&2
+        echo "Continuing without synced plugins..." >&2
+    }
 fi
 
 # Execute the requested command

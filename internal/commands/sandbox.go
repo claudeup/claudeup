@@ -132,7 +132,7 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		if wdErr == nil {
 			detected, err := profile.DetectProfileFromProject(wd)
 			if err != nil {
-				return fmt.Errorf("invalid .claudeup.json: %w", err)
+				return fmt.Errorf("failed to detect profile: %w", err)
 			}
 			if detected != "" {
 				effectiveProfile = detected

@@ -835,6 +835,10 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		Reinstall:    profileApplyReinstall,
 		ShowProgress: !profileApplyNoProgress, // Enable concurrent apply with progress UI
 	}
+	// Add progress callback for sequential installs (user scope)
+	if !profileApplyNoProgress {
+		opts.Progress = ui.PluginProgress()
+	}
 
 	result, err := profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
 	if err != nil {
