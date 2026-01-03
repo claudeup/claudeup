@@ -12,7 +12,8 @@ if [ -f /workspace/.claudeup.json ]; then
 fi
 
 # Execute the requested command
-if [ "$1" = "bash" ] || [ "$1" = "shell" ]; then
+# Use parameter expansion to handle case where no arguments provided
+if [ "${1:-}" = "bash" ] || [ "${1:-}" = "shell" ]; then
     exec bash
 else
     exec claude "$@"

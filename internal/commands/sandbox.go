@@ -152,20 +152,8 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		}
 		// Apply profile's sandbox config (may be empty, that's fine)
 		applyProfileSandboxConfig(&opts, p)
-
-		// Handle bootstrap and sync for profile-based sandbox
-		stateDir, err := sandbox.StateDir(claudeUpDir, effectiveProfile)
-		if err != nil {
-			return fmt.Errorf("failed to get sandbox state directory: %w", err)
-		}
-
-		firstRun := sandbox.IsFirstRun(stateDir)
-
-		if firstRun {
-			if err := sandbox.BootstrapFromProfile(p, stateDir); err != nil {
-				return fmt.Errorf("failed to bootstrap sandbox: %w", err)
-			}
-		}
+		// Note: Bootstrap is handled inside DockerRunner.Run() which checks
+		// for first run and sync conditions in one place
 	} else {
 		// Warn if profile is ignored due to ephemeral mode
 		if sandboxProfile != "" && sandboxEphemeral {
