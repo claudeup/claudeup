@@ -318,19 +318,13 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 		}
 	}
 
-	// 3. Install plugins with project scope
-	for _, plugin := range profile.Plugins {
-		output, err := executor.RunWithOutput("plugin", "install", "--scope", "project", plugin)
-		if err != nil {
-			if strings.Contains(output, "already installed") {
-				result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, plugin)
-			} else {
-				result.Errors = append(result.Errors, fmt.Errorf("plugin %s: %w", plugin, err))
-			}
-		} else {
-			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
-		}
-	}
+	// 3. Install plugins with project scope using shared function
+	installResult := InstallPluginsWithProgress(profile.Plugins, executor, InstallPluginsOptions{
+		Scope: "project",
+	})
+	result.PluginsInstalled = installResult.Installed
+	result.PluginsAlreadyPresent = installResult.Skipped
+	result.Errors = append(result.Errors, installResult.Errors...)
 
 	// 4. Write project scope settings.json with enabled plugins (declarative replace)
 	// CRITICAL: Load existing settings to preserve non-plugin fields
@@ -431,19 +425,13 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 		}
 	}
 
-	// 4. Install plugins with local scope
-	for _, plugin := range profile.Plugins {
-		output, err := executor.RunWithOutput("plugin", "install", "--scope", "local", plugin)
-		if err != nil {
-			if strings.Contains(output, "already installed") {
-				result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, plugin)
-			} else {
-				result.Errors = append(result.Errors, fmt.Errorf("plugin %s: %w", plugin, err))
-			}
-		} else {
-			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
-		}
-	}
+	// 4. Install plugins with local scope using shared function
+	installResult := InstallPluginsWithProgress(profile.Plugins, executor, InstallPluginsOptions{
+		Scope: "local",
+	})
+	result.PluginsInstalled = installResult.Installed
+	result.PluginsAlreadyPresent = installResult.Skipped
+	result.Errors = append(result.Errors, installResult.Errors...)
 
 	// 5. Write local scope settings.json with enabled plugins (declarative replace)
 	// CRITICAL: Load existing settings to preserve non-plugin fields
@@ -611,20 +599,13 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secre
 		}
 	}
 
-	// Install plugins
-	for _, plugin := range diff.PluginsToInstall {
-		output, err := executor.RunWithOutput("plugin", "install", plugin)
-		if err != nil {
-			// Check if the error is just "already installed" - treat as success
-			if strings.Contains(output, "already installed") {
-				result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, plugin)
-			} else {
-				result.Errors = append(result.Errors, fmt.Errorf("failed to install plugin %s: %w (output: %s)", plugin, err, output))
-			}
-		} else {
-			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
-		}
-	}
+	// Install plugins using shared function (user scope - no --scope flag)
+	installResult := InstallPluginsWithProgress(diff.PluginsToInstall, executor, InstallPluginsOptions{
+		Scope: "", // empty = user scope (no --scope flag)
+	})
+	result.PluginsInstalled = append(result.PluginsInstalled, installResult.Installed...)
+	result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, installResult.Skipped...)
+	result.Errors = append(result.Errors, installResult.Errors...)
 
 	// Write user scope settings.json with enabled plugins (declarative replace)
 	// This ensures settings.json exactly matches the profile

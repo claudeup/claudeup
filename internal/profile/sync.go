@@ -72,35 +72,17 @@ func SyncWithExecutor(profilesDir, projectDir, claudeDir string, opts SyncOption
 		result.MarketplacesAdded++
 	}
 
-	// 2. Get currently installed plugins
+	// 2. Install plugins with project scope using shared function
 	installedPlugins := getInstalledPluginsFromDir(claudeDir)
+	installResult := InstallPluginsWithProgress(prof.Plugins, executor, InstallPluginsOptions{
+		Scope:            "project",
+		InstalledPlugins: installedPlugins,
+		Progress:         opts.Progress,
+	})
 
-	// 3. Install plugins with project scope
-	pluginsToInstall := make([]string, 0)
-	for _, plugin := range prof.Plugins {
-		if !installedPlugins[plugin] {
-			pluginsToInstall = append(pluginsToInstall, plugin)
-		} else {
-			result.PluginsSkipped++
-		}
-	}
-
-	for i, plugin := range pluginsToInstall {
-		if opts.Progress != nil {
-			opts.Progress(i+1, len(pluginsToInstall), plugin)
-		}
-
-		output, err := executor.RunWithOutput("plugin", "install", "--scope", "project", plugin)
-		if err != nil {
-			if strings.Contains(output, "already installed") {
-				result.PluginsSkipped++
-			} else {
-				result.Errors = append(result.Errors, fmt.Errorf("plugin %s: %w", plugin, err))
-			}
-		} else {
-			result.PluginsInstalled++
-		}
-	}
+	result.PluginsInstalled = len(installResult.Installed)
+	result.PluginsSkipped = len(installResult.Skipped)
+	result.Errors = append(result.Errors, installResult.Errors...)
 
 	return result, nil
 }
