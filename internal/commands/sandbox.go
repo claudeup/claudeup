@@ -114,6 +114,9 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("docker is required: %w", err)
 	}
 
+	// Get working directory once for both auto-detection and mount
+	wd, wdErr := os.Getwd()
+
 	// Build options
 	opts := sandbox.Options{
 		Shell: sandboxShell,
@@ -121,15 +124,31 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		Env:   make(map[string]string),
 	}
 
-	// Profile handling
-	if sandboxProfile != "" && !sandboxEphemeral {
-		opts.Profile = sandboxProfile
+	// Profile handling: precedence is --ephemeral > --profile > .claudeup.json > ephemeral
+	effectiveProfile := sandboxProfile
+
+	if !sandboxEphemeral && effectiveProfile == "" {
+		// Try to auto-detect from .claudeup.json
+		if wdErr == nil {
+			detected, err := profile.DetectProfileFromProject(wd)
+			if err != nil {
+				return fmt.Errorf("invalid .claudeup.json: %w", err)
+			}
+			if detected != "" {
+				effectiveProfile = detected
+				ui.PrintInfo(fmt.Sprintf("Using profile '%s' from .claudeup.json", detected))
+			}
+		}
+	}
+
+	if effectiveProfile != "" && !sandboxEphemeral {
+		opts.Profile = effectiveProfile
 
 		// Load profile for sandbox config
 		profilesDir := filepath.Join(claudeUpDir, "profiles")
-		p, err := profile.Load(profilesDir, sandboxProfile)
+		p, err := profile.Load(profilesDir, effectiveProfile)
 		if err != nil {
-			return fmt.Errorf("failed to load profile %q: %w", sandboxProfile, err)
+			return fmt.Errorf("failed to load profile %q: %w", effectiveProfile, err)
 		}
 		// Apply profile's sandbox config (may be empty, that's fine)
 		applyProfileSandboxConfig(&opts, p)
@@ -144,9 +163,8 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 
 	// Working directory mount
 	if !sandboxNoMount {
-		wd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get working directory: %w", err)
+		if wdErr != nil {
+			return fmt.Errorf("failed to get working directory: %w", wdErr)
 		}
 		opts.WorkDir = wd
 	}
