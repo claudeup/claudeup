@@ -14,13 +14,13 @@ import (
 
 // DockerRunner implements Runner using Docker
 type DockerRunner struct {
-	// ClaudePMDir is the claudeup config directory (~/.claudeup)
-	ClaudePMDir string
+	// ClaudeUpDir is the claudeup config directory (~/.claudeup)
+	ClaudeUpDir string
 }
 
 // NewDockerRunner creates a new Docker runner
-func NewDockerRunner(claudePMDir string) *DockerRunner {
-	return &DockerRunner{ClaudePMDir: claudePMDir}
+func NewDockerRunner(claudeUpDir string) *DockerRunner {
+	return &DockerRunner{ClaudeUpDir: claudeUpDir}
 }
 
 // Available checks if Docker is installed and running
@@ -43,14 +43,14 @@ func (r *DockerRunner) Run(opts Options) error {
 
 	// Bootstrap profile settings on first run or sync
 	if opts.Profile != "" {
-		stateDir, err := StateDir(r.ClaudePMDir, opts.Profile)
+		stateDir, err := StateDir(r.ClaudeUpDir, opts.Profile)
 		if err != nil {
 			return fmt.Errorf("failed to get state directory: %w", err)
 		}
 
 		if IsFirstRun(stateDir) || opts.Sync {
 			// Load profile and bootstrap
-			profilesDir := filepath.Join(r.ClaudePMDir, "profiles")
+			profilesDir := filepath.Join(r.ClaudeUpDir, "profiles")
 			p, err := profile.Load(profilesDir, opts.Profile)
 			if err != nil {
 				return fmt.Errorf("failed to load profile for bootstrap: %w", err)
@@ -88,7 +88,7 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 
 	// Persistent state mount (if using a profile)
 	if opts.Profile != "" {
-		stateDir, err := StateDir(r.ClaudePMDir, opts.Profile)
+		stateDir, err := StateDir(r.ClaudeUpDir, opts.Profile)
 		if err == nil {
 			args = append(args, "-v", fmt.Sprintf("%s:/root/.claude", stateDir))
 		}

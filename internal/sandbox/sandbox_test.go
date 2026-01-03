@@ -207,7 +207,7 @@ func TestCopyAuthFile(t *testing.T) {
 	t.Run("copies auth file to sandbox state directory", func(t *testing.T) {
 		// Setup temp directories
 		homeDir := t.TempDir()
-		claudePMDir := t.TempDir()
+		claudeUpDir := t.TempDir()
 		profile := "test-profile"
 
 		// Create source .claude.json
@@ -218,12 +218,12 @@ func TestCopyAuthFile(t *testing.T) {
 		}
 
 		// Copy auth file
-		if err := CopyAuthFile(homeDir, claudePMDir, profile); err != nil {
+		if err := CopyAuthFile(homeDir, claudeUpDir, profile); err != nil {
 			t.Fatalf("CopyAuthFile failed: %v", err)
 		}
 
 		// Verify destination file exists and has correct content
-		stateDir := filepath.Join(claudePMDir, "sandboxes", profile)
+		stateDir := filepath.Join(claudeUpDir, "sandboxes", profile)
 		destFile := filepath.Join(stateDir, ".claude.json")
 
 		destContent, err := os.ReadFile(destFile)
@@ -247,9 +247,9 @@ func TestCopyAuthFile(t *testing.T) {
 
 	t.Run("returns error when source file doesn't exist", func(t *testing.T) {
 		homeDir := t.TempDir()
-		claudePMDir := t.TempDir()
+		claudeUpDir := t.TempDir()
 
-		err := CopyAuthFile(homeDir, claudePMDir, "test-profile")
+		err := CopyAuthFile(homeDir, claudeUpDir, "test-profile")
 		if err == nil {
 			t.Error("expected error when source file doesn't exist")
 		}
@@ -257,9 +257,9 @@ func TestCopyAuthFile(t *testing.T) {
 
 	t.Run("returns error for empty profile", func(t *testing.T) {
 		homeDir := t.TempDir()
-		claudePMDir := t.TempDir()
+		claudeUpDir := t.TempDir()
 
-		err := CopyAuthFile(homeDir, claudePMDir, "")
+		err := CopyAuthFile(homeDir, claudeUpDir, "")
 		if err == nil {
 			t.Error("expected error for empty profile")
 		}
@@ -267,7 +267,7 @@ func TestCopyAuthFile(t *testing.T) {
 
 	t.Run("overwrites existing auth file", func(t *testing.T) {
 		homeDir := t.TempDir()
-		claudePMDir := t.TempDir()
+		claudeUpDir := t.TempDir()
 		profile := "test-profile"
 
 		// Create source file
@@ -278,7 +278,7 @@ func TestCopyAuthFile(t *testing.T) {
 		}
 
 		// Create state directory with existing auth file
-		stateDir := filepath.Join(claudePMDir, "sandboxes", profile)
+		stateDir := filepath.Join(claudeUpDir, "sandboxes", profile)
 		if err := os.MkdirAll(stateDir, 0755); err != nil {
 			t.Fatalf("failed to create state dir: %v", err)
 		}
@@ -289,7 +289,7 @@ func TestCopyAuthFile(t *testing.T) {
 		}
 
 		// Copy should overwrite
-		if err := CopyAuthFile(homeDir, claudePMDir, profile); err != nil {
+		if err := CopyAuthFile(homeDir, claudeUpDir, profile); err != nil {
 			t.Fatalf("CopyAuthFile failed: %v", err)
 		}
 

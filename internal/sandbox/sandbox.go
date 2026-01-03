@@ -61,12 +61,12 @@ type Runner interface {
 
 // StateDir returns the sandbox state directory for a profile
 // Creates the directory if it doesn't exist
-func StateDir(claudePMDir, profile string) (string, error) {
+func StateDir(claudeUpDir, profile string) (string, error) {
 	if profile == "" {
 		return "", fmt.Errorf("profile name required for persistent state")
 	}
 
-	dir := filepath.Join(claudePMDir, "sandboxes", profile)
+	dir := filepath.Join(claudeUpDir, "sandboxes", profile)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return "", fmt.Errorf("failed to create sandbox state dir: %w", err)
 	}
@@ -75,12 +75,12 @@ func StateDir(claudePMDir, profile string) (string, error) {
 }
 
 // CleanState removes the sandbox state directory for a profile
-func CleanState(claudePMDir, profile string) error {
+func CleanState(claudeUpDir, profile string) error {
 	if profile == "" {
 		return fmt.Errorf("profile name required")
 	}
 
-	dir := filepath.Join(claudePMDir, "sandboxes", profile)
+	dir := filepath.Join(claudeUpDir, "sandboxes", profile)
 	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("failed to remove sandbox state: %w", err)
 	}
@@ -95,7 +95,7 @@ func DefaultImage() string {
 
 // CopyAuthFile copies the user's .claude.json file to the sandbox state directory
 // This allows sandboxes to use the user's existing authentication without interactive prompts
-func CopyAuthFile(homeDir, claudePMDir, profile string) error {
+func CopyAuthFile(homeDir, claudeUpDir, profile string) error {
 	if profile == "" {
 		return fmt.Errorf("profile name required")
 	}
@@ -110,7 +110,7 @@ func CopyAuthFile(homeDir, claudePMDir, profile string) error {
 	}
 
 	// Destination: sandbox state directory
-	stateDir, err := StateDir(claudePMDir, profile)
+	stateDir, err := StateDir(claudeUpDir, profile)
 	if err != nil {
 		return fmt.Errorf("failed to get state directory: %w", err)
 	}

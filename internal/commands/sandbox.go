@@ -77,14 +77,14 @@ func init() {
 }
 
 func runSandbox(cmd *cobra.Command, args []string) error {
-	claudePMDir := config.MustClaudeupHome()
+	claudeUpDir := config.MustClaudeupHome()
 
 	// Handle --clean
 	if sandboxClean {
 		if sandboxProfile == "" {
 			return fmt.Errorf("--clean requires --profile")
 		}
-		if err := sandbox.CleanState(claudePMDir, sandboxProfile); err != nil {
+		if err := sandbox.CleanState(claudeUpDir, sandboxProfile); err != nil {
 			return err
 		}
 		ui.PrintSuccess(fmt.Sprintf("Cleaned sandbox state for profile %q", sandboxProfile))
@@ -109,7 +109,7 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check Docker availability
-	runner := sandbox.NewDockerRunner(claudePMDir)
+	runner := sandbox.NewDockerRunner(claudeUpDir)
 	if err := runner.Available(); err != nil {
 		return fmt.Errorf("docker is required: %w", err)
 	}
@@ -126,7 +126,7 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		opts.Profile = sandboxProfile
 
 		// Load profile for sandbox config
-		profilesDir := filepath.Join(claudePMDir, "profiles")
+		profilesDir := filepath.Join(claudeUpDir, "profiles")
 		p, err := profile.Load(profilesDir, sandboxProfile)
 		if err != nil {
 			return fmt.Errorf("failed to load profile %q: %w", sandboxProfile, err)
@@ -175,7 +175,7 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to get home directory: %w", err)
 		}
-		if err := sandbox.CopyAuthFile(homeDir, claudePMDir, opts.Profile); err != nil {
+		if err := sandbox.CopyAuthFile(homeDir, claudeUpDir, opts.Profile); err != nil {
 			// If user explicitly requested --copy-auth, fail hard
 			if sandboxCopyAuth {
 				return fmt.Errorf("--copy-auth failed: %w", err)
