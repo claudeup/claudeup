@@ -17,9 +17,13 @@ type SyncResult struct {
 	Errors            []error
 }
 
+// ProgressCallback reports installation progress for multi-item operations
+type ProgressCallback func(current, total int, item string)
+
 // SyncOptions controls sync behavior
 type SyncOptions struct {
-	DryRun bool
+	DryRun   bool
+	Progress ProgressCallback // Optional progress reporting
 }
 
 // Sync installs plugins from .claudeup.json at project scope
@@ -72,10 +76,18 @@ func SyncWithExecutor(profilesDir, projectDir, claudeDir string, opts SyncOption
 	installedPlugins := getInstalledPluginsFromDir(claudeDir)
 
 	// 3. Install plugins with project scope
+	pluginsToInstall := make([]string, 0)
 	for _, plugin := range prof.Plugins {
-		if installedPlugins[plugin] {
+		if !installedPlugins[plugin] {
+			pluginsToInstall = append(pluginsToInstall, plugin)
+		} else {
 			result.PluginsSkipped++
-			continue
+		}
+	}
+
+	for i, plugin := range pluginsToInstall {
+		if opts.Progress != nil {
+			opts.Progress(i+1, len(pluginsToInstall), plugin)
 		}
 
 		output, err := executor.RunWithOutput("plugin", "install", "--scope", "project", plugin)

@@ -341,3 +341,11 @@ func isTerminal(w io.Writer) bool {
 	}
 	return false
 }
+
+// PluginProgress returns a callback that prints plugin installation progress.
+// Matches the profile.ProgressCallback signature for use with Sync operations.
+func PluginProgress() func(current, total int, item string) {
+	return func(current, total int, item string) {
+		fmt.Printf("  [%d/%d] Installing %s\n", current, total, item)
+	}
+}

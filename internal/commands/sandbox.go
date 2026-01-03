@@ -152,6 +152,36 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 		}
 		// Apply profile's sandbox config (may be empty, that's fine)
 		applyProfileSandboxConfig(&opts, p)
+
+		// Handle bootstrap and sync for profile-based sandbox
+		stateDir, err := sandbox.StateDir(claudeUpDir, effectiveProfile)
+		if err != nil {
+			return fmt.Errorf("failed to get sandbox state directory: %w", err)
+		}
+
+		firstRun := sandbox.IsFirstRun(stateDir)
+
+		if firstRun || sandboxSync {
+			if err := sandbox.BootstrapFromProfile(p, stateDir); err != nil {
+				return fmt.Errorf("failed to bootstrap sandbox: %w", err)
+			}
+
+			// Sync plugins if profile has any and working directory is available
+			if len(p.Plugins) > 0 && wdErr == nil {
+				// Only sync if project has .claudeup.json
+				if profile.ProjectConfigExists(wd) {
+					ui.PrintInfo("Syncing plugins...")
+					syncResult, err := profile.Sync(profilesDir, wd, claudeDir, profile.SyncOptions{
+						Progress: ui.PluginProgress(),
+					})
+					if err != nil {
+						ui.PrintWarning(fmt.Sprintf("Plugin sync failed: %v", err))
+					} else if syncResult.PluginsInstalled > 0 {
+						ui.PrintSuccess(fmt.Sprintf("Installed %d plugins", syncResult.PluginsInstalled))
+					}
+				}
+			}
+		}
 	} else {
 		// Warn if profile is ignored due to ephemeral mode
 		if sandboxProfile != "" && sandboxEphemeral {

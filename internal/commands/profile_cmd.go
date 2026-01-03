@@ -2171,6 +2171,11 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 		DryRun: profileSyncDryRun,
 	}
 
+	// Add progress callback when not in dry-run mode
+	if !profileSyncDryRun {
+		opts.Progress = ui.PluginProgress()
+	}
+
 	if profileSyncDryRun {
 		ui.PrintInfo("Dry run - no changes will be made")
 		fmt.Println()
