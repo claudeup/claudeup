@@ -128,6 +128,11 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
+	// Tell entrypoint to skip sync in ephemeral mode (no profile means no profiles dir mounted)
+	if opts.Profile == "" {
+		args = append(args, "-e", "CLAUDEUP_SKIP_SYNC=1")
+	}
+
 	// Secrets (already resolved to values)
 	// Note: In the actual integration, secrets will be resolved before calling Run
 

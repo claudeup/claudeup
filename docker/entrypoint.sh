@@ -3,8 +3,8 @@ set -euo pipefail
 # ABOUTME: Entrypoint for claudeup sandbox container
 # ABOUTME: Syncs plugins before launching Claude or shell
 
-# Sync plugins if .claudeup.json exists in workspace
-if [ -f /workspace/.claudeup.json ]; then
+# Sync plugins if .claudeup.json exists in workspace (skip in ephemeral mode)
+if [ -f /workspace/.claudeup.json ] && [ "${CLAUDEUP_SKIP_SYNC:-}" != "1" ]; then
     echo "Syncing plugins..."
     sync_output=$(claudeup profile sync 2>&1) || {
         echo "Warning: Plugin sync failed" >&2
