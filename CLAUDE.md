@@ -115,6 +115,27 @@ This shows:
 - The effective configuration differs from the `base-tools` saved definition
 - Claude Code is actually using `claudeup` (highest precedence)
 
+## Sandbox
+
+### Sandbox Profile Auto-Detection
+
+When running `claudeup sandbox` from a project directory containing `.claudeup.json`, the sandbox automatically uses the profile specified in that file.
+
+**Precedence order:**
+1. `--ephemeral` - Forces ephemeral mode, ignores all profile settings
+2. `--profile <name>` - Explicit profile, overrides auto-detection
+3. `.claudeup.json` - Auto-detected from current directory
+4. (none) - Ephemeral mode
+
+**Plugin sync:** On first run with a profile, the container entrypoint automatically syncs plugins from the profile's marketplaces. This happens inside the container before Claude launches.
+
+**Example:**
+```bash
+# Project has .claudeup.json pointing to "my-profile"
+cd ~/workspace/my-project
+claudeup sandbox  # Automatically uses "my-profile" and syncs plugins
+```
+
 ## Event Tracking & Privacy
 
 claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit trails and troubleshooting.
