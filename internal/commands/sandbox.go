@@ -161,25 +161,9 @@ func runSandbox(cmd *cobra.Command, args []string) error {
 
 		firstRun := sandbox.IsFirstRun(stateDir)
 
-		if firstRun || sandboxSync {
+		if firstRun {
 			if err := sandbox.BootstrapFromProfile(p, stateDir); err != nil {
 				return fmt.Errorf("failed to bootstrap sandbox: %w", err)
-			}
-
-			// Sync plugins if profile has any and working directory is available
-			if len(p.Plugins) > 0 && wdErr == nil {
-				// Only sync if project has .claudeup.json
-				if profile.ProjectConfigExists(wd) {
-					ui.PrintInfo("Syncing plugins...")
-					syncResult, err := profile.Sync(profilesDir, wd, claudeDir, profile.SyncOptions{
-						Progress: ui.PluginProgress(),
-					})
-					if err != nil {
-						ui.PrintWarning(fmt.Sprintf("Plugin sync failed: %v", err))
-					} else if syncResult.PluginsInstalled > 0 {
-						ui.PrintSuccess(fmt.Sprintf("Installed %d plugins", syncResult.PluginsInstalled))
-					}
-				}
 			}
 		}
 	} else {

@@ -92,6 +92,9 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 		if err == nil {
 			args = append(args, "-v", fmt.Sprintf("%s:/root/.claude", stateDir))
 		}
+		// Mount profiles directory for sync access (read-only)
+		profilesDir := filepath.Join(r.ClaudeUpDir, "profiles")
+		args = append(args, "-v", fmt.Sprintf("%s:/root/.claudeup/profiles:ro", profilesDir))
 	}
 
 	// Additional mounts
@@ -132,26 +135,11 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 	// Image
 	args = append(args, image)
 
-	// Override entrypoint if shell mode
+	// Pass "bash" to entrypoint if shell mode
 	if opts.Shell {
-		// Insert --entrypoint before the image
-		args = insertBeforeImage(args, image, "--entrypoint", "bash")
+		args = append(args, "bash")
 	}
 
-	return args
-}
-
-// insertBeforeImage inserts arguments before the image name in the args slice
-func insertBeforeImage(args []string, image string, toInsert ...string) []string {
-	for i, arg := range args {
-		if arg == image {
-			result := make([]string, 0, len(args)+len(toInsert))
-			result = append(result, args[:i]...)
-			result = append(result, toInsert...)
-			result = append(result, args[i:]...)
-			return result
-		}
-	}
 	return args
 }
 

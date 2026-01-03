@@ -33,4 +33,8 @@ WORKDIR /workspace
 # or left unmounted for ephemeral sessions
 ENV CLAUDE_CONFIG_DIR=/root/.claude
 
-ENTRYPOINT ["claude"]
+# Copy entrypoint script
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
