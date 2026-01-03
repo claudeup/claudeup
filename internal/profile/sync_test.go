@@ -432,3 +432,211 @@ func TestSyncWithExecutor_LoadsFromProject(t *testing.T) {
 		t.Errorf("Expected project-plugin@marketplace to be installed, commands: %v", executor.commands)
 	}
 }
+
+func TestSyncProgressCallback(t *testing.T) {
+	t.Run("calls progress callback for each plugin", func(t *testing.T) {
+		projectDir := t.TempDir()
+		claudeDir := filepath.Join(t.TempDir(), ".claude")
+		pluginsDir := filepath.Join(claudeDir, "plugins")
+		os.MkdirAll(pluginsDir, 0755)
+
+		// Create profile with multiple plugins
+		profilesDir := setupTestProfile(t, projectDir,
+			[]string{"plugin-a@market", "plugin-b@market", "plugin-c@market"},
+			nil)
+
+		// Empty installed plugins
+		emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
+		pluginsData, _ := json.Marshal(emptyPlugins)
+		os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
+
+		// Track progress calls
+		type progressCall struct {
+			current int
+			total   int
+			item    string
+		}
+		var calls []progressCall
+
+		executor := newSyncMockExecutor()
+		opts := SyncOptions{
+			Progress: func(current, total int, item string) {
+				calls = append(calls, progressCall{current, total, item})
+			},
+		}
+
+		result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, opts, executor)
+		if err != nil {
+			t.Fatalf("SyncWithExecutor failed: %v", err)
+		}
+
+		// Should have installed 3 plugins
+		if result.PluginsInstalled != 3 {
+			t.Errorf("PluginsInstalled = %d, want 3", result.PluginsInstalled)
+		}
+
+		// Should have 3 progress calls (one per plugin)
+		if len(calls) != 3 {
+			t.Fatalf("expected 3 progress calls, got %d", len(calls))
+		}
+
+		// Verify first call: 1/3
+		if calls[0].current != 1 || calls[0].total != 3 {
+			t.Errorf("first call: expected 1/3, got %d/%d", calls[0].current, calls[0].total)
+		}
+		if calls[0].item != "plugin-a@market" {
+			t.Errorf("first call item: expected plugin-a@market, got %s", calls[0].item)
+		}
+
+		// Verify second call: 2/3
+		if calls[1].current != 2 || calls[1].total != 3 {
+			t.Errorf("second call: expected 2/3, got %d/%d", calls[1].current, calls[1].total)
+		}
+		if calls[1].item != "plugin-b@market" {
+			t.Errorf("second call item: expected plugin-b@market, got %s", calls[1].item)
+		}
+
+		// Verify third call: 3/3
+		if calls[2].current != 3 || calls[2].total != 3 {
+			t.Errorf("third call: expected 3/3, got %d/%d", calls[2].current, calls[2].total)
+		}
+		if calls[2].item != "plugin-c@market" {
+			t.Errorf("third call item: expected plugin-c@market, got %s", calls[2].item)
+		}
+	})
+
+	t.Run("does not panic when progress callback is nil", func(t *testing.T) {
+		projectDir := t.TempDir()
+		claudeDir := filepath.Join(t.TempDir(), ".claude")
+		pluginsDir := filepath.Join(claudeDir, "plugins")
+		os.MkdirAll(pluginsDir, 0755)
+
+		profilesDir := setupTestProfile(t, projectDir,
+			[]string{"plugin@market"},
+			nil)
+
+		emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
+		pluginsData, _ := json.Marshal(emptyPlugins)
+		os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
+
+		executor := newSyncMockExecutor()
+		// Progress is nil (default)
+		opts := SyncOptions{}
+
+		// Should complete without panic
+		result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, opts, executor)
+		if err != nil {
+			t.Fatalf("SyncWithExecutor failed: %v", err)
+		}
+
+		if result.PluginsInstalled != 1 {
+			t.Errorf("PluginsInstalled = %d, want 1", result.PluginsInstalled)
+		}
+	})
+
+	t.Run("does not call progress in dry-run mode", func(t *testing.T) {
+		projectDir := t.TempDir()
+		claudeDir := filepath.Join(t.TempDir(), ".claude")
+		pluginsDir := filepath.Join(claudeDir, "plugins")
+		os.MkdirAll(pluginsDir, 0755)
+
+		profilesDir := setupTestProfile(t, projectDir,
+			[]string{"plugin-a@market", "plugin-b@market"},
+			nil)
+
+		emptyPlugins := map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}}
+		pluginsData, _ := json.Marshal(emptyPlugins)
+		os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
+
+		progressCalled := false
+		executor := newSyncMockExecutor()
+		opts := SyncOptions{
+			DryRun: true,
+			Progress: func(current, total int, item string) {
+				progressCalled = true
+			},
+		}
+
+		result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, opts, executor)
+		if err != nil {
+			t.Fatalf("SyncWithExecutor failed: %v", err)
+		}
+
+		// Dry run should still report plugins to install
+		if result.PluginsInstalled != 2 {
+			t.Errorf("PluginsInstalled = %d, want 2", result.PluginsInstalled)
+		}
+
+		// But progress should NOT have been called
+		if progressCalled {
+			t.Error("progress callback should not be called in dry-run mode")
+		}
+	})
+
+	t.Run("excludes already-installed plugins from progress total", func(t *testing.T) {
+		projectDir := t.TempDir()
+		claudeDir := filepath.Join(t.TempDir(), ".claude")
+		pluginsDir := filepath.Join(claudeDir, "plugins")
+		os.MkdirAll(pluginsDir, 0755)
+
+		// Profile has 3 plugins, but one is already installed
+		profilesDir := setupTestProfile(t, projectDir,
+			[]string{"existing@market", "new-a@market", "new-b@market"},
+			nil)
+
+		// One plugin already installed
+		installedPlugins := map[string]interface{}{
+			"version": 2,
+			"plugins": map[string]interface{}{
+				"existing@market": []map[string]interface{}{{"scope": "project"}},
+			},
+		}
+		pluginsData, _ := json.Marshal(installedPlugins)
+		os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), pluginsData, 0644)
+
+		type progressCall struct {
+			current int
+			total   int
+			item    string
+		}
+		var calls []progressCall
+
+		executor := newSyncMockExecutor()
+		opts := SyncOptions{
+			Progress: func(current, total int, item string) {
+				calls = append(calls, progressCall{current, total, item})
+			},
+		}
+
+		result, err := SyncWithExecutor(profilesDir, projectDir, claudeDir, opts, executor)
+		if err != nil {
+			t.Fatalf("SyncWithExecutor failed: %v", err)
+		}
+
+		// Should skip 1, install 2
+		if result.PluginsSkipped != 1 {
+			t.Errorf("PluginsSkipped = %d, want 1", result.PluginsSkipped)
+		}
+		if result.PluginsInstalled != 2 {
+			t.Errorf("PluginsInstalled = %d, want 2", result.PluginsInstalled)
+		}
+
+		// Progress should only show 2 total (not 3)
+		if len(calls) != 2 {
+			t.Fatalf("expected 2 progress calls, got %d", len(calls))
+		}
+
+		// Both calls should have total=2
+		if calls[0].total != 2 || calls[1].total != 2 {
+			t.Errorf("expected total=2 for all calls, got %d and %d", calls[0].total, calls[1].total)
+		}
+
+		// First is 1/2, second is 2/2
+		if calls[0].current != 1 {
+			t.Errorf("first call current: expected 1, got %d", calls[0].current)
+		}
+		if calls[1].current != 2 {
+			t.Errorf("second call current: expected 2, got %d", calls[1].current)
+		}
+	})
+}
