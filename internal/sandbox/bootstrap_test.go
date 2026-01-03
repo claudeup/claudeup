@@ -93,12 +93,15 @@ func TestBootstrapFromProfile(t *testing.T) {
 			t.Fatalf("failed to parse settings.json: %v", err)
 		}
 
-		plugins, ok := settings["enabledPlugins"].([]interface{})
+		plugins, ok := settings["enabledPlugins"].(map[string]interface{})
 		if !ok {
 			t.Fatal("enabledPlugins not found or wrong type")
 		}
 		if len(plugins) != 1 {
 			t.Errorf("expected 1 plugin, got %d", len(plugins))
+		}
+		if plugins["superpowers@superpowers-marketplace"] != true {
+			t.Error("expected superpowers plugin to be enabled")
 		}
 	})
 
@@ -143,7 +146,7 @@ func TestBootstrapFromProfile(t *testing.T) {
 		// Simulate user adding custom settings
 		settingsPath := filepath.Join(stateDir, "settings.json")
 		customSettings := map[string]interface{}{
-			"enabledPlugins": []string{"plugin1@marketplace"},
+			"enabledPlugins": map[string]bool{"plugin1@marketplace": true},
 			"theme":          "dark",
 			"fontSize":       14,
 		}
@@ -173,12 +176,15 @@ func TestBootstrapFromProfile(t *testing.T) {
 		}
 
 		// Check plugins updated
-		plugins, ok := settings["enabledPlugins"].([]interface{})
+		plugins, ok := settings["enabledPlugins"].(map[string]interface{})
 		if !ok {
 			t.Fatal("enabledPlugins not found or wrong type")
 		}
-		if len(plugins) != 1 || plugins[0] != "plugin2@marketplace" {
-			t.Errorf("expected plugin2@marketplace, got %v", plugins)
+		if len(plugins) != 1 {
+			t.Errorf("expected 1 plugin, got %d", len(plugins))
+		}
+		if plugins["plugin2@marketplace"] != true {
+			t.Errorf("expected plugin2@marketplace to be enabled, got %v", plugins)
 		}
 
 		// Check custom settings preserved

@@ -91,8 +91,12 @@ func writeSettings(plugins []string, stateDir string) error {
 		settings = make(map[string]interface{})
 	}
 
-	// Only update enabledPlugins from profile
-	settings["enabledPlugins"] = plugins
+	// Convert plugins slice to map format expected by Claude CLI
+	enabledPlugins := make(map[string]bool)
+	for _, plugin := range plugins {
+		enabledPlugins[plugin] = true
+	}
+	settings["enabledPlugins"] = enabledPlugins
 
 	jsonData, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
