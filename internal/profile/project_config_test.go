@@ -461,3 +461,49 @@ type MockPluginRegistry struct {
 func (m *MockPluginRegistry) IsPluginInstalled(name string) bool {
 	return m.plugins[name]
 }
+
+func TestDetectProfileFromProject(t *testing.T) {
+	t.Run("returns profile name when .claudeup.json exists", func(t *testing.T) {
+		tempDir := t.TempDir()
+		cfg := &ProjectConfig{Profile: "my-profile"}
+		if err := SaveProjectConfig(tempDir, cfg); err != nil {
+			t.Fatalf("failed to save config: %v", err)
+		}
+
+		name, err := DetectProfileFromProject(tempDir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if name != "my-profile" {
+			t.Errorf("expected 'my-profile', got '%s'", name)
+		}
+	})
+
+	t.Run("returns empty string when no .claudeup.json exists", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		name, err := DetectProfileFromProject(tempDir)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if name != "" {
+			t.Errorf("expected empty string, got '%s'", name)
+		}
+	})
+
+	t.Run("returns error for malformed .claudeup.json", func(t *testing.T) {
+		tempDir := t.TempDir()
+		path := filepath.Join(tempDir, ".claudeup.json")
+		if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
+			t.Fatalf("failed to write file: %v", err)
+		}
+
+		_, err := DetectProfileFromProject(tempDir)
+		if err == nil {
+			t.Error("expected error for malformed JSON")
+		}
+		if !strings.Contains(err.Error(), "invalid") {
+			t.Errorf("expected error to contain 'invalid', got: %v", err)
+		}
+	})
+}
