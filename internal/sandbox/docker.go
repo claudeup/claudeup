@@ -89,7 +89,9 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 	// Persistent state mount (if using a profile)
 	if opts.Profile != "" {
 		stateDir, err := StateDir(r.ClaudeUpDir, opts.Profile)
-		if err == nil {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not get state directory: %v\n", err)
+		} else {
 			args = append(args, "-v", fmt.Sprintf("%s:/root/.claude", stateDir))
 		}
 		// Mount profiles directory for sync access (read-only)
