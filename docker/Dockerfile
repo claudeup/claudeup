@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Claude CLI using official installer
