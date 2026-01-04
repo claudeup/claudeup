@@ -89,9 +89,14 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 	// Persistent state mount (if using a profile)
 	if opts.Profile != "" {
 		stateDir, err := StateDir(r.ClaudeUpDir, opts.Profile)
-		if err == nil {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not get state directory: %v\n", err)
+		} else {
 			args = append(args, "-v", fmt.Sprintf("%s:/root/.claude", stateDir))
 		}
+		// Mount profiles directory for sync access (read-only)
+		profilesDir := filepath.Join(r.ClaudeUpDir, "profiles")
+		args = append(args, "-v", fmt.Sprintf("%s:/root/.claudeup/profiles:ro", profilesDir))
 	}
 
 	// Additional mounts
@@ -123,6 +128,11 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
+	// Tell entrypoint to skip sync in ephemeral mode (no profile means no profiles dir mounted)
+	if opts.Profile == "" {
+		args = append(args, "-e", "CLAUDEUP_SKIP_SYNC=1")
+	}
+
 	// Secrets (already resolved to values)
 	// Note: In the actual integration, secrets will be resolved before calling Run
 
@@ -132,26 +142,11 @@ func (r *DockerRunner) buildArgs(opts Options) []string {
 	// Image
 	args = append(args, image)
 
-	// Override entrypoint if shell mode
+	// Pass "bash" to entrypoint if shell mode
 	if opts.Shell {
-		// Insert --entrypoint before the image
-		args = insertBeforeImage(args, image, "--entrypoint", "bash")
+		args = append(args, "bash")
 	}
 
-	return args
-}
-
-// insertBeforeImage inserts arguments before the image name in the args slice
-func insertBeforeImage(args []string, image string, toInsert ...string) []string {
-	for i, arg := range args {
-		if arg == image {
-			result := make([]string, 0, len(args)+len(toInsert))
-			result = append(result, args[:i]...)
-			result = append(result, toInsert...)
-			result = append(result, args[i:]...)
-			return result
-		}
-	}
 	return args
 }
 

@@ -84,6 +84,22 @@ func ProjectConfigExists(projectDir string) bool {
 	return err == nil
 }
 
+// DetectProfileFromProject returns the profile name from .claudeup.json if it exists.
+// Returns empty string if no config file exists (not an error).
+// Returns error only if the file exists but is malformed.
+func DetectProfileFromProject(projectDir string) (string, error) {
+	if !ProjectConfigExists(projectDir) {
+		return "", nil
+	}
+
+	cfg, err := LoadProjectConfig(projectDir)
+	if err != nil {
+		return "", err
+	}
+
+	return cfg.Profile, nil
+}
+
 // NewProjectConfig creates a ProjectConfig from a Profile
 func NewProjectConfig(p *Profile) *ProjectConfig {
 	return &ProjectConfig{

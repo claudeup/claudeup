@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Claude CLI using official installer
@@ -33,4 +34,7 @@ WORKDIR /workspace
 # or left unmounted for ephemeral sessions
 ENV CLAUDE_CONFIG_DIR=/root/.claude
 
-ENTRYPOINT ["claude"]
+# Copy entrypoint script
+COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

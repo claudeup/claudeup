@@ -835,6 +835,10 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		Reinstall:    profileApplyReinstall,
 		ShowProgress: !profileApplyNoProgress, // Enable concurrent apply with progress UI
 	}
+	// Add progress callback for sequential installs (user scope)
+	if !profileApplyNoProgress {
+		opts.Progress = ui.PluginProgress()
+	}
 
 	result, err := profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
 	if err != nil {
@@ -2169,6 +2173,11 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 
 	opts := profile.SyncOptions{
 		DryRun: profileSyncDryRun,
+	}
+
+	// Add progress callback when not in dry-run mode
+	if !profileSyncDryRun {
+		opts.Progress = ui.PluginProgress()
 	}
 
 	if profileSyncDryRun {

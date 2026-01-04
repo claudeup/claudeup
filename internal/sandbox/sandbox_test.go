@@ -50,6 +50,27 @@ func TestStateDir(t *testing.T) {
 			t.Errorf("wrong permissions: got %o, want 0700", info.Mode().Perm())
 		}
 	})
+
+	t.Run("handles base directory with spaces", func(t *testing.T) {
+		baseDirWithSpaces := filepath.Join(t.TempDir(), "path with spaces", "claudeup")
+		if err := os.MkdirAll(baseDirWithSpaces, 0755); err != nil {
+			t.Fatalf("failed to create base dir: %v", err)
+		}
+
+		dir, err := StateDir(baseDirWithSpaces, "test-profile")
+		if err != nil {
+			t.Fatalf("StateDir failed: %v", err)
+		}
+
+		expected := filepath.Join(baseDirWithSpaces, "sandboxes", "test-profile")
+		if dir != expected {
+			t.Errorf("got %q, want %q", dir, expected)
+		}
+
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			t.Error("directory was not created")
+		}
+	})
 }
 
 func TestCleanState(t *testing.T) {
@@ -122,6 +143,16 @@ func TestParseMount(t *testing.T) {
 			name:  "home directory only",
 			input: "~:/home",
 			want:  Mount{Host: home, Container: "/home", ReadOnly: false},
+		},
+		{
+			name:  "path with spaces",
+			input: "/path/with spaces/data:/container/data",
+			want:  Mount{Host: "/path/with spaces/data", Container: "/container/data", ReadOnly: false},
+		},
+		{
+			name:  "path with special characters",
+			input: "/path/with-dashes_and_underscores:/container",
+			want:  Mount{Host: "/path/with-dashes_and_underscores", Container: "/container", ReadOnly: false},
 		},
 		{
 			name:    "invalid format - single path",
