@@ -1,0 +1,204 @@
+# ABOUTME: Runs example scripts as optional CI validation.
+# ABOUTME: Triggered manually or via /run-examples PR comment.
+
+name: Examples
+
+on:
+  workflow_dispatch:
+    inputs:
+      directory:
+        description: 'Example directory to run'
+        type: choice
+        options:
+          - all
+          - getting-started
+          - profile-management
+          - plugin-management
+          - team-setup
+          - troubleshooting
+        default: 'all'
+      fail_fast:
+        description: 'Stop all jobs on first failure'
+        type: boolean
+        default: false
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+      matrix: ${{ steps.check.outputs.matrix }}
+      ref: ${{ steps.check.outputs.ref }}
+      fail_fast: ${{ steps.check.outputs.fail_fast }}
+    steps:
+      - name: Check trigger and build matrix
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_DIR: ${{ github.event.inputs.directory }}
+          DISPATCH_FAIL_FAST: ${{ github.event.inputs.fail_fast }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          IS_PR: ${{ github.event.issue.pull_request }}
+          PR_NUM: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          # Default: don't run
+          echo "should_run=false" >> "$GITHUB_OUTPUT"
+          echo "fail_fast=false" >> "$GITHUB_OUTPUT"
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "ref=$SHA" >> "$GITHUB_OUTPUT"
+            echo "fail_fast=$DISPATCH_FAIL_FAST" >> "$GITHUB_OUTPUT"
+
+            # Build matrix based on directory input
+            if [[ "$DISPATCH_DIR" == "all" || -z "$DISPATCH_DIR" ]]; then
+              echo 'matrix=["getting-started","profile-management","plugin-management","team-setup","troubleshooting"]' >> "$GITHUB_OUTPUT"
+            else
+              echo "matrix=[\"$DISPATCH_DIR\"]" >> "$GITHUB_OUTPUT"
+            fi
+
+          elif [[ "$EVENT_NAME" == "issue_comment" ]]; then
+            # Check for /run-examples in PR comment
+            if [[ -n "$IS_PR" ]] && [[ "$COMMENT_BODY" == *"/run-examples"* ]]; then
+              # Security: Only allow collaborators to trigger via comment
+              case "$COMMENT_AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER|COLLABORATOR)
+                  echo "Authorized: $COMMENT_AUTHOR_ASSOCIATION"
+                  ;;
+                *)
+                  echo "::warning::Ignoring /run-examples from non-collaborator ($COMMENT_AUTHOR_ASSOCIATION)"
+                  exit 0
+                  ;;
+              esac
+
+              echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+              # Get PR head ref
+              if ! HEAD_SHA=$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q '.headRefOid'); then
+                echo "::error::Failed to get PR head SHA"
+                exit 1
+              fi
+              echo "ref=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+              # Parse directory from comment: /run-examples [directory]
+              # Only accept known directory names for safety
+              DIR=$(echo "$COMMENT_BODY" | grep -oP '/run-examples\s+\K(getting-started|profile-management|plugin-management|team-setup|troubleshooting|all)' || echo "all")
+              if [[ "$DIR" == "all" ]]; then
+                echo 'matrix=["getting-started","profile-management","plugin-management","team-setup","troubleshooting"]' >> "$GITHUB_OUTPUT"
+              else
+                echo "matrix=[\"$DIR\"]" >> "$GITHUB_OUTPUT"
+              fi
+            fi
+          fi
+
+  build:
+    name: Build
+    needs: setup
+    if: needs.setup.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.ref }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.1'
+          cache: true
+
+      - name: Build claudeup
+        run: go build -v -o claudeup ./cmd/claudeup
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: claudeup-binary
+          path: claudeup
+          retention-days: 1
+
+  run-examples:
+    name: Run ${{ matrix.directory }}
+    needs: [setup, build]
+    if: needs.setup.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: ${{ needs.setup.outputs.fail_fast == 'true' }}
+      matrix:
+        directory: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup.outputs.ref }}
+
+      - name: Download claudeup binary
+        uses: actions/download-artifact@v4
+        with:
+          name: claudeup-binary
+
+      - name: Make binary executable
+        run: chmod +x ./claudeup
+
+      - name: Run ${{ matrix.directory }} examples
+        env:
+          CLAUDEUP_BIN: ${{ github.workspace }}/claudeup
+        run: |
+          FAILED=0
+
+          for script in examples/${{ matrix.directory }}/*.sh; do
+            SCRIPT_NAME=$(basename "$script")
+            echo "::group::Running $SCRIPT_NAME"
+
+            if "$script" --non-interactive; then
+              echo "::endgroup::"
+              echo "::notice::$SCRIPT_NAME passed"
+            else
+              EXIT_CODE=$?
+              echo "::endgroup::"
+              echo "::error file=$script::$SCRIPT_NAME failed with exit code $EXIT_CODE"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED
+
+      - name: Upload temp directories on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-logs-${{ matrix.directory }}
+          path: /tmp/claudeup-example-*
+          if-no-files-found: ignore
+          retention-days: 7
+
+  summary:
+    name: Summary
+    needs: [setup, run-examples]
+    if: always() && needs.setup.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          if [[ "${{ needs.run-examples.result }}" == "failure" ]]; then
+            echo "::error::Some example scripts failed. Check individual job logs for details."
+            exit 1
+          elif [[ "${{ needs.run-examples.result }}" == "cancelled" ]]; then
+            echo "::warning::Example run was cancelled"
+            exit 0
+          fi
+          echo "All example scripts passed!"
