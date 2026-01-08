@@ -31,10 +31,10 @@ info "This copies all plugins, MCP servers, and settings"
 echo
 
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile clone default my-customized
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile clone my-customized --from default
 else
-    info "Command: claudeup profile clone <source> <new-name>"
-    info "Example: claudeup profile clone default my-customized"
+    info "Command: claudeup profile clone <new-name> --from <source>"
+    info "Example: claudeup profile clone my-customized --from default"
 fi
 pause
 
@@ -62,7 +62,7 @@ section "Summary"
 success "Clone-and-modify is a fast way to create custom profiles"
 echo
 info "Workflow:"
-info "  1. claudeup profile clone <base> <new>"
+info "  1. claudeup profile clone <new> --from <base>"
 info "  2. claudeup profile apply <new>"
 info "  3. Make your changes"
 info "  4. claudeup profile save <new>"

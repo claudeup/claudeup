@@ -20,8 +20,8 @@ pause
 section "1. Check for Upgrades"
 
 step "See if any upgrades are available"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" upgrade --check || \
-    info "Upgrade check would show available upgrades"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" outdated || \
+    info "Outdated check would show available upgrades"
 pause
 
 section "2. Apply Upgrades"
@@ -49,7 +49,7 @@ section "Summary"
 success "You can keep plugins up to date"
 echo
 info "Key commands:"
-info "  claudeup upgrade --check  See available upgrades"
+info "  claudeup outdated         See available upgrades"
 info "  claudeup upgrade          Apply all upgrades"
 echo
 info "Tip: Run 'claudeup upgrade' regularly to get new features and fixes"
