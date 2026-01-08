@@ -51,7 +51,7 @@ pause
 section "3. Alternative: Clone and Modify"
 
 info "Another approach is to clone an existing profile:"
-echo -e "${YELLOW}\$ claudeup profile clone default my-custom-profile${NC}"
+echo -e "${YELLOW}\$ claudeup profile clone my-custom-profile --from default${NC}"
 echo
 info "This copies all settings from the source profile,"
 info "which you can then modify."
@@ -62,9 +62,9 @@ section "Summary"
 success "You know how to create custom profiles"
 echo
 info "Key commands:"
-info "  claudeup profile create              Interactive wizard"
-info "  claudeup profile clone <src> <dst>   Copy existing profile"
-info "  claudeup profile save <name>         Save current state"
+info "  claudeup profile create                    Interactive wizard"
+info "  claudeup profile clone <name> --from <src> Copy existing profile"
+info "  claudeup profile save <name>               Save current state"
 echo
 
 prompt_cleanup
