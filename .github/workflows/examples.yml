@@ -46,6 +46,7 @@ jobs:
           DISPATCH_DIR: ${{ github.event.inputs.directory }}
           DISPATCH_FAIL_FAST: ${{ github.event.inputs.fail_fast }}
           COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
           IS_PR: ${{ github.event.issue.pull_request }}
           PR_NUM: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
@@ -70,10 +71,24 @@ jobs:
           elif [[ "$EVENT_NAME" == "issue_comment" ]]; then
             # Check for /run-examples in PR comment
             if [[ -n "$IS_PR" ]] && [[ "$COMMENT_BODY" == *"/run-examples"* ]]; then
+              # Security: Only allow collaborators to trigger via comment
+              case "$COMMENT_AUTHOR_ASSOCIATION" in
+                OWNER|MEMBER|COLLABORATOR)
+                  echo "Authorized: $COMMENT_AUTHOR_ASSOCIATION"
+                  ;;
+                *)
+                  echo "::warning::Ignoring /run-examples from non-collaborator ($COMMENT_AUTHOR_ASSOCIATION)"
+                  exit 0
+                  ;;
+              esac
+
               echo "should_run=true" >> "$GITHUB_OUTPUT"
 
               # Get PR head ref
-              HEAD_SHA=$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q '.headRefOid')
+              if ! HEAD_SHA=$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q '.headRefOid'); then
+                echo "::error::Failed to get PR head SHA"
+                exit 1
+              fi
               echo "ref=$HEAD_SHA" >> "$GITHUB_OUTPUT"
 
               # Parse directory from comment: /run-examples [directory]
@@ -102,6 +117,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.1'
+          cache: true
 
       - name: Build claudeup
         run: go build -v -o claudeup ./cmd/claudeup
@@ -118,6 +134,7 @@ jobs:
     needs: [setup, build]
     if: needs.setup.outputs.should_run == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: ${{ needs.setup.outputs.fail_fast == 'true' }}
       matrix:
