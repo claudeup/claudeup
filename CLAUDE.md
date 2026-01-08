@@ -88,20 +88,33 @@ When running tests or development builds of claudeup, we set:
 export CLAUDE_CONFIG_DIR=/path/to/test/claude-config
 ```
 
-This redirects Claude Code's global configuration directory, including:
+This redirects Claude Code's **user-scope** configuration directory only, including:
 - `.claude.json` (main config)
 - `.credentials.json` (auth tokens)
 - `projects/` (project-specific settings)
 - `settings.json` (user settings)
+- `agents/` (user-level agents)
 - `todos/`, `statsig/`, `shell-snapshots/`
 
 ### Important Caveats
 
-1. **Workspace-local settings are NOT redirected** — `.claude/settings.local.json` files are still created in project directories regardless of `CLAUDE_CONFIG_DIR`.
+1. **Only user-scope files are redirected** — `CLAUDE_CONFIG_DIR` affects `~/.claude/` but NOT project-scope or local-scope files. Claude Code's scope system determines what is and isn't redirected.
 
-2. **IDE integration may not respect it** — The `/ide` command looks for lock files in `~/.claude/ide/` by default.
+2. **Project-scope files remain in the project directory** — These are NOT affected by `CLAUDE_CONFIG_DIR`:
+   - `.claude/settings.json` (project settings)
+   - `.claude/agents/` (project agents)
+   - `.mcp.json` (project MCP servers)
+   - `CLAUDE.md` or `.claude/CLAUDE.md` (project memory)
 
-3. **Always verify the correct directory is being used** — When debugging, check that files are being read/written to `$CLAUDE_CONFIG_DIR` and not `~/.claude`.
+3. **Local-scope files remain in the project directory** — These are also NOT redirected:
+   - `.claude/settings.local.json` (local settings overrides)
+   - `CLAUDE.local.md` (local memory)
+
+4. **Managed settings are NOT redirected** — System-level managed settings at `/Library/Application Support/ClaudeCode/` (macOS) or `/etc/claude-code/` (Linux) are unaffected.
+
+5. **IDE integration may not respect it** — The `/ide` command may look for lock files in `~/.claude/ide/` by default.
+
+6. **Always verify the correct directory is being used** — When debugging, check that files are being read/written to `$CLAUDE_CONFIG_DIR` and not `~/.claude`.
 
 ### Testing Commands
 
