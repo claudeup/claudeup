@@ -198,7 +198,7 @@ setup_environment() {
     fi
 
     # Clone claude-config repo or create minimal config
-    if git clone https://github.com/malston/claude-config.git --branch claudeup "$CLAUDE_DIR" >/dev/null 2>&1; then
+    if git clone https://github.com/claudeup/claude-config-dir.git --branch demo "$CLAUDE_DIR" >/dev/null 2>&1; then
         # Clear out plugins and settings to start fresh
         print_info "Clearing plugin data to start fresh"
         rm -rf "$CLAUDE_DIR/plugins"

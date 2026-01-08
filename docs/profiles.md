@@ -262,7 +262,7 @@ claudeup setup --profile frontend
 
 - `anthropics/claude-code` - Official Anthropic plugins
 - `obra/superpowers-marketplace` - Productivity skills and workflows
-- `malston/claude-code-templates` - Next.js/Vercel tooling
+- `davila7/claude-code-templates` - Next.js/Vercel tooling
 
 **Plugins:**
 

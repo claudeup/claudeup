@@ -5,7 +5,7 @@
   "marketplaces": [
     {"source": "github", "repo": "anthropics/claude-code"},
     {"source": "github", "repo": "obra/superpowers-marketplace"},
-    {"source": "github", "repo": "malston/claude-code-templates"}
+    {"source": "github", "repo": "davila7/claude-code-templates"}
   ],
   "plugins": [
     "frontend-design@claude-code-plugins",
