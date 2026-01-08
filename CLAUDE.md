@@ -77,6 +77,45 @@ var _ = Describe("feature", func() {
 go run github.com/onsi/ginkgo/v2/ginkgo -v ./test/...
 ```
 
+## Testing Environment Isolation
+
+This project uses the `CLAUDE_CONFIG_DIR` environment variable to create isolated Claude Code environments for testing. This prevents tests from interfering with your real `~/.claude` configuration.
+
+### How It Works
+
+When running tests or development builds of claudeup, we set:
+```bash
+export CLAUDE_CONFIG_DIR=/path/to/test/claude-config
+```
+
+This redirects Claude Code's global configuration directory, including:
+- `.claude.json` (main config)
+- `.credentials.json` (auth tokens)
+- `projects/` (project-specific settings)
+- `settings.json` (user settings)
+- `todos/`, `statsig/`, `shell-snapshots/`
+
+### Important Caveats
+
+1. **Workspace-local settings are NOT redirected** — `.claude/settings.local.json` files are still created in project directories regardless of `CLAUDE_CONFIG_DIR`.
+
+2. **IDE integration may not respect it** — The `/ide` command looks for lock files in `~/.claude/ide/` by default.
+
+3. **Always verify the correct directory is being used** — When debugging, check that files are being read/written to `$CLAUDE_CONFIG_DIR` and not `~/.claude`.
+
+### Testing Commands
+
+Before running tests, ensure `CLAUDE_CONFIG_DIR` is set and points to an isolated directory:
+```bash
+# Verify the variable is set
+echo $CLAUDE_CONFIG_DIR
+
+# Check what config Claude Code is actually using
+ls -la $CLAUDE_CONFIG_DIR
+```
+
+When writing tests that interact with Claude Code configuration, always use `$CLAUDE_CONFIG_DIR` rather than hardcoding `~/.claude`.
+
 ## Worktrees
 
 Feature development uses git worktrees in `.worktrees/` directory (already in .gitignore).
