@@ -4,6 +4,7 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/claudeup/claudeup/internal/claude"
 	"github.com/claudeup/claudeup/internal/ui"
@@ -197,6 +198,46 @@ func printInstallationPath(info *claude.PluginScopeInfo) {
 		pluginType = "local"
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Type", pluginType), 1))
+}
+
+// printPluginTable displays plugins in a compact table format
+func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInfo) {
+	// Print header
+	fmt.Printf("%-40s %-12s %-10s %-20s %-15s\n", "NAME", "VERSION", "STATUS", "ENABLED AT", "ACTIVE SOURCE")
+	fmt.Println(strings.Repeat("-", 100))
+
+	// Print rows
+	for _, name := range names {
+		info := analysis[name]
+
+		// Get version
+		version := ""
+		if info.ActiveSource != "" {
+			if activeInst := info.GetInstallationForScope(info.ActiveSource); activeInst != nil {
+				version = activeInst.Version
+			}
+		}
+		if version == "" && len(info.InstalledAt) > 0 {
+			version = info.InstalledAt[0].Version
+		}
+
+		// Get status
+		status := "disabled"
+		if info.IsEnabled() {
+			status = "enabled"
+		}
+
+		// Get enabled at
+		enabledAt := ""
+		if len(info.EnabledAt) > 0 {
+			enabledAt = formatScopeList(info.EnabledAt)
+		}
+
+		// Get active source
+		activeSource := info.ActiveSource
+
+		fmt.Printf("%-40s %-12s %-10s %-20s %-15s\n", name, version, status, enabledAt, activeSource)
+	}
 }
 
 // printPluginListFooter displays the summary footer after plugin details

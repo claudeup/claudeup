@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	pluginListSummary   bool
+	pluginListSummary    bool
 	pluginFilterEnabled  bool
 	pluginFilterDisabled bool
+	pluginListFormat     string
 )
 
 var pluginCmd = &cobra.Command{
@@ -69,6 +70,7 @@ func init() {
 	pluginListCmd.Flags().BoolVar(&pluginListSummary, "summary", false, "Show only summary statistics")
 	pluginListCmd.Flags().BoolVar(&pluginFilterEnabled, "enabled", false, "Show only enabled plugins")
 	pluginListCmd.Flags().BoolVar(&pluginFilterDisabled, "disabled", false, "Show only disabled plugins")
+	pluginListCmd.Flags().StringVar(&pluginListFormat, "format", "", "Output format (table)")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
@@ -125,6 +127,11 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 	// Display based on output mode
 	if pluginListSummary {
 		printPluginSummary(stats)
+		return nil
+	}
+
+	if pluginListFormat == "table" {
+		printPluginTable(names, analysis)
 		return nil
 	}
 
