@@ -202,10 +202,20 @@ func printInstallationPath(info *claude.PluginScopeInfo) {
 
 // printPluginTable displays plugins in a compact table format
 func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInfo) {
+	// Calculate max name width for alignment
+	nameWidth := 4 // minimum "NAME" length
+	for _, name := range names {
+		if len(name) > nameWidth {
+			nameWidth = len(name)
+		}
+	}
+	nameWidth += 2 // add padding
+
 	// Print header with bold styling
-	header := fmt.Sprintf("%-40s %-12s %-10s %-20s %-15s", "NAME", "VERSION", "STATUS", "ENABLED AT", "ACTIVE SOURCE")
+	headerFmt := fmt.Sprintf("%%-%ds %%-12s %%-10s %%-20s %%-15s", nameWidth)
+	header := fmt.Sprintf(headerFmt, "NAME", "VERSION", "STATUS", "ENABLED AT", "ACTIVE SOURCE")
 	fmt.Println(ui.Bold(header))
-	fmt.Println(ui.Muted(strings.Repeat("─", 100)))
+	fmt.Println(ui.Muted(strings.Repeat("─", nameWidth+12+10+20+15+4)))
 
 	// Print rows
 	for _, name := range names {
@@ -239,7 +249,8 @@ func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInf
 
 		// Format row with padding first, then apply styles
 		// This avoids ANSI codes affecting column alignment
-		nameCol := fmt.Sprintf("%-40s", name)
+		nameFmt := fmt.Sprintf("%%-%ds", nameWidth)
+		nameCol := fmt.Sprintf(nameFmt, name)
 		versionCol := fmt.Sprintf("%-12s", version)
 		statusCol := fmt.Sprintf("%-10s", status)
 		enabledAtCol := fmt.Sprintf("%-20s", enabledAt)
