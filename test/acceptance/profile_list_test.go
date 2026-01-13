@@ -3,6 +3,8 @@
 package acceptance
 
 import (
+	"strings"
+
 	"github.com/claudeup/claudeup/internal/profile"
 	"github.com/claudeup/claudeup/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
@@ -356,6 +358,38 @@ var _ = Describe("profile list", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("No .claude/settings.local.json found"))
+			})
+		})
+
+		Context("with customized built-in profile matching filter", func() {
+			BeforeEach(func() {
+				// Shadow "frontend" built-in
+				env.CreateProfile(&profile.Profile{
+					Name:        "frontend",
+					Description: "Customized frontend description",
+				})
+				// Make it active at user scope
+				env.SetActiveProfile("frontend")
+			})
+
+			It("shows customized built-in only once with custom description and indicator", func() {
+				result := env.Run("profile", "list", "--filter", "active")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("frontend"))
+				Expect(result.Stdout).To(ContainSubstring("Customized frontend description"))
+				Expect(result.Stdout).To(ContainSubstring("(customized)"))
+
+				// Verify it's not duplicated in Your profiles (which it shouldn't be anyway)
+				// but more importantly ensure it's not shown twice due to filtering logic
+				lines := splitLines(result.Stdout)
+				count := 0
+				for _, line := range lines {
+					if strings.Contains(line, "frontend") {
+						count++
+					}
+				}
+				Expect(count).To(Equal(1), "frontend profile should appear only once in the output")
 			})
 		})
 	})

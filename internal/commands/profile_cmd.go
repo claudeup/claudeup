@@ -671,6 +671,19 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		for _, p := range filteredEmbedded {
 			marker := getProfileMarker(p.Name)
 			desc := p.Description
+
+			// If shadowed on disk, use disk version's description and add indicator
+			if profileOnDisk[p.Name] {
+				// Find the disk version to get its description
+				for _, dp := range allProfiles {
+					if dp.Name == p.Name {
+						desc = dp.Description
+						break
+					}
+				}
+				desc += " " + ui.Muted("(customized)")
+			}
+
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
