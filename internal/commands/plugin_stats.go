@@ -202,9 +202,10 @@ func printInstallationPath(info *claude.PluginScopeInfo) {
 
 // printPluginTable displays plugins in a compact table format
 func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInfo) {
-	// Print header
-	fmt.Printf("%-40s %-12s %-10s %-20s %-15s\n", "NAME", "VERSION", "STATUS", "ENABLED AT", "ACTIVE SOURCE")
-	fmt.Println(strings.Repeat("-", 100))
+	// Print header with bold styling
+	header := fmt.Sprintf("%-40s %-12s %-10s %-20s %-15s", "NAME", "VERSION", "STATUS", "ENABLED AT", "ACTIVE SOURCE")
+	fmt.Println(ui.Bold(header))
+	fmt.Println(ui.Muted(strings.Repeat("─", 100)))
 
 	// Print rows
 	for _, name := range names {
@@ -221,7 +222,7 @@ func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInf
 			version = info.InstalledAt[0].Version
 		}
 
-		// Get status
+		// Get status with color
 		status := "disabled"
 		if info.IsEnabled() {
 			status = "enabled"
@@ -236,7 +237,27 @@ func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInf
 		// Get active source
 		activeSource := info.ActiveSource
 
-		fmt.Printf("%-40s %-12s %-10s %-20s %-15s\n", name, version, status, enabledAt, activeSource)
+		// Format row with padding first, then apply styles
+		// This avoids ANSI codes affecting column alignment
+		nameCol := fmt.Sprintf("%-40s", name)
+		versionCol := fmt.Sprintf("%-12s", version)
+		statusCol := fmt.Sprintf("%-10s", status)
+		enabledAtCol := fmt.Sprintf("%-20s", enabledAt)
+		activeSourceCol := fmt.Sprintf("%-15s", activeSource)
+
+		// Apply styles after padding
+		if info.IsEnabled() {
+			statusCol = ui.Success(statusCol)
+		} else {
+			statusCol = ui.Muted(statusCol)
+		}
+
+		fmt.Printf("%s %s %s %s %s\n",
+			ui.Bold(nameCol),
+			ui.Muted(versionCol),
+			statusCol,
+			enabledAtCol,
+			ui.Muted(activeSourceCol))
 	}
 }
 
