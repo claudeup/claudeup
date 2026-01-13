@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"path/filepath"
 	"strings"
 
 	"github.com/claudeup/claudeup/internal/profile"
@@ -339,6 +340,33 @@ var _ = Describe("profile list", func() {
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("my-active-profile"))
 				Expect(result.Stdout).NotTo(ContainSubstring("other-profile"))
+			})
+		})
+
+		Context("with --filter project", func() {
+			var projectDir string
+			BeforeEach(func() {
+				projectDir = env.ProjectDir("project-filter-test")
+				// Create project settings for "hobson"
+				// 1. profile list --filter project checks for .claude/settings.json as a pre-flight
+				settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+				helpers.WriteJSON(settingsPath, map[string]interface{}{
+					"profile": "hobson",
+				})
+				// 2. getAllActiveProfiles checks for .claudeup.json via profile.ProjectConfigExists
+				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
+					"version": "1",
+					"profile": "hobson",
+				})
+			})
+
+			It("shows only the profile active at project scope", func() {
+				result := env.RunInDir(projectDir, "profile", "list", "--filter", "project")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("hobson"))
+				Expect(result.Stdout).NotTo(ContainSubstring("my-active-profile"))
+				Expect(result.Stdout).To(ContainSubstring("Filtering by: project"))
 			})
 		})
 
