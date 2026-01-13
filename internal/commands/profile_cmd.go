@@ -60,14 +60,12 @@ Multiple profiles can be active at different scopes, but only the highest
 precedence profile affects Claude Code's behavior. Lower precedence profiles
 are overridden.
 
-FILTERING:
-  --filter active    Show only profiles that are active at any scope
-  --filter inactive  Show only profiles that are not active
-  --filter user      Show only the profile active at user scope
-  --filter project   Show only the profile active at project scope
-  --filter local     Show only the profile active at local scope
+SCOPE FILTERING:
+  --scope user      Show only the profile active at user scope
+  --scope project   Show only the profile active at project scope
+  --scope local     Show only the profile active at local scope
 
-Note: --filter project and --filter local require the corresponding
+Note: --scope project and --scope local require the corresponding
 .claude/settings.json or .claude/settings.local.json file to exist.
 
 Example: If "base-tools" is active at user scope but "claudeup" is
@@ -331,7 +329,7 @@ var profileSyncDryRun bool
 var profileSaveScope string
 
 // Flags for profile list command
-var profileListFilter string
+var profileListScope string
 
 // Flags for profile clean command
 var profileCleanScope string
@@ -526,41 +524,39 @@ func init() {
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
 
 	// Add flags to profile list command
-	profileListCmd.Flags().StringVar(&profileListFilter, "filter", "", "Filter profiles: active, inactive, user, project, local")
+	profileListCmd.Flags().StringVar(&profileListScope, "scope", "", "Show only the profile active at specified scope: user, project, local")
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
-	// Validate filter value if provided
-	validFilters := map[string]bool{
-		"":         true,
-		"active":   true,
-		"inactive": true,
-		"user":     true,
-		"project":  true,
-		"local":    true,
+	// Validate scope value if provided
+	validScopes := map[string]bool{
+		"":        true,
+		"user":    true,
+		"project": true,
+		"local":   true,
 	}
-	if !validFilters[profileListFilter] {
-		return fmt.Errorf("invalid filter %q: must be one of active, inactive, user, project, local", profileListFilter)
+	if !validScopes[profileListScope] {
+		return fmt.Errorf("invalid scope %q: must be one of user, project, local", profileListScope)
 	}
 
 	// Check for scope-specific file requirements
 	projectSettingsPath := filepath.Join(cwd, ".claude", "settings.json")
 	localSettingsPath := filepath.Join(cwd, ".claude", "settings.local.json")
 
-	if profileListFilter == "project" {
+	if profileListScope == "project" {
 		if _, err := os.Stat(projectSettingsPath); os.IsNotExist(err) {
 			ui.PrintWarning("No .claude/settings.json found in current directory.")
-			fmt.Printf("  %s Use --filter project inside a project with Claude settings.\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("  %s Use --scope project inside a project with Claude settings.\n", ui.Muted(ui.SymbolArrow))
 			return nil
 		}
 	}
-	if profileListFilter == "local" {
+	if profileListScope == "local" {
 		if _, err := os.Stat(localSettingsPath); os.IsNotExist(err) {
 			ui.PrintWarning("No .claude/settings.local.json found in current directory.")
-			fmt.Printf("  %s Use --filter local inside a project with local Claude settings.\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("  %s Use --scope local inside a project with local Claude settings.\n", ui.Muted(ui.SymbolArrow))
 			return nil
 		}
 	}
@@ -600,13 +596,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Filter helper function
 	shouldShowProfile := func(profileName string) bool {
-		switch profileListFilter {
+		switch profileListScope {
 		case "":
 			return true
-		case "active":
-			return activeProfileNames[profileName]
-		case "inactive":
-			return !activeProfileNames[profileName]
 		case "user":
 			return activeProfileByScope["user"] == profileName
 		case "project":
@@ -636,8 +628,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 	// Check if we have any profiles to show after filtering
 	if len(filteredEmbedded) == 0 && len(customProfiles) == 0 {
-		if profileListFilter != "" {
-			ui.PrintInfo(fmt.Sprintf("No profiles match filter %q.", profileListFilter))
+		if profileListScope != "" {
+			ui.PrintInfo(fmt.Sprintf("No profile is active at %s scope.", profileListScope))
 		} else {
 			ui.PrintInfo("No profiles found.")
 			fmt.Printf("  %s Create one with: claudeup profile save <name>\n", ui.Muted(ui.SymbolArrow))
@@ -658,9 +650,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return "  "
 	}
 
-	// Show filter info if filtering
-	if profileListFilter != "" {
-		fmt.Printf("%s Filtering by: %s\n", ui.Muted(ui.SymbolArrow), ui.Bold(profileListFilter))
+	// Show scope info if filtering
+	if profileListScope != "" {
+		fmt.Printf("%s Showing profile active at: %s scope\n", ui.Muted(ui.SymbolArrow), ui.Bold(profileListScope))
 		fmt.Println()
 	}
 
@@ -708,7 +700,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Warn if user has a profile named "current" (now reserved)
-	if profileOnDisk["current"] && profileListFilter == "" {
+	if profileOnDisk["current"] && profileListScope == "" {
 		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
 		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()

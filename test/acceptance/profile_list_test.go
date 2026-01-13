@@ -295,7 +295,7 @@ var _ = Describe("profile list", func() {
 		})
 	})
 
-	Describe("filter flag", func() {
+	Describe("scope flag", func() {
 		BeforeEach(func() {
 			// Create some test profiles with distinct names that won't match as substrings
 			env.CreateProfile(&profile.Profile{
@@ -310,45 +310,23 @@ var _ = Describe("profile list", func() {
 			env.SetActiveProfile("my-active-profile")
 		})
 
-		Context("with --filter active", func() {
-			It("shows only active profiles", func() {
-				result := env.Run("profile", "list", "--filter", "active")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("my-active-profile"))
-				Expect(result.Stdout).NotTo(ContainSubstring("other-profile"))
-				Expect(result.Stdout).To(ContainSubstring("Filtering by:"))
-			})
-		})
-
-		Context("with --filter inactive", func() {
-			It("shows only inactive profiles", func() {
-				result := env.Run("profile", "list", "--filter", "inactive")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).NotTo(ContainSubstring("my-active-profile"))
-				Expect(result.Stdout).To(ContainSubstring("other-profile"))
-				// Should also show built-in profiles that are not active
-				Expect(result.Stdout).To(ContainSubstring("default"))
-			})
-		})
-
-		Context("with --filter user", func() {
+		Context("with --scope user", func() {
 			It("shows only the profile active at user scope", func() {
-				result := env.Run("profile", "list", "--filter", "user")
+				result := env.Run("profile", "list", "--scope", "user")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("my-active-profile"))
 				Expect(result.Stdout).NotTo(ContainSubstring("other-profile"))
+				Expect(result.Stdout).To(ContainSubstring("Showing profile active at:"))
 			})
 		})
 
-		Context("with --filter project", func() {
+		Context("with --scope project", func() {
 			var projectDir string
 			BeforeEach(func() {
-				projectDir = env.ProjectDir("project-filter-test")
+				projectDir = env.ProjectDir("project-scope-test")
 				// Create project settings for "hobson"
-				// 1. profile list --filter project checks for .claude/settings.json as a pre-flight
+				// 1. profile list --scope project checks for .claude/settings.json as a pre-flight
 				settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
 				helpers.WriteJSON(settingsPath, map[string]interface{}{
 					"profile": "hobson",
@@ -361,35 +339,35 @@ var _ = Describe("profile list", func() {
 			})
 
 			It("shows only the profile active at project scope", func() {
-				result := env.RunInDir(projectDir, "profile", "list", "--filter", "project")
+				result := env.RunInDir(projectDir, "profile", "list", "--scope", "project")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("hobson"))
 				Expect(result.Stdout).NotTo(ContainSubstring("my-active-profile"))
-				Expect(result.Stdout).To(ContainSubstring("Filtering by: project"))
+				Expect(result.Stdout).To(ContainSubstring("Showing profile active at: project"))
 			})
 		})
 
-		Context("with invalid filter value", func() {
+		Context("with invalid scope value", func() {
 			It("returns an error", func() {
-				result := env.Run("profile", "list", "--filter", "invalid-value")
+				result := env.Run("profile", "list", "--scope", "invalid-value")
 
 				Expect(result.ExitCode).NotTo(Equal(0))
-				Expect(result.Stderr).To(ContainSubstring("invalid filter"))
+				Expect(result.Stderr).To(ContainSubstring("invalid scope"))
 			})
 		})
 
 		Context("when filtering by local scope without local settings file", func() {
 			It("shows a warning about missing file", func() {
 				// Test env runs in temp directory without .claude/settings.local.json
-				result := env.Run("profile", "list", "--filter", "local")
+				result := env.Run("profile", "list", "--scope", "local")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("No .claude/settings.local.json found"))
 			})
 		})
 
-		Context("with customized built-in profile matching filter", func() {
+		Context("with customized built-in profile at user scope", func() {
 			BeforeEach(func() {
 				// Shadow "frontend" built-in
 				env.CreateProfile(&profile.Profile{
@@ -401,7 +379,7 @@ var _ = Describe("profile list", func() {
 			})
 
 			It("shows customized built-in only once with custom description and indicator", func() {
-				result := env.Run("profile", "list", "--filter", "active")
+				result := env.Run("profile", "list", "--scope", "user")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("frontend"))
