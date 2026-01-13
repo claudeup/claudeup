@@ -379,4 +379,111 @@ var _ = Describe("plugins", func() {
 			Expect(mmmIdx).To(BeNumerically("<", zzzIdx))
 		})
 	})
+
+	Describe("--enabled flag", func() {
+		var enabledPath, disabledPath string
+
+		BeforeEach(func() {
+			enabledPath = filepath.Join(env.ClaudeDir, "plugins", "cache", "enabled-plugin")
+			disabledPath = filepath.Join(env.ClaudeDir, "plugins", "cache", "disabled-plugin")
+			Expect(os.MkdirAll(enabledPath, 0755)).To(Succeed())
+			Expect(os.MkdirAll(disabledPath, 0755)).To(Succeed())
+
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"enabled-plugin@acme": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": enabledPath,
+						"scope":       "user",
+					},
+				},
+				"disabled-plugin@acme": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": disabledPath,
+						"scope":       "user",
+					},
+				},
+			})
+
+			// Only enable one plugin
+			env.CreateSettings(map[string]bool{
+				"enabled-plugin@acme": true,
+			})
+		})
+
+		It("shows only enabled plugins", func() {
+			result := env.Run("plugin", "list", "--enabled")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("enabled-plugin@acme"))
+			Expect(result.Stdout).NotTo(ContainSubstring("disabled-plugin@acme"))
+		})
+
+		It("shows filtered count in footer", func() {
+			result := env.Run("plugin", "list", "--enabled")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Showing: 1 enabled"))
+			Expect(result.Stdout).To(ContainSubstring("of 2 total"))
+		})
+	})
+
+	Describe("--disabled flag", func() {
+		var enabledPath, disabledPath string
+
+		BeforeEach(func() {
+			enabledPath = filepath.Join(env.ClaudeDir, "plugins", "cache", "enabled-plugin")
+			disabledPath = filepath.Join(env.ClaudeDir, "plugins", "cache", "disabled-plugin")
+			Expect(os.MkdirAll(enabledPath, 0755)).To(Succeed())
+			Expect(os.MkdirAll(disabledPath, 0755)).To(Succeed())
+
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"enabled-plugin@acme": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": enabledPath,
+						"scope":       "user",
+					},
+				},
+				"disabled-plugin@acme": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": disabledPath,
+						"scope":       "user",
+					},
+				},
+			})
+
+			// Only enable one plugin
+			env.CreateSettings(map[string]bool{
+				"enabled-plugin@acme": true,
+			})
+		})
+
+		It("shows only disabled plugins", func() {
+			result := env.Run("plugin", "list", "--disabled")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("disabled-plugin@acme"))
+			Expect(result.Stdout).NotTo(ContainSubstring("enabled-plugin@acme"))
+		})
+
+		It("shows filtered count in footer", func() {
+			result := env.Run("plugin", "list", "--disabled")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Showing: 1 disabled"))
+			Expect(result.Stdout).To(ContainSubstring("of 2 total"))
+		})
+	})
+
+	Describe("mutually exclusive flags", func() {
+		It("returns error when both --enabled and --disabled are used", func() {
+			result := env.Run("plugin", "list", "--enabled", "--disabled")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("--enabled and --disabled are mutually exclusive"))
+		})
+	})
 })

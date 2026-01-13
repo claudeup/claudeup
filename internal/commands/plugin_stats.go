@@ -201,8 +201,17 @@ func printInstallationPath(info *claude.PluginScopeInfo) {
 
 // printPluginListFooter displays the summary footer after plugin details
 func printPluginListFooter(stats PluginStatistics) {
+	printPluginListFooterFiltered(stats, stats.Total, stats.Total, "")
+}
+
+// printPluginListFooterFiltered displays the summary footer with filter info
+func printPluginListFooterFiltered(stats PluginStatistics, shown int, total int, filterLabel string) {
 	fmt.Println(ui.RenderSection("Summary", -1))
-	fmt.Printf("Total: %d plugins (%d cached, %d local)\n", stats.Total, stats.Cached, stats.Local)
+	if filterLabel != "" {
+		fmt.Printf("Showing: %d %s (of %d total)\n", shown, filterLabel, total)
+	} else {
+		fmt.Printf("Total: %d plugins (%d cached, %d local)\n", stats.Total, stats.Cached, stats.Local)
+	}
 	if stats.Stale > 0 {
 		ui.PrintWarning(fmt.Sprintf("%d stale plugins detected", stats.Stale))
 	}
