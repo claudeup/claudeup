@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/v2/internal/profile"
 )
 
 func TestIsFirstRun(t *testing.T) {

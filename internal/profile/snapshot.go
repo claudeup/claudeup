@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/claude"
 )
 
 // ClaudeJSON represents the ~/.claude.json file structure (relevant parts)

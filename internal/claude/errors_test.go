@@ -29,7 +29,7 @@ func TestFormatVersionError(t *testing.T) {
 	if !strings.Contains(msg, "go install") {
 		t.Error("Error message should contain update instructions")
 	}
-	if !strings.Contains(msg, "github.com/claudeup/claudeup/issues") {
+	if !strings.Contains(msg, "github.com/claudeup/claudeup/v2/issues") {
 		t.Error("Error message should contain issue tracker URL")
 	}
 }
@@ -53,7 +53,7 @@ func TestPathNotFoundError(t *testing.T) {
 	if !strings.Contains(msg, "ls -R /Users/test/.claude") {
 		t.Error("Error message should contain diagnostic command")
 	}
-	if !strings.Contains(msg, "github.com/claudeup/claudeup/issues") {
+	if !strings.Contains(msg, "github.com/claudeup/claudeup/v2/issues") {
 		t.Error("Error message should contain issue tracker URL")
 	}
 }

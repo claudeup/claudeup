@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/claudeup/claudeup/internal/claude"
-	"github.com/claudeup/claudeup/internal/config"
-	"github.com/claudeup/claudeup/internal/profile"
-	"github.com/claudeup/claudeup/internal/ui"
+	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/config"
+	"github.com/claudeup/claudeup/v2/internal/profile"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 	"github.com/spf13/cobra"
 )
 
