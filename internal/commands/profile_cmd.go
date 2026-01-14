@@ -230,7 +230,7 @@ Only works with built-in profiles that have been customized (saved to disk).`,
 
   # Show changes made to the frontend profile
   claudeup profile diff frontend`,
-	Args: cobra.MaximumNArgs(1),
+	Args: cobra.ExactArgs(1),
 	RunE: runProfileDiff,
 }
 
@@ -1520,11 +1520,6 @@ func showDiff(diff *profile.Diff) {
 }
 
 func runProfileDiff(cmd *cobra.Command, args []string) error {
-	// No args - show help
-	if len(args) == 0 {
-		return cmd.Help()
-	}
-
 	name := args[0]
 	profilesDir := getProfilesDir()
 

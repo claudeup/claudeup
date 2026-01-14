@@ -27,13 +27,12 @@ var _ = Describe("Profile diff builtin comparison", func() {
 	})
 
 	Describe("no arguments", func() {
-		It("shows help when no profile name given", func() {
+		It("returns error when no profile name given", func() {
 			result := env.Run("profile", "diff")
 
-			// Should show help, not error
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Usage:"))
-			Expect(result.Stdout).To(ContainSubstring("profile diff"))
+			// ExactArgs(1) rejects missing argument
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("accepts 1 arg"))
 		})
 	})
 
@@ -101,9 +100,16 @@ var _ = Describe("Profile diff builtin comparison", func() {
 
 	Describe("modified description", func() {
 		BeforeEach(func() {
+			// Get the embedded profile and only change the description
+			defaultProfile, err := profile.GetEmbeddedProfile("default")
+			Expect(err).NotTo(HaveOccurred())
+
 			customized := &profile.Profile{
-				Name:        "default",
-				Description: "My custom description",
+				Name:         "default",
+				Description:  "My custom description",
+				Marketplaces: defaultProfile.Marketplaces,
+				Plugins:      defaultProfile.Plugins,
+				MCPServers:   defaultProfile.MCPServers,
 			}
 			env.CreateProfile(customized)
 		})
