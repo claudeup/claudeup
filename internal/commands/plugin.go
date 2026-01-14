@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/claudeup/claudeup/v2/internal/claude"
 	"github.com/claudeup/claudeup/v2/internal/config"
@@ -20,6 +21,7 @@ var (
 	pluginFilterEnabled  bool
 	pluginFilterDisabled bool
 	pluginListFormat     string
+	pluginBrowseFormat   string
 )
 
 var pluginCmd = &cobra.Command{
@@ -61,16 +63,31 @@ var pluginEnableCmd = &cobra.Command{
 	RunE:    runPluginEnable,
 }
 
+var pluginBrowseCmd = &cobra.Command{
+	Use:   "browse <marketplace>",
+	Short: "Browse available plugins in a marketplace",
+	Long: `Display plugins available in a marketplace before installing.
+
+Accepts marketplace name, repo (user/repo), or URL as identifier.`,
+	Example: `  claudeup plugin browse claude-code-workflows
+  claudeup plugin browse wshobson/agents
+  claudeup plugin browse --format table my-marketplace`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPluginBrowse,
+}
+
 func init() {
 	rootCmd.AddCommand(pluginCmd)
 	pluginCmd.AddCommand(pluginListCmd)
 	pluginCmd.AddCommand(pluginDisableCmd)
 	pluginCmd.AddCommand(pluginEnableCmd)
+	pluginCmd.AddCommand(pluginBrowseCmd)
 
 	pluginListCmd.Flags().BoolVar(&pluginListSummary, "summary", false, "Show only summary statistics")
 	pluginListCmd.Flags().BoolVar(&pluginFilterEnabled, "enabled", false, "Show only enabled plugins")
 	pluginListCmd.Flags().BoolVar(&pluginFilterDisabled, "disabled", false, "Show only disabled plugins")
 	pluginListCmd.Flags().StringVar(&pluginListFormat, "format", "", "Output format (table)")
+	pluginBrowseCmd.Flags().StringVar(&pluginBrowseFormat, "format", "", "Output format (table)")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
@@ -271,4 +288,105 @@ func formatScopeList(scopes []string) string {
 		result += scope
 	}
 	return result
+}
+
+func runPluginBrowse(cmd *cobra.Command, args []string) error {
+	identifier := args[0]
+
+	// Find the marketplace
+	meta, marketplaceName, err := claude.FindMarketplace(claudeDir, identifier)
+	if err != nil {
+		// Build helpful error message
+		registry, loadErr := claude.LoadMarketplaces(claudeDir)
+		if loadErr != nil {
+			return fmt.Errorf("marketplace %q not found\n\nTo add this marketplace, use Claude Code CLI:\n  claude marketplace add <repo-or-url>", identifier)
+		}
+
+		var installed []string
+		for name, m := range registry {
+			if m.Source.Repo != "" {
+				installed = append(installed, fmt.Sprintf("  %s (%s)", name, m.Source.Repo))
+			} else {
+				installed = append(installed, fmt.Sprintf("  %s", name))
+			}
+		}
+		sort.Strings(installed)
+
+		msg := fmt.Sprintf("Error: marketplace %q not found\n\nTo add this marketplace, use Claude Code CLI:\n  claude marketplace add <repo-or-url>", identifier)
+		if len(installed) > 0 {
+			msg += "\n\nInstalled marketplaces:\n" + strings.Join(installed, "\n")
+		}
+		return fmt.Errorf("%s", msg)
+	}
+
+	// Load the marketplace index
+	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
+	if err != nil {
+		return fmt.Errorf("Error: marketplace %q has no plugin index\n\nThe marketplace at %s\nis missing .claude-plugin/marketplace.json", marketplaceName, meta.InstallLocation)
+	}
+
+	// Handle empty marketplace
+	if len(index.Plugins) == 0 {
+		fmt.Printf("No plugins available in %s\n", index.Name)
+		return nil
+	}
+
+	// Load installed plugins to check status
+	plugins, _ := claude.LoadPlugins(claudeDir)
+
+	// Sort plugins alphabetically
+	sortedPlugins := make([]claude.MarketplacePluginInfo, len(index.Plugins))
+	copy(sortedPlugins, index.Plugins)
+	sort.Slice(sortedPlugins, func(i, j int) bool {
+		return sortedPlugins[i].Name < sortedPlugins[j].Name
+	})
+
+	// Display based on format
+	if pluginBrowseFormat == "table" {
+		printBrowseTable(sortedPlugins, index.Name, marketplaceName, plugins)
+	} else {
+		printBrowseDefault(sortedPlugins, index.Name, marketplaceName, plugins)
+	}
+
+	return nil
+}
+
+func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marketplaceName string, installed *claude.PluginRegistry) {
+	fmt.Printf("Available in %s (%d plugins)\n\n", indexName, len(plugins))
+
+	for _, p := range plugins {
+		// Check if installed
+		fullName := p.Name + "@" + marketplaceName
+		status := ""
+		if installed != nil && installed.PluginExists(fullName) {
+			status = "  [installed]"
+		}
+
+		// Truncate description if needed
+		desc := p.Description
+		if len(desc) > 40 {
+			desc = desc[:37] + "..."
+		}
+
+		fmt.Printf("  %-30s %-42s %s%s\n", p.Name, desc, p.Version, status)
+	}
+}
+
+func printBrowseTable(plugins []claude.MarketplacePluginInfo, indexName, marketplaceName string, installed *claude.PluginRegistry) {
+	fmt.Printf("PLUGIN                         DESCRIPTION                                VERSION    STATUS\n")
+
+	for _, p := range plugins {
+		fullName := p.Name + "@" + marketplaceName
+		status := ""
+		if installed != nil && installed.PluginExists(fullName) {
+			status = "installed"
+		}
+
+		desc := p.Description
+		if len(desc) > 40 {
+			desc = desc[:37] + "..."
+		}
+
+		fmt.Printf("%-30s %-42s %-10s %s\n", p.Name, desc, p.Version, status)
+	}
 }

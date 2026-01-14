@@ -23,7 +23,7 @@ var _ = Describe("plugin browse", func() {
 			result := env.Run("plugin", "browse")
 
 			Expect(result.ExitCode).To(Equal(1))
-			Expect(result.Stderr).To(ContainSubstring("requires"))
+			Expect(result.Stderr).To(ContainSubstring("accepts 1 arg"))
 		})
 	})
 
