@@ -9,7 +9,7 @@ A CLI tool for managing Claude Code plugins, profiles, and sandboxed environment
 curl -fsSL https://claudeup.github.io/install.sh | bash
 
 # Or from source
-go install github.com/claudeup/claudeup/cmd/claudeup@latest
+go install github.com/claudeup/claudeup/v2/cmd/claudeup@latest
 ```
 
 ## Get Started
