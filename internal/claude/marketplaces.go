@@ -4,6 +4,7 @@ package claude
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -105,4 +106,55 @@ func (r MarketplaceRegistry) GetMarketplaceByRepo(repoOrURL string) string {
 		}
 	}
 	return ""
+}
+
+// LoadMarketplaceIndex reads the .claude-plugin/marketplace.json from a marketplace
+func LoadMarketplaceIndex(installLocation string) (*MarketplaceIndex, error) {
+	indexPath := filepath.Join(installLocation, ".claude-plugin", "marketplace.json")
+
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read marketplace index: %w", err)
+	}
+
+	var index MarketplaceIndex
+	if err := json.Unmarshal(data, &index); err != nil {
+		return nil, fmt.Errorf("failed to parse marketplace index: %w", err)
+	}
+
+	return &index, nil
+}
+
+// FindMarketplace finds a marketplace by name, repo, or URL
+// Returns the marketplace metadata, its key in the registry, and any error
+func FindMarketplace(claudeDir string, identifier string) (*MarketplaceMetadata, string, error) {
+	registry, err := LoadMarketplaces(claudeDir)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to load marketplaces: %w", err)
+	}
+
+	// First, check by key (marketplace name in registry)
+	if meta, exists := registry[identifier]; exists {
+		return &meta, identifier, nil
+	}
+
+	// Check by repo or URL
+	for name, meta := range registry {
+		if meta.Source.Repo == identifier || meta.Source.URL == identifier {
+			return &meta, name, nil
+		}
+	}
+
+	// Check by marketplace name from index files
+	for name, meta := range registry {
+		index, err := LoadMarketplaceIndex(meta.InstallLocation)
+		if err != nil {
+			continue
+		}
+		if index.Name == identifier {
+			return &meta, name, nil
+		}
+	}
+
+	return nil, "", fmt.Errorf("marketplace %q not found", identifier)
 }
