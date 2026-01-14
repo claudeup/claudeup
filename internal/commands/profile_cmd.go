@@ -73,7 +73,7 @@ active at project scope in ~/claudeup/, you'll see:
   * claudeup    [project] (modified)  ← This is what Claude Code uses
   ○ base-tools  [user]                ← Overridden, not in effect
 
-Use 'claudeup profile status' (or 'profile diff') for detailed breakdown.`,
+Use 'claudeup profile status' to see how profiles differ from your current setup.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
