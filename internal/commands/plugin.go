@@ -8,15 +8,18 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/claudeup/claudeup/internal/claude"
-	"github.com/claudeup/claudeup/internal/config"
-	"github.com/claudeup/claudeup/internal/profile"
-	"github.com/claudeup/claudeup/internal/ui"
+	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/config"
+	"github.com/claudeup/claudeup/v2/internal/profile"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var (
-	pluginListSummary bool
+	pluginListSummary    bool
+	pluginFilterEnabled  bool
+	pluginFilterDisabled bool
+	pluginListFormat     string
 )
 
 var pluginCmd = &cobra.Command{
@@ -65,9 +68,17 @@ func init() {
 	pluginCmd.AddCommand(pluginEnableCmd)
 
 	pluginListCmd.Flags().BoolVar(&pluginListSummary, "summary", false, "Show only summary statistics")
+	pluginListCmd.Flags().BoolVar(&pluginFilterEnabled, "enabled", false, "Show only enabled plugins")
+	pluginListCmd.Flags().BoolVar(&pluginFilterDisabled, "disabled", false, "Show only disabled plugins")
+	pluginListCmd.Flags().StringVar(&pluginListFormat, "format", "", "Output format (table)")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
+	// Validate mutually exclusive flags
+	if pluginFilterEnabled && pluginFilterDisabled {
+		return fmt.Errorf("--enabled and --disabled are mutually exclusive")
+	}
+
 	// Get current directory for project scope
 	projectDir, err := os.Getwd()
 	if err != nil {
@@ -87,8 +98,31 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 	}
 	sort.Strings(names)
 
-	// Calculate statistics
+	// Calculate statistics (before filtering)
 	stats := calculatePluginStatistics(analysis)
+
+	// Apply filters
+	totalCount := len(names)
+	filterLabel := ""
+	if pluginFilterEnabled {
+		filtered := make([]string, 0)
+		for _, name := range names {
+			if analysis[name].IsEnabled() {
+				filtered = append(filtered, name)
+			}
+		}
+		names = filtered
+		filterLabel = "enabled"
+	} else if pluginFilterDisabled {
+		filtered := make([]string, 0)
+		for _, name := range names {
+			if !analysis[name].IsEnabled() {
+				filtered = append(filtered, name)
+			}
+		}
+		names = filtered
+		filterLabel = "disabled"
+	}
 
 	// Display based on output mode
 	if pluginListSummary {
@@ -96,8 +130,13 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if pluginListFormat == "table" {
+		printPluginTable(names, analysis)
+		return nil
+	}
+
 	printPluginDetails(names, analysis)
-	printPluginListFooter(stats)
+	printPluginListFooterFiltered(stats, len(names), totalCount, filterLabel)
 
 	return nil
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/claude"
 )
 
 // SyncResult contains the results of syncing from .claudeup.json

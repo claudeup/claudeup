@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/v2/internal/profile"
 )
 
 // DockerRunner implements Runner using Docker

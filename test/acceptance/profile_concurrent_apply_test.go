@@ -5,8 +5,8 @@ package acceptance
 import (
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/internal/profile"
-	"github.com/claudeup/claudeup/test/helpers"
+	"github.com/claudeup/claudeup/v2/internal/profile"
+	"github.com/claudeup/claudeup/v2/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

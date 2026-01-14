@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/internal/events"
+	"github.com/claudeup/claudeup/v2/internal/events"
 )
 
 // MarketplaceRegistry represents the known_marketplaces.json file structure

@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/test/helpers"
+	"github.com/claudeup/claudeup/v2/test/helpers"
 )
 
 var _ = Describe("claudeup status --scope", func() {

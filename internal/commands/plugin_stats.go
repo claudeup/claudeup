@@ -4,9 +4,10 @@ package commands
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/claudeup/claudeup/internal/claude"
-	"github.com/claudeup/claudeup/internal/ui"
+	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 )
 
 // PluginStatistics holds aggregated counts for plugin analysis
@@ -199,10 +200,91 @@ func printInstallationPath(info *claude.PluginScopeInfo) {
 	fmt.Println(ui.Indent(ui.RenderDetail("Type", pluginType), 1))
 }
 
+// printPluginTable displays plugins in a compact table format
+func printPluginTable(names []string, analysis map[string]*claude.PluginScopeInfo) {
+	// Calculate max name width for alignment
+	nameWidth := 4 // minimum "NAME" length
+	for _, name := range names {
+		if len(name) > nameWidth {
+			nameWidth = len(name)
+		}
+	}
+	nameWidth += 2 // add padding
+
+	// Print header with bold styling
+	headerFmt := fmt.Sprintf("%%-%ds %%-12s %%-10s %%-20s %%-15s", nameWidth)
+	header := fmt.Sprintf(headerFmt, "NAME", "VERSION", "STATUS", "ENABLED AT", "ACTIVE SOURCE")
+	fmt.Println(ui.Bold(header))
+	fmt.Println(ui.Muted(strings.Repeat("─", nameWidth+12+10+20+15+4)))
+
+	// Print rows
+	for _, name := range names {
+		info := analysis[name]
+
+		// Get version
+		version := ""
+		if info.ActiveSource != "" {
+			if activeInst := info.GetInstallationForScope(info.ActiveSource); activeInst != nil {
+				version = activeInst.Version
+			}
+		}
+		if version == "" && len(info.InstalledAt) > 0 {
+			version = info.InstalledAt[0].Version
+		}
+
+		// Get status with color
+		status := "disabled"
+		if info.IsEnabled() {
+			status = "enabled"
+		}
+
+		// Get enabled at
+		enabledAt := ""
+		if len(info.EnabledAt) > 0 {
+			enabledAt = formatScopeList(info.EnabledAt)
+		}
+
+		// Get active source
+		activeSource := info.ActiveSource
+
+		// Format row with padding first, then apply styles
+		// This avoids ANSI codes affecting column alignment
+		nameFmt := fmt.Sprintf("%%-%ds", nameWidth)
+		nameCol := fmt.Sprintf(nameFmt, name)
+		versionCol := fmt.Sprintf("%-12s", version)
+		statusCol := fmt.Sprintf("%-10s", status)
+		enabledAtCol := fmt.Sprintf("%-20s", enabledAt)
+		activeSourceCol := fmt.Sprintf("%-15s", activeSource)
+
+		// Apply styles after padding
+		if info.IsEnabled() {
+			statusCol = ui.Success(statusCol)
+		} else {
+			statusCol = ui.Muted(statusCol)
+		}
+
+		fmt.Printf("%s %s %s %s %s\n",
+			ui.Bold(nameCol),
+			ui.Muted(versionCol),
+			statusCol,
+			enabledAtCol,
+			ui.Muted(activeSourceCol))
+	}
+}
+
 // printPluginListFooter displays the summary footer after plugin details
 func printPluginListFooter(stats PluginStatistics) {
+	printPluginListFooterFiltered(stats, stats.Total, stats.Total, "")
+}
+
+// printPluginListFooterFiltered displays the summary footer with filter info
+func printPluginListFooterFiltered(stats PluginStatistics, shown int, total int, filterLabel string) {
 	fmt.Println(ui.RenderSection("Summary", -1))
-	fmt.Printf("Total: %d plugins (%d cached, %d local)\n", stats.Total, stats.Cached, stats.Local)
+	if filterLabel != "" {
+		fmt.Printf("Showing: %d %s (of %d total)\n", shown, filterLabel, total)
+	} else {
+		fmt.Printf("Total: %d plugins (%d cached, %d local)\n", stats.Total, stats.Cached, stats.Local)
+	}
 	if stats.Stale > 0 {
 		ui.PrintWarning(fmt.Sprintf("%d stale plugins detected", stats.Stale))
 	}

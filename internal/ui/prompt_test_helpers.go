@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/claudeup/claudeup/internal/config"
+	"github.com/claudeup/claudeup/v2/internal/config"
 )
 
 // testYesFlagMutex ensures only one test modifies YesFlag at a time
