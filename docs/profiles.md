@@ -12,11 +12,16 @@ Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use
 ```bash
 claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
+claudeup profile current           # Show currently active profile
+claudeup profile status [name]     # Show differences from current Claude state
+claudeup profile diff <name>       # Compare customized built-in to original
 claudeup profile save [name]       # Save current setup as a profile
 claudeup profile create <name>     # Create a new profile with interactive wizard
 claudeup profile clone <name>      # Clone an existing profile
-claudeup profile apply <name>        # Apply a profile
+claudeup profile apply <name>      # Apply a profile
+claudeup profile sync              # Install plugins from .claudeup.json
 claudeup profile reset <name>      # Remove everything a profile installed
+claudeup profile clean <plugin>    # Remove orphaned plugin from config
 claudeup profile delete <name>     # Delete a custom user profile
 claudeup profile restore <name>    # Restore a built-in profile to original state
 claudeup profile rename <old> <new> # Rename a custom profile

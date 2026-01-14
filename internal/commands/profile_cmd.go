@@ -73,7 +73,7 @@ active at project scope in ~/claudeup/, you'll see:
   * claudeup    [project] (modified)  ← This is what Claude Code uses
   ○ base-tools  [user]                ← Overridden, not in effect
 
-Use 'claudeup profile status' (or 'profile diff') for detailed breakdown.`,
+Use 'claudeup profile status' to see how profiles differ from your current setup.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
@@ -192,10 +192,9 @@ var profileShowCmd = &cobra.Command{
 	RunE:  runProfileShow,
 }
 
-var profileDiffCmd = &cobra.Command{
-	Use:     "diff [name]",
-	Aliases: []string{"status"},
-	Short:   "Show differences between profile and current state by scope",
+var profileStatusCmd = &cobra.Command{
+	Use:   "status [name]",
+	Short: "Show differences between profile and current state by scope",
 	Long: `Display how a profile differs from current state, broken down by scope.
 
 Shows:
@@ -210,12 +209,28 @@ This helps distinguish between:
   - Scope layering (user/project/local scopes adding to the profile)`,
 	Example: `  # Show status for active profile
   claudeup profile status
-  claudeup profile diff
 
   # Show status for specific profile
-  claudeup profile status backend-stack
-  claudeup profile diff backend-stack`,
+  claudeup profile status backend-stack`,
 	Args: cobra.MaximumNArgs(1),
+	RunE: runProfileStatus,
+}
+
+var profileDiffCmd = &cobra.Command{
+	Use:   "diff <name>",
+	Short: "Compare customized built-in profile to its original",
+	Long: `Compare a customized built-in profile to its embedded original.
+
+This command shows what you've changed from the original built-in profile.
+Use this to see your customizations before restoring or sharing profiles.
+
+Only works with built-in profiles that have been customized (saved to disk).`,
+	Example: `  # Show changes made to the default profile
+  claudeup profile diff default
+
+  # Show changes made to the frontend profile
+  claudeup profile diff frontend`,
+	Args: cobra.ExactArgs(1),
 	RunE: runProfileDiff,
 }
 
@@ -491,6 +506,7 @@ func init() {
 	profileCmd.AddCommand(profileCreateCmd)
 	profileCmd.AddCommand(profileCloneCmd)
 	profileCmd.AddCommand(profileShowCmd)
+	profileCmd.AddCommand(profileStatusCmd)
 	profileCmd.AddCommand(profileDiffCmd)
 	profileCmd.AddCommand(profileSuggestCmd)
 	profileCmd.AddCommand(profileCurrentCmd)
@@ -1207,7 +1223,7 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func runProfileDiff(cmd *cobra.Command, args []string) error {
+func runProfileStatus(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
@@ -1501,6 +1517,129 @@ func showDiff(diff *profile.Diff) {
 			fmt.Printf("    %s %s%s\n", ui.Success("+"), ui.Muted("MCP: ")+m.Name, secretInfo)
 		}
 	}
+}
+
+func runProfileDiff(cmd *cobra.Command, args []string) error {
+	name := args[0]
+	profilesDir := getProfilesDir()
+
+	// Check if the profile is a built-in
+	if !profile.IsEmbeddedProfile(name) {
+		return fmt.Errorf("'%s' is not a built-in profile. Use 'profile diff' only with built-in profiles", name)
+	}
+
+	// Get the embedded original
+	embedded, err := profile.GetEmbeddedProfile(name)
+	if err != nil {
+		return fmt.Errorf("failed to load embedded profile: %w", err)
+	}
+
+	// Check if there's a customized version on disk
+	customizedPath := filepath.Join(profilesDir, name+".json")
+	if _, err := os.Stat(customizedPath); os.IsNotExist(err) {
+		// No customized version - no differences
+		fmt.Printf("Profile '%s' has not been customized.\n", name)
+		fmt.Println("No differences from the built-in version.")
+		return nil
+	}
+
+	// Load the customized version
+	customized, err := profile.Load(profilesDir, name)
+	if err != nil {
+		return fmt.Errorf("failed to load customized profile: %w", err)
+	}
+
+	// Compare using Profile.Equal()
+	if embedded.Equal(customized) {
+		fmt.Printf("Profile '%s' matches the built-in version.\n", name)
+		fmt.Println("No differences.")
+		return nil
+	}
+
+	// Show differences
+	fmt.Printf("Differences in '%s' from built-in:\n\n", name)
+
+	// Compare description
+	if embedded.Description != customized.Description {
+		fmt.Printf("  %s description: %q → %q\n",
+			ui.Warning("~"),
+			embedded.Description,
+			customized.Description)
+	}
+
+	// Compare plugins
+	embeddedPlugins := make(map[string]bool)
+	for _, p := range embedded.Plugins {
+		embeddedPlugins[p] = true
+	}
+	customizedPlugins := make(map[string]bool)
+	for _, p := range customized.Plugins {
+		customizedPlugins[p] = true
+	}
+
+	// Added plugins
+	for _, p := range customized.Plugins {
+		if !embeddedPlugins[p] {
+			fmt.Printf("  %s plugin: %s\n", ui.Success("+"), p)
+		}
+	}
+
+	// Removed plugins
+	for _, p := range embedded.Plugins {
+		if !customizedPlugins[p] {
+			fmt.Printf("  %s plugin: %s\n", ui.Error("-"), p)
+		}
+	}
+
+	// Compare marketplaces
+	embeddedMarkets := make(map[string]bool)
+	for _, m := range embedded.Marketplaces {
+		embeddedMarkets[m.DisplayName()] = true
+	}
+	customizedMarkets := make(map[string]bool)
+	for _, m := range customized.Marketplaces {
+		customizedMarkets[m.DisplayName()] = true
+	}
+
+	// Added marketplaces
+	for _, m := range customized.Marketplaces {
+		if !embeddedMarkets[m.DisplayName()] {
+			fmt.Printf("  %s marketplace: %s\n", ui.Success("+"), m.DisplayName())
+		}
+	}
+
+	// Removed marketplaces
+	for _, m := range embedded.Marketplaces {
+		if !customizedMarkets[m.DisplayName()] {
+			fmt.Printf("  %s marketplace: %s\n", ui.Error("-"), m.DisplayName())
+		}
+	}
+
+	// Compare MCP servers
+	embeddedMCP := make(map[string]bool)
+	for _, m := range embedded.MCPServers {
+		embeddedMCP[m.Name] = true
+	}
+	customizedMCP := make(map[string]bool)
+	for _, m := range customized.MCPServers {
+		customizedMCP[m.Name] = true
+	}
+
+	// Added MCP servers
+	for _, m := range customized.MCPServers {
+		if !embeddedMCP[m.Name] {
+			fmt.Printf("  %s MCP server: %s\n", ui.Success("+"), m.Name)
+		}
+	}
+
+	// Removed MCP servers
+	for _, m := range embedded.MCPServers {
+		if !customizedMCP[m.Name] {
+			fmt.Printf("  %s MCP server: %s\n", ui.Error("-"), m.Name)
+		}
+	}
+
+	return nil
 }
 
 func runProfileSuggest(cmd *cobra.Command, args []string) error {

@@ -27,10 +27,13 @@ Manage configuration profiles.
 claudeup profile list                        # List available profiles
 claudeup profile show <name>                 # Display profile contents
 claudeup profile current                     # Show active profile (with scope)
+claudeup profile status [name]               # Show differences from current Claude state
+claudeup profile diff <name>                 # Compare customized built-in to original
 claudeup profile save [name]                 # Save current setup as profile
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope)
+claudeup profile sync                        # Install plugins from .claudeup.json
 claudeup profile suggest                     # Suggest profile for current project
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
@@ -141,6 +144,51 @@ Example `.mcp.json` with secret reference:
 ```
 
 Team members set `GITHUB_TOKEN` in their environment before using Claude.
+
+#### Profile Status vs Diff
+
+Two commands for understanding profile differences:
+
+**`profile status [name]`** - Shows how a profile differs from your current Claude configuration:
+
+```bash
+# Show drift for active profile
+claudeup profile status
+
+# Show drift for specific profile
+claudeup profile status backend-stack
+```
+
+Use this to see:
+- Which plugins are missing from your configuration
+- Which plugins are extra (not in the profile)
+- Differences at each scope (user, project, local)
+- Actionable commands to fix drift
+
+**`profile diff <name>`** - Compares a customized built-in profile to its original:
+
+```bash
+# See what you changed in the default profile
+claudeup profile diff default
+
+# See customizations to the frontend profile
+claudeup profile diff frontend
+```
+
+Use this to see:
+- What plugins you added to a built-in profile
+- What plugins you removed from a built-in profile
+- Description changes
+- Only works with built-in profiles that have been customized
+
+**When to use each:**
+
+| Scenario | Command |
+|----------|---------|
+| "Does my Claude match my profile?" | `profile status` |
+| "What did I change from the original?" | `profile diff` |
+| "Why does `profile list` show (customized)?" | `profile diff` |
+| "How do I fix drift?" | `profile status` (shows fix commands) |
 
 ## Sandbox
 
