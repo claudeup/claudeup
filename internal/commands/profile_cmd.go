@@ -60,6 +60,14 @@ Multiple profiles can be active at different scopes, but only the highest
 precedence profile affects Claude Code's behavior. Lower precedence profiles
 are overridden.
 
+SCOPE FILTERING:
+  --scope user      Show only the profile active at user scope
+  --scope project   Show only the profile active at project scope
+  --scope local     Show only the profile active at local scope
+
+Note: --scope project and --scope local require the corresponding
+.claude/settings.json or .claude/settings.local.json file to exist.
+
 Example: If "base-tools" is active at user scope but "claudeup" is
 active at project scope in ~/claudeup/, you'll see:
   * claudeup    [project] (modified)  ← This is what Claude Code uses
@@ -320,6 +328,9 @@ var profileSyncDryRun bool
 // Flags for profile save command
 var profileSaveScope string
 
+// Flags for profile list command
+var profileListScope string
+
 // Flags for profile clean command
 var profileCleanScope string
 
@@ -511,11 +522,44 @@ func init() {
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
+
+	// Add flags to profile list command
+	profileListCmd.Flags().StringVar(&profileListScope, "scope", "", "Show only the profile active at specified scope: user, project, local")
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
+
+	// Validate scope value if provided
+	validScopes := map[string]bool{
+		"":        true,
+		"user":    true,
+		"project": true,
+		"local":   true,
+	}
+	if !validScopes[profileListScope] {
+		return fmt.Errorf("invalid scope %q: must be one of user, project, local", profileListScope)
+	}
+
+	// Check for scope-specific file requirements
+	projectSettingsPath := filepath.Join(cwd, ".claude", "settings.json")
+	localSettingsPath := filepath.Join(cwd, ".claude", "settings.local.json")
+
+	if profileListScope == "project" {
+		if _, err := os.Stat(projectSettingsPath); os.IsNotExist(err) {
+			ui.PrintWarning("No .claude/settings.json found in current directory.")
+			fmt.Printf("  %s Use --scope project inside a project with Claude settings.\n", ui.Muted(ui.SymbolArrow))
+			return nil
+		}
+	}
+	if profileListScope == "local" {
+		if _, err := os.Stat(localSettingsPath); os.IsNotExist(err) {
+			ui.PrintWarning("No .claude/settings.local.json found in current directory.")
+			fmt.Printf("  %s Use --scope local inside a project with local Claude settings.\n", ui.Muted(ui.SymbolArrow))
+			return nil
+		}
+	}
 
 	// Load all profiles from both user and project directories
 	allProfiles, err := profile.ListAll(profilesDir, cwd)
@@ -539,21 +583,57 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	// Get active profiles from all scopes (project, local, user)
 	allActiveProfiles := getAllActiveProfiles(cwd)
 
+	// Create maps for quick lookup
+	activeProfileNames := make(map[string]bool)
+	activeProfileByScope := make(map[string]string) // scope -> profile name
+	for _, ap := range allActiveProfiles {
+		activeProfileNames[ap.Name] = true
+		activeProfileByScope[ap.Scope] = ap.Name
+	}
+
 	// The highest precedence active profile (project > local > user)
 	activeProfile, _ := getActiveProfile(cwd)
 
-	// Check if we have any profiles to show
-	hasBuiltIn := false
-	for _, p := range embeddedProfiles {
-		if !profileOnDisk[p.Name] {
-			hasBuiltIn = true
-			break
+	// Filter helper function
+	shouldShowProfile := func(profileName string) bool {
+		switch profileListScope {
+		case "":
+			return true
+		case "user":
+			return activeProfileByScope["user"] == profileName
+		case "project":
+			return activeProfileByScope["project"] == profileName
+		case "local":
+			return activeProfileByScope["local"] == profileName
+		default:
+			return true
 		}
 	}
 
-	if len(allProfiles) == 0 && !hasBuiltIn {
-		ui.PrintInfo("No profiles found.")
-		fmt.Printf("  %s Create one with: claudeup profile save <name>\n", ui.Muted(ui.SymbolArrow))
+	// Filter embedded profiles
+	var filteredEmbedded []*profile.Profile
+	for _, p := range embeddedProfiles {
+		if shouldShowProfile(p.Name) {
+			filteredEmbedded = append(filteredEmbedded, p)
+		}
+	}
+
+	// Filter custom profiles (exclude those that shadow built-ins)
+	var customProfiles []*profile.ProfileWithSource
+	for _, p := range allProfiles {
+		if !profile.IsEmbeddedProfile(p.Name) && shouldShowProfile(p.Name) {
+			customProfiles = append(customProfiles, p)
+		}
+	}
+
+	// Check if we have any profiles to show after filtering
+	if len(filteredEmbedded) == 0 && len(customProfiles) == 0 {
+		if profileListScope != "" {
+			ui.PrintInfo(fmt.Sprintf("No profile is active at %s scope.", profileListScope))
+		} else {
+			ui.PrintInfo("No profiles found.")
+			fmt.Printf("  %s Create one with: claudeup profile save <name>\n", ui.Muted(ui.SymbolArrow))
+		}
 		return nil
 	}
 
@@ -570,13 +650,32 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return "  "
 	}
 
+	// Show scope info if filtering
+	if profileListScope != "" {
+		fmt.Printf("%s Showing profile active at: %s scope\n", ui.Muted(ui.SymbolArrow), ui.Bold(profileListScope))
+		fmt.Println()
+	}
+
 	// Show built-in profiles section
-	if len(embeddedProfiles) > 0 {
+	if len(filteredEmbedded) > 0 {
 		fmt.Println(ui.Bold("Built-in profiles"))
 		fmt.Println()
-		for _, p := range embeddedProfiles {
+		for _, p := range filteredEmbedded {
 			marker := getProfileMarker(p.Name)
 			desc := p.Description
+
+			// If shadowed on disk, use disk version's description and add indicator
+			if profileOnDisk[p.Name] {
+				// Find the disk version to get its description
+				for _, dp := range allProfiles {
+					if dp.Name == p.Name {
+						desc = dp.Description
+						break
+					}
+				}
+				desc += " " + ui.Muted("(customized)")
+			}
+
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
@@ -585,14 +684,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Show user profiles section (exclude profiles that shadow built-ins)
-	var customProfiles []*profile.ProfileWithSource
-	for _, p := range allProfiles {
-		if !profile.IsEmbeddedProfile(p.Name) {
-			customProfiles = append(customProfiles, p)
-		}
-	}
-
+	// Show user profiles section
 	if len(customProfiles) > 0 {
 		fmt.Println(ui.Bold("Your profiles"))
 		fmt.Println()
@@ -608,7 +700,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	}
 
 	// Warn if user has a profile named "current" (now reserved)
-	if profileOnDisk["current"] {
+	if profileOnDisk["current"] && profileListScope == "" {
 		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
 		fmt.Println("  claudeup profile rename current <new-name>")
 		fmt.Println()

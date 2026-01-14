@@ -3,6 +3,9 @@
 package acceptance
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/claudeup/claudeup/v2/internal/profile"
 	"github.com/claudeup/claudeup/v2/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
@@ -86,6 +89,13 @@ var _ = Describe("profile list", func() {
 				// and it's a customized built-in
 				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
 				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles"))
+			})
+
+			It("shows customized indicator for built-in profile in default view", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("(customized)"))
 			})
 		})
 
@@ -291,7 +301,129 @@ var _ = Describe("profile list", func() {
 			})
 		})
 	})
+
+	Describe("scope flag", func() {
+		BeforeEach(func() {
+			// Create some test profiles with distinct names that won't match as substrings
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-active-profile",
+				Description: "This profile will be active",
+			})
+			env.CreateProfile(&profile.Profile{
+				Name:        "other-profile",
+				Description: "This profile is not active",
+			})
+			// Set one profile as active at user scope
+			env.SetActiveProfile("my-active-profile")
+		})
+
+		Context("with --scope user", func() {
+			It("shows only the profile active at user scope", func() {
+				result := env.Run("profile", "list", "--scope", "user")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("my-active-profile"))
+				Expect(result.Stdout).NotTo(ContainSubstring("other-profile"))
+				Expect(result.Stdout).To(ContainSubstring("Showing profile active at:"))
+			})
+		})
+
+		Context("with --scope project", func() {
+			var projectDir string
+			BeforeEach(func() {
+				projectDir = env.ProjectDir("project-scope-test")
+				// Create project settings for "hobson"
+				// 1. profile list --scope project checks for .claude/settings.json as a pre-flight
+				settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+				helpers.WriteJSON(settingsPath, map[string]interface{}{
+					"profile": "hobson",
+				})
+				// 2. getAllActiveProfiles checks for .claudeup.json via profile.ProjectConfigExists
+				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
+					"version": "1",
+					"profile": "hobson",
+				})
+			})
+
+			It("shows only the profile active at project scope", func() {
+				result := env.RunInDir(projectDir, "profile", "list", "--scope", "project")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("hobson"))
+				Expect(result.Stdout).NotTo(ContainSubstring("my-active-profile"))
+				Expect(result.Stdout).To(ContainSubstring("Showing profile active at: project"))
+			})
+		})
+
+		Context("with invalid scope value", func() {
+			It("returns an error", func() {
+				result := env.Run("profile", "list", "--scope", "invalid-value")
+
+				Expect(result.ExitCode).NotTo(Equal(0))
+				Expect(result.Stderr).To(ContainSubstring("invalid scope"))
+			})
+		})
+
+		Context("when filtering by local scope without local settings file", func() {
+			It("shows a warning about missing file", func() {
+				// Test env runs in temp directory without .claude/settings.local.json
+				result := env.Run("profile", "list", "--scope", "local")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("No .claude/settings.local.json found"))
+			})
+		})
+
+		Context("with customized built-in profile at user scope", func() {
+			BeforeEach(func() {
+				// Shadow "frontend" built-in
+				env.CreateProfile(&profile.Profile{
+					Name:        "frontend",
+					Description: "Customized frontend description",
+				})
+				// Make it active at user scope
+				env.SetActiveProfile("frontend")
+			})
+
+			It("shows customized built-in only once with custom description and indicator", func() {
+				result := env.Run("profile", "list", "--scope", "user")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("frontend"))
+				Expect(result.Stdout).To(ContainSubstring("Customized frontend description"))
+				Expect(result.Stdout).To(ContainSubstring("(customized)"))
+
+				// Verify it's not duplicated in Your profiles (which it shouldn't be anyway)
+				// but more importantly ensure it's not shown twice due to filtering logic
+				lines := splitLines(result.Stdout)
+				count := 0
+				for _, line := range lines {
+					if strings.Contains(line, "frontend") {
+						count++
+					}
+				}
+				Expect(count).To(Equal(1), "frontend profile should appear only once in the output")
+			})
+		})
+	})
+
+	Describe("scope flag without active profile", func() {
+		// This describe uses a fresh TestEnv without any active profile set
+		var freshEnv *helpers.TestEnv
+
+		BeforeEach(func() {
+			freshEnv = helpers.NewTestEnv(binaryPath)
+		})
+
+		It("shows informative message when no profile is active at user scope", func() {
+			result := freshEnv.Run("profile", "list", "--scope", "user")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("No profile is active at user scope"))
+		})
+	})
 })
+
 
 var _ = Describe("profile delete", func() {
 	var env *helpers.TestEnv
@@ -482,25 +614,7 @@ var _ = Describe("profile restore", func() {
 
 // Helper functions for parsing output
 func splitLines(s string) []string {
-	var lines []string
-	for _, line := range []byte(s) {
-		if line == '\n' {
-			lines = append(lines, "")
-		}
-	}
-	// Simple split - just use the string directly for matching
-	result := make([]string, 0)
-	start := 0
-	for i, c := range s {
-		if c == '\n' {
-			result = append(result, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		result = append(result, s[start:])
-	}
-	return result
+	return strings.Split(s, "\n")
 }
 
 func findLineContaining(lines []string, substr string) int {
