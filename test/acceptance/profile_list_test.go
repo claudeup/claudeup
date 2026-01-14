@@ -3,6 +3,9 @@
 package acceptance
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/claudeup/claudeup/v2/internal/profile"
 	"github.com/claudeup/claudeup/v2/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
@@ -86,6 +89,13 @@ var _ = Describe("profile list", func() {
 				// and it's a customized built-in
 				Expect(result.Stdout).To(ContainSubstring("Built-in profiles"))
 				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles"))
+			})
+
+			It("shows customized indicator for built-in profile in default view", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("(customized)"))
 			})
 		})
 
@@ -396,6 +406,22 @@ var _ = Describe("profile list", func() {
 			})
 		})
 	})
+
+	Describe("scope flag without active profile", func() {
+		// This describe uses a fresh TestEnv without any active profile set
+		var freshEnv *helpers.TestEnv
+
+		BeforeEach(func() {
+			freshEnv = helpers.NewTestEnv(binaryPath)
+		})
+
+		It("shows informative message when no profile is active at user scope", func() {
+			result := freshEnv.Run("profile", "list", "--scope", "user")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("No profile is active at user scope"))
+		})
+	})
 })
 
 
@@ -588,25 +614,7 @@ var _ = Describe("profile restore", func() {
 
 // Helper functions for parsing output
 func splitLines(s string) []string {
-	var lines []string
-	for _, line := range []byte(s) {
-		if line == '\n' {
-			lines = append(lines, "")
-		}
-	}
-	// Simple split - just use the string directly for matching
-	result := make([]string, 0)
-	start := 0
-	for i, c := range s {
-		if c == '\n' {
-			result = append(result, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		result = append(result, s[start:])
-	}
-	return result
+	return strings.Split(s, "\n")
 }
 
 func findLineContaining(lines []string, substr string) int {
