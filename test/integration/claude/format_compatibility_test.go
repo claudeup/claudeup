@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/claude"
 )
 
 var _ = Describe("Claude CLI Format Compatibility", func() {

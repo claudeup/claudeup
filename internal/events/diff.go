@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/claudeup/claudeup/internal/ui"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 )
 
 // Diff symbols for change visualization

@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claudeup/claudeup/internal/config"
-	"github.com/claudeup/claudeup/internal/profile"
-	"github.com/claudeup/claudeup/internal/sandbox"
-	"github.com/claudeup/claudeup/internal/secrets"
-	"github.com/claudeup/claudeup/internal/ui"
+	"github.com/claudeup/claudeup/v2/internal/config"
+	"github.com/claudeup/claudeup/v2/internal/profile"
+	"github.com/claudeup/claudeup/v2/internal/sandbox"
+	"github.com/claudeup/claudeup/v2/internal/secrets"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 	"github.com/spf13/cobra"
 )
 

@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/internal/events"
+	"github.com/claudeup/claudeup/v2/internal/events"
 )
 
 // Settings represents the Claude Code settings.json file structure

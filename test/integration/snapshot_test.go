@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/internal/profile"
+	"github.com/claudeup/claudeup/v2/internal/profile"
 )
 
 // Test environment helpers

@@ -7,8 +7,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/claudeup/claudeup/internal/claude"
-	"github.com/claudeup/claudeup/internal/ui"
+	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 )
 
 // ConcurrentApplyOptions configures concurrent apply behavior

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/claudeup/claudeup/internal/claude"
+	"github.com/claudeup/claudeup/v2/internal/claude"
 )
 
 // ProfileDiff represents differences between a saved profile and current state
