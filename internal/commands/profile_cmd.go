@@ -664,16 +664,19 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			marker := getProfileMarker(p.Name)
 			desc := p.Description
 
-			// If shadowed on disk, use disk version's description and add indicator
+			// If shadowed on disk, check if content actually differs
 			if profileOnDisk[p.Name] {
-				// Find the disk version to get its description
+				// Find the disk version
 				for _, dp := range allProfiles {
 					if dp.Name == p.Name {
 						desc = dp.Description
+						// Only show (customized) if content actually differs
+						if !p.Equal(dp.Profile) {
+							desc += " " + ui.Muted("(customized)")
+						}
 						break
 					}
 				}
-				desc += " " + ui.Muted("(customized)")
 			}
 
 			if desc == "" {

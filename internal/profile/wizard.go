@@ -81,11 +81,12 @@ func loadKnownMarketplaces() ([]Marketplace, error) {
 
 // GetAvailableMarketplaces returns all available marketplaces for selection
 // Loads from ~/.claude/plugins/known_marketplaces.json, falling back to embedded profiles
+// Filters out invalid entries where both repo and url are empty
 func GetAvailableMarketplaces() []Marketplace {
 	// Try to load from known_marketplaces.json
 	marketplaces, err := loadKnownMarketplaces()
 	if err == nil && len(marketplaces) > 0 {
-		return marketplaces
+		return filterValidMarketplaces(marketplaces)
 	}
 
 	// Fallback to marketplaces from embedded profiles
@@ -107,6 +108,18 @@ func GetAvailableMarketplaces() []Marketplace {
 		}
 	}
 
+	return filterValidMarketplaces(result)
+}
+
+// filterValidMarketplaces removes marketplaces with empty display names.
+// This handles malformed entries where both repo and url are empty.
+func filterValidMarketplaces(marketplaces []Marketplace) []Marketplace {
+	result := make([]Marketplace, 0, len(marketplaces))
+	for _, m := range marketplaces {
+		if m.DisplayName() != "" {
+			result = append(result, m)
+		}
+	}
 	return result
 }
 

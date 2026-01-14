@@ -346,6 +346,168 @@ func (p *Profile) Clone(newName string) *Profile {
 	return clone
 }
 
+// Equal compares two profiles for semantic equality, ignoring the Name field.
+// Name is treated as an identifier, not content - two profiles with different names
+// but identical content are considered equal.
+// Nil and empty slices are treated as equivalent.
+func (p *Profile) Equal(other *Profile) bool {
+	if other == nil {
+		return false
+	}
+
+	// Compare description
+	if p.Description != other.Description {
+		return false
+	}
+
+	// Compare SkipPluginDiff
+	if p.SkipPluginDiff != other.SkipPluginDiff {
+		return false
+	}
+
+	// Compare slices (nil and empty are equivalent)
+	if !strSlicesEqual(p.Plugins, other.Plugins) {
+		return false
+	}
+
+	if !marketplaceSlicesEqual(p.Marketplaces, other.Marketplaces) {
+		return false
+	}
+
+	if !mcpServerSlicesEqual(p.MCPServers, other.MCPServers) {
+		return false
+	}
+
+	// Compare DetectRules
+	if !detectRulesStructEqual(p.Detect, other.Detect) {
+		return false
+	}
+
+	// Compare SandboxConfig
+	if !sandboxConfigStructEqual(p.Sandbox, other.Sandbox) {
+		return false
+	}
+
+	// Compare PostApplyHook
+	if !postApplyHookPtrEqual(p.PostApply, other.PostApply) {
+		return false
+	}
+
+	return true
+}
+
+// strSlicesEqual compares two string slices, treating nil and empty as equal
+func strSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// marketplaceSlicesEqual compares two marketplace slices
+func marketplaceSlicesEqual(a, b []Marketplace) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Source != b[i].Source || a[i].Repo != b[i].Repo || a[i].URL != b[i].URL {
+			return false
+		}
+	}
+	return true
+}
+
+// mcpServerSlicesEqual compares two MCP server slices using the existing mcpServersEqual helper
+func mcpServerSlicesEqual(a, b []MCPServer) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		// Also compare Name which mcpServersEqual doesn't check
+		if a[i].Name != b[i].Name {
+			return false
+		}
+		if !mcpServersEqual(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// detectRulesStructEqual compares two DetectRules structs
+func detectRulesStructEqual(a, b DetectRules) bool {
+	if !strSlicesEqual(a.Files, b.Files) {
+		return false
+	}
+	if !strMapsEqual(a.Contains, b.Contains) {
+		return false
+	}
+	return true
+}
+
+// sandboxConfigStructEqual compares two SandboxConfig structs
+func sandboxConfigStructEqual(a, b SandboxConfig) bool {
+	if !strSlicesEqual(a.Credentials, b.Credentials) {
+		return false
+	}
+	if !strSlicesEqual(a.Secrets, b.Secrets) {
+		return false
+	}
+	if !sandboxMountSlicesEqual(a.Mounts, b.Mounts) {
+		return false
+	}
+	if !strMapsEqual(a.Env, b.Env) {
+		return false
+	}
+	return true
+}
+
+// sandboxMountSlicesEqual compares two SandboxMount slices
+func sandboxMountSlicesEqual(a, b []SandboxMount) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].Host != b[i].Host ||
+			a[i].Container != b[i].Container ||
+			a[i].ReadOnly != b[i].ReadOnly {
+			return false
+		}
+	}
+	return true
+}
+
+// strMapsEqual compares two string maps
+func strMapsEqual(a, b map[string]string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, v := range a {
+		if other, ok := b[k]; !ok || v != other {
+			return false
+		}
+	}
+	return true
+}
+
+// postApplyHookPtrEqual compares two PostApplyHook pointers
+func postApplyHookPtrEqual(a, b *PostApplyHook) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return a.Script == b.Script &&
+		a.Command == b.Command &&
+		a.Condition == b.Condition
+}
+
 // GenerateDescription creates a human-readable description of the profile contents
 func (p *Profile) GenerateDescription() string {
 	var parts []string

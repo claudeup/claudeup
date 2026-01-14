@@ -603,3 +603,273 @@ func TestListAll_OnlyProjectProfiles(t *testing.T) {
 		t.Errorf("Expected source 'project', got %q", all[0].Source)
 	}
 }
+
+func TestProfile_Equal_IdenticalProfiles(t *testing.T) {
+	p1 := &Profile{
+		Name:        "test",
+		Description: "Test profile",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "anthropics/claude-code"},
+		},
+		Plugins: []string{"plugin1@marketplace", "plugin2@marketplace"},
+	}
+	p2 := &Profile{
+		Name:        "test",
+		Description: "Test profile",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "anthropics/claude-code"},
+		},
+		Plugins: []string{"plugin1@marketplace", "plugin2@marketplace"},
+	}
+
+	if !p1.Equal(p2) {
+		t.Error("Identical profiles should be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentDescription(t *testing.T) {
+	p1 := &Profile{
+		Name:        "test",
+		Description: "Test profile v1",
+	}
+	p2 := &Profile{
+		Name:        "test",
+		Description: "Test profile v2",
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different descriptions should not be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentPlugins(t *testing.T) {
+	p1 := &Profile{
+		Name:    "test",
+		Plugins: []string{"plugin1@marketplace"},
+	}
+	p2 := &Profile{
+		Name:    "test",
+		Plugins: []string{"plugin2@marketplace"},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different plugins should not be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentPluginOrder(t *testing.T) {
+	// Order should matter for plugins (it affects behavior)
+	p1 := &Profile{
+		Name:    "test",
+		Plugins: []string{"plugin1@marketplace", "plugin2@marketplace"},
+	}
+	p2 := &Profile{
+		Name:    "test",
+		Plugins: []string{"plugin2@marketplace", "plugin1@marketplace"},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different plugin order should not be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentMarketplaces(t *testing.T) {
+	p1 := &Profile{
+		Name:         "test",
+		Marketplaces: []Marketplace{{Source: "github", Repo: "org1/repo"}},
+	}
+	p2 := &Profile{
+		Name:         "test",
+		Marketplaces: []Marketplace{{Source: "github", Repo: "org2/repo"}},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different marketplaces should not be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentMCPServers(t *testing.T) {
+	p1 := &Profile{
+		Name:       "test",
+		MCPServers: []MCPServer{{Name: "server1", Command: "cmd1"}},
+	}
+	p2 := &Profile{
+		Name:       "test",
+		MCPServers: []MCPServer{{Name: "server2", Command: "cmd2"}},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different MCP servers should not be equal")
+	}
+}
+
+func TestProfile_Equal_EmptyVsNilSlices(t *testing.T) {
+	// Empty and nil slices should be considered equal
+	p1 := &Profile{
+		Name:         "test",
+		Plugins:      nil,
+		Marketplaces: nil,
+		MCPServers:   nil,
+	}
+	p2 := &Profile{
+		Name:         "test",
+		Plugins:      []string{},
+		Marketplaces: []Marketplace{},
+		MCPServers:   []MCPServer{},
+	}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with nil vs empty slices should be equal")
+	}
+}
+
+func TestProfile_Equal_IgnoresName(t *testing.T) {
+	// Names are identifiers, not content - two profiles with different names
+	// but same content should be considered equal for content comparison
+	p1 := &Profile{
+		Name:        "profile-a",
+		Description: "Same content",
+		Plugins:     []string{"plugin1@marketplace"},
+	}
+	p2 := &Profile{
+		Name:        "profile-b",
+		Description: "Same content",
+		Plugins:     []string{"plugin1@marketplace"},
+	}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with same content but different names should be equal (name is identity, not content)")
+	}
+}
+
+func TestProfile_Equal_DifferentDetectRules(t *testing.T) {
+	p1 := &Profile{
+		Name:   "test",
+		Detect: DetectRules{Files: []string{"package.json"}},
+	}
+	p2 := &Profile{
+		Name:   "test",
+		Detect: DetectRules{Files: []string{"Cargo.toml"}},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different detect rules should not be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentSandboxConfig(t *testing.T) {
+	p1 := &Profile{
+		Name:    "test",
+		Sandbox: SandboxConfig{Credentials: []string{"git", "ssh"}},
+	}
+	p2 := &Profile{
+		Name:    "test",
+		Sandbox: SandboxConfig{Credentials: []string{"git"}},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different sandbox configs should not be equal")
+	}
+}
+
+func TestProfile_Equal_DifferentMarketplaceOrder(t *testing.T) {
+	// Order should matter for marketplaces (it affects plugin resolution)
+	p1 := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "org1/repo"},
+			{Source: "github", Repo: "org2/repo"},
+		},
+	}
+	p2 := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "org2/repo"},
+			{Source: "github", Repo: "org1/repo"},
+		},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different marketplace order should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_BothNil(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: nil}
+	p2 := &Profile{Name: "test", PostApply: nil}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with both nil PostApply hooks should be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_OneNil(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: nil}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo test"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with one nil PostApply hook should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_DifferentScript(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{Script: "setup.sh"}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Script: "init.sh"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different PostApply scripts should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_DifferentCommand(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo hello"}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo world"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different PostApply commands should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_DifferentCondition(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo", Condition: "always"}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo", Condition: "first-run"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different PostApply conditions should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_Identical(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{
+		Script:    "setup.sh",
+		Command:   "echo fallback",
+		Condition: "first-run",
+	}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{
+		Script:    "setup.sh",
+		Command:   "echo fallback",
+		Condition: "first-run",
+	}}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with identical PostApply hooks should be equal")
+	}
+}
+
+func TestProfile_Equal_NilVsEmptyMaps(t *testing.T) {
+	// Nil and empty maps should be considered equal (consistent with slice behavior)
+	p1 := &Profile{
+		Name:    "test",
+		Sandbox: SandboxConfig{Env: nil},
+		Detect:  DetectRules{Contains: nil},
+	}
+	p2 := &Profile{
+		Name:    "test",
+		Sandbox: SandboxConfig{Env: map[string]string{}},
+		Detect:  DetectRules{Contains: map[string]string{}},
+	}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with nil vs empty maps should be equal")
+	}
+}
