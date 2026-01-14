@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for profile diff command drift guidance
-// ABOUTME: Ensures profile diff provides actionable commands for fixing drift
+// ABOUTME: Acceptance tests for profile status command drift guidance
+// ABOUTME: Ensures profile status provides actionable commands for fixing drift
 package acceptance
 
 import (
@@ -78,7 +78,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 		})
 
 		It("should show drift and suggest removing extra plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "diff")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show the extra plugin
@@ -127,7 +127,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 		})
 
 		It("should show drift and suggest installing missing plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "diff")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show the missing plugin
@@ -176,7 +176,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 		})
 
 		It("should suggest reset to fix both types of drift", func() {
-			result := env.RunInDir(projectDir, "profile", "diff")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show both types of drift
@@ -215,7 +215,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 		})
 
 		It("should suggest profile apply (not sync) for user scope", func() {
-			result := env.RunInDir(projectDir, "profile", "diff")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show the missing plugin
@@ -263,7 +263,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 		})
 
 		It("should not show any drift guidance", func() {
-			result := env.RunInDir(projectDir, "profile", "diff")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show match
