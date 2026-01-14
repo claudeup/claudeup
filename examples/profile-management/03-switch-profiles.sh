@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ABOUTME: Example showing how to switch between profiles
-# ABOUTME: Demonstrates profile apply and diff commands
+# ABOUTME: Demonstrates profile apply and status commands
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
@@ -24,17 +24,17 @@ step "See what profiles you can switch to"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 pause
 
-section "2. Preview Changes with Diff"
+section "2. Preview Changes with Status"
 
 step "See what would change before switching"
-info "The diff command shows differences between a profile and current state"
+info "The status command shows differences between a profile and current state"
 echo
 
-# Try to show diff, handle gracefully if no profiles
+# Try to show status, handle gracefully if no profiles
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile diff default || info "No differences or profile not found"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile status default || info "No differences or profile not found"
 else
-    info "Example diff output would show:"
+    info "Example status output would show:"
     info "  + plugins being added"
     info "  - plugins being removed"
     info "  ~ settings being changed"
@@ -68,7 +68,7 @@ section "Summary"
 success "You can switch profiles confidently"
 echo
 info "Tips:"
-info "  • Use 'profile diff' to preview before switching"
+info "  • Use 'profile status' to preview before switching"
 info "  • Use '--scope project' for project-specific profiles"
 info "  • Use 'profile reset' to remove all profile components"
 echo
