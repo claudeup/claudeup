@@ -47,7 +47,7 @@ jobs:
           DISPATCH_FAIL_FAST: ${{ github.event.inputs.fail_fast }}
           COMMENT_BODY: ${{ github.event.comment.body }}
           COMMENT_AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
-          IS_PR: ${{ github.event.issue.pull_request }}
+          IS_PR: ${{ github.event.issue.pull_request != '' }}
           PR_NUM: ${{ github.event.issue.number }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
