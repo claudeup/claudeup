@@ -27,6 +27,19 @@ type MarketplaceSource struct {
 	URL    string `json:"url,omitempty"`
 }
 
+// MarketplaceIndex represents the .claude-plugin/marketplace.json file
+type MarketplaceIndex struct {
+	Name    string                  `json:"name"`
+	Plugins []MarketplacePluginInfo `json:"plugins"`
+}
+
+// MarketplacePluginInfo represents a plugin entry in the marketplace index
+type MarketplacePluginInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version,omitempty"`
+}
+
 // LoadMarketplaces reads and parses the known_marketplaces.json file
 func LoadMarketplaces(claudeDir string) (MarketplaceRegistry, error) {
 	// Check if plugins directory exists
