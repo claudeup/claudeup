@@ -771,3 +771,105 @@ func TestProfile_Equal_DifferentSandboxConfig(t *testing.T) {
 		t.Error("Profiles with different sandbox configs should not be equal")
 	}
 }
+
+func TestProfile_Equal_DifferentMarketplaceOrder(t *testing.T) {
+	// Order should matter for marketplaces (it affects plugin resolution)
+	p1 := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "org1/repo"},
+			{Source: "github", Repo: "org2/repo"},
+		},
+	}
+	p2 := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "org2/repo"},
+			{Source: "github", Repo: "org1/repo"},
+		},
+	}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different marketplace order should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_BothNil(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: nil}
+	p2 := &Profile{Name: "test", PostApply: nil}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with both nil PostApply hooks should be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_OneNil(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: nil}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo test"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with one nil PostApply hook should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_DifferentScript(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{Script: "setup.sh"}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Script: "init.sh"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different PostApply scripts should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_DifferentCommand(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo hello"}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo world"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different PostApply commands should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_DifferentCondition(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo", Condition: "always"}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{Command: "echo", Condition: "first-run"}}
+
+	if p1.Equal(p2) {
+		t.Error("Profiles with different PostApply conditions should not be equal")
+	}
+}
+
+func TestProfile_Equal_PostApplyHook_Identical(t *testing.T) {
+	p1 := &Profile{Name: "test", PostApply: &PostApplyHook{
+		Script:    "setup.sh",
+		Command:   "echo fallback",
+		Condition: "first-run",
+	}}
+	p2 := &Profile{Name: "test", PostApply: &PostApplyHook{
+		Script:    "setup.sh",
+		Command:   "echo fallback",
+		Condition: "first-run",
+	}}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with identical PostApply hooks should be equal")
+	}
+}
+
+func TestProfile_Equal_NilVsEmptyMaps(t *testing.T) {
+	// Nil and empty maps should be considered equal (consistent with slice behavior)
+	p1 := &Profile{
+		Name:    "test",
+		Sandbox: SandboxConfig{Env: nil},
+		Detect:  DetectRules{Contains: nil},
+	}
+	p2 := &Profile{
+		Name:    "test",
+		Sandbox: SandboxConfig{Env: map[string]string{}},
+		Detect:  DetectRules{Contains: map[string]string{}},
+	}
+
+	if !p1.Equal(p2) {
+		t.Error("Profiles with nil vs empty maps should be equal")
+	}
+}
