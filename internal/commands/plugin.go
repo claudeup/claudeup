@@ -25,6 +25,7 @@ var (
 	pluginListFormat     string
 	pluginListByScope    bool
 	pluginBrowseFormat   string
+	pluginBrowseShow     string
 )
 
 var pluginCmd = &cobra.Command{
@@ -79,12 +80,25 @@ Accepts marketplace name, repo (user/repo), or URL as identifier.`,
 	RunE: runPluginBrowse,
 }
 
+var pluginShowCmd = &cobra.Command{
+	Use:   "show <plugin>@<marketplace>",
+	Short: "Show plugin contents",
+	Long: `Display the directory structure of a plugin in a marketplace.
+
+Shows agents, commands, skills, and other files contained in the plugin.`,
+	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
+  claudeup plugin show my-plugin@acme-marketplace`,
+	Args: cobra.ExactArgs(1),
+	RunE: runPluginShow,
+}
+
 func init() {
 	rootCmd.AddCommand(pluginCmd)
 	pluginCmd.AddCommand(pluginListCmd)
 	pluginCmd.AddCommand(pluginDisableCmd)
 	pluginCmd.AddCommand(pluginEnableCmd)
 	pluginCmd.AddCommand(pluginBrowseCmd)
+	pluginCmd.AddCommand(pluginShowCmd)
 
 	pluginListCmd.Flags().BoolVar(&pluginListSummary, "summary", false, "Show only summary statistics")
 	pluginListCmd.Flags().BoolVar(&pluginFilterEnabled, "enabled", false, "Show only enabled plugins")
@@ -92,6 +106,7 @@ func init() {
 	pluginListCmd.Flags().StringVar(&pluginListFormat, "format", "", "Output format (table)")
 	pluginListCmd.Flags().BoolVar(&pluginListByScope, "by-scope", false, "Group enabled plugins by scope")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseFormat, "format", "", "Output format (table)")
+	pluginBrowseCmd.Flags().StringVar(&pluginBrowseShow, "show", "", "Show contents of a specific plugin")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
@@ -497,4 +512,82 @@ func printBrowseJSON(plugins []claude.MarketplacePluginInfo, indexName, marketpl
 
 	data, _ := json.MarshalIndent(output, "", "  ")
 	fmt.Println(string(data))
+}
+
+func runPluginShow(cmd *cobra.Command, args []string) error {
+	identifier := args[0]
+
+	// Parse plugin@marketplace
+	parts := strings.SplitN(identifier, "@", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fmt.Errorf("invalid format: expected <plugin>@<marketplace>\n\nExample: claudeup plugin show my-plugin@my-marketplace")
+	}
+
+	pluginName := parts[0]
+	marketplaceID := parts[1]
+
+	return showPluginTree(pluginName, marketplaceID)
+}
+
+func showPluginTree(pluginName, marketplaceID string) error {
+	// Find the marketplace
+	meta, marketplaceName, err := claude.FindMarketplace(claudeDir, marketplaceID)
+	if err != nil {
+		return fmt.Errorf("marketplace %q not found\n\nRun 'claude marketplace add %s' first", marketplaceID, marketplaceID)
+	}
+
+	// Load marketplace index to get version
+	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
+	if err != nil {
+		return fmt.Errorf("failed to load marketplace index: %w", err)
+	}
+
+	// Find plugin version
+	var version string
+	for _, p := range index.Plugins {
+		if p.Name == pluginName {
+			version = p.Version
+			break
+		}
+	}
+
+	// Construct plugin path
+	pluginPath := filepath.Join(meta.InstallLocation, "plugins", pluginName)
+
+	// Check plugin exists
+	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
+		return fmt.Errorf("plugin %q not found in marketplace %q\n\nRun 'claudeup plugin browse %s' to see available plugins", pluginName, marketplaceName, marketplaceName)
+	}
+
+	// Generate tree
+	tree, dirs, files := generateTree(pluginPath)
+
+	// Print header
+	fullName := pluginName + "@" + marketplaceName
+	if version != "" {
+		fmt.Printf("%s (v%s)\n\n", ui.Bold(fullName), version)
+	} else {
+		fmt.Printf("%s\n\n", ui.Bold(fullName))
+	}
+
+	// Print tree
+	if tree == "" {
+		fmt.Println("(empty)")
+	} else {
+		fmt.Print(tree)
+	}
+
+	// Print summary
+	fmt.Println()
+	dirWord := "directories"
+	if dirs == 1 {
+		dirWord = "directory"
+	}
+	fileWord := "files"
+	if files == 1 {
+		fileWord = "file"
+	}
+	fmt.Printf("%d %s, %d %s\n", dirs, dirWord, files, fileWord)
+
+	return nil
 }
