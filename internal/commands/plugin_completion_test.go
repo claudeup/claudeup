@@ -71,14 +71,14 @@ func TestPluginShowCompletion_WithMarketplace(t *testing.T) {
 		}
 	}`), 0644)
 
-	// Test completion with marketplace@ prefix
-	completions, directive := pluginShowCompletionFunc(nil, []string{}, "test-market@")
+	// Test completion with @marketplace suffix (filters to specific marketplace)
+	completions, directive := pluginShowCompletionFunc(nil, []string{}, "@test-market")
 
 	if directive != cobra.ShellCompDirectiveNoFileComp {
 		t.Errorf("expected NoFileComp directive, got %v", directive)
 	}
 
-	// Should suggest plugin@marketplace combinations
+	// Should suggest plugin@marketplace combinations from test-market
 	foundA := false
 	foundB := false
 	for _, c := range completions {

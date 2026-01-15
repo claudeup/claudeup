@@ -635,6 +635,7 @@ func showPluginTree(pluginName, marketplaceID string) error {
 }
 
 // pluginShowCompletionFunc provides tab completion for plugin show command
+// Format: <plugin>@<marketplace>
 func pluginShowCompletionFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -648,32 +649,41 @@ func pluginShowCompletionFunc(cmd *cobra.Command, args []string, toComplete stri
 
 	var completions []string
 
-	// Check if user has typed a marketplace@ prefix
+	// Check if user has typed plugin@marketplace pattern
 	if strings.Contains(toComplete, "@") {
-		// User selected a marketplace, now complete with plugins
+		// Format: <plugin-prefix>@<marketplace-prefix>
 		parts := strings.SplitN(toComplete, "@", 2)
-		marketplaceName := parts[0]
+		pluginPrefix := parts[0]
+		marketplacePrefix := parts[1]
 
-		// Find the marketplace
-		meta, ok := registry[marketplaceName]
-		if !ok {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
+		// Search all marketplaces for matching plugins
+		for marketplaceName, meta := range registry {
+			// Filter by marketplace prefix (after @)
+			if marketplacePrefix != "" && !strings.HasPrefix(marketplaceName, marketplacePrefix) {
+				continue
+			}
 
-		// List plugins in marketplace
-		pluginsDir := filepath.Join(meta.InstallLocation, "plugins")
-		entries, err := os.ReadDir(pluginsDir)
-		if err != nil {
-			return nil, cobra.ShellCompDirectiveNoFileComp
-		}
+			// List plugins from this marketplace
+			pluginsDir := filepath.Join(meta.InstallLocation, "plugins")
+			entries, err := os.ReadDir(pluginsDir)
+			if err != nil {
+				continue
+			}
 
-		for _, entry := range entries {
-			if entry.IsDir() {
-				completions = append(completions, entry.Name()+"@"+marketplaceName)
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				pluginName := entry.Name()
+				// Filter by plugin prefix (before @)
+				if pluginPrefix != "" && !strings.HasPrefix(pluginName, pluginPrefix) {
+					continue
+				}
+				completions = append(completions, pluginName+"@"+marketplaceName)
 			}
 		}
 	} else {
-		// No @ yet, suggest marketplace names
+		// No @ yet, suggest marketplace names (helps user discover marketplaces)
 		for name := range registry {
 			completions = append(completions, name)
 		}

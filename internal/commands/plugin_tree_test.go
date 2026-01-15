@@ -26,11 +26,13 @@ func TestGenerateTree(t *testing.T) {
 	if tree == "" {
 		t.Error("expected non-empty tree output")
 	}
-	if dirs < 3 {
-		t.Errorf("expected at least 3 directories, got %d", dirs)
+	// 4 directories: agents/, skills/, skills/foo/, commands/
+	if dirs != 4 {
+		t.Errorf("expected 4 directories, got %d", dirs)
 	}
-	if files < 2 {
-		t.Errorf("expected at least 2 files, got %d", files)
+	// 2 files: agents/test.md, skills/foo/SKILL.md
+	if files != 2 {
+		t.Errorf("expected 2 files, got %d", files)
 	}
 }
 
