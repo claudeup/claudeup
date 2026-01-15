@@ -146,7 +146,8 @@ var _ = Describe("plugin browse", func() {
 			result := env.Run("plugin", "browse", "acme-marketplace")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("installed"))
+			// Default format uses ✓ symbol for installed
+			Expect(result.Stdout).To(ContainSubstring("✓"))
 		})
 	})
 

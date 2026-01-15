@@ -356,23 +356,41 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 }
 
 func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marketplaceName string, installed *claude.PluginRegistry) {
-	fmt.Printf("Available in %s (%d plugins)\n\n", indexName, len(plugins))
+	fmt.Println(ui.RenderSection("Available in "+indexName, len(plugins)))
+	fmt.Println()
+
+	// Calculate max name width for alignment
+	nameWidth := 20
+	for _, p := range plugins {
+		if len(p.Name) > nameWidth {
+			nameWidth = len(p.Name)
+		}
+	}
+	nameWidth += 2
 
 	for _, p := range plugins {
 		// Check if installed
 		fullName := p.Name + "@" + marketplaceName
-		status := ""
+		var status string
 		if installed != nil && installed.PluginExists(fullName) {
-			status = "  [installed]"
+			status = ui.Success(ui.SymbolSuccess)
 		}
 
 		// Truncate description if needed
 		desc := p.Description
-		if len(desc) > 80 {
-			desc = desc[:77] + "..."
+		if len(desc) > 60 {
+			desc = desc[:57] + "..."
 		}
 
-		fmt.Printf("  %-30s %-82s %s%s\n", p.Name, desc, p.Version, status)
+		// Format with styling
+		nameFmt := fmt.Sprintf("%%-%ds", nameWidth)
+		nameCol := fmt.Sprintf(nameFmt, p.Name)
+
+		fmt.Printf("%s %s  %s  %s\n",
+			ui.Bold(nameCol),
+			ui.Muted(desc),
+			ui.Muted(p.Version),
+			status)
 	}
 }
 
