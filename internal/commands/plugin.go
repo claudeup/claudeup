@@ -88,8 +88,9 @@ var pluginShowCmd = &cobra.Command{
 Shows agents, commands, skills, and other files contained in the plugin.`,
 	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
   claudeup plugin show my-plugin@acme-marketplace`,
-	Args: cobra.ExactArgs(1),
-	RunE: runPluginShow,
+	Args:              cobra.ExactArgs(1),
+	RunE:              runPluginShow,
+	ValidArgsFunction: pluginShowCompletionFunc,
 }
 
 func init() {
@@ -595,4 +596,52 @@ func showPluginTree(pluginName, marketplaceID string) error {
 	fmt.Printf("%d %s, %d %s\n", dirs, dirWord, files, fileWord)
 
 	return nil
+}
+
+// pluginShowCompletionFunc provides tab completion for plugin show command
+func pluginShowCompletionFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	// Load marketplaces
+	registry, err := claude.LoadMarketplaces(claudeDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	var completions []string
+
+	// Check if user has typed a marketplace@ prefix
+	if strings.Contains(toComplete, "@") {
+		// User selected a marketplace, now complete with plugins
+		parts := strings.SplitN(toComplete, "@", 2)
+		marketplaceName := parts[0]
+
+		// Find the marketplace
+		meta, ok := registry[marketplaceName]
+		if !ok {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		// List plugins in marketplace
+		pluginsDir := filepath.Join(meta.InstallLocation, "plugins")
+		entries, err := os.ReadDir(pluginsDir)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveNoFileComp
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() {
+				completions = append(completions, entry.Name()+"@"+marketplaceName)
+			}
+		}
+	} else {
+		// No @ yet, suggest marketplace names
+		for name := range registry {
+			completions = append(completions, name)
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
