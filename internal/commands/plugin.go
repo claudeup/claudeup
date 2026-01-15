@@ -539,30 +539,66 @@ func showPluginTree(pluginName, marketplaceID string) error {
 	// Find the marketplace
 	meta, marketplaceName, err := claude.FindMarketplace(claudeDir, marketplaceID)
 	if err != nil {
-		return fmt.Errorf("marketplace %q not found\n\nRun 'claude marketplace add %s' first", marketplaceID, marketplaceID)
+		return fmt.Errorf("marketplace %q not found\n\nRun 'claudeup marketplace add %s' first", marketplaceID, marketplaceID)
 	}
 
-	// Load marketplace index to get version
+	// Load marketplace index to check if plugin exists in marketplace
 	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
 	if err != nil {
 		return fmt.Errorf("failed to load marketplace index: %w", err)
 	}
 
-	// Find plugin version
-	var version string
+	// Find plugin in index
+	var indexVersion string
+	var pluginFound bool
 	for _, p := range index.Plugins {
 		if p.Name == pluginName {
-			version = p.Version
+			indexVersion = p.Version
+			pluginFound = true
 			break
 		}
 	}
 
-	// Construct plugin path
-	pluginPath := filepath.Join(meta.InstallLocation, "plugins", pluginName)
-
-	// Check plugin exists
-	if _, err := os.Stat(pluginPath); os.IsNotExist(err) {
+	if !pluginFound {
 		return fmt.Errorf("plugin %q not found in marketplace %q\n\nRun 'claudeup plugin browse %s' to see available plugins", pluginName, marketplaceName, marketplaceName)
+	}
+
+	// Check for plugin in two possible locations:
+	// 1. Bundled in marketplace: <installLocation>/plugins/<plugin>/
+	// 2. External (in cache): ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+	var pluginPath string
+	var installedVersion string
+
+	// Try bundled location first (monorepo marketplaces)
+	bundledPath := filepath.Join(meta.InstallLocation, "plugins", pluginName)
+	if info, err := os.Stat(bundledPath); err == nil && info.IsDir() {
+		pluginPath = bundledPath
+		installedVersion = indexVersion
+	}
+
+	// Try cache location (external source marketplaces)
+	if pluginPath == "" {
+		cacheDir := filepath.Join(claudeDir, "plugins", "cache", marketplaceName, pluginName)
+		if entries, err := os.ReadDir(cacheDir); err == nil && len(entries) > 0 {
+			// Use first version directory found (typically there's only one)
+			for _, entry := range entries {
+				if entry.IsDir() {
+					installedVersion = entry.Name()
+					pluginPath = filepath.Join(cacheDir, installedVersion)
+					break
+				}
+			}
+		}
+	}
+
+	if pluginPath == "" {
+		return fmt.Errorf("plugin %q is not installed\n\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
+	}
+
+	// Use index version for display if available, otherwise use installed version
+	version := indexVersion
+	if version == "" {
+		version = installedVersion
 	}
 
 	// Generate tree
