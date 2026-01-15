@@ -300,7 +300,7 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		// Build helpful error message
 		registry, loadErr := claude.LoadMarketplaces(claudeDir)
 		if loadErr != nil {
-			return fmt.Errorf("marketplace %q not found\n\nTo add this marketplace, use Claude Code CLI:\n  claude marketplace add <repo-or-url>", identifier)
+			return fmt.Errorf("marketplace %q not found\n\nTo add a marketplace:\n  claude marketplace add <repo-or-url>", identifier)
 		}
 
 		var installed []string
@@ -313,17 +313,17 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		}
 		sort.Strings(installed)
 
-		msg := fmt.Sprintf("Error: marketplace %q not found\n\nTo add this marketplace, use Claude Code CLI:\n  claude marketplace add <repo-or-url>", identifier)
+		msg := fmt.Sprintf("marketplace %q not found\n\nTo add a marketplace:\n  claude marketplace add <repo-or-url>", identifier)
 		if len(installed) > 0 {
 			msg += "\n\nInstalled marketplaces:\n" + strings.Join(installed, "\n")
 		}
-		return fmt.Errorf("%s", msg)
+		return fmt.Errorf(msg)
 	}
 
 	// Load the marketplace index
 	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
 	if err != nil {
-		return fmt.Errorf("Error: marketplace %q has no plugin index\n\nThe marketplace at %s\nis missing .claude-plugin/marketplace.json", marketplaceName, meta.InstallLocation)
+		return fmt.Errorf("marketplace %q has no plugin index\n\nThe marketplace at %s is missing .claude-plugin/marketplace.json", marketplaceName, meta.InstallLocation)
 	}
 
 	// Handle empty marketplace
@@ -332,8 +332,12 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Load installed plugins to check status
-	plugins, _ := claude.LoadPlugins(claudeDir)
+	// Load installed plugins to check status (non-fatal if unavailable)
+	plugins, err := claude.LoadPlugins(claudeDir)
+	if err != nil {
+		// Can still show marketplace plugins, just without installation status
+		plugins = nil
+	}
 
 	// Sort plugins alphabetically
 	sortedPlugins := make([]claude.MarketplacePluginInfo, len(index.Plugins))
@@ -376,10 +380,11 @@ func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marke
 			status = ui.Success(ui.SymbolSuccess)
 		}
 
-		// Truncate description if needed
+		// Truncate description if needed (rune-safe for UTF-8)
 		desc := p.Description
-		if len(desc) > 60 {
-			desc = desc[:57] + "..."
+		descRunes := []rune(desc)
+		if len(descRunes) > 60 {
+			desc = string(descRunes[:57]) + "..."
 		}
 
 		// Format with styling - fixed width columns
@@ -418,10 +423,11 @@ func printBrowseTable(plugins []claude.MarketplacePluginInfo, indexName, marketp
 	for _, p := range plugins {
 		fullName := p.Name + "@" + marketplaceName
 
-		// Truncate description
+		// Truncate description (rune-safe for UTF-8)
 		desc := p.Description
-		if len(desc) > descWidth {
-			desc = desc[:descWidth-3] + "..."
+		descRunes := []rune(desc)
+		if len(descRunes) > descWidth {
+			desc = string(descRunes[:descWidth-3]) + "..."
 		}
 
 		// Format columns with padding first (before applying ANSI styles)
