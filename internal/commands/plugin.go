@@ -23,6 +23,7 @@ var (
 	pluginFilterEnabled  bool
 	pluginFilterDisabled bool
 	pluginListFormat     string
+	pluginListByScope    bool
 	pluginBrowseFormat   string
 )
 
@@ -89,6 +90,7 @@ func init() {
 	pluginListCmd.Flags().BoolVar(&pluginFilterEnabled, "enabled", false, "Show only enabled plugins")
 	pluginListCmd.Flags().BoolVar(&pluginFilterDisabled, "disabled", false, "Show only disabled plugins")
 	pluginListCmd.Flags().StringVar(&pluginListFormat, "format", "", "Output format (table)")
+	pluginListCmd.Flags().BoolVar(&pluginListByScope, "by-scope", false, "Group enabled plugins by scope")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseFormat, "format", "", "Output format (table)")
 }
 
@@ -98,10 +100,22 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--enabled and --disabled are mutually exclusive")
 	}
 
+	// Validate --by-scope incompatibilities
+	if pluginListByScope {
+		if pluginListSummary || pluginListFormat != "" || pluginFilterEnabled || pluginFilterDisabled {
+			return fmt.Errorf("--by-scope cannot be combined with --summary, --format, --enabled, or --disabled")
+		}
+	}
+
 	// Get current directory for project scope
 	projectDir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Handle --by-scope: show plugins grouped by scope
+	if pluginListByScope {
+		return RenderPluginsByScope(claudeDir, projectDir, "")
 	}
 
 	// Analyze plugins across all scopes

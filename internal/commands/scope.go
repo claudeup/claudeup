@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"sort"
 
 	"github.com/claudeup/claudeup/v2/internal/backup"
 	"github.com/claudeup/claudeup/v2/internal/claude"
@@ -117,101 +116,7 @@ func runScopeList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Validate scope if specified
-	if scopeListScope != "" {
-		if err := claude.ValidateScope(scopeListScope); err != nil {
-			return err
-		}
-	}
-
-	// Determine which scopes to show
-	scopesToShow := []string{}
-	if scopeListScope != "" {
-		scopesToShow = append(scopesToShow, scopeListScope)
-	} else {
-		scopesToShow = []string{"user", "project", "local"}
-	}
-
-	// Track if we're in a project directory
-	inProjectDir := false
-	if _, err := os.Stat(projectDir + "/.claude"); err == nil {
-		inProjectDir = true
-	}
-
-	// Load settings for each scope and display
-	effectivePlugins := make(map[string]bool)
-	totalEnabled := 0
-
-	for _, scope := range scopesToShow {
-		// Skip project/local if not in project directory and showing all scopes
-		if scopeListScope == "" && !inProjectDir && (scope == "project" || scope == "local") {
-			continue
-		}
-
-		// Get settings path for this scope
-		settingsPath, err := claude.SettingsPathForScope(scope, claudeDir, projectDir)
-		if err != nil {
-			return err
-		}
-
-		// Load settings for this scope
-		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
-		if err != nil {
-			// If file doesn't exist, show appropriate message
-			if os.IsNotExist(err) || (scope != "user" && err != nil) {
-				if scopeListScope == "" {
-					// When showing all scopes, mention it's not configured
-					fmt.Println(ui.RenderSection(fmt.Sprintf("Scope: %s (%s)", formatScopeName(scope), settingsPath), -1))
-					fmt.Printf("  %s Not configured\n", ui.Muted("—"))
-					fmt.Println()
-					continue
-				} else {
-					// When showing specific scope, it's an error if it doesn't exist
-					return fmt.Errorf("%s scope not configured", scope)
-				}
-			}
-			return err
-		}
-
-		// Get enabled plugins for this scope
-		enabledPlugins := []string{}
-		for plugin, enabled := range settings.EnabledPlugins {
-			if enabled {
-				enabledPlugins = append(enabledPlugins, plugin)
-				effectivePlugins[plugin] = true
-			}
-		}
-		sort.Strings(enabledPlugins)
-
-		// Display scope header
-		fmt.Println(ui.RenderSection(fmt.Sprintf("Scope: %s (%s)", formatScopeName(scope), settingsPath), len(enabledPlugins)))
-
-		// Display plugins
-		if len(enabledPlugins) > 0 {
-			for _, plugin := range enabledPlugins {
-				fmt.Printf("  %s %s\n", ui.Success(ui.SymbolSuccess), plugin)
-				totalEnabled++
-			}
-		} else {
-			fmt.Printf("  %s No plugins enabled\n", ui.Muted("—"))
-		}
-
-		fmt.Println()
-	}
-
-	// Show messages for non-project directory if showing all scopes
-	if scopeListScope == "" && !inProjectDir {
-		fmt.Println(ui.Muted("Project scope: Not in a project directory"))
-		fmt.Println(ui.Muted("Local scope: Not configured for this directory"))
-		fmt.Println()
-	}
-
-	// Show effective configuration when showing all scopes
-	if scopeListScope == "" {
-		fmt.Println(ui.Bold(fmt.Sprintf("Effective Configuration: %d unique plugins enabled", len(effectivePlugins))))
-	}
-
-	return nil
+	return RenderPluginsByScope(claudeDir, projectDir, scopeListScope)
 }
 
 // formatScopeName returns a capitalized scope name for display
