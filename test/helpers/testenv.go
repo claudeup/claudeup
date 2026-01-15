@@ -236,6 +236,20 @@ func (e *TestEnv) CreateKnownMarketplaces(marketplaces map[string]interface{}) {
 	Expect(os.WriteFile(filepath.Join(pluginsDir, "known_marketplaces.json"), jsonData, 0644)).To(Succeed())
 }
 
+// CreateMarketplaceIndex creates a fake .claude-plugin/marketplace.json for a marketplace
+func (e *TestEnv) CreateMarketplaceIndex(installLocation string, name string, plugins []map[string]string) {
+	indexDir := filepath.Join(installLocation, ".claude-plugin")
+	Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+
+	index := map[string]interface{}{
+		"name":    name,
+		"plugins": plugins,
+	}
+	jsonData, err := json.MarshalIndent(index, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), jsonData, 0644)).To(Succeed())
+}
+
 // CreateSettings creates a fake settings.json with enabled plugins
 func (e *TestEnv) CreateSettings(enabledPlugins map[string]bool) {
 	settings := map[string]interface{}{
