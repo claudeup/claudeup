@@ -25,6 +25,19 @@ func generateTreeWithPrefix(root string, prefix string) (string, int, int) {
 		return "", 0, 0 // Directory is empty
 	}
 
+	// Filter out .git directory (noise in plugin trees)
+	filtered := make([]os.DirEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Name() != ".git" {
+			filtered = append(filtered, entry)
+		}
+	}
+	entries = filtered
+
+	if len(entries) == 0 {
+		return "", 0, 0 // Only .git was present
+	}
+
 	var sb strings.Builder
 	dirCount := 0
 	fileCount := 0
