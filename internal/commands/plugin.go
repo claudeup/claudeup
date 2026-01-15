@@ -382,14 +382,15 @@ func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marke
 			desc = desc[:57] + "..."
 		}
 
-		// Format with styling
+		// Format with styling - fixed width columns
 		nameFmt := fmt.Sprintf("%%-%ds", nameWidth)
 		nameCol := fmt.Sprintf(nameFmt, p.Name)
+		descCol := fmt.Sprintf("%-60s", desc)
 		versionCol := fmt.Sprintf("%-8s", p.Version)
 
 		fmt.Printf("%s %s  %s %s\n",
 			ui.Bold(nameCol),
-			ui.Muted(desc),
+			ui.Muted(descCol),
 			ui.Muted(versionCol),
 			status)
 	}
