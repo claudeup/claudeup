@@ -100,6 +100,13 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--enabled and --disabled are mutually exclusive")
 	}
 
+	// Validate --by-scope incompatibilities
+	if pluginListByScope {
+		if pluginListSummary || pluginListFormat != "" || pluginFilterEnabled || pluginFilterDisabled {
+			return fmt.Errorf("--by-scope cannot be combined with --summary, --format, --enabled, or --disabled")
+		}
+	}
+
 	// Get current directory for project scope
 	projectDir, err := os.Getwd()
 	if err != nil {

@@ -485,6 +485,34 @@ var _ = Describe("plugins", func() {
 			Expect(result.ExitCode).To(Equal(1))
 			Expect(result.Stderr).To(ContainSubstring("--enabled and --disabled are mutually exclusive"))
 		})
+
+		It("returns error when --by-scope is used with --summary", func() {
+			result := env.Run("plugin", "list", "--by-scope", "--summary")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("--by-scope cannot be combined with"))
+		})
+
+		It("returns error when --by-scope is used with --format", func() {
+			result := env.Run("plugin", "list", "--by-scope", "--format", "table")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("--by-scope cannot be combined with"))
+		})
+
+		It("returns error when --by-scope is used with --enabled", func() {
+			result := env.Run("plugin", "list", "--by-scope", "--enabled")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("--by-scope cannot be combined with"))
+		})
+
+		It("returns error when --by-scope is used with --disabled", func() {
+			result := env.Run("plugin", "list", "--by-scope", "--disabled")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("--by-scope cannot be combined with"))
+		})
 	})
 
 	Describe("--format table", func() {
@@ -543,6 +571,86 @@ var _ = Describe("plugins", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("enabled-plugin@acme"))
+			Expect(result.Stdout).NotTo(ContainSubstring("disabled-plugin@acme"))
+		})
+	})
+
+	Describe("--by-scope flag", func() {
+		var pluginPath string
+
+		BeforeEach(func() {
+			pluginPath = filepath.Join(env.ClaudeDir, "plugins", "cache", "my-plugin")
+			Expect(os.MkdirAll(pluginPath, 0755)).To(Succeed())
+
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"my-plugin@acme-marketplace": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": pluginPath,
+						"scope":       "user",
+					},
+				},
+			})
+
+			env.CreateSettings(map[string]bool{
+				"my-plugin@acme-marketplace": true,
+			})
+		})
+
+		It("shows plugins grouped by scope", func() {
+			result := env.Run("plugin", "list", "--by-scope")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Scope: User"))
+			Expect(result.Stdout).To(ContainSubstring("my-plugin@acme-marketplace"))
+		})
+
+		It("shows effective configuration count", func() {
+			result := env.Run("plugin", "list", "--by-scope")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Effective Configuration:"))
+			Expect(result.Stdout).To(ContainSubstring("unique plugins enabled"))
+		})
+
+		It("shows checkmark for enabled plugins", func() {
+			result := env.Run("plugin", "list", "--by-scope")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("✓"))
+		})
+
+		It("does not show disabled plugins", func() {
+			// Add a disabled plugin (installed but not enabled in settings)
+			disabledPath := filepath.Join(env.ClaudeDir, "plugins", "cache", "disabled-plugin")
+			Expect(os.MkdirAll(disabledPath, 0755)).To(Succeed())
+
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"my-plugin@acme-marketplace": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": pluginPath,
+						"scope":       "user",
+					},
+				},
+				"disabled-plugin@acme": []interface{}{
+					map[string]interface{}{
+						"version":     "1.0.0",
+						"installPath": disabledPath,
+						"scope":       "user",
+					},
+				},
+			})
+
+			// Only enable one plugin - disabled-plugin is installed but not enabled
+			env.CreateSettings(map[string]bool{
+				"my-plugin@acme-marketplace": true,
+			})
+
+			result := env.Run("plugin", "list", "--by-scope")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("my-plugin@acme-marketplace"))
 			Expect(result.Stdout).NotTo(ContainSubstring("disabled-plugin@acme"))
 		})
 	})
