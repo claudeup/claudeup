@@ -85,7 +85,8 @@ var pluginShowCmd = &cobra.Command{
 	Short: "Show plugin contents",
 	Long: `Display the directory structure of a plugin in a marketplace.
 
-Shows agents, commands, skills, and other files contained in the plugin.`,
+Shows Claude Code plugin components: agents/, commands/, skills/, hooks/, scripts/,
+.claude-plugin/, .mcp.json, and README.md. Other files are filtered out.`,
 	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
   claudeup plugin show my-plugin@acme-marketplace`,
 	Args:              cobra.ExactArgs(1),
@@ -592,7 +593,7 @@ func showPluginTree(pluginName, marketplaceID string) error {
 	}
 
 	if pluginPath == "" {
-		return fmt.Errorf("plugin %q is not installed\n\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
+		return fmt.Errorf("plugin %q is not cached locally\n\nThe marketplace index lists it, but it hasn't been downloaded.\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
 	}
 
 	// Use index version for display if available, otherwise use installed version
