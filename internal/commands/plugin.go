@@ -25,6 +25,7 @@ var (
 	pluginListFormat     string
 	pluginListByScope    bool
 	pluginBrowseFormat   string
+	pluginBrowseShow     string
 )
 
 var pluginCmd = &cobra.Command{
@@ -79,12 +80,27 @@ Accepts marketplace name, repo (user/repo), or URL as identifier.`,
 	RunE: runPluginBrowse,
 }
 
+var pluginShowCmd = &cobra.Command{
+	Use:   "show <plugin>@<marketplace>",
+	Short: "Show plugin contents",
+	Long: `Display the directory structure of a plugin in a marketplace.
+
+Shows Claude Code plugin components: agents/, commands/, skills/, hooks/, scripts/,
+.claude-plugin/, .mcp.json, and README.md. Other files are filtered out.`,
+	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
+  claudeup plugin show my-plugin@acme-marketplace`,
+	Args:              cobra.ExactArgs(1),
+	RunE:              runPluginShow,
+	ValidArgsFunction: pluginShowCompletionFunc,
+}
+
 func init() {
 	rootCmd.AddCommand(pluginCmd)
 	pluginCmd.AddCommand(pluginListCmd)
 	pluginCmd.AddCommand(pluginDisableCmd)
 	pluginCmd.AddCommand(pluginEnableCmd)
 	pluginCmd.AddCommand(pluginBrowseCmd)
+	pluginCmd.AddCommand(pluginShowCmd)
 
 	pluginListCmd.Flags().BoolVar(&pluginListSummary, "summary", false, "Show only summary statistics")
 	pluginListCmd.Flags().BoolVar(&pluginFilterEnabled, "enabled", false, "Show only enabled plugins")
@@ -92,6 +108,7 @@ func init() {
 	pluginListCmd.Flags().StringVar(&pluginListFormat, "format", "", "Output format (table)")
 	pluginListCmd.Flags().BoolVar(&pluginListByScope, "by-scope", false, "Group enabled plugins by scope")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseFormat, "format", "", "Output format (table)")
+	pluginBrowseCmd.Flags().StringVar(&pluginBrowseShow, "show", "", "Show contents of a specific plugin")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
@@ -335,6 +352,11 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		return errors.New(msg)
 	}
 
+	// If --show flag is set, delegate to showPluginTree
+	if pluginBrowseShow != "" {
+		return showPluginTree(pluginBrowseShow, marketplaceName)
+	}
+
 	// Load the marketplace index
 	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
 	if err != nil {
@@ -497,4 +519,176 @@ func printBrowseJSON(plugins []claude.MarketplacePluginInfo, indexName, marketpl
 
 	data, _ := json.MarshalIndent(output, "", "  ")
 	fmt.Println(string(data))
+}
+
+func runPluginShow(cmd *cobra.Command, args []string) error {
+	identifier := args[0]
+
+	// Parse plugin@marketplace
+	parts := strings.SplitN(identifier, "@", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return fmt.Errorf("invalid format: expected <plugin>@<marketplace>\n\nExample: claudeup plugin show my-plugin@my-marketplace")
+	}
+
+	pluginName := parts[0]
+	marketplaceID := parts[1]
+
+	return showPluginTree(pluginName, marketplaceID)
+}
+
+func showPluginTree(pluginName, marketplaceID string) error {
+	// Find the marketplace
+	meta, marketplaceName, err := claude.FindMarketplace(claudeDir, marketplaceID)
+	if err != nil {
+		return fmt.Errorf("marketplace %q not found\n\nRun 'claudeup marketplace add %s' first", marketplaceID, marketplaceID)
+	}
+
+	// Load marketplace index to check if plugin exists in marketplace
+	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
+	if err != nil {
+		return fmt.Errorf("failed to load marketplace index: %w", err)
+	}
+
+	// Find plugin in index
+	var indexVersion string
+	var pluginFound bool
+	for _, p := range index.Plugins {
+		if p.Name == pluginName {
+			indexVersion = p.Version
+			pluginFound = true
+			break
+		}
+	}
+
+	if !pluginFound {
+		return fmt.Errorf("plugin %q not found in marketplace %q\n\nRun 'claudeup plugin browse %s' to see available plugins", pluginName, marketplaceName, marketplaceName)
+	}
+
+	// Check for plugin in two possible locations:
+	// 1. Bundled in marketplace: <installLocation>/plugins/<plugin>/
+	// 2. External (in cache): ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+	var pluginPath string
+	var installedVersion string
+
+	// Try bundled location first (monorepo marketplaces)
+	bundledPath := filepath.Join(meta.InstallLocation, "plugins", pluginName)
+	if info, err := os.Stat(bundledPath); err == nil && info.IsDir() {
+		pluginPath = bundledPath
+		installedVersion = indexVersion
+	}
+
+	// Try cache location (external source marketplaces)
+	if pluginPath == "" {
+		cacheDir := filepath.Join(claudeDir, "plugins", "cache", marketplaceName, pluginName)
+		if entries, err := os.ReadDir(cacheDir); err == nil && len(entries) > 0 {
+			// Use first version directory found (typically there's only one)
+			for _, entry := range entries {
+				if entry.IsDir() {
+					installedVersion = entry.Name()
+					pluginPath = filepath.Join(cacheDir, installedVersion)
+					break
+				}
+			}
+		}
+	}
+
+	if pluginPath == "" {
+		return fmt.Errorf("plugin %q is not cached locally\n\nThe marketplace index lists it, but it hasn't been downloaded.\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
+	}
+
+	// Use index version for display if available, otherwise use installed version
+	version := indexVersion
+	if version == "" {
+		version = installedVersion
+	}
+
+	// Generate tree
+	tree, dirs, files := generateTree(pluginPath)
+
+	// Print header
+	fullName := pluginName + "@" + marketplaceName
+	if version != "" {
+		fmt.Printf("%s (v%s)\n\n", ui.Bold(fullName), version)
+	} else {
+		fmt.Printf("%s\n\n", ui.Bold(fullName))
+	}
+
+	// Print tree
+	if tree == "" {
+		fmt.Println("(empty)")
+	} else {
+		fmt.Print(tree)
+	}
+
+	// Print summary
+	fmt.Println()
+	dirWord := "directories"
+	if dirs == 1 {
+		dirWord = "directory"
+	}
+	fileWord := "files"
+	if files == 1 {
+		fileWord = "file"
+	}
+	fmt.Printf("%d %s, %d %s\n", dirs, dirWord, files, fileWord)
+
+	return nil
+}
+
+// pluginShowCompletionFunc provides tab completion for plugin show command
+// Format: <plugin>@<marketplace>
+func pluginShowCompletionFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	// Load marketplaces
+	registry, err := claude.LoadMarketplaces(claudeDir)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	var completions []string
+
+	// Check if user has typed plugin@marketplace pattern
+	if strings.Contains(toComplete, "@") {
+		// Format: <plugin-prefix>@<marketplace-prefix>
+		parts := strings.SplitN(toComplete, "@", 2)
+		pluginPrefix := parts[0]
+		marketplacePrefix := parts[1]
+
+		// Search all marketplaces for matching plugins
+		for marketplaceName, meta := range registry {
+			// Filter by marketplace prefix (after @)
+			if marketplacePrefix != "" && !strings.HasPrefix(marketplaceName, marketplacePrefix) {
+				continue
+			}
+
+			// List plugins from this marketplace
+			pluginsDir := filepath.Join(meta.InstallLocation, "plugins")
+			entries, err := os.ReadDir(pluginsDir)
+			if err != nil {
+				continue
+			}
+
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				pluginName := entry.Name()
+				// Filter by plugin prefix (before @)
+				if pluginPrefix != "" && !strings.HasPrefix(pluginName, pluginPrefix) {
+					continue
+				}
+				completions = append(completions, pluginName+"@"+marketplaceName)
+			}
+		}
+	} else {
+		// No @ yet, suggest marketplace names (helps user discover marketplaces)
+		for name := range registry {
+			completions = append(completions, name)
+		}
+	}
+
+	return completions, cobra.ShellCompDirectiveNoFileComp
 }
