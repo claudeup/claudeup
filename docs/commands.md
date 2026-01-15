@@ -296,8 +296,42 @@ Manage plugins.
 ```bash
 claudeup plugin list              # Full list with details
 claudeup plugin list --summary    # Summary statistics only
+claudeup plugin list --by-scope   # Group enabled plugins by scope
 claudeup plugin enable <name>     # Enable a disabled plugin
 claudeup plugin disable <name>    # Disable a plugin
+claudeup plugin browse <marketplace>                  # List available plugins
+claudeup plugin browse <marketplace> --format table  # Table format
+claudeup plugin browse <marketplace> --show <name>   # Show plugin contents
+claudeup plugin show <plugin>@<marketplace>          # Show plugin contents
+```
+
+**`plugin list` flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--summary` | Show only summary statistics |
+| `--enabled` | Show only enabled plugins |
+| `--disabled` | Show only disabled plugins |
+| `--format` | Output format (table) |
+| `--by-scope` | Group enabled plugins by scope |
+
+**`plugin browse` flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--format` | Output format (table) |
+| `--show` | Show contents of a specific plugin |
+
+**`plugin show`:**
+
+Display the directory structure of a plugin in a marketplace. Shows agents, commands, skills, and other files.
+
+```bash
+# Direct access
+claudeup plugin show observability-monitoring@claude-code-workflows
+
+# While browsing
+claudeup plugin browse claude-code-workflows --show observability-monitoring
 ```
 
 ### marketplace
