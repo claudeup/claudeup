@@ -377,21 +377,50 @@ func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marke
 }
 
 func printBrowseTable(plugins []claude.MarketplacePluginInfo, indexName, marketplaceName string, installed *claude.PluginRegistry) {
-	fmt.Printf("%-30s %-82s %-10s %s\n", "PLUGIN", "DESCRIPTION", "VERSION", "STATUS")
+	// Calculate max name width for alignment
+	nameWidth := 6 // minimum "PLUGIN" length
+	for _, p := range plugins {
+		if len(p.Name) > nameWidth {
+			nameWidth = len(p.Name)
+		}
+	}
+	nameWidth += 2 // add padding
 
+	descWidth := 60
+
+	// Print header with bold styling
+	headerFmt := fmt.Sprintf("%%-%ds %%-%ds %%-10s %%s", nameWidth, descWidth)
+	header := fmt.Sprintf(headerFmt, "PLUGIN", "DESCRIPTION", "VERSION", "STATUS")
+	fmt.Println(ui.Bold(header))
+	fmt.Println(ui.Muted(strings.Repeat("─", nameWidth+descWidth+10+12)))
+
+	// Print rows
 	for _, p := range plugins {
 		fullName := p.Name + "@" + marketplaceName
-		status := ""
-		if installed != nil && installed.PluginExists(fullName) {
-			status = "installed"
-		}
 
+		// Truncate description
 		desc := p.Description
-		if len(desc) > 80 {
-			desc = desc[:77] + "..."
+		if len(desc) > descWidth {
+			desc = desc[:descWidth-3] + "..."
 		}
 
-		fmt.Printf("%-30s %-82s %-10s %s\n", p.Name, desc, p.Version, status)
+		// Format columns with padding first (before applying ANSI styles)
+		nameFmt := fmt.Sprintf("%%-%ds", nameWidth)
+		nameCol := fmt.Sprintf(nameFmt, p.Name)
+		descCol := fmt.Sprintf("%-*s", descWidth, desc)
+		versionCol := fmt.Sprintf("%-10s", p.Version)
+
+		// Check installed status
+		var statusCol string
+		if installed != nil && installed.PluginExists(fullName) {
+			statusCol = ui.Success("installed")
+		}
+
+		fmt.Printf("%s %s %s %s\n",
+			ui.Bold(nameCol),
+			ui.Muted(descCol),
+			ui.Muted(versionCol),
+			statusCol)
 	}
 }
 
