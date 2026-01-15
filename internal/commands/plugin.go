@@ -385,11 +385,12 @@ func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marke
 		// Format with styling
 		nameFmt := fmt.Sprintf("%%-%ds", nameWidth)
 		nameCol := fmt.Sprintf(nameFmt, p.Name)
+		versionCol := fmt.Sprintf("%-8s", p.Version)
 
-		fmt.Printf("%s %s  %s  %s\n",
+		fmt.Printf("%s %s  %s %s\n",
 			ui.Bold(nameCol),
 			ui.Muted(desc),
-			ui.Muted(p.Version),
+			ui.Muted(versionCol),
 			status)
 	}
 }
