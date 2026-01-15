@@ -350,6 +350,11 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		return errors.New(msg)
 	}
 
+	// If --show flag is set, delegate to showPluginTree
+	if pluginBrowseShow != "" {
+		return showPluginTree(pluginBrowseShow, marketplaceName)
+	}
+
 	// Load the marketplace index
 	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
 	if err != nil {

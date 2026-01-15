@@ -11,6 +11,57 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+var _ = Describe("plugin browse --show", func() {
+	var env *helpers.TestEnv
+
+	BeforeEach(func() {
+		env = helpers.NewTestEnv(binaryPath)
+	})
+
+	Describe("with valid plugin", func() {
+		var marketplacePath string
+		var pluginPath string
+
+		BeforeEach(func() {
+			marketplacePath = filepath.Join(env.ClaudeDir, "plugins", "marketplaces", "acme-corp")
+			pluginPath = filepath.Join(marketplacePath, "plugins", "test-plugin")
+			Expect(os.MkdirAll(pluginPath, 0755)).To(Succeed())
+
+			Expect(os.MkdirAll(filepath.Join(pluginPath, "agents"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(pluginPath, "agents", "test.md"), []byte("# Agent"), 0644)).To(Succeed())
+
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"acme-marketplace": map[string]interface{}{
+					"source": map[string]interface{}{
+						"source": "github",
+						"repo":   "acme-corp/plugins",
+					},
+					"installLocation": marketplacePath,
+				},
+			})
+
+			env.CreateMarketplaceIndex(marketplacePath, "acme-marketplace", []map[string]string{
+				{"name": "test-plugin", "description": "Test plugin", "version": "1.0.0"},
+			})
+		})
+
+		It("displays tree when --show flag provided", func() {
+			result := env.Run("plugin", "browse", "acme-marketplace", "--show", "test-plugin")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("test-plugin@acme-marketplace"))
+			Expect(result.Stdout).To(MatchRegexp(`[├└]──`))
+		})
+
+		It("shows plugin version in output", func() {
+			result := env.Run("plugin", "browse", "acme-marketplace", "--show", "test-plugin")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("1.0.0"))
+		})
+	})
+})
+
 var _ = Describe("plugin show", func() {
 	var env *helpers.TestEnv
 
