@@ -110,7 +110,13 @@ func (r MarketplaceRegistry) GetMarketplaceByRepo(repoOrURL string) string {
 
 // LoadMarketplaceIndex reads the .claude-plugin/marketplace.json from a marketplace
 func LoadMarketplaceIndex(installLocation string) (*MarketplaceIndex, error) {
-	indexPath := filepath.Join(installLocation, ".claude-plugin", "marketplace.json")
+	// Validate path is absolute to prevent path traversal attacks
+	if !filepath.IsAbs(installLocation) {
+		return nil, fmt.Errorf("install location must be absolute path")
+	}
+	cleanPath := filepath.Clean(installLocation)
+
+	indexPath := filepath.Join(cleanPath, ".claude-plugin", "marketplace.json")
 
 	data, err := os.ReadFile(indexPath)
 	if err != nil {
@@ -120,6 +126,11 @@ func LoadMarketplaceIndex(installLocation string) (*MarketplaceIndex, error) {
 	var index MarketplaceIndex
 	if err := json.Unmarshal(data, &index); err != nil {
 		return nil, fmt.Errorf("failed to parse marketplace index: %w", err)
+	}
+
+	// Validate required fields
+	if index.Name == "" {
+		return nil, fmt.Errorf("marketplace index missing required 'name' field")
 	}
 
 	return &index, nil
