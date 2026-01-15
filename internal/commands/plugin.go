@@ -4,6 +4,7 @@ package commands
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -317,7 +318,7 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		if len(installed) > 0 {
 			msg += "\n\nInstalled marketplaces:\n" + strings.Join(installed, "\n")
 		}
-		return fmt.Errorf(msg)
+		return errors.New(msg)
 	}
 
 	// Load the marketplace index
