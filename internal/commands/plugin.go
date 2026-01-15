@@ -3,6 +3,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -342,9 +343,12 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 	})
 
 	// Display based on format
-	if pluginBrowseFormat == "table" {
+	switch pluginBrowseFormat {
+	case "json":
+		printBrowseJSON(sortedPlugins, index.Name, marketplaceName, plugins)
+	case "table":
 		printBrowseTable(sortedPlugins, index.Name, marketplaceName, plugins)
-	} else {
+	default:
 		printBrowseDefault(sortedPlugins, index.Name, marketplaceName, plugins)
 	}
 
@@ -364,16 +368,16 @@ func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marke
 
 		// Truncate description if needed
 		desc := p.Description
-		if len(desc) > 40 {
-			desc = desc[:37] + "..."
+		if len(desc) > 80 {
+			desc = desc[:77] + "..."
 		}
 
-		fmt.Printf("  %-30s %-42s %s%s\n", p.Name, desc, p.Version, status)
+		fmt.Printf("  %-30s %-82s %s%s\n", p.Name, desc, p.Version, status)
 	}
 }
 
 func printBrowseTable(plugins []claude.MarketplacePluginInfo, indexName, marketplaceName string, installed *claude.PluginRegistry) {
-	fmt.Printf("PLUGIN                         DESCRIPTION                                VERSION    STATUS\n")
+	fmt.Printf("%-30s %-82s %-10s %s\n", "PLUGIN", "DESCRIPTION", "VERSION", "STATUS")
 
 	for _, p := range plugins {
 		fullName := p.Name + "@" + marketplaceName
@@ -383,10 +387,44 @@ func printBrowseTable(plugins []claude.MarketplacePluginInfo, indexName, marketp
 		}
 
 		desc := p.Description
-		if len(desc) > 40 {
-			desc = desc[:37] + "..."
+		if len(desc) > 80 {
+			desc = desc[:77] + "..."
 		}
 
-		fmt.Printf("%-30s %-42s %-10s %s\n", p.Name, desc, p.Version, status)
+		fmt.Printf("%-30s %-82s %-10s %s\n", p.Name, desc, p.Version, status)
 	}
+}
+
+func printBrowseJSON(plugins []claude.MarketplacePluginInfo, indexName, marketplaceName string, installed *claude.PluginRegistry) {
+	type pluginOutput struct {
+		Name        string `json:"name"`
+		FullName    string `json:"fullName"`
+		Description string `json:"description"`
+		Version     string `json:"version"`
+		Installed   bool   `json:"installed"`
+	}
+
+	output := struct {
+		Marketplace string         `json:"marketplace"`
+		Count       int            `json:"count"`
+		Plugins     []pluginOutput `json:"plugins"`
+	}{
+		Marketplace: indexName,
+		Count:       len(plugins),
+		Plugins:     make([]pluginOutput, len(plugins)),
+	}
+
+	for i, p := range plugins {
+		fullName := p.Name + "@" + marketplaceName
+		output.Plugins[i] = pluginOutput{
+			Name:        p.Name,
+			FullName:    fullName,
+			Description: p.Description,
+			Version:     p.Version,
+			Installed:   installed != nil && installed.PluginExists(fullName),
+		}
+	}
+
+	data, _ := json.MarshalIndent(output, "", "  ")
+	fmt.Println(string(data))
 }
