@@ -1,3 +1,7 @@
+---
+title: Command Reference
+---
+
 # Command Reference
 
 ## Global Flags

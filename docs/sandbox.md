@@ -1,3 +1,7 @@
+---
+title: Sandbox
+---
+
 # Sandbox
 
 Run Claude Code in an isolated Docker container for security. Protects your system from malicious or buggy plugins while still letting Claude work on your projects.

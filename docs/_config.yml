@@ -1,0 +1,20 @@
+# ABOUTME: Jekyll configuration for claudeup documentation site.
+# ABOUTME: Configures the dark-themed GitHub Pages docs.
+
+title: claudeup
+description: Manage Claude Code plugins, profiles, and sandboxes
+url: https://claudeup.github.io
+baseurl: /claudeup
+
+markdown: kramdown
+highlighter: rouge
+
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default

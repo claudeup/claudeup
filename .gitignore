@@ -50,3 +50,6 @@ docker/claudeup*
 # Claude
 settings.local.json
 
+# Jekyll
+docs/_site/
+

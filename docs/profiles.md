@@ -1,3 +1,7 @@
+---
+title: Profiles
+---
+
 # Profiles
 
 Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use them to:

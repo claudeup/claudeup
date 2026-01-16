@@ -1,3 +1,7 @@
+---
+title: Team Workflows
+---
+
 # Team Workflows
 
 Share Claude Code configurations with your team by storing profiles in your project repository.

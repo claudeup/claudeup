@@ -1,3 +1,7 @@
+---
+title: File Operations
+---
+
 # File Operations Reference
 
 This document catalogs all files that `claudeup` reads, writes, or modifies, organized by ownership and the operations that trigger changes.
