@@ -1043,6 +1043,215 @@ func TestApplyHandlesPluginNotFoundError(t *testing.T) {
 	}
 }
 
+func TestComputeDiffWithScopeProjectNoRemovesForUserScope(t *testing.T) {
+	// Issue #101: When applying a profile at project scope in a fresh directory,
+	// the diff should NOT show "Remove" actions for user-scope items.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	projectDir := filepath.Join(tmpDir, "project")
+	os.MkdirAll(pluginsDir, 0755)
+	os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)
+
+	// User scope has plugins A and B installed and enabled
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"plugin-b@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	userSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+			"plugin-b@marketplace": true,
+		},
+	}
+	marketplaces := map[string]interface{}{
+		"user-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "user/marketplace",
+			},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), userSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Project scope is empty (fresh project)
+	// No .claude/settings.json in projectDir yet
+
+	// Profile wants plugin-c only
+	profile := &Profile{
+		Name:    "project-profile",
+		Plugins: []string{"plugin-c@new-marketplace"},
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "new/marketplace"},
+		},
+	}
+
+	// Compute diff for PROJECT scope
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+		Scope:      ScopeProject,
+		ProjectDir: projectDir,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope failed: %v", err)
+	}
+
+	// Should NOT show user-scope plugins as removals
+	if len(diff.PluginsToRemove) != 0 {
+		t.Errorf("Project scope diff should not remove user-scope plugins, got: %v", diff.PluginsToRemove)
+	}
+
+	// Should NOT show user-scope marketplaces as removals
+	if len(diff.MarketplacesToRemove) != 0 {
+		t.Errorf("Project scope diff should not remove user-scope marketplaces, got: %v", diff.MarketplacesToRemove)
+	}
+
+	// Should show plugin-c as install
+	if len(diff.PluginsToInstall) != 1 || diff.PluginsToInstall[0] != "plugin-c@new-marketplace" {
+		t.Errorf("Expected to install plugin-c, got: %v", diff.PluginsToInstall)
+	}
+
+	// Should show new marketplace as add
+	if len(diff.MarketplacesToAdd) != 1 || diff.MarketplacesToAdd[0].Repo != "new/marketplace" {
+		t.Errorf("Expected to add new/marketplace, got: %v", diff.MarketplacesToAdd)
+	}
+}
+
+func TestComputeDiffWithScopeUserStillRemoves(t *testing.T) {
+	// Verify that user scope diff still has declarative behavior (removes extras)
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// User scope has plugins A and B
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"plugin-b@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	userSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+			"plugin-b@marketplace": true,
+		},
+	}
+	marketplaces := map[string]interface{}{
+		"old-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "old/marketplace",
+			},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), userSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile wants only plugin-c (not A or B)
+	profile := &Profile{
+		Name:    "user-profile",
+		Plugins: []string{"plugin-c@new-marketplace"},
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "new/marketplace"},
+		},
+	}
+
+	// Compute diff for USER scope (default)
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+		Scope: ScopeUser,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope failed: %v", err)
+	}
+
+	// Should show user-scope plugins as removals (declarative behavior)
+	if len(diff.PluginsToRemove) != 2 {
+		t.Errorf("User scope diff should remove extra plugins, got: %v", diff.PluginsToRemove)
+	}
+
+	// Should show old marketplace as removal
+	if len(diff.MarketplacesToRemove) != 1 {
+		t.Errorf("User scope diff should remove extra marketplaces, got: %v", diff.MarketplacesToRemove)
+	}
+
+	// Should show plugin-c as install
+	if len(diff.PluginsToInstall) != 1 {
+		t.Errorf("Expected to install 1 plugin, got: %v", diff.PluginsToInstall)
+	}
+}
+
+func TestComputeDiffWithScopeProjectExistingState(t *testing.T) {
+	// Test project scope diff when project already has some plugins
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	projectDir := filepath.Join(tmpDir, "project")
+	os.MkdirAll(pluginsDir, 0755)
+	os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)
+
+	// User scope has plugins A and B
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"plugin-b@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	userSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+			"plugin-b@marketplace": true,
+		},
+	}
+	// Project scope has plugin-x enabled
+	projectSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-x@marketplace": true,
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), userSettings)
+	writeTestJSON(t, filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile wants plugin-c only
+	profile := &Profile{
+		Name:    "project-profile",
+		Plugins: []string{"plugin-c@marketplace"},
+	}
+
+	// Compute diff for PROJECT scope
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+		Scope:      ScopeProject,
+		ProjectDir: projectDir,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope failed: %v", err)
+	}
+
+	// Should show plugin-x as removal (it's in project scope)
+	if len(diff.PluginsToRemove) != 1 || diff.PluginsToRemove[0] != "plugin-x@marketplace" {
+		t.Errorf("Project scope diff should remove plugin-x (project-scope), got: %v", diff.PluginsToRemove)
+	}
+
+	// Should NOT remove user-scope plugins A and B
+	for _, p := range diff.PluginsToRemove {
+		if p == "plugin-a@marketplace" || p == "plugin-b@marketplace" {
+			t.Errorf("Project scope diff should NOT remove user-scope plugin %s", p)
+		}
+	}
+}
+
 func TestResetHandlesPluginNotFoundError(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")

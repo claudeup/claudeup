@@ -70,9 +70,41 @@ type Diff struct {
 	MarketplacesToRemove []Marketplace
 }
 
-// ComputeDiff calculates what changes are needed to apply a profile
+// DiffOptions controls how a diff is computed
+type DiffOptions struct {
+	Scope      Scope  // Target scope for comparison
+	ProjectDir string // Required for project/local scope
+}
+
+// ComputeDiff calculates what changes are needed to apply a profile.
+// This compares against user scope by default; use ComputeDiffWithScope for scope-aware comparison.
 func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, error) {
-	current, err := Snapshot("current", claudeDir, claudeJSONPath)
+	return ComputeDiffWithScope(profile, claudeDir, claudeJSONPath, DiffOptions{Scope: ScopeUser})
+}
+
+// ComputeDiffWithScope calculates what changes are needed to apply a profile at a specific scope.
+// For project/local scope, it compares only against that scope's current state (not user scope).
+// This prevents confusing "Remove" actions for user-scope items when applying at project scope.
+func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath string, opts DiffOptions) (*Diff, error) {
+	var current *Profile
+	var err error
+
+	scope := opts.Scope
+	if scope == "" {
+		scope = ScopeUser
+	}
+
+	// Snapshot the current state for the target scope only
+	switch scope {
+	case ScopeProject, ScopeLocal:
+		current, err = SnapshotWithScope("current", claudeDir, claudeJSONPath, SnapshotOptions{
+			Scope:      string(scope),
+			ProjectDir: opts.ProjectDir,
+		})
+	default:
+		current, err = Snapshot("current", claudeDir, claudeJSONPath)
+	}
+
 	if err != nil {
 		// If we can't read current state, treat as empty
 		current = &Profile{}
@@ -124,7 +156,9 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 		}
 	}
 
-	// Marketplaces: remove extras and add missing ones (declarative)
+	// Marketplaces: always user-scoped in Claude Code
+	// For project/local scope, we only ADD missing marketplaces (needed to resolve plugins)
+	// but never REMOVE user-scope marketplaces
 	currentMarketplaces := make(map[string]Marketplace)
 	for _, m := range current.Marketplaces {
 		currentMarketplaces[marketplaceKey(m)] = m
@@ -135,14 +169,17 @@ func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, err
 		profileMarketplaces[marketplaceKey(m)] = true
 	}
 
-	// Remove marketplaces not in profile
-	for key, m := range currentMarketplaces {
-		if !profileMarketplaces[key] {
-			diff.MarketplacesToRemove = append(diff.MarketplacesToRemove, m)
+	// Only remove marketplaces for user scope (declarative behavior)
+	// For project/local scope, don't show removal of user-scope marketplaces
+	if scope == ScopeUser {
+		for key, m := range currentMarketplaces {
+			if !profileMarketplaces[key] {
+				diff.MarketplacesToRemove = append(diff.MarketplacesToRemove, m)
+			}
 		}
 	}
 
-	// Add marketplaces missing from current
+	// Add marketplaces missing from current (all scopes need this for plugin resolution)
 	for _, m := range profile.Marketplaces {
 		if _, exists := currentMarketplaces[marketplaceKey(m)]; !exists {
 			diff.MarketplacesToAdd = append(diff.MarketplacesToAdd, m)
