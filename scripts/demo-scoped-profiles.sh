@@ -241,51 +241,33 @@ EOF
         exit 1
     fi
 
-    # Create sample profiles
-    print_step "Creating sample profiles..."
+    # Create sample profiles using the CLI
+    print_step "Creating sample profiles using claudeup CLI..."
 
-    cat > "$TEST_DIR/.claudeup/profiles/base-tools.json" <<'EOF'
-{
-  "name": "base-tools",
-  "marketplaces": [
-    {"source": "github", "repo": "thedotmack/claude-mem"},
-    {"source": "github", "repo": "obra/superpowers-marketplace"},
-    {"source": "github", "repo": "wshobson/agents"}
-  ],
-  "plugins": [
-    "claude-mem@thedotmack",
-    "superpowers@superpowers-marketplace",
-    "code-review-ai@claude-code-workflows"
-  ]
-}
-EOF
+    # base-tools: Multi-marketplace profile with 3 plugins
+    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile create base-tools \
+        --description 'Base development tools' \
+        --marketplace thedotmack/claude-mem \
+        --marketplace obra/superpowers-marketplace \
+        --marketplace wshobson/agents \
+        --plugin claude-mem@thedotmack \
+        --plugin superpowers@superpowers-marketplace \
+        --plugin code-review-ai@claude-code-workflows" "Create base-tools profile"
 
-    cat > "$TEST_DIR/.claudeup/profiles/backend-stack.json" <<'EOF'
-{
-  "name": "backend-stack",
-  "marketplaces": [
-    {"source": "github", "repo": "thedotmack/claude-mem"},
-    {"source": "github", "repo": "obra/superpowers-marketplace"}
-  ],
-  "plugins": [
-    "claude-mem@thedotmack",
-    "superpowers@superpowers-marketplace"
-  ]
-}
-EOF
+    # backend-stack: Focused backend development profile
+    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile create backend-stack \
+        --description 'Backend development stack' \
+        --marketplace thedotmack/claude-mem \
+        --marketplace obra/superpowers-marketplace \
+        --plugin claude-mem@thedotmack \
+        --plugin superpowers@superpowers-marketplace" "Create backend-stack profile"
 
-    cat > "$TEST_DIR/.claudeup/profiles/docker-tools.json" <<'EOF'
-{
-  "name": "docker-tools",
-  "marketplaces": [
-    {"source": "github", "repo": "wshobson/agents"}
-  ],
-  "plugins": [
-    "systems-programming@claude-code-workflows",
-    "shell-scripting@claude-code-workflows"
-  ]
-}
-EOF
+    # docker-tools: Docker and systems programming tools
+    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile create docker-tools \
+        --description 'Docker and systems tools' \
+        --marketplace wshobson/agents \
+        --plugin systems-programming@claude-code-workflows \
+        --plugin shell-scripting@claude-code-workflows" "Create docker-tools profile"
 
     # Validate profiles were created with valid JSON
     for profile in base-tools backend-stack docker-tools; do

@@ -5,6 +5,7 @@ package commands
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -349,6 +350,15 @@ var profileListScope string
 // Flags for profile clean command
 var profileCleanScope string
 
+// Flags for profile create command
+var (
+	profileCreateDescription  string
+	profileCreateMarketplaces []string
+	profileCreatePlugins      []string
+	profileCreateFromFile     string
+	profileCreateFromStdin    bool
+)
+
 var profileCleanCmd = &cobra.Command{
 	Use:   "clean <plugin>",
 	Short: "Remove orphaned plugin from config and profile",
@@ -516,6 +526,13 @@ func init() {
 	profileCmd.AddCommand(profileRenameCmd)
 	profileCmd.AddCommand(profileSyncCmd)
 	profileCmd.AddCommand(profileCleanCmd)
+
+	// Add flags to profile create command
+	profileCreateCmd.Flags().StringVar(&profileCreateDescription, "description", "", "Profile description")
+	profileCreateCmd.Flags().StringSliceVar(&profileCreateMarketplaces, "marketplace", nil, "Marketplace in owner/repo format (can be repeated)")
+	profileCreateCmd.Flags().StringSliceVar(&profileCreatePlugins, "plugin", nil, "Plugin in name@marketplace-ref format (can be repeated)")
+	profileCreateCmd.Flags().StringVar(&profileCreateFromFile, "from-file", "", "Create profile from JSON file")
+	profileCreateCmd.Flags().BoolVar(&profileCreateFromStdin, "from-stdin", false, "Create profile from JSON on stdin")
 
 	profileCloneCmd.Flags().StringVar(&profileCloneFromFlag, "from", "", "Source profile to copy from")
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
@@ -1800,8 +1817,93 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 	return nil, fmt.Errorf("profile %q not found", input)
 }
 
+// validateNewProfileName validates a profile name and checks it doesn't already exist
+func validateNewProfileName(name, profilesDir string) error {
+	if err := profile.ValidateName(name); err != nil {
+		return err
+	}
+	existingPath := filepath.Join(profilesDir, name+".json")
+	if _, err := os.Stat(existingPath); err == nil {
+		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
+	}
+	return nil
+}
+
+// saveAndPrintNewProfile saves a new profile and prints a success message
+func saveAndPrintNewProfile(p *profile.Profile, profilesDir string) error {
+	if err := profile.Save(profilesDir, p); err != nil {
+		return fmt.Errorf("failed to save profile: %w", err)
+	}
+	fmt.Printf("Profile %q created successfully.\n\n", p.Name)
+	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
+	fmt.Printf("  Plugins: %d\n", len(p.Plugins))
+	fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", p.Name)
+	return nil
+}
+
 func runProfileCreate(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
+
+	// Detect mode: file, flags, or wizard
+	hasFileInput := profileCreateFromFile != "" || profileCreateFromStdin
+	hasFlagsInput := len(profileCreateMarketplaces) > 0 || len(profileCreatePlugins) > 0 || profileCreateDescription != ""
+
+	// Mutual exclusivity checks
+	if profileCreateFromFile != "" && profileCreateFromStdin {
+		return fmt.Errorf("cannot use both --from-file and --from-stdin")
+	}
+	if hasFileInput && hasFlagsInput && (len(profileCreateMarketplaces) > 0 || len(profileCreatePlugins) > 0) {
+		return fmt.Errorf("cannot combine --from-file/--from-stdin with --marketplace/--plugin flags")
+	}
+
+	// Name is required for non-interactive modes
+	if (hasFileInput || hasFlagsInput) && len(args) == 0 {
+		return fmt.Errorf("profile name is required for non-interactive mode")
+	}
+
+	// Flags mode
+	if hasFlagsInput && !hasFileInput {
+		name := args[0]
+		if err := validateNewProfileName(name, profilesDir); err != nil {
+			return err
+		}
+
+		newProfile, err := profile.CreateFromFlags(name, profileCreateDescription, profileCreateMarketplaces, profileCreatePlugins)
+		if err != nil {
+			return err
+		}
+
+		return saveAndPrintNewProfile(newProfile, profilesDir)
+	}
+
+	// File/stdin mode
+	if hasFileInput {
+		name := args[0]
+		if err := validateNewProfileName(name, profilesDir); err != nil {
+			return err
+		}
+
+		var reader io.Reader
+		if profileCreateFromStdin {
+			reader = os.Stdin
+		} else {
+			f, err := os.Open(profileCreateFromFile)
+			if err != nil {
+				return fmt.Errorf("failed to open file: %w", err)
+			}
+			defer f.Close()
+			reader = f
+		}
+
+		newProfile, err := profile.CreateFromReader(name, reader, profileCreateDescription)
+		if err != nil {
+			return err
+		}
+
+		return saveAndPrintNewProfile(newProfile, profilesDir)
+	}
+
+	// Wizard mode (interactive) - existing code continues...
 
 	// Step 1: Get profile name
 	var name string
