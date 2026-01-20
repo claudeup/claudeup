@@ -38,6 +38,11 @@ Thumbs.db
 /claudeup-*
 docker/claudeup*
 
+# Claude
+**/CLAUDE.md
+!.claude/CLAUDE.md
+!/CLAUDE.md
+
 # Environment variables
 .env
 .env.local
