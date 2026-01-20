@@ -859,8 +859,11 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-	// Compute and show diff
-	diff, err := profile.ComputeDiff(p, claudeDir, claudeJSONPath)
+	// Compute and show diff (scope-aware to avoid confusing Remove actions for user-scope items)
+	diff, err := profile.ComputeDiffWithScope(p, claudeDir, claudeJSONPath, profile.DiffOptions{
+		Scope:      scope,
+		ProjectDir: cwd,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to compute changes: %w", err)
 	}
