@@ -3,7 +3,9 @@
 package profile
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -110,4 +112,88 @@ func CreateFromFlags(name, description string, marketplaceArgs, plugins []string
 		Plugins:      plugins,
 		MCPServers:   []MCPServer{},
 	}, nil
+}
+
+// CreateSpec is the input format for file/stdin profile creation
+type CreateSpec struct {
+	Description  string          `json:"description"`
+	Marketplaces json.RawMessage `json:"marketplaces"`
+	Plugins      []string        `json:"plugins"`
+	MCPServers   []MCPServer     `json:"mcpServers,omitempty"`
+	Detect       DetectRules     `json:"detect,omitempty"`
+	Sandbox      SandboxConfig   `json:"sandbox,omitempty"`
+}
+
+// CreateFromReader creates a profile from JSON input
+func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read input: %w", err)
+	}
+
+	var spec CreateSpec
+	if err := json.Unmarshal(data, &spec); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// Parse marketplaces (can be strings or objects)
+	marketplaces, err := parseMarketplacesJSON(spec.Marketplaces)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply description override
+	description := spec.Description
+	if descOverride != "" {
+		description = descOverride
+	}
+
+	// Convert to string args for validation
+	marketArgs := make([]string, len(marketplaces))
+	for i, m := range marketplaces {
+		marketArgs[i] = m.Repo
+	}
+
+	if err := ValidateCreateSpec(description, marketArgs, spec.Plugins); err != nil {
+		return nil, err
+	}
+
+	return &Profile{
+		Name:         name,
+		Description:  description,
+		Marketplaces: marketplaces,
+		Plugins:      spec.Plugins,
+		MCPServers:   spec.MCPServers,
+		Detect:       spec.Detect,
+		Sandbox:      spec.Sandbox,
+	}, nil
+}
+
+// parseMarketplacesJSON handles both string and object marketplace formats
+func parseMarketplacesJSON(raw json.RawMessage) ([]Marketplace, error) {
+	if len(raw) == 0 {
+		return nil, nil
+	}
+
+	// Try array of strings first
+	var stringMarkets []string
+	if err := json.Unmarshal(raw, &stringMarkets); err == nil {
+		markets := make([]Marketplace, 0, len(stringMarkets))
+		for _, s := range stringMarkets {
+			m, err := ParseMarketplaceArg(s)
+			if err != nil {
+				return nil, err
+			}
+			markets = append(markets, m)
+		}
+		return markets, nil
+	}
+
+	// Try array of objects
+	var objMarkets []Marketplace
+	if err := json.Unmarshal(raw, &objMarkets); err != nil {
+		return nil, fmt.Errorf("invalid marketplace format: expected array of strings or objects")
+	}
+
+	return objMarkets, nil
 }

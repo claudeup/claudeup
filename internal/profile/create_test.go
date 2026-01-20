@@ -234,3 +234,91 @@ func TestValidateCreateSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateFromReader(t *testing.T) {
+	tests := []struct {
+		name         string
+		profileName  string
+		json         string
+		descOverride string
+		wantErr      string
+	}{
+		{
+			name:        "valid JSON with object marketplaces",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": [{"source": "github", "repo": "owner/repo"}],
+				"plugins": ["plugin@ref"]
+			}`,
+			wantErr: "",
+		},
+		{
+			name:        "valid JSON with shorthand marketplaces",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"plugins": []
+			}`,
+			wantErr: "",
+		},
+		{
+			name:        "description override",
+			profileName: "my-profile",
+			json: `{
+				"description": "Original",
+				"marketplaces": ["owner/repo"]
+			}`,
+			descOverride: "Overridden",
+			wantErr:      "",
+		},
+		{
+			name:        "invalid JSON",
+			profileName: "my-profile",
+			json:        `{invalid`,
+			wantErr:     "invalid JSON",
+		},
+		{
+			name:        "missing description",
+			profileName: "my-profile",
+			json: `{
+				"marketplaces": ["owner/repo"]
+			}`,
+			wantErr: "description is required",
+		},
+		{
+			name:        "missing marketplaces",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test"
+			}`,
+			wantErr: "at least one marketplace is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := strings.NewReader(tt.json)
+			p, err := CreateFromReader(tt.profileName, r, tt.descOverride)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("CreateFromReader() unexpected error = %v", err)
+					return
+				}
+				if p.Name != tt.profileName {
+					t.Errorf("CreateFromReader() name = %v, want %v", p.Name, tt.profileName)
+				}
+				if tt.descOverride != "" && p.Description != tt.descOverride {
+					t.Errorf("CreateFromReader() description = %v, want %v", p.Description, tt.descOverride)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("CreateFromReader() expected error containing %q, got nil", tt.wantErr)
+				} else if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("CreateFromReader() error = %v, want containing %q", err, tt.wantErr)
+				}
+			}
+		})
+	}
+}
