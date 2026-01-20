@@ -61,3 +61,30 @@ func ValidatePluginFormat(plugin string) error {
 
 	return nil
 }
+
+// ValidateCreateSpec validates input for non-interactive profile creation.
+// Requires a description and at least one marketplace.
+// Validates marketplace and plugin formats using ParseMarketplaceArg and ValidatePluginFormat.
+func ValidateCreateSpec(description string, marketplaces []string, plugins []string) error {
+	if strings.TrimSpace(description) == "" {
+		return fmt.Errorf("description is required")
+	}
+
+	if len(marketplaces) == 0 {
+		return fmt.Errorf("at least one marketplace is required")
+	}
+
+	for _, m := range marketplaces {
+		if _, err := ParseMarketplaceArg(m); err != nil {
+			return err
+		}
+	}
+
+	for _, p := range plugins {
+		if err := ValidatePluginFormat(p); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

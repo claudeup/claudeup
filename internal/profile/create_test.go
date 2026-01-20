@@ -3,6 +3,7 @@
 package profile
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -111,6 +112,73 @@ func TestValidatePluginFormat(t *testing.T) {
 			err := ValidatePluginFormat(tt.plugin)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ValidatePluginFormat() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateCreateSpec(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		markets     []string
+		plugins     []string
+		wantErr     string
+	}{
+		{
+			name:        "valid minimal",
+			description: "Test profile",
+			markets:     []string{"owner/repo"},
+			plugins:     []string{},
+			wantErr:     "",
+		},
+		{
+			name:        "valid with plugins",
+			description: "Test profile",
+			markets:     []string{"owner/repo"},
+			plugins:     []string{"plugin@ref"},
+			wantErr:     "",
+		},
+		{
+			name:        "missing description",
+			description: "",
+			markets:     []string{"owner/repo"},
+			wantErr:     "description is required",
+		},
+		{
+			name:        "missing marketplaces",
+			description: "Test",
+			markets:     []string{},
+			wantErr:     "at least one marketplace is required",
+		},
+		{
+			name:        "invalid marketplace",
+			description: "Test",
+			markets:     []string{"invalid"},
+			wantErr:     "invalid marketplace format",
+		},
+		{
+			name:        "invalid plugin",
+			description: "Test",
+			markets:     []string{"owner/repo"},
+			plugins:     []string{"no-at-sign"},
+			wantErr:     "invalid plugin format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateCreateSpec(tt.description, tt.markets, tt.plugins)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Errorf("ValidateCreateSpec() unexpected error = %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("ValidateCreateSpec() expected error containing %q, got nil", tt.wantErr)
+				} else if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("ValidateCreateSpec() error = %v, want containing %q", err, tt.wantErr)
+				}
 			}
 		})
 	}
