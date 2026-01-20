@@ -158,12 +158,22 @@ func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, 
 		return nil, err
 	}
 
+	// Initialize nil slices to empty slices for consistent JSON serialization
+	plugins := spec.Plugins
+	if plugins == nil {
+		plugins = []string{}
+	}
+	mcpServers := spec.MCPServers
+	if mcpServers == nil {
+		mcpServers = []MCPServer{}
+	}
+
 	return &Profile{
 		Name:         name,
 		Description:  description,
 		Marketplaces: marketplaces,
-		Plugins:      spec.Plugins,
-		MCPServers:   spec.MCPServers,
+		Plugins:      plugins,
+		MCPServers:   mcpServers,
 		Detect:       spec.Detect,
 		Sandbox:      spec.Sandbox,
 	}, nil
