@@ -1817,6 +1817,30 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 	return nil, fmt.Errorf("profile %q not found", input)
 }
 
+// validateNewProfileName validates a profile name and checks it doesn't already exist
+func validateNewProfileName(name, profilesDir string) error {
+	if err := profile.ValidateName(name); err != nil {
+		return err
+	}
+	existingPath := filepath.Join(profilesDir, name+".json")
+	if _, err := os.Stat(existingPath); err == nil {
+		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
+	}
+	return nil
+}
+
+// saveAndPrintNewProfile saves a new profile and prints a success message
+func saveAndPrintNewProfile(p *profile.Profile, profilesDir string) error {
+	if err := profile.Save(profilesDir, p); err != nil {
+		return fmt.Errorf("failed to save profile: %w", err)
+	}
+	fmt.Printf("Profile %q created successfully.\n\n", p.Name)
+	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
+	fmt.Printf("  Plugins: %d\n", len(p.Plugins))
+	fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", p.Name)
+	return nil
+}
+
 func runProfileCreate(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 
@@ -1840,13 +1864,8 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	// Flags mode
 	if hasFlagsInput && !hasFileInput {
 		name := args[0]
-		if err := profile.ValidateName(name); err != nil {
+		if err := validateNewProfileName(name, profilesDir); err != nil {
 			return err
-		}
-
-		existingPath := filepath.Join(profilesDir, name+".json")
-		if _, err := os.Stat(existingPath); err == nil {
-			return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 		}
 
 		newProfile, err := profile.CreateFromFlags(name, profileCreateDescription, profileCreateMarketplaces, profileCreatePlugins)
@@ -1854,27 +1873,14 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		if err := profile.Save(profilesDir, newProfile); err != nil {
-			return fmt.Errorf("failed to save profile: %w", err)
-		}
-
-		fmt.Printf("Profile %q created successfully.\n\n", name)
-		fmt.Printf("  Marketplaces: %d\n", len(newProfile.Marketplaces))
-		fmt.Printf("  Plugins: %d\n", len(newProfile.Plugins))
-		fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", name)
-		return nil
+		return saveAndPrintNewProfile(newProfile, profilesDir)
 	}
 
 	// File/stdin mode
 	if hasFileInput {
 		name := args[0]
-		if err := profile.ValidateName(name); err != nil {
+		if err := validateNewProfileName(name, profilesDir); err != nil {
 			return err
-		}
-
-		existingPath := filepath.Join(profilesDir, name+".json")
-		if _, err := os.Stat(existingPath); err == nil {
-			return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 		}
 
 		var reader io.Reader
@@ -1894,15 +1900,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		if err := profile.Save(profilesDir, newProfile); err != nil {
-			return fmt.Errorf("failed to save profile: %w", err)
-		}
-
-		fmt.Printf("Profile %q created successfully.\n\n", name)
-		fmt.Printf("  Marketplaces: %d\n", len(newProfile.Marketplaces))
-		fmt.Printf("  Plugins: %d\n", len(newProfile.Plugins))
-		fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", name)
-		return nil
+		return saveAndPrintNewProfile(newProfile, profilesDir)
 	}
 
 	// Wizard mode (interactive) - existing code continues...
