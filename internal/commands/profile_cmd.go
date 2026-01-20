@@ -5,6 +5,7 @@ package commands
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1818,6 +1819,93 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 
 func runProfileCreate(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
+
+	// Detect mode: file, flags, or wizard
+	hasFileInput := profileCreateFromFile != "" || profileCreateFromStdin
+	hasFlagsInput := len(profileCreateMarketplaces) > 0 || len(profileCreatePlugins) > 0 || profileCreateDescription != ""
+
+	// Mutual exclusivity checks
+	if profileCreateFromFile != "" && profileCreateFromStdin {
+		return fmt.Errorf("cannot use both --from-file and --from-stdin")
+	}
+	if hasFileInput && hasFlagsInput && (len(profileCreateMarketplaces) > 0 || len(profileCreatePlugins) > 0) {
+		return fmt.Errorf("cannot combine --from-file/--from-stdin with --marketplace/--plugin flags")
+	}
+
+	// Name is required for non-interactive modes
+	if (hasFileInput || hasFlagsInput) && len(args) == 0 {
+		return fmt.Errorf("profile name is required for non-interactive mode")
+	}
+
+	// Flags mode
+	if hasFlagsInput && !hasFileInput {
+		name := args[0]
+		if err := profile.ValidateName(name); err != nil {
+			return err
+		}
+
+		existingPath := filepath.Join(profilesDir, name+".json")
+		if _, err := os.Stat(existingPath); err == nil {
+			return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
+		}
+
+		newProfile, err := profile.CreateFromFlags(name, profileCreateDescription, profileCreateMarketplaces, profileCreatePlugins)
+		if err != nil {
+			return err
+		}
+
+		if err := profile.Save(profilesDir, newProfile); err != nil {
+			return fmt.Errorf("failed to save profile: %w", err)
+		}
+
+		fmt.Printf("Profile %q created successfully.\n\n", name)
+		fmt.Printf("  Marketplaces: %d\n", len(newProfile.Marketplaces))
+		fmt.Printf("  Plugins: %d\n", len(newProfile.Plugins))
+		fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", name)
+		return nil
+	}
+
+	// File/stdin mode
+	if hasFileInput {
+		name := args[0]
+		if err := profile.ValidateName(name); err != nil {
+			return err
+		}
+
+		existingPath := filepath.Join(profilesDir, name+".json")
+		if _, err := os.Stat(existingPath); err == nil {
+			return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
+		}
+
+		var reader io.Reader
+		if profileCreateFromStdin {
+			reader = os.Stdin
+		} else {
+			f, err := os.Open(profileCreateFromFile)
+			if err != nil {
+				return fmt.Errorf("failed to open file: %w", err)
+			}
+			defer f.Close()
+			reader = f
+		}
+
+		newProfile, err := profile.CreateFromReader(name, reader, profileCreateDescription)
+		if err != nil {
+			return err
+		}
+
+		if err := profile.Save(profilesDir, newProfile); err != nil {
+			return fmt.Errorf("failed to save profile: %w", err)
+		}
+
+		fmt.Printf("Profile %q created successfully.\n\n", name)
+		fmt.Printf("  Marketplaces: %d\n", len(newProfile.Marketplaces))
+		fmt.Printf("  Plugins: %d\n", len(newProfile.Plugins))
+		fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", name)
+		return nil
+	}
+
+	// Wizard mode (interactive) - existing code continues...
 
 	// Step 1: Get profile name
 	var name string
