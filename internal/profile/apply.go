@@ -134,6 +134,9 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath string, op
 	}
 
 	// MCP servers to remove/install
+	// Note: MCP servers respect scope during apply (--scope flag), so we compare them
+	// directly without special scope handling. Unlike marketplaces (always user-scoped),
+	// MCP servers can be added at project or local scope and will be properly scoped.
 	currentMCP := make(map[string]bool)
 	for _, mcp := range current.MCPServers {
 		currentMCP[mcp.Name] = true

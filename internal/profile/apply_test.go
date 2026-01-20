@@ -1252,6 +1252,67 @@ func TestComputeDiffWithScopeProjectExistingState(t *testing.T) {
 	}
 }
 
+func TestComputeDiffWithScopeLocalBehavesLikeProject(t *testing.T) {
+	// Test that local scope behaves like project scope:
+	// doesn't show user-scope items as removals
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	projectDir := filepath.Join(tmpDir, "project")
+	os.MkdirAll(pluginsDir, 0755)
+	os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)
+
+	// User scope has marketplaces and plugins
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"user-plugin@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	userSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"user-plugin@marketplace": true,
+		},
+	}
+	marketplaces := map[string]interface{}{
+		"user-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{"source": "github", "repo": "user/marketplace"},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), userSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile with different marketplace
+	profile := &Profile{
+		Name:    "local-profile",
+		Plugins: []string{"local-plugin@new-marketplace"},
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "new/marketplace"},
+		},
+	}
+
+	// Compute diff for LOCAL scope
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+		Scope:      ScopeLocal,
+		ProjectDir: projectDir,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope failed: %v", err)
+	}
+
+	// Should NOT show user-scope marketplaces as removals
+	if len(diff.MarketplacesToRemove) != 0 {
+		t.Errorf("Local scope diff should not remove user-scope marketplaces, got: %v", diff.MarketplacesToRemove)
+	}
+
+	// Should still add the new marketplace
+	if len(diff.MarketplacesToAdd) != 1 {
+		t.Errorf("Local scope diff should add new marketplace, got: %v", diff.MarketplacesToAdd)
+	}
+}
+
 func TestResetHandlesPluginNotFoundError(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
