@@ -124,11 +124,19 @@ type CreateSpec struct {
 	Sandbox      SandboxConfig   `json:"sandbox,omitempty"`
 }
 
+// MaxInputSize is the maximum size for JSON input (10MB)
+const MaxInputSize = 10 * 1024 * 1024
+
 // CreateFromReader creates a profile from JSON input
 func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, error) {
-	data, err := io.ReadAll(r)
+	// Limit input size to prevent memory exhaustion
+	limitedReader := io.LimitReader(r, MaxInputSize+1)
+	data, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read input: %w", err)
+	}
+	if len(data) > MaxInputSize {
+		return nil, fmt.Errorf("input too large: maximum size is %d bytes", MaxInputSize)
 	}
 
 	var spec CreateSpec
@@ -203,6 +211,13 @@ func parseMarketplacesJSON(raw json.RawMessage) ([]Marketplace, error) {
 	var objMarkets []Marketplace
 	if err := json.Unmarshal(raw, &objMarkets); err != nil {
 		return nil, fmt.Errorf("invalid marketplace format: expected array of strings or objects")
+	}
+
+	// Validate object-format marketplaces have required fields
+	for i, m := range objMarkets {
+		if m.Repo == "" {
+			return nil, fmt.Errorf("marketplace repo cannot be empty (marketplace %d)", i+1)
+		}
 	}
 
 	return objMarkets, nil

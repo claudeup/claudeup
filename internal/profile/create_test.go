@@ -253,6 +253,25 @@ func TestCreateFromReader(t *testing.T) {
 			}`,
 			wantErr: "",
 		},
+		// Object-format marketplace validation
+		{
+			name:        "object marketplace with empty repo rejected",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": [{"source": "github", "repo": ""}]
+			}`,
+			wantErr: "marketplace repo cannot be empty",
+		},
+		{
+			name:        "object marketplace with missing repo rejected",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": [{"source": "github"}]
+			}`,
+			wantErr: "marketplace repo cannot be empty",
+		},
 		{
 			name:        "valid JSON with shorthand marketplaces",
 			profileName: "my-profile",
@@ -320,5 +339,49 @@ func TestCreateFromReader(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCreateFromReaderSizeLimit(t *testing.T) {
+	// Create a reader that would exceed 10MB
+	// We use a LimitedReader simulation by creating oversized input
+	oversizedJSON := `{"description": "Test", "marketplaces": ["owner/repo"], "plugins": ["` +
+		strings.Repeat("x", 11*1024*1024) + `@ref"]}`
+
+	r := strings.NewReader(oversizedJSON)
+	_, err := CreateFromReader("test", r, "")
+
+	if err == nil {
+		t.Error("CreateFromReader() expected error for oversized input, got nil")
+	}
+	if !strings.Contains(err.Error(), "input too large") {
+		t.Errorf("CreateFromReader() error = %v, want containing 'input too large'", err)
+	}
+}
+
+func TestCreateFromReaderNilSlices(t *testing.T) {
+	// Verify that omitting plugins/mcpServers results in empty slices, not nil
+	json := `{
+		"description": "Test profile",
+		"marketplaces": ["owner/repo"]
+	}`
+
+	r := strings.NewReader(json)
+	p, err := CreateFromReader("test", r, "")
+	if err != nil {
+		t.Fatalf("CreateFromReader() unexpected error = %v", err)
+	}
+
+	if p.Plugins == nil {
+		t.Error("CreateFromReader() Plugins should be empty slice, not nil")
+	}
+	if len(p.Plugins) != 0 {
+		t.Errorf("CreateFromReader() Plugins should be empty, got %v", p.Plugins)
+	}
+	if p.MCPServers == nil {
+		t.Error("CreateFromReader() MCPServers should be empty slice, not nil")
+	}
+	if len(p.MCPServers) != 0 {
+		t.Errorf("CreateFromReader() MCPServers should be empty, got %v", p.MCPServers)
 	}
 }
