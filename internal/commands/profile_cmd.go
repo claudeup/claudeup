@@ -349,6 +349,15 @@ var profileListScope string
 // Flags for profile clean command
 var profileCleanScope string
 
+// Flags for profile create command
+var (
+	profileCreateDescription  string
+	profileCreateMarketplaces []string
+	profileCreatePlugins      []string
+	profileCreateFromFile     string
+	profileCreateFromStdin    bool
+)
+
 var profileCleanCmd = &cobra.Command{
 	Use:   "clean <plugin>",
 	Short: "Remove orphaned plugin from config and profile",
@@ -516,6 +525,13 @@ func init() {
 	profileCmd.AddCommand(profileRenameCmd)
 	profileCmd.AddCommand(profileSyncCmd)
 	profileCmd.AddCommand(profileCleanCmd)
+
+	// Add flags to profile create command
+	profileCreateCmd.Flags().StringVar(&profileCreateDescription, "description", "", "Profile description")
+	profileCreateCmd.Flags().StringSliceVar(&profileCreateMarketplaces, "marketplace", nil, "Marketplace in owner/repo format (can be repeated)")
+	profileCreateCmd.Flags().StringSliceVar(&profileCreatePlugins, "plugin", nil, "Plugin in name@marketplace-ref format (can be repeated)")
+	profileCreateCmd.Flags().StringVar(&profileCreateFromFile, "from-file", "", "Create profile from JSON file")
+	profileCreateCmd.Flags().BoolVar(&profileCreateFromStdin, "from-stdin", false, "Create profile from JSON on stdin")
 
 	profileCloneCmd.Flags().StringVar(&profileCloneFromFlag, "from", "", "Source profile to copy from")
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
