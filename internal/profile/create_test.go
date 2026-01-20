@@ -64,3 +64,54 @@ func TestParseMarketplaceArg(t *testing.T) {
 		})
 	}
 }
+
+func TestValidatePluginFormat(t *testing.T) {
+	tests := []struct {
+		name    string
+		plugin  string
+		wantErr bool
+	}{
+		{
+			name:   "valid format",
+			plugin: "plugin-dev@claude-code-plugins",
+		},
+		{
+			name:   "valid with colons",
+			plugin: "backend:api-design@claude-workflows",
+		},
+		// Edge case: plugin names can contain @ - LastIndex finds the separator
+		{
+			name:   "plugin name containing at sign uses last separator",
+			plugin: "team@corp@marketplace-ref",
+		},
+		{
+			name:    "empty string",
+			plugin:  "",
+			wantErr: true,
+		},
+		{
+			name:    "no at sign",
+			plugin:  "invalid-plugin",
+			wantErr: true,
+		},
+		{
+			name:    "empty marketplace ref",
+			plugin:  "plugin@",
+			wantErr: true,
+		},
+		{
+			name:    "empty plugin name",
+			plugin:  "@marketplace",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePluginFormat(tt.plugin)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePluginFormat() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

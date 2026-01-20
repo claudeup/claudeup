@@ -34,3 +34,30 @@ func ParseMarketplaceArg(arg string) (Marketplace, error) {
 		Repo:   owner + "/" + repo,
 	}, nil
 }
+
+// ValidatePluginFormat validates a plugin string is in "name@marketplace-ref" format.
+// Plugin names can contain colons (e.g., "backend:api-design@marketplace").
+// Uses LastIndex to find @ since plugin names may contain @, but the last @ is the separator.
+func ValidatePluginFormat(plugin string) error {
+	plugin = strings.TrimSpace(plugin)
+	if plugin == "" {
+		return fmt.Errorf("plugin cannot be empty")
+	}
+
+	atIdx := strings.LastIndex(plugin, "@")
+	if atIdx == -1 {
+		return fmt.Errorf("invalid plugin format %q: expected name@marketplace-ref", plugin)
+	}
+
+	name := plugin[:atIdx]
+	ref := plugin[atIdx+1:]
+
+	if name == "" {
+		return fmt.Errorf("invalid plugin format %q: plugin name cannot be empty", plugin)
+	}
+	if ref == "" {
+		return fmt.Errorf("invalid plugin format %q: marketplace ref cannot be empty", plugin)
+	}
+
+	return nil
+}
