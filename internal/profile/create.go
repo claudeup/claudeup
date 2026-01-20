@@ -88,3 +88,26 @@ func ValidateCreateSpec(description string, marketplaces []string, plugins []str
 
 	return nil
 }
+
+// CreateFromFlags creates a profile from CLI flag values.
+// Uses ValidateCreateSpec for input validation and ParseMarketplaceArg
+// to convert marketplace strings to Marketplace structs.
+func CreateFromFlags(name, description string, marketplaceArgs, plugins []string) (*Profile, error) {
+	if err := ValidateCreateSpec(description, marketplaceArgs, plugins); err != nil {
+		return nil, err
+	}
+
+	marketplaces := make([]Marketplace, 0, len(marketplaceArgs))
+	for _, arg := range marketplaceArgs {
+		m, _ := ParseMarketplaceArg(arg) // Already validated by ValidateCreateSpec
+		marketplaces = append(marketplaces, m)
+	}
+
+	return &Profile{
+		Name:         name,
+		Description:  description,
+		Marketplaces: marketplaces,
+		Plugins:      plugins,
+		MCPServers:   []MCPServer{},
+	}, nil
+}

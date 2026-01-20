@@ -117,6 +117,57 @@ func TestValidatePluginFormat(t *testing.T) {
 	}
 }
 
+func TestCreateFromFlags(t *testing.T) {
+	tests := []struct {
+		name        string
+		profileName string
+		description string
+		markets     []string
+		plugins     []string
+		wantErr     bool
+	}{
+		{
+			name:        "creates valid profile",
+			profileName: "test-profile",
+			description: "Test description",
+			markets:     []string{"anthropics/claude-code", "obra/superpowers"},
+			plugins:     []string{"plugin-dev@claude-code-plugins"},
+			wantErr:     false,
+		},
+		{
+			name:        "fails on validation error",
+			profileName: "test",
+			description: "",
+			markets:     []string{"owner/repo"},
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := CreateFromFlags(tt.profileName, tt.description, tt.markets, tt.plugins)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("CreateFromFlags() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr {
+				if p.Name != tt.profileName {
+					t.Errorf("CreateFromFlags() name = %v, want %v", p.Name, tt.profileName)
+				}
+				if p.Description != tt.description {
+					t.Errorf("CreateFromFlags() description = %v, want %v", p.Description, tt.description)
+				}
+				if len(p.Marketplaces) != len(tt.markets) {
+					t.Errorf("CreateFromFlags() marketplaces = %v, want %v", len(p.Marketplaces), len(tt.markets))
+				}
+				if len(p.Plugins) != len(tt.plugins) {
+					t.Errorf("CreateFromFlags() plugins = %v, want %v", len(p.Plugins), len(tt.plugins))
+				}
+			}
+		})
+	}
+}
+
 func TestValidateCreateSpec(t *testing.T) {
 	tests := []struct {
 		name        string
