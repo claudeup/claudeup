@@ -3,6 +3,9 @@
 package acceptance
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/claudeup/claudeup/v2/internal/profile"
 	"github.com/claudeup/claudeup/v2/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
@@ -130,6 +133,93 @@ var _ = Describe("profile create non-interactive", func() {
 			)
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("reserved"))
+		})
+	})
+
+	Context("file mode", func() {
+		It("creates profile from file", func() {
+			specPath := filepath.Join(env.TempDir, "spec.json")
+			spec := `{
+				"description": "From file",
+				"marketplaces": ["anthropics/claude-code"],
+				"plugins": ["plugin@ref"]
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "from-file-profile", "--from-file", specPath)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+			Expect(env.ProfileExists("from-file-profile")).To(BeTrue())
+
+			p := env.LoadProfile("from-file-profile")
+			Expect(p.Description).To(Equal("From file"))
+		})
+
+		It("creates profile from stdin", func() {
+			spec := `{
+				"description": "From stdin",
+				"marketplaces": ["anthropics/claude-code"],
+				"plugins": []
+			}`
+
+			result := env.RunWithInput(spec, "profile", "create", "from-stdin-profile", "--from-stdin")
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+			Expect(env.ProfileExists("from-stdin-profile")).To(BeTrue())
+
+			p := env.LoadProfile("from-stdin-profile")
+			Expect(p.Description).To(Equal("From stdin"))
+		})
+
+		It("allows description override with --from-file", func() {
+			specPath := filepath.Join(env.TempDir, "spec.json")
+			spec := `{
+				"description": "Original",
+				"marketplaces": ["owner/repo"]
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "override-profile",
+				"--from-file", specPath,
+				"--description", "Overridden",
+			)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("override-profile")
+			Expect(p.Description).To(Equal("Overridden"))
+		})
+
+		It("fails with invalid JSON", func() {
+			specPath := filepath.Join(env.TempDir, "bad.json")
+			Expect(os.WriteFile(specPath, []byte(`{invalid`), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "bad-json", "--from-file", specPath)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("invalid JSON"))
+		})
+
+		It("rejects combining --from-file with --marketplace", func() {
+			specPath := filepath.Join(env.TempDir, "spec.json")
+			spec := `{"description": "Test", "marketplaces": ["owner/repo"]}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "conflict",
+				"--from-file", specPath,
+				"--marketplace", "other/repo",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot combine"))
+		})
+
+		It("rejects combining --from-file with --from-stdin", func() {
+			specPath := filepath.Join(env.TempDir, "spec.json")
+			spec := `{"description": "Test", "marketplaces": ["owner/repo"]}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.RunWithInput(spec, "profile", "create", "both-modes",
+				"--from-file", specPath,
+				"--from-stdin",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot use both"))
 		})
 	})
 })
