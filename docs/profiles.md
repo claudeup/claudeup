@@ -423,6 +423,46 @@ claudeup profile create my-new-profile
 
 The wizard prompts you to select marketplaces, plugins, and configure MCP servers step by step.
 
+### Creating Profiles Non-Interactively
+
+For automation or scripting, use flags to create profiles without the wizard:
+
+```bash
+# Create profile with flags
+claudeup profile create my-profile \
+  --description "My development setup" \
+  --marketplace "anthropics/claude-code-plugins" \
+  --marketplace "obra/superpowers-marketplace" \
+  --plugin "plugin-dev@claude-code-plugins"
+```
+
+You can also create profiles from JSON files or stdin:
+
+```bash
+# From file
+claudeup profile create my-profile --from-file spec.json
+
+# From stdin (useful for piping)
+echo '{"description": "Piped profile", "marketplaces": ["owner/repo"]}' | \
+  claudeup profile create my-profile --from-stdin
+
+# Override description from file
+claudeup profile create my-profile --from-file spec.json --description "Custom description"
+```
+
+The JSON format supports both shorthand and full marketplace syntax:
+
+```json
+{
+  "description": "Example profile",
+  "marketplaces": ["anthropics/claude-code-plugins"],
+  "plugins": ["plugin-dev@claude-code-plugins"],
+  "mcpServers": [],
+  "detect": {},
+  "sandbox": {}
+}
+```
+
 ## Profile Structure
 
 Profiles are stored in `~/.claudeup/profiles/` as JSON files:
