@@ -66,6 +66,11 @@ func runPluginSearch(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid --type: must be skills, commands, or agents")
 	}
 
+	// Warn about unimplemented --content flag
+	if searchContent {
+		fmt.Fprintln(os.Stderr, "Warning: --content flag is not yet implemented, searching metadata only")
+	}
+
 	// Determine cache directory
 	cacheDir := filepath.Join(claudeDir, "plugins", "cache")
 
