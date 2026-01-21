@@ -4,9 +4,11 @@
 package pluginsearch
 
 import (
+	"bufio"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Scanner scans the plugin cache to build a search index.
@@ -71,6 +73,10 @@ func (s *Scanner) Scan(cacheDir string) ([]PluginSearchIndex, error) {
 					continue // Skip malformed plugins
 				}
 
+				plugin.Skills = s.scanSkills(versionPath)
+				plugin.Commands = s.scanComponents(versionPath, "commands")
+				plugin.Agents = s.scanComponents(versionPath, "agents")
+
 				plugins = append(plugins, *plugin)
 			}
 		}
@@ -99,4 +105,83 @@ func (s *Scanner) parsePlugin(pluginPath, marketplace string) (*PluginSearchInde
 		Marketplace: marketplace,
 		Path:        pluginPath,
 	}, nil
+}
+
+func (s *Scanner) scanSkills(pluginPath string) []ComponentInfo {
+	skillsDir := filepath.Join(pluginPath, "skills")
+	entries, err := os.ReadDir(skillsDir)
+	if err != nil {
+		return nil
+	}
+
+	var skills []ComponentInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		skillPath := filepath.Join(skillsDir, entry.Name())
+		skill := s.parseSkillFrontmatter(skillPath, entry.Name())
+		skills = append(skills, skill)
+	}
+	return skills
+}
+
+func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo {
+	skillFile := filepath.Join(skillPath, "SKILL.md")
+	file, err := os.Open(skillFile)
+	if err != nil {
+		return ComponentInfo{Name: dirName, Path: skillPath}
+	}
+	defer file.Close()
+
+	fileScanner := bufio.NewScanner(file)
+	inFrontmatter := false
+	name := dirName
+	description := ""
+
+	for fileScanner.Scan() {
+		line := fileScanner.Text()
+		if line == "---" {
+			if inFrontmatter {
+				break // End of frontmatter
+			}
+			inFrontmatter = true
+			continue
+		}
+		if inFrontmatter {
+			if strings.HasPrefix(line, "name:") {
+				name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
+				name = strings.Trim(name, "\"'")
+			} else if strings.HasPrefix(line, "description:") {
+				description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
+				description = strings.Trim(description, "\"'")
+			}
+		}
+	}
+
+	return ComponentInfo{
+		Name:        name,
+		Description: description,
+		Path:        skillPath,
+	}
+}
+
+func (s *Scanner) scanComponents(pluginPath, componentType string) []ComponentInfo {
+	dir := filepath.Join(pluginPath, componentType)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+
+	var components []ComponentInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		components = append(components, ComponentInfo{
+			Name: entry.Name(),
+			Path: filepath.Join(dir, entry.Name()),
+		})
+	}
+	return components
 }

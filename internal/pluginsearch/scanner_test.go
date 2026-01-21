@@ -88,3 +88,32 @@ func TestScanner_NonExistentCache(t *testing.T) {
 		t.Error("expected error for non-existent cache directory, got nil")
 	}
 }
+
+func TestScanner_ParsesSkills(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "cache")
+
+	plugins, err := scanner.Scan(cacheDir)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+	if len(plugins) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(plugins))
+	}
+
+	p := plugins[0]
+	if !p.HasSkills() {
+		t.Fatal("expected plugin to have skills")
+	}
+	if len(p.Skills) != 1 {
+		t.Fatalf("expected 1 skill, got %d", len(p.Skills))
+	}
+
+	skill := p.Skills[0]
+	if skill.Name != "my-skill" {
+		t.Errorf("expected skill name 'my-skill', got '%s'", skill.Name)
+	}
+	if skill.Description != "A skill for testing purposes" {
+		t.Errorf("expected skill description 'A skill for testing purposes', got '%s'", skill.Description)
+	}
+}
