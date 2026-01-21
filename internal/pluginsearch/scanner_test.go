@@ -42,6 +42,11 @@ func TestScanner_ScanPlugin(t *testing.T) {
 		t.Errorf("expected Marketplace 'test-marketplace', got '%s'", p.Marketplace)
 	}
 
+	expectedPath := filepath.Join(cacheDir, "test-marketplace", "test-plugin", "1.0.0")
+	if p.Path != expectedPath {
+		t.Errorf("expected Path '%s', got '%s'", expectedPath, p.Path)
+	}
+
 	// Check keywords
 	hasKeyword := func(keywords []string, keyword string) bool {
 		for _, k := range keywords {
@@ -57,5 +62,29 @@ func TestScanner_ScanPlugin(t *testing.T) {
 	}
 	if !hasKeyword(p.Keywords, "example") {
 		t.Error("expected Keywords to contain 'example'")
+	}
+}
+
+func TestScanner_EmptyCache(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "empty-cache")
+
+	plugins, err := scanner.Scan(cacheDir)
+	if err != nil {
+		t.Fatalf("Scan() returned error for empty cache: %v", err)
+	}
+
+	if len(plugins) != 0 {
+		t.Errorf("expected 0 plugins for empty cache, got %d", len(plugins))
+	}
+}
+
+func TestScanner_NonExistentCache(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "does-not-exist")
+
+	_, err := scanner.Scan(cacheDir)
+	if err == nil {
+		t.Error("expected error for non-existent cache directory, got nil")
 	}
 }
