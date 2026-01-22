@@ -1,0 +1,6 @@
+{
+  "name": "test-plugin",
+  "description": "A test plugin for unit tests",
+  "version": "1.0.0",
+  "keywords": ["testing", "example"]
+}

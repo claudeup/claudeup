@@ -307,6 +307,8 @@ claudeup plugin browse <marketplace>                  # List available plugins
 claudeup plugin browse <marketplace> --format table  # Table format
 claudeup plugin browse <marketplace> --show <name>   # Show plugin contents
 claudeup plugin show <plugin>@<marketplace>          # Show plugin contents
+claudeup plugin search <query>                        # Search installed plugins
+claudeup plugin search <query> --all                  # Search all cached plugins
 ```
 
 **`plugin list` flags:**
@@ -337,6 +339,51 @@ claudeup plugin show observability-monitoring@claude-code-workflows
 # While browsing
 claudeup plugin browse claude-code-workflows --show observability-monitoring
 ```
+
+**`plugin search`:**
+
+Search across plugins to find those with specific capabilities. Searches plugin names, descriptions, keywords, and component names/descriptions.
+
+```bash
+# Search installed plugins
+claudeup plugin search tdd
+
+# Search all cached plugins (all synced marketplaces)
+claudeup plugin search "skill" --all
+
+# Filter by component type
+claudeup plugin search commit --type commands
+
+# Search specific marketplace
+claudeup plugin search api --marketplace claude-code-workflows
+
+# Group results by component type
+claudeup plugin search frontend --by-component
+
+# Use regex patterns
+claudeup plugin search "front.?end|react" --regex --all
+
+# Output formats
+claudeup plugin search api --format table
+claudeup plugin search api --format json
+```
+
+**`plugin search` flags:**
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Search all cached plugins, not just installed |
+| `--type` | Filter by component type: skills, commands, agents |
+| `--marketplace` | Limit search to specific marketplace |
+| `--by-component` | Group results by component type instead of plugin |
+| `--regex` | Treat query as regular expression |
+| `--format` | Output format: json, table (default: styled text with trees) |
+
+**Output formats:**
+
+- **Default** - Styled text showing matching plugins with their components and directory trees
+- **Table** - Tabular view with plugin, type, component, and description columns
+- **JSON** - Machine-readable output for scripting
 
 ### marketplace
 
