@@ -9,6 +9,7 @@ import (
 
 	"github.com/claudeup/claudeup/v2/internal/claude"
 	"github.com/claudeup/claudeup/v2/internal/pluginsearch"
+	"github.com/claudeup/claudeup/v2/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -131,5 +132,41 @@ func runPluginSearch(cmd *cobra.Command, args []string) error {
 	formatter := pluginsearch.NewFormatter(os.Stdout)
 	formatter.Render(results, query, formatOpts)
 
+	// Show plugin trees for default format (not JSON or table)
+	if searchFormat == "" && len(results) > 0 {
+		for _, result := range results {
+			showSearchResultTree(result.Plugin)
+		}
+	}
+
 	return nil
+}
+
+// showSearchResultTree displays the directory tree for a plugin in search results.
+func showSearchResultTree(plugin pluginsearch.PluginSearchIndex) {
+	if plugin.Path == "" {
+		return
+	}
+
+	tree, dirs, files := generateTree(plugin.Path)
+	if tree == "" {
+		return
+	}
+
+	// Print plugin header
+	fullName := plugin.Name + "@" + plugin.Marketplace
+	fmt.Printf("%s\n\n", ui.Bold(fullName))
+
+	fmt.Print(tree)
+
+	// Print summary
+	dirWord := "directories"
+	if dirs == 1 {
+		dirWord = "directory"
+	}
+	fileWord := "files"
+	if files == 1 {
+		fileWord = "file"
+	}
+	fmt.Printf("\n%d %s, %d %s\n\n", dirs, dirWord, files, fileWord)
 }
