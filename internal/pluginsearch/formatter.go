@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 )
 
 // FormatOptions configures output rendering.
@@ -296,14 +297,7 @@ func (f *Formatter) extractMatchNames(matches []Match) []string {
 }
 
 func joinNames(names []string) string {
-	if len(names) == 0 {
-		return ""
-	}
-	result := names[0]
-	for i := 1; i < len(names); i++ {
-		result += ", " + names[i]
-	}
-	return result
+	return strings.Join(names, ", ")
 }
 
 func truncate(s string, maxLen int) string {

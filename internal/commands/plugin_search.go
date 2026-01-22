@@ -63,7 +63,7 @@ func runPluginSearch(cmd *cobra.Command, args []string) error {
 
 	// Validate --type flag
 	if searchType != "" && searchType != "skills" && searchType != "commands" && searchType != "agents" {
-		return fmt.Errorf("invalid --type: must be skills, commands, or agents")
+		return fmt.Errorf("invalid --type %q: must be skills, commands, or agents", searchType)
 	}
 
 	// Warn about unimplemented --content flag

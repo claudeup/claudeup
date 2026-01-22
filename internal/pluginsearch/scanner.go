@@ -158,6 +158,10 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 			}
 		}
 	}
+	// Check for scanner errors (per Go best practice)
+	if fileScanner.Err() != nil {
+		return ComponentInfo{Name: dirName, Path: skillPath}
+	}
 
 	return ComponentInfo{
 		Name:        name,
