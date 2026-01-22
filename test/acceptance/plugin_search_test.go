@@ -93,14 +93,16 @@ Use this for TDD.
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("tdd-plugin@test-marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("Skills:"))
+				Expect(result.Stdout).To(ContainSubstring("Skills"))
 			})
 
 			It("shows match count in results header", func() {
 				result := env.Run("plugin", "search", "tdd")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(MatchRegexp(`\d+ plugins?.*\d+ match`))
+				// Header format: "Search results for "X" (N)" followed by "N plugins"
+				Expect(result.Stdout).To(MatchRegexp(`Search results for .* \(\d+\)`))
+				Expect(result.Stdout).To(MatchRegexp(`\d+ plugins?`))
 			})
 		})
 
@@ -109,8 +111,8 @@ Use this for TDD.
 				result := env.Run("plugin", "search", "tdd", "--type", "skills")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Skills:"))
-				Expect(result.Stdout).NotTo(ContainSubstring("Commands:"))
+				Expect(result.Stdout).To(ContainSubstring("Skills"))
+				Expect(result.Stdout).NotTo(ContainSubstring("Commands"))
 			})
 
 			It("shows only commands when --type commands", func() {
@@ -133,7 +135,7 @@ Use this for TDD.
 				result := env.Run("plugin", "search", "tdd", "--by-component")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Skills:"))
+				Expect(result.Stdout).To(ContainSubstring("Skills"))
 				Expect(result.Stdout).To(ContainSubstring("tdd-skill"))
 			})
 
@@ -141,7 +143,9 @@ Use this for TDD.
 				result := env.Run("plugin", "search", "tdd", "--by-component")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(MatchRegexp(`\d+ components? across \d+ plugins?`))
+				// Header format: "Search results for "X" (N)" followed by "N plugins"
+				Expect(result.Stdout).To(MatchRegexp(`Search results for .* \(\d+\)`))
+				Expect(result.Stdout).To(MatchRegexp(`\d+ plugins?`))
 			})
 		})
 

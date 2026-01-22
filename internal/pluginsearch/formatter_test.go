@@ -114,9 +114,9 @@ func TestFormatter_ByComponent(t *testing.T) {
 
 	output := buf.String()
 
-	// Should group by component type with "Skills:" header
-	if !strings.Contains(output, "Skills:") {
-		t.Errorf("expected output to contain 'Skills:' header, got:\n%s", output)
+	// Should group by component type with "Skills" section header
+	if !strings.Contains(output, "Skills") {
+		t.Errorf("expected output to contain 'Skills' header, got:\n%s", output)
 	}
 
 	// Should show components grouped together
@@ -133,8 +133,8 @@ func TestFormatter_ByComponent(t *testing.T) {
 	}
 
 	// Should have Commands section if commands matched
-	if !strings.Contains(output, "Commands:") {
-		t.Errorf("expected output to contain 'Commands:' header, got:\n%s", output)
+	if !strings.Contains(output, "Commands") {
+		t.Errorf("expected output to contain 'Commands' header, got:\n%s", output)
 	}
 }
 
@@ -284,9 +284,9 @@ func TestFormatter_MatchCountsInHeader(t *testing.T) {
 
 	output := buf.String()
 
-	// Header should show total matches (3)
-	if !strings.Contains(output, "3 matches") {
-		t.Errorf("expected header to show '3 matches', got:\n%s", output)
+	// Header should show total matches count (3) in section header
+	if !strings.Contains(output, "(3)") {
+		t.Errorf("expected header to show match count '(3)', got:\n%s", output)
 	}
 }
 

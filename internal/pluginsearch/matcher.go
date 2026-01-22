@@ -22,6 +22,7 @@ type Match struct {
 	Name        string // Component name if applicable
 	Description string // Component description if applicable
 	Context     string // The matched text
+	Path        string // Component path if applicable
 }
 
 // SearchResult represents a plugin with its matches.
@@ -117,6 +118,7 @@ func (m *Matcher) matchPlugin(plugin PluginSearchIndex, matchFunc func(string) b
 					Name:        skill.Name,
 					Description: skill.Description,
 					Context:     skill.Name,
+					Path:        skill.Path,
 				})
 			}
 		}
@@ -130,6 +132,7 @@ func (m *Matcher) matchPlugin(plugin PluginSearchIndex, matchFunc func(string) b
 					Type:    "command",
 					Name:    cmd.Name,
 					Context: cmd.Name,
+					Path:    cmd.Path,
 				})
 			}
 		}
@@ -143,6 +146,7 @@ func (m *Matcher) matchPlugin(plugin PluginSearchIndex, matchFunc func(string) b
 					Type:    "agent",
 					Name:    agent.Name,
 					Context: agent.Name,
+					Path:    agent.Path,
 				})
 			}
 		}

@@ -7,7 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
 	"strings"
+
+	"github.com/claudeup/claudeup/v2/internal/ui"
 )
 
 // FormatOptions configures output rendering.
@@ -50,8 +53,8 @@ func (f *Formatter) renderDefault(results []SearchResult, query string) {
 	}
 
 	totalMatches := f.countMatches(results)
-	fmt.Fprintf(f.w, "Search results for \"%s\" (%d plugins, %d matches)\n\n",
-		query, len(results), totalMatches)
+	fmt.Fprintln(f.w, ui.RenderSection(fmt.Sprintf("Search results for %q", query), totalMatches))
+	fmt.Fprintf(f.w, "%s\n\n", ui.Muted(fmt.Sprintf("%d plugins", len(results))))
 
 	for _, result := range results {
 		f.renderPluginResult(result)
@@ -61,35 +64,41 @@ func (f *Formatter) renderDefault(results []SearchResult, query string) {
 
 // renderPluginResult outputs a single plugin's results.
 func (f *Formatter) renderPluginResult(result SearchResult) {
-	// Plugin header: name@marketplace (version)
-	fmt.Fprintf(f.w, "%s@%s (v%s)\n",
-		result.Plugin.Name,
-		result.Plugin.Marketplace,
-		result.Plugin.Version)
+	// Plugin header: name@marketplace (version) - styled like plugin show
+	fullName := fmt.Sprintf("%s@%s", result.Plugin.Name, result.Plugin.Marketplace)
+	fmt.Fprintf(f.w, "%s %s\n",
+		ui.Bold(fullName),
+		ui.Muted(fmt.Sprintf("(v%s)", result.Plugin.Version)))
 
 	// Group matches by type for display
 	skills := f.filterMatchesByType(result.Matches, "skill")
 	commands := f.filterMatchesByType(result.Matches, "command")
 	agents := f.filterMatchesByType(result.Matches, "agent")
 
-	// Display component summaries
+	// Display component summaries with styling
 	if len(skills) > 0 {
 		names := f.extractMatchNames(skills)
-		fmt.Fprintf(f.w, "  Skills: %s\n", joinNames(names))
+		fmt.Fprintf(f.w, "  %s %s\n", ui.Info("Skills:"), joinNames(names))
 	}
 	if len(commands) > 0 {
 		names := f.extractMatchNames(commands)
-		fmt.Fprintf(f.w, "  Commands: %s\n", joinNames(names))
+		fmt.Fprintf(f.w, "  %s %s\n", ui.Info("Commands:"), joinNames(names))
 	}
 	if len(agents) > 0 {
 		names := f.extractMatchNames(agents)
-		fmt.Fprintf(f.w, "  Agents: %s\n", joinNames(names))
+		fmt.Fprintf(f.w, "  %s %s\n", ui.Info("Agents:"), joinNames(names))
 	}
 
-	// Show first match context
+	// Show first match context with description and path
 	for _, match := range result.Matches {
 		if match.Description != "" {
-			fmt.Fprintf(f.w, "  Match: \"%s\" - %s\n", match.Name, match.Description)
+			fmt.Fprintf(f.w, "  %s %s\n", ui.Muted(ui.SymbolArrow), ui.Muted(match.Description))
+		}
+		if match.Path != "" {
+			fmt.Fprintf(f.w, "  %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(match.Path)))
+		}
+		// Only show first match's details
+		if match.Description != "" || match.Path != "" {
 			break
 		}
 	}
@@ -103,13 +112,14 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 	}
 
 	totalMatches := f.countMatches(results)
-	fmt.Fprintf(f.w, "Search results for \"%s\" (%d components across %d plugins)\n\n",
-		query, totalMatches, len(results))
+	fmt.Fprintln(f.w, ui.RenderSection(fmt.Sprintf("Search results for %q", query), totalMatches))
+	fmt.Fprintf(f.w, "%s\n\n", ui.Muted(fmt.Sprintf("%d plugins", len(results))))
 
 	// Collect all components by type
 	type componentEntry struct {
 		name        string
 		description string
+		path        string
 		plugin      string
 		marketplace string
 	}
@@ -121,6 +131,7 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 			entry := componentEntry{
 				name:        match.Name,
 				description: match.Description,
+				path:        match.Path,
 				plugin:      result.Plugin.Name,
 				marketplace: result.Plugin.Marketplace,
 			}
@@ -137,11 +148,14 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 
 	// Output skills section
 	if len(skills) > 0 {
-		fmt.Fprintln(f.w, "Skills:")
+		fmt.Fprintln(f.w, ui.RenderSection("Skills", len(skills)))
 		for _, s := range skills {
-			fmt.Fprintf(f.w, "  %s (%s@%s)\n", s.name, s.plugin, s.marketplace)
+			fmt.Fprintf(f.w, "  %s %s\n", ui.Bold(s.name), ui.Muted(fmt.Sprintf("(%s@%s)", s.plugin, s.marketplace)))
 			if s.description != "" {
-				fmt.Fprintf(f.w, "    %s\n", s.description)
+				fmt.Fprintf(f.w, "    %s\n", ui.Muted(s.description))
+			}
+			if s.path != "" {
+				fmt.Fprintf(f.w, "    %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(s.path)))
 			}
 		}
 		fmt.Fprintln(f.w)
@@ -149,11 +163,14 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 
 	// Output commands section
 	if len(commands) > 0 {
-		fmt.Fprintln(f.w, "Commands:")
+		fmt.Fprintln(f.w, ui.RenderSection("Commands", len(commands)))
 		for _, c := range commands {
-			fmt.Fprintf(f.w, "  %s (%s@%s)\n", c.name, c.plugin, c.marketplace)
+			fmt.Fprintf(f.w, "  %s %s\n", ui.Bold(c.name), ui.Muted(fmt.Sprintf("(%s@%s)", c.plugin, c.marketplace)))
 			if c.description != "" {
-				fmt.Fprintf(f.w, "    %s\n", c.description)
+				fmt.Fprintf(f.w, "    %s\n", ui.Muted(c.description))
+			}
+			if c.path != "" {
+				fmt.Fprintf(f.w, "    %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(c.path)))
 			}
 		}
 		fmt.Fprintln(f.w)
@@ -161,11 +178,14 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 
 	// Output agents section
 	if len(agents) > 0 {
-		fmt.Fprintln(f.w, "Agents:")
+		fmt.Fprintln(f.w, ui.RenderSection("Agents", len(agents)))
 		for _, a := range agents {
-			fmt.Fprintf(f.w, "  %s (%s@%s)\n", a.name, a.plugin, a.marketplace)
+			fmt.Fprintf(f.w, "  %s %s\n", ui.Bold(a.name), ui.Muted(fmt.Sprintf("(%s@%s)", a.plugin, a.marketplace)))
 			if a.description != "" {
-				fmt.Fprintf(f.w, "    %s\n", a.description)
+				fmt.Fprintf(f.w, "    %s\n", ui.Muted(a.description))
+			}
+			if a.path != "" {
+				fmt.Fprintf(f.w, "    %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(a.path)))
 			}
 		}
 		fmt.Fprintln(f.w)
@@ -180,12 +200,13 @@ func (f *Formatter) renderTable(results []SearchResult, query string, opts Forma
 	}
 
 	totalMatches := f.countMatches(results)
-	fmt.Fprintf(f.w, "Search results for \"%s\" (%d plugins, %d matches)\n\n",
-		query, len(results), totalMatches)
+	fmt.Fprintln(f.w, ui.RenderSection(fmt.Sprintf("Search results for %q", query), totalMatches))
+	fmt.Fprintf(f.w, "%s\n\n", ui.Muted(fmt.Sprintf("%d plugins", len(results))))
 
-	// Simple table: PLUGIN | TYPE | COMPONENT | DESCRIPTION
-	fmt.Fprintf(f.w, "%-30s %-10s %-30s %s\n", "PLUGIN", "TYPE", "COMPONENT", "DESCRIPTION")
-	fmt.Fprintf(f.w, "%-30s %-10s %-30s %s\n", "------", "----", "---------", "-----------")
+	// Table header with styling
+	header := fmt.Sprintf("%-30s %-10s %-30s %s", "PLUGIN", "TYPE", "COMPONENT", "DESCRIPTION")
+	fmt.Fprintln(f.w, ui.Bold(header))
+	fmt.Fprintln(f.w, ui.Muted(strings.Repeat("─", 90)))
 
 	for _, result := range results {
 		pluginID := fmt.Sprintf("%s@%s", result.Plugin.Name, result.Plugin.Marketplace)
@@ -198,11 +219,11 @@ func (f *Formatter) renderTable(results []SearchResult, query string, opts Forma
 			if len(desc) > 40 {
 				desc = desc[:37] + "..."
 			}
-			fmt.Fprintf(f.w, "%-30s %-10s %-30s %s\n",
-				truncate(pluginID, 30),
-				match.Type,
-				truncate(name, 30),
-				desc)
+			fmt.Fprintf(f.w, "%s %s %s %s\n",
+				ui.Bold(fmt.Sprintf("%-30s", truncate(pluginID, 30))),
+				ui.Info(fmt.Sprintf("%-10s", match.Type)),
+				fmt.Sprintf("%-30s", truncate(name, 30)),
+				ui.Muted(desc))
 		}
 	}
 }
@@ -213,6 +234,7 @@ func (f *Formatter) renderJSON(results []SearchResult, query string) {
 		Type        string `json:"type"`
 		Name        string `json:"name,omitempty"`
 		Description string `json:"description,omitempty"`
+		Path        string `json:"path,omitempty"`
 	}
 
 	type jsonResult struct {
@@ -248,6 +270,7 @@ func (f *Formatter) renderJSON(results []SearchResult, query string) {
 				Type:        match.Type,
 				Name:        match.Name,
 				Description: match.Description,
+				Path:        match.Path,
 			})
 		}
 		output.Results = append(output.Results, jr)
@@ -260,10 +283,10 @@ func (f *Formatter) renderJSON(results []SearchResult, query string) {
 
 // renderNoResults outputs a helpful message when no results found.
 func (f *Formatter) renderNoResults(query string) {
-	fmt.Fprintf(f.w, "No results for \"%s\"\n\n", query)
-	fmt.Fprintln(f.w, "Try:")
-	fmt.Fprintln(f.w, "  - Broaden your search term")
-	fmt.Fprintln(f.w, "  - Use --all to search all cached plugins")
+	fmt.Fprintf(f.w, "%s %s\n\n", ui.Warning(ui.SymbolWarning), fmt.Sprintf("No results for %q", query))
+	fmt.Fprintln(f.w, ui.Muted("Try:"))
+	fmt.Fprintln(f.w, ui.Muted("  - Broaden your search term"))
+	fmt.Fprintln(f.w, ui.Muted("  - Use --all to search all cached plugins"))
 }
 
 // Helper methods
@@ -305,4 +328,19 @@ func truncate(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// shortenPath replaces the home directory with ~ for display.
+func shortenPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	if strings.HasPrefix(path, homeDir) {
+		return "~" + path[len(homeDir):]
+	}
+	return path
 }
