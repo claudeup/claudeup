@@ -204,9 +204,9 @@ func (f *Formatter) renderTable(results []SearchResult, query string, opts Forma
 	fmt.Fprintf(f.w, "%s\n\n", ui.Muted(fmt.Sprintf("%d plugins", len(results))))
 
 	// Table header with styling
-	header := fmt.Sprintf("%-30s %-10s %-30s %s", "PLUGIN", "TYPE", "COMPONENT", "DESCRIPTION")
+	header := fmt.Sprintf("%-40s %-12s %-25s %s", "PLUGIN", "TYPE", "COMPONENT", "DESCRIPTION")
 	fmt.Fprintln(f.w, ui.Bold(header))
-	fmt.Fprintln(f.w, ui.Muted(strings.Repeat("─", 90)))
+	fmt.Fprintln(f.w, ui.Muted(strings.Repeat("─", 120)))
 
 	for _, result := range results {
 		pluginID := fmt.Sprintf("%s@%s", result.Plugin.Name, result.Plugin.Marketplace)
@@ -216,13 +216,13 @@ func (f *Formatter) renderTable(results []SearchResult, query string, opts Forma
 				name = match.Context
 			}
 			desc := match.Description
-			if len(desc) > 40 {
-				desc = desc[:37] + "..."
+			if len(desc) > 50 {
+				desc = desc[:47] + "..."
 			}
 			fmt.Fprintf(f.w, "%s %s %s %s\n",
-				ui.Bold(fmt.Sprintf("%-30s", truncate(pluginID, 30))),
-				ui.Info(fmt.Sprintf("%-10s", match.Type)),
-				fmt.Sprintf("%-30s", truncate(name, 30)),
+				ui.Bold(fmt.Sprintf("%-40s", truncate(pluginID, 40))),
+				ui.Info(fmt.Sprintf("%-12s", match.Type)),
+				fmt.Sprintf("%-25s", truncate(name, 25)),
 				ui.Muted(desc))
 		}
 	}
