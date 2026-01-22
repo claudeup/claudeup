@@ -95,7 +95,7 @@ func (f *Formatter) renderPluginResult(result SearchResult) {
 			fmt.Fprintf(f.w, "  %s %s\n", ui.Muted(ui.SymbolArrow), ui.Muted(match.Description))
 		}
 		if match.Path != "" {
-			fmt.Fprintf(f.w, "  %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(match.Path)))
+			fmt.Fprintf(f.w, "  %s %s\n", ui.Info("Path:"), shortenPath(match.Path))
 		}
 		// Only show first match's details
 		if match.Description != "" || match.Path != "" {
@@ -155,7 +155,7 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 				fmt.Fprintf(f.w, "    %s\n", ui.Muted(s.description))
 			}
 			if s.path != "" {
-				fmt.Fprintf(f.w, "    %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(s.path)))
+				fmt.Fprintf(f.w, "    %s %s\n", ui.Info("Path:"), shortenPath(s.path))
 			}
 		}
 		fmt.Fprintln(f.w)
@@ -170,7 +170,7 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 				fmt.Fprintf(f.w, "    %s\n", ui.Muted(c.description))
 			}
 			if c.path != "" {
-				fmt.Fprintf(f.w, "    %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(c.path)))
+				fmt.Fprintf(f.w, "    %s %s\n", ui.Info("Path:"), shortenPath(c.path))
 			}
 		}
 		fmt.Fprintln(f.w)
@@ -185,7 +185,7 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 				fmt.Fprintf(f.w, "    %s\n", ui.Muted(a.description))
 			}
 			if a.path != "" {
-				fmt.Fprintf(f.w, "    %s %s\n", ui.Muted("Path:"), ui.Muted(shortenPath(a.path)))
+				fmt.Fprintf(f.w, "    %s %s\n", ui.Info("Path:"), shortenPath(a.path))
 			}
 		}
 		fmt.Fprintln(f.w)
