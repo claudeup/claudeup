@@ -3,17 +3,92 @@
 package claude
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/claudeup/claudeup/v2/internal/events"
 )
 
+// canonicalKeyOrder defines the key order that Claude Code uses in settings.json.
+// Keys are output in this order, with any unknown keys appended alphabetically at the end.
+var canonicalKeyOrder = []string{
+	"$schema",
+	"includeCoAuthoredBy",
+	"permissions",
+	"hooks",
+	"statusLine",
+	"enabledPlugins",
+}
+
+// marshalCanonical marshals a map to JSON with keys in Claude Code's canonical order.
+// Known keys appear in the order defined by canonicalKeyOrder, followed by
+// any unknown keys in alphabetical order.
+func marshalCanonical(data map[string]any) ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteString("{\n")
+
+	// Build set of canonical keys for quick lookup
+	canonicalSet := make(map[string]bool)
+	for _, key := range canonicalKeyOrder {
+		canonicalSet[key] = true
+	}
+
+	// Collect unknown keys
+	var unknownKeys []string
+	for key := range data {
+		if !canonicalSet[key] {
+			unknownKeys = append(unknownKeys, key)
+		}
+	}
+	sort.Strings(unknownKeys)
+
+	// Build ordered keys: canonical first, then unknown (alphabetically)
+	var orderedKeys []string
+	for _, key := range canonicalKeyOrder {
+		if _, exists := data[key]; exists {
+			orderedKeys = append(orderedKeys, key)
+		}
+	}
+	orderedKeys = append(orderedKeys, unknownKeys...)
+
+	// Marshal each key-value pair
+	for i, key := range orderedKeys {
+		value := data[key]
+
+		// Marshal key
+		keyJSON, err := json.Marshal(key)
+		if err != nil {
+			return nil, err
+		}
+
+		// Marshal value with indentation
+		valueJSON, err := json.MarshalIndent(value, "  ", "  ")
+		if err != nil {
+			return nil, err
+		}
+
+		buf.WriteString("  ")
+		buf.Write(keyJSON)
+		buf.WriteString(": ")
+		buf.Write(valueJSON)
+
+		if i < len(orderedKeys)-1 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("\n")
+	}
+
+	buf.WriteString("}")
+	return buf.Bytes(), nil
+}
+
 // Settings represents the Claude Code settings.json file structure
 type Settings struct {
-	EnabledPlugins map[string]bool `json:"enabledPlugins"`
+	EnabledPlugins map[string]bool        `json:"enabledPlugins"`
 	raw            map[string]interface{} // Preserves all fields from settings.json
 }
 
@@ -108,8 +183,8 @@ func SaveSettings(claudeDir string, settings *Settings) error {
 	// Update enabledPlugins in raw map
 	settings.raw["enabledPlugins"] = settings.EnabledPlugins
 
-	// Marshal the full raw map to preserve all fields
-	data, err := json.MarshalIndent(settings.raw, "", "  ")
+	// Marshal with Claude Code's canonical key ordering
+	data, err := marshalCanonical(settings.raw)
 	if err != nil {
 		return err
 	}
@@ -220,8 +295,8 @@ func SaveSettingsForScope(scope string, claudeDir string, projectDir string, set
 	// Update enabledPlugins in raw map
 	settings.raw["enabledPlugins"] = settings.EnabledPlugins
 
-	// Marshal the full raw map to preserve all fields
-	data, err := json.MarshalIndent(settings.raw, "", "  ")
+	// Marshal with Claude Code's canonical key ordering
+	data, err := marshalCanonical(settings.raw)
 	if err != nil {
 		return err
 	}
