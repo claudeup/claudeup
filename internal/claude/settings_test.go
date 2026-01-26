@@ -118,7 +118,7 @@ func TestSaveSettingsPreservesAllFields(t *testing.T) {
 		"enabledPlugins": map[string]bool{
 			"plugin1@marketplace": true,
 		},
-		"model": "claude-sonnet-4-5",
+		"model":               "claude-sonnet-4-5",
 		"includeCoAuthoredBy": true,
 		"permissions": map[string]interface{}{
 			"bash": map[string]interface{}{
@@ -367,6 +367,212 @@ func TestSaveSettingsForScope(t *testing.T) {
 	}
 	if !loaded.IsPluginEnabled("test-plugin@marketplace") {
 		t.Error("test-plugin@marketplace should be enabled in saved settings")
+	}
+}
+
+func TestSaveSettingsCanonicalKeyOrder(t *testing.T) {
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "claudeup-order-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create settings.json with Claude Code's fields in a different order
+	// (simulating what happens when we read a file that Claude Code wrote)
+	originalSettings := map[string]interface{}{
+		"$schema":             "https://json.schemastore.org/claude-code-settings.json",
+		"enabledPlugins":      map[string]bool{"plugin1@marketplace": true},
+		"hooks":               map[string]interface{}{"PreToolUse": []interface{}{}},
+		"permissions":         map[string]interface{}{"allow": []interface{}{}},
+		"statusLine":          map[string]interface{}{"type": "command"},
+		"includeCoAuthoredBy": false,
+	}
+
+	data, _ := json.Marshal(originalSettings)
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load and save settings
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Add a plugin to trigger a save
+	settings.EnablePlugin("plugin2@marketplace")
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read the saved file and check key order
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Claude Code's canonical order is:
+	// $schema, includeCoAuthoredBy, permissions, hooks, statusLine, enabledPlugins
+	//
+	// We verify this by checking that keys appear in that order in the output
+	content := string(savedData)
+
+	schemaIdx := indexOf(content, `"$schema"`)
+	includeCoAuthoredByIdx := indexOf(content, `"includeCoAuthoredBy"`)
+	permissionsIdx := indexOf(content, `"permissions"`)
+	hooksIdx := indexOf(content, `"hooks"`)
+	statusLineIdx := indexOf(content, `"statusLine"`)
+	enabledPluginsIdx := indexOf(content, `"enabledPlugins"`)
+
+	// Verify order (each key should appear after the previous one)
+	if schemaIdx == -1 {
+		t.Error("$schema not found in output")
+	}
+	if includeCoAuthoredByIdx == -1 || includeCoAuthoredByIdx < schemaIdx {
+		t.Error("includeCoAuthoredBy should appear after $schema")
+	}
+	if permissionsIdx == -1 || permissionsIdx < includeCoAuthoredByIdx {
+		t.Error("permissions should appear after includeCoAuthoredBy")
+	}
+	if hooksIdx == -1 || hooksIdx < permissionsIdx {
+		t.Error("hooks should appear after permissions")
+	}
+	if statusLineIdx == -1 || statusLineIdx < hooksIdx {
+		t.Error("statusLine should appear after hooks")
+	}
+	if enabledPluginsIdx == -1 || enabledPluginsIdx < statusLineIdx {
+		t.Error("enabledPlugins should appear after statusLine")
+	}
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestSaveSettingsPreservesUnknownFields(t *testing.T) {
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "claudeup-unknown-fields-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create settings.json with unknown fields (future Claude Code additions)
+	originalSettings := map[string]interface{}{
+		"$schema":         "https://json.schemastore.org/claude-code-settings.json",
+		"enabledPlugins":  map[string]bool{"plugin1@marketplace": true},
+		"unknownField":    "some value",
+		"anotherNewField": map[string]interface{}{"nested": true},
+		"futureFeature":   123,
+	}
+
+	data, _ := json.Marshal(originalSettings)
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load and save settings
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	settings.EnablePlugin("plugin2@marketplace")
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify unknown fields are preserved (at the end, alphabetically)
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var savedSettings map[string]interface{}
+	if err := json.Unmarshal(savedData, &savedSettings); err != nil {
+		t.Fatal(err)
+	}
+
+	if savedSettings["unknownField"] != "some value" {
+		t.Error("unknownField should be preserved")
+	}
+	if savedSettings["anotherNewField"] == nil {
+		t.Error("anotherNewField should be preserved")
+	}
+	if savedSettings["futureFeature"] == nil {
+		t.Error("futureFeature should be preserved")
+	}
+}
+
+func TestSaveSettingsForScopeCanonicalKeyOrder(t *testing.T) {
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "claudeup-scope-order-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	claudeDir := filepath.Join(tempDir, ".claude")
+	projectDir := filepath.Join(tempDir, "project")
+
+	// Create project scope settings with Claude Code's fields
+	os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)
+	originalSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{"plugin1@marketplace": true},
+		"hooks":          map[string]interface{}{},
+		"permissions":    map[string]interface{}{},
+	}
+
+	data, _ := json.Marshal(originalSettings)
+	settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load and save settings
+	settings, err := LoadSettingsForScope("project", claudeDir, projectDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	settings.EnablePlugin("plugin2@marketplace")
+
+	if err := SaveSettingsForScope("project", claudeDir, projectDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read the saved file and check key order
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(savedData)
+
+	// When only some fields are present, they should still be in canonical order
+	permissionsIdx := indexOf(content, `"permissions"`)
+	hooksIdx := indexOf(content, `"hooks"`)
+	enabledPluginsIdx := indexOf(content, `"enabledPlugins"`)
+
+	// Verify order for the fields that are present
+	if permissionsIdx == -1 {
+		t.Error("permissions not found in output")
+	}
+	if hooksIdx == -1 || hooksIdx < permissionsIdx {
+		t.Error("hooks should appear after permissions")
+	}
+	if enabledPluginsIdx == -1 || enabledPluginsIdx < hooksIdx {
+		t.Error("enabledPlugins should appear after hooks")
 	}
 }
 
