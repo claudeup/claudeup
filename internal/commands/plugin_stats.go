@@ -301,6 +301,6 @@ func printEnabledNotInstalled(orphans []string) {
 	fmt.Println()
 
 	for _, name := range orphans {
-		fmt.Printf("%s %s\n", ui.Warning("⚠"), name)
+		fmt.Printf("%s %s\n", ui.Warning(ui.SymbolWarning), name)
 	}
 }

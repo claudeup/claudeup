@@ -20,125 +20,105 @@ type PluginScopeInfo struct {
 	ActiveSource string           // Which scope's installation is used (based on precedence: local > project > user)
 }
 
+// analysisContext holds intermediate data needed for plugin analysis
+type analysisContext struct {
+	registry      *PluginRegistry
+	scopeSettings map[string]*Settings
+	scopes        []string
+}
+
+// loadAnalysisContext loads the registry and settings needed for plugin analysis
+func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext, error) {
+	// Load plugin registry (shows all installations across all scopes)
+	registry, err := LoadPlugins(claudeDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Load settings from all scopes
+	scopes := []string{"user", "project", "local"}
+	scopeSettings := make(map[string]*Settings)
+
+	for _, scope := range scopes {
+		settings, err := LoadSettingsForScope(scope, claudeDir, projectDir)
+		if err != nil {
+			// For user scope, this is an error
+			if scope == "user" {
+				return nil, err
+			}
+			// For project/local, missing settings is ok (empty settings)
+			settings = &Settings{
+				EnabledPlugins: make(map[string]bool),
+			}
+		}
+		scopeSettings[scope] = settings
+	}
+
+	return &analysisContext{
+		registry:      registry,
+		scopeSettings: scopeSettings,
+		scopes:        scopes,
+	}, nil
+}
+
+// buildInstalledAnalysis creates the analysis map from loaded context
+func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
+	analysis := make(map[string]*PluginScopeInfo)
+
+	for pluginName, instances := range ctx.registry.Plugins {
+		info := &PluginScopeInfo{
+			Name:        pluginName,
+			EnabledAt:   []string{},
+			InstalledAt: instances,
+		}
+
+		// Check which scopes have this plugin enabled
+		for _, scope := range ctx.scopes {
+			if ctx.scopeSettings[scope].IsPluginEnabled(pluginName) {
+				info.EnabledAt = append(info.EnabledAt, scope)
+			}
+		}
+
+		// Determine active source based on precedence (local > project > user)
+		// Only set if plugin is enabled at least somewhere
+		if len(info.EnabledAt) > 0 {
+			info.ActiveSource = determineActiveSource(instances, info.EnabledAt)
+		}
+
+		analysis[pluginName] = info
+	}
+
+	return analysis
+}
+
 // AnalyzePluginScopes examines all scopes and returns comprehensive plugin information
 // showing where each plugin is installed and enabled
 func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*PluginScopeInfo, error) {
-	// Load plugin registry (shows all installations across all scopes)
-	registry, err := LoadPlugins(claudeDir)
+	ctx, err := loadAnalysisContext(claudeDir, projectDir)
 	if err != nil {
 		return nil, err
 	}
-
-	// Load settings from all scopes
-	scopes := []string{"user", "project", "local"}
-	scopeSettings := make(map[string]*Settings)
-
-	for _, scope := range scopes {
-		settings, err := LoadSettingsForScope(scope, claudeDir, projectDir)
-		if err != nil {
-			// For user scope, this is an error
-			if scope == "user" {
-				return nil, err
-			}
-			// For project/local, missing settings is ok (empty settings)
-			settings = &Settings{
-				EnabledPlugins: make(map[string]bool),
-			}
-		}
-		scopeSettings[scope] = settings
-	}
-
-	// Build analysis map
-	analysis := make(map[string]*PluginScopeInfo)
-
-	// Iterate through all installed plugins
-	for pluginName, instances := range registry.Plugins {
-		info := &PluginScopeInfo{
-			Name:        pluginName,
-			EnabledAt:   []string{},
-			InstalledAt: instances,
-		}
-
-		// Check which scopes have this plugin enabled
-		for _, scope := range scopes {
-			if scopeSettings[scope].IsPluginEnabled(pluginName) {
-				info.EnabledAt = append(info.EnabledAt, scope)
-			}
-		}
-
-		// Determine active source based on precedence (local > project > user)
-		// Only set if plugin is enabled at least somewhere
-		if len(info.EnabledAt) > 0 {
-			info.ActiveSource = determineActiveSource(instances, info.EnabledAt)
-		}
-
-		analysis[pluginName] = info
-	}
-
-	return analysis, nil
+	return buildInstalledAnalysis(ctx), nil
 }
 
 // AnalyzePluginScopesWithOrphans examines all scopes and returns comprehensive plugin information
-// including plugins that are enabled in settings but not actually installed
+// including plugins that are enabled in settings but not actually installed.
+// Use this when you need to detect configuration drift (enabled plugins without installations).
 func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*PluginAnalysisResult, error) {
-	// Load plugin registry (shows all installations across all scopes)
-	registry, err := LoadPlugins(claudeDir)
+	ctx, err := loadAnalysisContext(claudeDir, projectDir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Load settings from all scopes
-	scopes := []string{"user", "project", "local"}
-	scopeSettings := make(map[string]*Settings)
-
-	for _, scope := range scopes {
-		settings, err := LoadSettingsForScope(scope, claudeDir, projectDir)
-		if err != nil {
-			// For user scope, this is an error
-			if scope == "user" {
-				return nil, err
-			}
-			// For project/local, missing settings is ok (empty settings)
-			settings = &Settings{
-				EnabledPlugins: make(map[string]bool),
-			}
-		}
-		scopeSettings[scope] = settings
-	}
-
-	// Build analysis map for installed plugins
-	analysis := make(map[string]*PluginScopeInfo)
-
-	// Iterate through all installed plugins
-	for pluginName, instances := range registry.Plugins {
-		info := &PluginScopeInfo{
-			Name:        pluginName,
-			EnabledAt:   []string{},
-			InstalledAt: instances,
-		}
-
-		// Check which scopes have this plugin enabled
-		for _, scope := range scopes {
-			if scopeSettings[scope].IsPluginEnabled(pluginName) {
-				info.EnabledAt = append(info.EnabledAt, scope)
-			}
-		}
-
-		// Determine active source based on precedence (local > project > user)
-		// Only set if plugin is enabled at least somewhere
-		if len(info.EnabledAt) > 0 {
-			info.ActiveSource = determineActiveSource(instances, info.EnabledAt)
-		}
-
-		analysis[pluginName] = info
-	}
+	// Build analysis for installed plugins using shared logic
+	analysis := buildInstalledAnalysis(ctx)
 
 	// Collect enabled-but-not-installed plugins (orphans)
 	orphanSet := make(map[string]bool)
-	for _, scope := range scopes {
-		for pluginName, enabled := range scopeSettings[scope].EnabledPlugins {
+	for _, scope := range ctx.scopes {
+		for pluginName, enabled := range ctx.scopeSettings[scope].EnabledPlugins {
 			// Only include if enabled (true) and not in registry
-			if enabled && !registry.PluginExists(pluginName) {
+			if enabled && !ctx.registry.PluginExists(pluginName) {
 				orphanSet[pluginName] = true
 			}
 		}
