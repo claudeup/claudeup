@@ -18,11 +18,11 @@ import (
 
 // ApplyOptions controls how a profile is applied
 type ApplyOptions struct {
-	Scope        Scope  // user, project, or local
-	ProjectDir   string // Required for project/local scope
-	DryRun       bool   // If true, don't make changes (not yet implemented)
-	Reinstall    bool   // If true, reinstall even if already installed
-	ShowProgress bool   // If true, use concurrent apply with progress UI (project/local scope only)
+	Scope        Scope            // user, project, or local
+	ProjectDir   string           // Required for project/local scope
+	DryRun       bool             // If true, don't make changes (not yet implemented)
+	Reinstall    bool             // If true, reinstall even if already installed
+	ShowProgress bool             // If true, use concurrent apply with progress UI (project/local scope only)
 	Progress     ProgressCallback // Optional progress callback for sequential installs
 }
 
@@ -764,20 +764,14 @@ func runClaudeWithOutput(claudeDir string, args ...string) (string, error) {
 // DefaultClaudeDir returns the Claude configuration directory
 // Respects CLAUDE_CONFIG_DIR environment variable if set
 func DefaultClaudeDir() string {
-	if override := os.Getenv("CLAUDE_CONFIG_DIR"); override != "" {
-		return override
-	}
-	return filepath.Join(MustHomeDir(), ".claude")
+	return config.MustClaudeDir()
 }
 
 // DefaultClaudeJSONPath returns the path to .claude.json
 // When CLAUDE_CONFIG_DIR is set, it's inside that directory
 // Otherwise it's at ~/.claude.json
 func DefaultClaudeJSONPath() string {
-	if override := os.Getenv("CLAUDE_CONFIG_DIR"); override != "" {
-		return filepath.Join(override, ".claude.json")
-	}
-	return filepath.Join(MustHomeDir(), ".claude.json")
+	return filepath.Join(config.MustClaudeDir(), ".claude.json")
 }
 
 func toSet(slice []string) map[string]struct{} {

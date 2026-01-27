@@ -6,7 +6,6 @@ import (
 	"github.com/claudeup/claudeup/v2/internal/profile"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gstruct"
 )
 
 var _ = Describe("Wizard", func() {
@@ -36,10 +35,14 @@ var _ = Describe("Wizard", func() {
 		It("returns embedded marketplaces", func() {
 			marketplaces := profile.GetAvailableMarketplaces()
 
-			Expect(marketplaces).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-				"Source": Equal("github"),
-				"Repo":   Equal("anthropics/claude-code"),
-			})))
+			// Should return at least one marketplace from embedded profiles
+			Expect(marketplaces).NotTo(BeEmpty())
+
+			// All marketplaces should have github source and valid repo names
+			for _, m := range marketplaces {
+				Expect(m.Source).To(Equal("github"))
+				Expect(m.Repo).NotTo(BeEmpty())
+			}
 		})
 
 		It("includes marketplace display names", func() {

@@ -1,5 +1,5 @@
 // ABOUTME: Tests for centralized path resolution functions
-// ABOUTME: Verifies CLAUDEUP_HOME environment variable is respected
+// ABOUTME: Verifies CLAUDEUP_HOME and CLAUDE_CONFIG_DIR environment variables are respected
 
 package config
 
@@ -54,5 +54,25 @@ func TestMustClaudeupHome(t *testing.T) {
 			}
 		}()
 		MustClaudeupHome()
+	})
+}
+
+func TestMustClaudeDir(t *testing.T) {
+	t.Run("uses CLAUDE_CONFIG_DIR when set", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", "/custom/claude/path")
+		got := MustClaudeDir()
+		if got != "/custom/claude/path" {
+			t.Errorf("got %q, want /custom/claude/path", got)
+		}
+	})
+
+	t.Run("falls back to ~/.claude when not set", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", "")
+		got := MustClaudeDir()
+		home, _ := os.UserHomeDir()
+		want := filepath.Join(home, ".claude")
+		if got != want {
+			t.Errorf("got %q, want %q", got, want)
+		}
 	})
 }
