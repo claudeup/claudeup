@@ -6,6 +6,12 @@ import (
 	"sort"
 )
 
+// PluginAnalysisResult contains both installed plugin analysis and orphaned enabled entries
+type PluginAnalysisResult struct {
+	Installed           map[string]*PluginScopeInfo // Plugins in the registry
+	EnabledNotInstalled []string                    // Plugin names enabled but not in registry
+}
+
 // PluginScopeInfo provides detailed information about a plugin's state across all scopes
 type PluginScopeInfo struct {
 	Name         string           // Plugin name (e.g., "my-plugin@marketplace")
@@ -14,9 +20,15 @@ type PluginScopeInfo struct {
 	ActiveSource string           // Which scope's installation is used (based on precedence: local > project > user)
 }
 
-// AnalyzePluginScopes examines all scopes and returns comprehensive plugin information
-// showing where each plugin is installed and enabled
-func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*PluginScopeInfo, error) {
+// analysisContext holds intermediate data needed for plugin analysis
+type analysisContext struct {
+	registry      *PluginRegistry
+	scopeSettings map[string]*Settings
+	scopes        []string
+}
+
+// loadAnalysisContext loads the registry and settings needed for plugin analysis
+func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext, error) {
 	// Load plugin registry (shows all installations across all scopes)
 	registry, err := LoadPlugins(claudeDir)
 	if err != nil {
@@ -42,11 +54,18 @@ func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*Plugi
 		scopeSettings[scope] = settings
 	}
 
-	// Build analysis map
+	return &analysisContext{
+		registry:      registry,
+		scopeSettings: scopeSettings,
+		scopes:        scopes,
+	}, nil
+}
+
+// buildInstalledAnalysis creates the analysis map from loaded context
+func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 	analysis := make(map[string]*PluginScopeInfo)
 
-	// Iterate through all installed plugins
-	for pluginName, instances := range registry.Plugins {
+	for pluginName, instances := range ctx.registry.Plugins {
 		info := &PluginScopeInfo{
 			Name:        pluginName,
 			EnabledAt:   []string{},
@@ -54,8 +73,8 @@ func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*Plugi
 		}
 
 		// Check which scopes have this plugin enabled
-		for _, scope := range scopes {
-			if scopeSettings[scope].IsPluginEnabled(pluginName) {
+		for _, scope := range ctx.scopes {
+			if ctx.scopeSettings[scope].IsPluginEnabled(pluginName) {
 				info.EnabledAt = append(info.EnabledAt, scope)
 			}
 		}
@@ -69,7 +88,53 @@ func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*Plugi
 		analysis[pluginName] = info
 	}
 
-	return analysis, nil
+	return analysis
+}
+
+// AnalyzePluginScopes examines all scopes and returns comprehensive plugin information
+// showing where each plugin is installed and enabled
+func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*PluginScopeInfo, error) {
+	ctx, err := loadAnalysisContext(claudeDir, projectDir)
+	if err != nil {
+		return nil, err
+	}
+	return buildInstalledAnalysis(ctx), nil
+}
+
+// AnalyzePluginScopesWithOrphans examines all scopes and returns comprehensive plugin information
+// including plugins that are enabled in settings but not actually installed.
+// Use this when you need to detect configuration drift (enabled plugins without installations).
+func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*PluginAnalysisResult, error) {
+	ctx, err := loadAnalysisContext(claudeDir, projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build analysis for installed plugins using shared logic
+	analysis := buildInstalledAnalysis(ctx)
+
+	// Collect enabled-but-not-installed plugins (orphans)
+	orphanSet := make(map[string]bool)
+	for _, scope := range ctx.scopes {
+		for pluginName, enabled := range ctx.scopeSettings[scope].EnabledPlugins {
+			// Only include if enabled (true) and not in registry
+			if enabled && !ctx.registry.PluginExists(pluginName) {
+				orphanSet[pluginName] = true
+			}
+		}
+	}
+
+	// Convert set to sorted slice
+	orphans := make([]string, 0, len(orphanSet))
+	for name := range orphanSet {
+		orphans = append(orphans, name)
+	}
+	sort.Strings(orphans)
+
+	return &PluginAnalysisResult{
+		Installed:           analysis,
+		EnabledNotInstalled: orphans,
+	}, nil
 }
 
 // determineActiveSource finds which installation is active based on scope precedence.

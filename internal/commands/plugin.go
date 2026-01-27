@@ -59,9 +59,9 @@ The plugin will remain installed but won't be loaded by Claude Code.`,
 }
 
 var pluginEnableCmd = &cobra.Command{
-	Use:   "enable <plugin-name>",
-	Short: "Enable a previously disabled plugin",
-	Long:  `Enable a plugin that was previously disabled.`,
+	Use:     "enable <plugin-name>",
+	Short:   "Enable a previously disabled plugin",
+	Long:    `Enable a plugin that was previously disabled.`,
 	Example: `  claudeup plugin enable my-plugin@acme-marketplace`,
 	Args:    cobra.ExactArgs(1),
 	RunE:    runPluginEnable,
@@ -135,11 +135,13 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 		return RenderPluginsByScope(claudeDir, projectDir, "")
 	}
 
-	// Analyze plugins across all scopes
-	analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+	// Analyze plugins across all scopes (including orphan detection)
+	result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 	if err != nil {
 		return fmt.Errorf("failed to analyze plugins: %w", err)
 	}
+
+	analysis := result.Installed
 
 	// Sort plugin names for consistent output
 	names := make([]string, 0, len(analysis))
@@ -177,16 +179,19 @@ func runPluginList(cmd *cobra.Command, args []string) error {
 	// Display based on output mode
 	if pluginListSummary {
 		printPluginSummary(stats)
+		printEnabledNotInstalled(result.EnabledNotInstalled)
 		return nil
 	}
 
 	if pluginListFormat == "table" {
 		printPluginTable(names, analysis)
+		printEnabledNotInstalled(result.EnabledNotInstalled)
 		return nil
 	}
 
 	printPluginDetails(names, analysis)
 	printPluginListFooterFiltered(stats, len(names), totalCount, filterLabel)
+	printEnabledNotInstalled(result.EnabledNotInstalled)
 
 	return nil
 }
