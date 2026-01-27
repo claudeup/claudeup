@@ -289,3 +289,18 @@ func printPluginListFooterFiltered(stats PluginStatistics, shown int, total int,
 		ui.PrintWarning(fmt.Sprintf("%d stale plugins detected", stats.Stale))
 	}
 }
+
+// printEnabledNotInstalled displays plugins that are enabled in settings but not installed
+func printEnabledNotInstalled(orphans []string) {
+	if len(orphans) == 0 {
+		return
+	}
+
+	fmt.Println()
+	fmt.Println(ui.RenderSection("Enabled but Not Installed", len(orphans)))
+	fmt.Println()
+
+	for _, name := range orphans {
+		fmt.Printf("%s %s\n", ui.Warning("⚠"), name)
+	}
+}

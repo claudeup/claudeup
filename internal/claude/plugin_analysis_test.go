@@ -440,4 +440,105 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info.ActiveSource).To(Equal("local"))
 		})
 	})
+
+	Context("with plugins enabled but not installed", func() {
+		It("returns enabled-but-not-installed plugins separately", func() {
+			// Install one plugin
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"installed-plugin@marketplace": {
+						{
+							Scope:       "user",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: filepath.Join(claudeDir, "plugins", "cache", "installed-plugin"),
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable both installed and non-installed plugins
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"installed-plugin@marketplace":      true,
+					"orphan-plugin-1@other-marketplace": true,
+					"orphan-plugin-2@other-marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Installed plugins should be in the main analysis
+			Expect(result.Installed).To(HaveLen(1))
+			Expect(result.Installed["installed-plugin@marketplace"]).NotTo(BeNil())
+
+			// Non-installed but enabled plugins should be in EnabledNotInstalled
+			Expect(result.EnabledNotInstalled).To(HaveLen(2))
+			Expect(result.EnabledNotInstalled).To(ContainElements(
+				"orphan-plugin-1@other-marketplace",
+				"orphan-plugin-2@other-marketplace",
+			))
+		})
+
+		It("deduplicates plugins enabled at multiple scopes", func() {
+			// No plugins installed
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: make(map[string][]claude.PluginMetadata),
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable same plugin at user scope
+			userSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"orphan@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
+
+			// Enable same plugin at project scope
+			projectSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"orphan@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+			result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Should only appear once despite being enabled at multiple scopes
+			Expect(result.EnabledNotInstalled).To(HaveLen(1))
+			Expect(result.EnabledNotInstalled).To(ContainElement("orphan@marketplace"))
+		})
+
+		It("excludes explicitly disabled plugins from orphan list", func() {
+			// No plugins installed
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: make(map[string][]claude.PluginMetadata),
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable one, disable another (false value in enabledPlugins)
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"enabled-orphan@marketplace":  true,
+					"disabled-orphan@marketplace": false,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Only the enabled one should appear
+			Expect(result.EnabledNotInstalled).To(HaveLen(1))
+			Expect(result.EnabledNotInstalled).To(ContainElement("enabled-orphan@marketplace"))
+		})
+	})
 })
