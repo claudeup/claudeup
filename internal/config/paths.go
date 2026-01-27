@@ -1,5 +1,5 @@
 // ABOUTME: Centralized path resolution for claudeup directories
-// ABOUTME: Respects CLAUDEUP_HOME environment variable for isolation
+// ABOUTME: Respects CLAUDEUP_HOME and CLAUDE_CONFIG_DIR environment variables for isolation
 
 package config
 
@@ -29,4 +29,18 @@ func MustClaudeupHome() string {
 		panic("cannot determine home directory: " + err.Error())
 	}
 	return filepath.Join(homeDir, ".claudeup")
+}
+
+// MustClaudeDir returns the Claude configuration directory.
+// Checks CLAUDE_CONFIG_DIR env var first, falls back to ~/.claude.
+// Panics if home directory cannot be determined.
+func MustClaudeDir() string {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return dir
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic("cannot determine home directory: " + err.Error())
+	}
+	return filepath.Join(homeDir, ".claude")
 }

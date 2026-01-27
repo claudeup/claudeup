@@ -3,9 +3,6 @@
 package commands
 
 import (
-	"os"
-	"path/filepath"
-
 	"github.com/claudeup/claudeup/v2/internal/config"
 	"github.com/claudeup/claudeup/v2/internal/ui"
 	"github.com/spf13/cobra"
@@ -43,13 +40,7 @@ func init() {
 	ui.SetupHelpTemplate(rootCmd)
 
 	// Global flags - respect CLAUDE_CONFIG_DIR if set
-	defaultClaudeDir := os.Getenv("CLAUDE_CONFIG_DIR")
-	if defaultClaudeDir == "" {
-		homeDir, _ := os.UserHomeDir()
-		defaultClaudeDir = filepath.Join(homeDir, ".claude")
-	}
-
-	rootCmd.PersistentFlags().StringVar(&claudeDir, "claude-dir", defaultClaudeDir, "Claude installation directory")
+	rootCmd.PersistentFlags().StringVar(&claudeDir, "claude-dir", config.MustClaudeDir(), "Claude installation directory")
 	rootCmd.PersistentFlags().BoolVarP(&config.YesFlag, "yes", "y", false, "Skip all prompts, use defaults")
 }
 

@@ -10,40 +10,14 @@ import (
 
 // GlobalConfig represents the global configuration file structure
 type GlobalConfig struct {
-	DisabledMCPServers []string         `json:"disabledMcpServers"`
-	ClaudeDir          string           `json:"claudeDir,omitempty"`
-	Preferences        Preferences      `json:"preferences"`
-	Monitoring         MonitoringConfig `json:"monitoring"`
-	Sandbox            Sandbox          `json:"sandbox"`
+	DisabledMCPServers []string    `json:"disabledMcpServers"`
+	Preferences        Preferences `json:"preferences"`
+	Sandbox            Sandbox     `json:"sandbox"`
 }
 
 // Preferences represents user preferences
 type Preferences struct {
-	AutoUpdate    bool   `json:"autoUpdate"`
-	VerboseOutput bool   `json:"verboseOutput"`
 	ActiveProfile string `json:"activeProfile,omitempty"`
-	SecretBackend string `json:"secretBackend,omitempty"`
-}
-
-// MonitoringConfig controls file change monitoring and notifications
-type MonitoringConfig struct {
-	Enabled       bool               `json:"enabled"`
-	WatchFiles    []string           `json:"watchFiles"`
-	Notifications NotificationConfig `json:"notifications"`
-	Retention     RetentionConfig    `json:"retention"`
-}
-
-// NotificationConfig controls notification delivery
-type NotificationConfig struct {
-	Enabled    bool   `json:"enabled"`
-	Method     string `json:"method"` // "desktop", "log", "webhook"
-	WebhookURL string `json:"webhookUrl,omitempty"`
-}
-
-// RetentionConfig controls event log retention
-type RetentionConfig struct {
-	MaxEvents int    `json:"maxEvents"`
-	MaxAge    string `json:"maxAge"` // "90d", "30d", etc.
 }
 
 // Sandbox represents sandbox-related preferences
@@ -53,33 +27,9 @@ type Sandbox struct {
 
 // DefaultConfig returns a new config with default values
 func DefaultConfig() *GlobalConfig {
-	homeDir, _ := os.UserHomeDir()
 	return &GlobalConfig{
 		DisabledMCPServers: []string{},
-		ClaudeDir:          filepath.Join(homeDir, ".claude"),
-		Preferences: Preferences{
-			AutoUpdate:    false,
-			VerboseOutput: false,
-		},
-		Monitoring: MonitoringConfig{
-			Enabled: true,
-			WatchFiles: []string{
-				"~/.claude/settings.json",
-				"~/.claude/plugins/installed_plugins.json",
-				"~/.claude/plugins/known_marketplaces.json",
-				"./.claude/settings.json",
-				"./.claudeup.json",
-				"./.mcp.json",
-			},
-			Notifications: NotificationConfig{
-				Enabled: false,
-				Method:  "desktop",
-			},
-			Retention: RetentionConfig{
-				MaxEvents: 10000,
-				MaxAge:    "90d",
-			},
-		},
+		Preferences:        Preferences{},
 		Sandbox: Sandbox{
 			CopyAuth: false,
 		},

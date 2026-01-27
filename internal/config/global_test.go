@@ -16,12 +16,12 @@ func TestDefaultConfig(t *testing.T) {
 		t.Error("DisabledMCPServers slice should be initialized")
 	}
 
-	if cfg.Preferences.AutoUpdate != false {
-		t.Error("AutoUpdate should default to false")
+	if cfg.Preferences.ActiveProfile != "" {
+		t.Error("ActiveProfile should default to empty string")
 	}
 
-	if cfg.Preferences.VerboseOutput != false {
-		t.Error("VerboseOutput should default to false")
+	if cfg.Sandbox.CopyAuth != false {
+		t.Error("CopyAuth should default to false")
 	}
 }
 
@@ -121,65 +121,5 @@ func TestSaveAndLoad(t *testing.T) {
 	// Verify loaded config matches
 	if !loadedCfg.IsMCPServerDisabled("test-server") {
 		t.Error("Loaded config should have test-server disabled")
-	}
-}
-
-func TestDefaultMonitoringConfig(t *testing.T) {
-	cfg := DefaultConfig()
-
-	// Monitoring should be enabled by default
-	if !cfg.Monitoring.Enabled {
-		t.Error("Monitoring should be enabled by default")
-	}
-
-	// Should have default watch files
-	if len(cfg.Monitoring.WatchFiles) == 0 {
-		t.Error("Monitoring should have default watch files")
-	}
-
-	// Notifications should be disabled by default
-	if cfg.Monitoring.Notifications.Enabled {
-		t.Error("Notifications should be disabled by default")
-	}
-
-	// Should have default retention settings
-	if cfg.Monitoring.Retention.MaxEvents == 0 {
-		t.Error("MaxEvents should have a default value")
-	}
-
-	if cfg.Monitoring.Retention.MaxAge == "" {
-		t.Error("MaxAge should have a default value")
-	}
-}
-
-func TestMonitoringConfigSerialization(t *testing.T) {
-	cfg := DefaultConfig()
-	cfg.Monitoring.Notifications.Enabled = true
-	cfg.Monitoring.Notifications.Method = "webhook"
-	cfg.Monitoring.Notifications.WebhookURL = "https://example.com/webhook"
-
-	// Serialize to JSON
-	data, err := json.Marshal(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Deserialize back
-	var loadedCfg GlobalConfig
-	if err := json.Unmarshal(data, &loadedCfg); err != nil {
-		t.Fatal(err)
-	}
-
-	// Verify monitoring config
-	if !loadedCfg.Monitoring.Notifications.Enabled {
-		t.Error("Loaded config should have notifications enabled")
-	}
-
-	if loadedCfg.Monitoring.Notifications.Method != "webhook" {
-		t.Error("Loaded config should have webhook method")
-	}
-
-	if loadedCfg.Monitoring.Notifications.WebhookURL != "https://example.com/webhook" {
-		t.Error("Loaded config should have webhook URL")
 	}
 }

@@ -38,7 +38,7 @@ var _ = Describe("Wizard", func() {
 
 			Expect(marketplaces).To(ContainElement(MatchFields(IgnoreExtras, Fields{
 				"Source": Equal("github"),
-				"Repo":   Equal("anthropics/claude-code"),
+				"Repo":   Equal("anthropics/claude-plugins-official"),
 			})))
 		})
 
