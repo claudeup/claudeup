@@ -25,8 +25,14 @@ section() {
 
 cleanup() {
   if [[ "$CLEANUP_ON_EXIT" == "true" && -n "${TEST_DIR:-}" ]]; then
-    echo "Cleaning up $TEST_DIR..."
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Cleanup"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+    echo "Removing test directory: $TEST_DIR"
     rm -rf "$TEST_DIR"
+    echo "Done."
   fi
 }
 
@@ -195,15 +201,12 @@ fi
 
 section "Final state"
 
-echo "Profile list:"
 claudeup profile list
 
 echo ""
-echo "Project profile:"
 claudeup profile show my-project
 
 echo ""
-echo "Enabled plugins:"
 claudeup plugin list --enabled --format table
 
 popd > /dev/null
