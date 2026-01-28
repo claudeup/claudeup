@@ -518,3 +518,71 @@ func LoadJSON(path string) map[string]interface{} {
 func (e *TestEnv) Cleanup() {
 	// Temp dir is automatically cleaned up by Ginkgo
 }
+
+// CreateClaudeSettingsWithPlugins creates settings.json with enabled plugins.
+// This is an alias for CreateSettings for clarity in test scenarios.
+func (e *TestEnv) CreateClaudeSettingsWithPlugins(enabledPlugins map[string]bool) {
+	e.CreateSettings(enabledPlugins)
+}
+
+// CreateMarketplace adds a marketplace to known_marketplaces.json
+func (e *TestEnv) CreateMarketplace(name, repo string) {
+	pluginsDir := filepath.Join(e.ClaudeDir, "plugins")
+	Expect(os.MkdirAll(pluginsDir, 0755)).To(Succeed())
+
+	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
+
+	// Load existing marketplaces or create new
+	var marketplaces map[string]interface{}
+	if data, err := os.ReadFile(marketplacesPath); err == nil {
+		_ = json.Unmarshal(data, &marketplaces)
+	}
+	if marketplaces == nil {
+		marketplaces = make(map[string]interface{})
+	}
+
+	// Add the marketplace entry
+	marketplaces[name] = map[string]interface{}{
+		"source": map[string]interface{}{
+			"repo": repo,
+		},
+		"installLocation": filepath.Join(pluginsDir, "marketplaces", name),
+	}
+
+	jsonData, err := json.MarshalIndent(marketplaces, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(marketplacesPath, jsonData, 0644)).To(Succeed())
+}
+
+// CreateMarketplacePlugin creates a plugin in a marketplace's directory structure
+func (e *TestEnv) CreateMarketplacePlugin(marketplace, pluginName, version string) {
+	pluginsDir := filepath.Join(e.ClaudeDir, "plugins")
+	marketplaceDir := filepath.Join(pluginsDir, "marketplaces", marketplace)
+	pluginDir := filepath.Join(marketplaceDir, pluginName)
+
+	Expect(os.MkdirAll(pluginDir, 0755)).To(Succeed())
+
+	// Create plugin manifest
+	manifest := map[string]interface{}{
+		"name":        pluginName,
+		"version":     version,
+		"description": fmt.Sprintf("Test plugin %s", pluginName),
+	}
+	manifestData, err := json.MarshalIndent(manifest, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(pluginDir, "plugin.json"), manifestData, 0644)).To(Succeed())
+
+	// Update marketplace index
+	indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+	Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+
+	index := map[string]interface{}{
+		"name": marketplace,
+		"plugins": []map[string]string{
+			{"name": pluginName, "version": version},
+		},
+	}
+	indexData, err := json.MarshalIndent(index, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), indexData, 0644)).To(Succeed())
+}

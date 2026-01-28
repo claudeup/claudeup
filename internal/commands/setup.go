@@ -475,6 +475,63 @@ func buildSecretChain() *secrets.Chain {
 	)
 }
 
+// installPluginsFromProfile installs plugins defined in a profile.
+// Shows progress spinner, continues on individual failures, displays summary.
+// Returns nil even if some plugins fail (warnings only).
+func installPluginsFromProfile(p *profile.Profile, claudeDir, claudeJSONPath string) error {
+	if len(p.Plugins) == 0 {
+		return nil
+	}
+
+	// Prompt unless -y
+	if !config.YesFlag {
+		fmt.Printf("Install %d plugins from profile? [Y/n]: ", len(p.Plugins))
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return nil
+		}
+		choice := strings.TrimSpace(strings.ToLower(input))
+		if choice != "" && choice != "y" && choice != "yes" {
+			ui.PrintMuted("Skipping plugin installation.")
+			return nil
+		}
+	}
+
+	fmt.Println()
+	ui.PrintInfo(fmt.Sprintf("Installing %d plugins...", len(p.Plugins)))
+
+	chain := buildSecretChain()
+	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
+	if err != nil {
+		ui.PrintWarning(fmt.Sprintf("Plugin installation failed: %v", err))
+		return nil // Don't fail setup for plugin errors
+	}
+
+	// Show summary
+	installed := len(result.PluginsInstalled)
+	alreadyPresent := len(result.PluginsAlreadyPresent)
+	failed := len(result.Errors)
+
+	if installed > 0 {
+		fmt.Printf("  %s %d plugins installed\n", ui.Success(ui.SymbolSuccess), installed)
+		for _, plugin := range result.PluginsInstalled {
+			fmt.Printf("    %s %s\n", ui.Muted(ui.SymbolBullet), plugin)
+		}
+	}
+	if alreadyPresent > 0 {
+		fmt.Printf("  %s %d plugins already installed\n", ui.Muted(ui.SymbolSuccess), alreadyPresent)
+	}
+	if failed > 0 {
+		fmt.Printf("  %s %d plugins failed\n", ui.Warning(ui.SymbolWarning), failed)
+		for _, e := range result.Errors {
+			fmt.Printf("    %s %v\n", ui.Error(ui.SymbolBullet), e)
+		}
+	}
+
+	return nil
+}
+
 func showApplyResults(result *profile.ApplyResult) {
 	if len(result.PluginsRemoved) > 0 {
 		fmt.Printf("  %s Removed %d plugins\n", ui.Success(ui.SymbolSuccess), len(result.PluginsRemoved))

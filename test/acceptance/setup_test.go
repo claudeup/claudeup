@@ -106,6 +106,24 @@ var _ = Describe("setup", func() {
 			Expect(result.Stderr).To(ContainSubstring("profile \"nonexistent\" does not exist"))
 			Expect(result.Stderr).To(ContainSubstring("claudeup profile list"))
 		})
+
+		It("installs plugins when saving profile for existing installation", func() {
+			// Create an existing installation with enabled plugins but not installed
+			env.CreateClaudeSettingsWithPlugins(map[string]bool{
+				"test-plugin@test-marketplace": true,
+			})
+
+			// Create the marketplace and plugin so installation can succeed
+			env.CreateMarketplace("test-marketplace", "github.com/test/marketplace")
+			env.CreateMarketplacePlugin("test-marketplace", "test-plugin", "1.0.0")
+
+			// Run setup with -y to auto-confirm, accept defaults
+			result := env.Run("setup", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Installing plugins"))
+			Expect(result.Stdout).To(ContainSubstring("1 plugins installed"))
+		})
 	})
 
 	Describe("--claude-dir flag", func() {
