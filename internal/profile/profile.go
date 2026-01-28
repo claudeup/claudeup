@@ -53,6 +53,36 @@ func (p *Profile) IsMultiScope() bool {
 	return p.PerScope != nil
 }
 
+// HasMCPServersWithSecrets returns true if any MCP server in the profile has secrets defined.
+// This is used to warn users that sync cannot resolve secrets.
+func (p *Profile) HasMCPServersWithSecrets() bool {
+	if p == nil {
+		return false
+	}
+
+	// Check legacy MCP servers
+	for _, server := range p.MCPServers {
+		if len(server.Secrets) > 0 {
+			return true
+		}
+	}
+
+	// Check multi-scope MCP servers
+	if p.PerScope != nil {
+		for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
+			if scope != nil {
+				for _, server := range scope.MCPServers {
+					if len(server.Secrets) > 0 {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 // CombinedScopes returns a flat Profile combining all scopes (user + project + local).
 // This aggregates plugins and MCP servers from all scopes into single lists,
 // matching how Claude Code accumulates settings from user → project → local.

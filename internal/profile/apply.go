@@ -1208,7 +1208,7 @@ func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*A
 
 // aggregateResults combines results from multiple scope applications
 func aggregateResults(target, source *ApplyResult) {
-	if source == nil {
+	if source == nil || target == nil {
 		return
 	}
 	target.PluginsInstalled = append(target.PluginsInstalled, source.PluginsInstalled...)

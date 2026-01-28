@@ -349,6 +349,152 @@ func TestOmitEmptyPerScope(t *testing.T) {
 	}
 }
 
+func TestEmptyPerScopeSections(t *testing.T) {
+	// Test profile with PerScope but all sections nil
+	p := &Profile{
+		Name:     "empty-multi",
+		PerScope: &PerScopeSettings{},
+	}
+
+	// IsMultiScope should return true (PerScope is non-nil)
+	if !p.IsMultiScope() {
+		t.Error("expected IsMultiScope() to return true for profile with empty PerScope")
+	}
+
+	// ForScope should return empty profile for all scopes
+	for _, scope := range []string{"user", "project", "local"} {
+		scopeProfile := p.ForScope(scope)
+		if scopeProfile == nil {
+			t.Errorf("ForScope(%s) returned nil", scope)
+			continue
+		}
+		if len(scopeProfile.Plugins) != 0 {
+			t.Errorf("expected 0 plugins for %s scope, got %d", scope, len(scopeProfile.Plugins))
+		}
+		if len(scopeProfile.MCPServers) != 0 {
+			t.Errorf("expected 0 MCP servers for %s scope, got %d", scope, len(scopeProfile.MCPServers))
+		}
+	}
+
+	// CombinedScopes should return empty profile
+	combined := p.CombinedScopes()
+	if combined == nil {
+		t.Fatal("CombinedScopes() returned nil")
+	}
+	if len(combined.Plugins) != 0 {
+		t.Errorf("expected 0 plugins in combined, got %d", len(combined.Plugins))
+	}
+
+	// JSON marshaling should work correctly
+	data, err := json.MarshalIndent(p, "", "  ")
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+	jsonStr := string(data)
+	// Empty PerScope should be omitted due to omitempty on nested fields
+	t.Logf("JSON output:\n%s", jsonStr)
+}
+
+func TestHasMCPServersWithSecrets(t *testing.T) {
+	// Test nil profile
+	var nilProfile *Profile
+	if nilProfile.HasMCPServersWithSecrets() {
+		t.Error("nil profile should not have MCP servers with secrets")
+	}
+
+	// Test profile without MCP servers
+	noMCP := &Profile{
+		Name:    "no-mcp",
+		Plugins: []string{"plugin1"},
+	}
+	if noMCP.HasMCPServersWithSecrets() {
+		t.Error("profile without MCP servers should return false")
+	}
+
+	// Test legacy profile with MCP servers without secrets
+	noSecrets := &Profile{
+		Name: "no-secrets",
+		MCPServers: []MCPServer{
+			{Name: "server1", Command: "cmd"},
+		},
+	}
+	if noSecrets.HasMCPServersWithSecrets() {
+		t.Error("profile with MCP servers without secrets should return false")
+	}
+
+	// Test legacy profile with MCP servers with secrets
+	withSecrets := &Profile{
+		Name: "with-secrets",
+		MCPServers: []MCPServer{
+			{Name: "server1", Command: "cmd", Secrets: map[string]SecretRef{
+				"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "MY_API_KEY"}}},
+			}},
+		},
+	}
+	if !withSecrets.HasMCPServersWithSecrets() {
+		t.Error("profile with MCP servers with secrets should return true")
+	}
+
+	// Test multi-scope profile with secrets in user scope
+	multiUserSecrets := &Profile{
+		Name: "multi-user-secrets",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "server1", Command: "cmd", Secrets: map[string]SecretRef{
+						"TOKEN": {Sources: []SecretSource{{Type: "env", Key: "TOKEN"}}},
+					}},
+				},
+			},
+		},
+	}
+	if !multiUserSecrets.HasMCPServersWithSecrets() {
+		t.Error("multi-scope profile with secrets in user scope should return true")
+	}
+
+	// Test multi-scope profile with secrets in project scope
+	multiProjectSecrets := &Profile{
+		Name: "multi-project-secrets",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "no-secrets", Command: "cmd"},
+				},
+			},
+			Project: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "with-secrets", Command: "cmd", Secrets: map[string]SecretRef{
+						"DB_PASS": {Sources: []SecretSource{{Type: "keychain", Service: "db-password"}}},
+					}},
+				},
+			},
+		},
+	}
+	if !multiProjectSecrets.HasMCPServersWithSecrets() {
+		t.Error("multi-scope profile with secrets in project scope should return true")
+	}
+
+	// Test multi-scope profile without any secrets
+	multiNoSecrets := &Profile{
+		Name: "multi-no-secrets",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "server1", Command: "cmd"},
+				},
+			},
+			Project: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "server2", Command: "cmd"},
+				},
+			},
+		},
+	}
+	if multiNoSecrets.HasMCPServersWithSecrets() {
+		t.Error("multi-scope profile without secrets should return false")
+	}
+}
+
 func containsSubstring(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && (containsSubstringImpl(s, substr)))
 }

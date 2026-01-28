@@ -104,53 +104,79 @@ mkdir -p "$PROJECT_DIR/.claude"
 # TEST -1: Sync fails when profile doesn't exist anywhere
 # =============================================================================
 
-section "Test -1: Sync fails when profile doesn't exist"
+section "Test -1: Sync bootstraps profile from current state when missing"
 
 echo "Scenario: .claudeup.json exists but profile definition is missing."
-echo "This catches the bug where 'profile apply --scope project' didn't"
-echo "save the profile to .claudeup/profiles/ for team sharing."
+echo "Sync should create the profile by snapshotting the current state,"
+echo "enabling teams to use sync even with older project setups."
 echo ""
+
+# First, set up some plugins in the project scope
+cat > "$PROJECT_DIR/.claude/settings.json" << 'SETTINGS'
+{
+  "enabledPlugins": {
+    "existing-plugin@marketplace": true
+  }
+}
+SETTINGS
+echo "Created project settings with existing-plugin"
 
 # Create .claudeup.json pointing to a profile that doesn't exist
 cat > "$PROJECT_DIR/.claudeup.json" << 'CONFIG'
 {
   "version": "1",
-  "profile": "missing-profile"
+  "profile": "bootstrapped-profile"
 }
 CONFIG
-echo "Created .claudeup.json pointing to 'missing-profile'"
+echo "Created .claudeup.json pointing to 'bootstrapped-profile'"
 
 # Verify profile does NOT exist in either location
-if [[ -f "$CLAUDEUP_HOME/profiles/missing-profile.json" ]]; then
+if [[ -f "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json" ]]; then
   echo "ERROR: Profile should not exist in user profiles"
   exit 1
 fi
-if [[ -f "$PROJECT_DIR/.claudeup/profiles/missing-profile.json" ]]; then
+if [[ -f "$PROJECT_DIR/.claudeup/profiles/bootstrapped-profile.json" ]]; then
   echo "ERROR: Profile should not exist in project profiles"
   exit 1
 fi
 echo "✓ Confirmed: Profile does not exist in user or project profiles"
 
-# Run sync - should FAIL
+# Run sync - should SUCCEED by bootstrapping from current state
 echo ""
-echo "Running: claudeup profile sync -y (expecting failure)"
+echo "Running: claudeup profile sync -y (expecting bootstrap)"
 pushd "$PROJECT_DIR" > /dev/null
-if $CLAUDEUP profile sync -y 2>&1; then
+if ! $CLAUDEUP profile sync -y 2>&1; then
   echo ""
-  echo "✗ ERROR: Sync should have failed when profile doesn't exist"
+  echo "✗ ERROR: Sync should have succeeded by bootstrapping profile"
   popd > /dev/null
   exit 1
 fi
 popd > /dev/null
 
 echo ""
-echo "✓ Sync correctly failed when profile doesn't exist"
+echo "✓ Sync succeeded by bootstrapping profile from current state"
+
+# Verify profile was created in user profiles directory
+if [[ ! -f "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json" ]]; then
+  echo "✗ ERROR: Profile should have been created in user profiles"
+  exit 1
+fi
+echo "✓ Profile was created: $CLAUDEUP_HOME/profiles/bootstrapped-profile.json"
+
+# Verify the bootstrapped profile captured the existing plugin
+if ! jq -e '.perScope.project.plugins | index("existing-plugin@marketplace")' "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json" > /dev/null 2>&1; then
+  echo "✗ ERROR: Bootstrapped profile should contain existing-plugin"
+  cat "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json"
+  exit 1
+fi
+echo "✓ Bootstrapped profile captured existing plugins"
 
 # Clean up for next test
 rm "$PROJECT_DIR/.claudeup.json"
+rm "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json"
 
 echo ""
-echo "Test -1 PASSED: Sync fails with clear error when profile is missing"
+echo "Test -1 PASSED: Sync bootstraps profile from current state when missing"
 
 # =============================================================================
 # TEST 0: profile apply --scope project creates .claudeup/profiles/
@@ -550,7 +576,7 @@ echo "Test 5 PASSED: Sync is idempotent"
 section "All tests passed!"
 
 echo "Profile sync feature works correctly:"
-echo "  ✓ Test -1: Sync fails with clear error when profile doesn't exist"
+echo "  ✓ Test -1: Sync bootstraps profile from current state when missing"
 echo "  ✓ Test 0: profile apply --scope project creates .claudeup/profiles/"
 echo "  ✓ Test 1: Sync creates local profile copy when profile doesn't exist"
 echo "  ✓ Test 2: Sync restores missing plugins when profile exists"

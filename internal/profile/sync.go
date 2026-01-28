@@ -45,7 +45,14 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 	// Load the profile - check project first, then user profiles
 	prof, _, err := LoadWithFallback(profilesDir, projectDir, cfg.Profile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load profile %q: %w", cfg.Profile, err)
+		// Profile doesn't exist - bootstrap by creating from current state
+		// This handles the case where:
+		// 1. Project was set up with an older version that didn't save to .claudeup/profiles/
+		// 2. User is syncing for the first time without the profile
+		prof, err = SnapshotAllScopes(cfg.Profile, claudeDir, claudeJSONPath, projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create profile %q from current state: %w", cfg.Profile, err)
+		}
 	}
 
 	result := &SyncResult{
@@ -75,6 +82,14 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 	// If a profile contains MCP servers with secrets, users should use
 	// `profile apply` directly which supports secret resolution via --secrets flag
 	var chain *secrets.Chain
+
+	// Warn if profile has MCP servers with secrets that won't be resolved
+	if prof.HasMCPServersWithSecrets() {
+		result.Errors = append(result.Errors, fmt.Errorf(
+			"profile contains MCP servers with secrets; secrets will not be resolved during sync. "+
+				"Use 'claudeup profile apply %s' with --secrets flag for secret resolution", prof.Name))
+	}
+
 	applyResult, err := ApplyAllScopes(prof, claudeDir, claudeJSONPath, projectDir, chain, applyOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply profile: %w", err)
