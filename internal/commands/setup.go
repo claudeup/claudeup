@@ -77,7 +77,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	if hasExisting {
 		// User has existing Claude Code setup - preserve it
-		if err := handleExistingInstallationPreserve(existing, profilesDir); err != nil {
+		if err := handleExistingInstallationPreserve(existing, profilesDir, claudeDir); err != nil {
 			return err
 		}
 	} else {
@@ -109,7 +109,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 // handleExistingInstallationPreserve saves the existing config as a profile but keeps
 // the user's current settings intact (doesn't overwrite with default)
-func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string) error {
+func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string, claudeDir string) error {
 	ui.PrintInfo("Existing Claude Code installation detected:")
 	fmt.Printf("  %s %d MCP servers, %d marketplaces, %d plugins\n",
 		ui.Muted(ui.SymbolArrow), len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
@@ -144,6 +144,14 @@ func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir s
 		return fmt.Errorf("setup aborted by user")
 	default:
 		return fmt.Errorf("invalid choice: %s", choice)
+	}
+
+	// Install plugins from the profile
+	if len(existing.Plugins) > 0 {
+		fmt.Println()
+		if err := installPluginsFromProfile(existing, claudeDir); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Plugin installation issue: %v", err))
+		}
 	}
 
 	return nil
@@ -473,6 +481,66 @@ func buildSecretChain() *secrets.Chain {
 		secrets.NewOnePasswordResolver(),
 		secrets.NewKeychainResolver(),
 	)
+}
+
+// installPluginsFromProfile installs plugins defined in a profile.
+// Shows progress spinner, continues on individual failures, displays summary.
+// Returns nil even if some plugins fail (warnings only).
+// NOTE: This only installs plugins (additive). It does NOT remove anything.
+func installPluginsFromProfile(p *profile.Profile, claudeDir string) error {
+	if len(p.Plugins) == 0 {
+		return nil
+	}
+
+	// Prompt unless -y
+	if !config.YesFlag {
+		fmt.Printf("Install %d plugins from profile? [Y/n]: ", len(p.Plugins))
+		input, err := stdinReader.ReadString('\n')
+		if err != nil {
+			ui.PrintWarning("Could not read input (stdin unavailable), skipping plugin installation")
+			ui.PrintMuted("Run 'claudeup profile apply <profile>' to install plugins later")
+			return nil
+		}
+		choice := strings.TrimSpace(strings.ToLower(input))
+		if choice != "" && choice != "y" && choice != "yes" {
+			ui.PrintMuted("Skipping plugin installation.")
+			return nil
+		}
+	}
+
+	fmt.Println()
+	ui.PrintInfo(fmt.Sprintf("Installing plugins (%d)...", len(p.Plugins)))
+
+	// Use InstallPluginsWithProgress for additive-only behavior.
+	// Unlike profile.Apply() which is declarative (removes items not in profile),
+	// this only installs missing plugins without affecting existing configuration.
+	executor := &profile.DefaultExecutor{ClaudeDir: claudeDir}
+	result := profile.InstallPluginsWithProgress(p.Plugins, executor, profile.InstallPluginsOptions{
+		Scope: "", // user scope
+	})
+
+	// Show summary
+	installed := len(result.Installed)
+	alreadyPresent := len(result.Skipped)
+	failed := len(result.Errors)
+
+	if installed > 0 {
+		fmt.Printf("  %s %d plugins installed\n", ui.Success(ui.SymbolSuccess), installed)
+		for _, plugin := range result.Installed {
+			fmt.Printf("    %s %s\n", ui.Muted(ui.SymbolBullet), plugin)
+		}
+	}
+	if alreadyPresent > 0 {
+		fmt.Printf("  %s %d plugins already installed\n", ui.Muted(ui.SymbolSuccess), alreadyPresent)
+	}
+	if failed > 0 {
+		fmt.Printf("  %s %d plugins failed\n", ui.Warning(ui.SymbolWarning), failed)
+		for _, e := range result.Errors {
+			fmt.Printf("    %s %v\n", ui.Error(ui.SymbolBullet), e)
+		}
+	}
+
+	return nil
 }
 
 func showApplyResults(result *profile.ApplyResult) {

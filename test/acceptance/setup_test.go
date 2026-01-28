@@ -106,6 +106,46 @@ var _ = Describe("setup", func() {
 			Expect(result.Stderr).To(ContainSubstring("profile \"nonexistent\" does not exist"))
 			Expect(result.Stderr).To(ContainSubstring("claudeup profile list"))
 		})
+
+		It("attempts plugin installation when existing installation has enabled plugins", func() {
+			// Create an existing installation with enabled plugins
+			env.CreateClaudeSettingsWithPlugins(map[string]bool{
+				"test-plugin@test-marketplace": true,
+			})
+
+			// Create a marketplace entry (even though install will fail)
+			env.CreateMarketplace("test-marketplace", "github.com/test/marketplace")
+
+			// Run setup with -y to auto-confirm
+			result := env.Run("setup", "-y")
+
+			// Setup should complete successfully (exit 0) even if plugin installation fails
+			Expect(result.ExitCode).To(Equal(0))
+			// Should detect existing installation
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+			// Should attempt plugin installation
+			Expect(result.Stdout).To(ContainSubstring("Installing plugins"))
+			// Should complete setup
+			Expect(result.Stdout).To(ContainSubstring("Setup complete"))
+		})
+
+		It("continues setup when plugin installation fails", func() {
+			// Create an existing installation with a plugin that can't be installed
+			// (marketplace doesn't exist)
+			env.CreateClaudeSettingsWithPlugins(map[string]bool{
+				"missing-plugin@nonexistent-marketplace": true,
+			})
+
+			// Run setup with -y
+			result := env.Run("setup", "-y")
+
+			// Setup should complete successfully (exit 0)
+			Expect(result.ExitCode).To(Equal(0))
+			// Should show failure info
+			Expect(result.Stdout).To(ContainSubstring("plugins failed"))
+			// Should still complete
+			Expect(result.Stdout).To(ContainSubstring("Setup complete"))
+		})
 	})
 
 	Describe("--claude-dir flag", func() {

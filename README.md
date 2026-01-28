@@ -22,7 +22,7 @@ claudeup setup
 claudeup setup --profile frontend
 ```
 
-**For existing Claude Code users**: Setup detects your current installation and preserves it. You'll be offered the option to save your existing configuration as a profile.
+**For existing Claude Code users**: Setup detects your current installation and preserves it. You'll be offered the option to save your existing configuration as a profile. Enabled plugins are automatically installed -- no separate `profile apply` needed.
 
 **For new users**: Setup applies the default profile (or your specified `--profile`) to get you started with plugins and MCP servers.
 

@@ -156,12 +156,11 @@ pushd "$PROJECT_DIR" > /dev/null
 claudeup setup -y
 
 # -----------------------------------------------------------------------------
-# Apply saved user profile to install plugins
+# Verify setup result
 # -----------------------------------------------------------------------------
 
-section "Applying user profile (my-setup)"
+section "Verifying setup"
 
-claudeup profile apply my-setup -y --scope user
 claudeup profile show my-setup
 
 # -----------------------------------------------------------------------------

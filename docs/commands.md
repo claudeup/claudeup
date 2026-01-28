@@ -38,6 +38,24 @@ When claudeup detects an existing Claude Code installation (plugins, MCP servers
 
 The `--profile` flag is ignored for existing installations since your current settings take precedence.
 
+**Automatic plugin installation:**
+
+After handling the existing installation, setup automatically installs any enabled plugins discovered in your configuration. This eliminates the need for a separate `claudeup profile apply` step.
+
+```bash
+claudeup setup -y  # Non-interactive: saves profile and installs plugins automatically
+```
+
+Plugin installation is non-blocking -- if individual plugins fail to install, setup continues and shows a summary:
+
+```text
+Installing 5 plugins...
+  ✓ 4 plugins installed
+  ⚠ 1 plugins failed
+    • missing-plugin@unknown-marketplace: marketplace not found
+Setup complete!
+```
+
 **For fresh installations:**
 
 When no existing configuration is detected, setup applies a profile to get you started:
