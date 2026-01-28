@@ -191,17 +191,17 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				if hasExtraPlugins && hasMissingPlugins {
 					// Both types of drift - recommend reset
 					if statusScope != "" {
-						ui.PrintInfo(fmt.Sprintf("  • Reset to profile (removes extra, installs missing): 'claudeup profile apply %s --scope %s --reset'", activeProfile, statusScope))
+						ui.PrintInfo(fmt.Sprintf("  • Reset to profile (removes extra, installs missing): 'claudeup profile apply %s --scope %s --replace'", activeProfile, statusScope))
 					} else {
-						ui.PrintInfo(fmt.Sprintf("  • Reset to profile (removes extra, installs missing): 'claudeup profile apply %s --scope <scope> --reset'", activeProfile))
+						ui.PrintInfo(fmt.Sprintf("  • Reset to profile (removes extra, installs missing): 'claudeup profile apply %s --scope <scope> --replace'", activeProfile))
 					}
 				} else if hasExtraPlugins {
 					// Only extra plugins - recommend reset or clean
 					if statusScope != "" {
-						ui.PrintInfo(fmt.Sprintf("  • Remove extra plugins: 'claudeup profile apply %s --scope %s --reset'", activeProfile, statusScope))
+						ui.PrintInfo(fmt.Sprintf("  • Remove extra plugins: 'claudeup profile apply %s --scope %s --replace'", activeProfile, statusScope))
 						ui.PrintInfo(fmt.Sprintf("  • Or remove specific plugin: 'claudeup profile clean --scope %s <plugin>'", statusScope))
 					} else {
-						ui.PrintInfo(fmt.Sprintf("  • Remove extra plugins: 'claudeup profile apply %s --scope <scope> --reset'", activeProfile))
+						ui.PrintInfo(fmt.Sprintf("  • Remove extra plugins: 'claudeup profile apply %s --scope <scope> --replace'", activeProfile))
 						ui.PrintInfo("  • Or remove specific plugin: 'claudeup profile clean --scope <scope> <plugin>'")
 					}
 				} else if hasMissingPlugins {
@@ -265,8 +265,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Count enabled plugins and detect issues
 	enabledCount := 0
-	stalePlugins := []string{}        // Installed but path missing
-	missingPlugins := []string{}      // Enabled in settings but not installed
+	stalePlugins := []string{}   // Installed but path missing
+	missingPlugins := []string{} // Enabled in settings but not installed
 
 	// First, collect all plugins enabled in settings (across all scopes)
 	enabledInSettings := make(map[string]bool)

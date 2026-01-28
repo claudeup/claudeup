@@ -333,7 +333,7 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
 		})
 
-		It("should recommend removing extra plugins with --reset", func() {
+		It("should recommend removing extra plugins with --replace", func() {
 			result := env.RunInDir(projectDir, "status")
 
 			Expect(result.ExitCode).To(Equal(0))
@@ -341,7 +341,7 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			Expect(result.Stdout).To(ContainSubstring("Update profile to match system"))
 			// Should show specific guidance for removing extra plugins
 			Expect(result.Stdout).To(ContainSubstring("Remove extra plugins"))
-			Expect(result.Stdout).To(ContainSubstring("--reset"))
+			Expect(result.Stdout).To(ContainSubstring("--replace"))
 		})
 
 		It("should also suggest profile clean command", func() {

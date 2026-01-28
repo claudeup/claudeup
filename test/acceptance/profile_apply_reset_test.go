@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for profile apply --reset flag
-// ABOUTME: Tests CLI behavior for clearing scope before applying profile
+// ABOUTME: Acceptance tests for profile apply --replace flag
+// ABOUTME: Tests CLI behavior for replacing user scope settings
 package acceptance
 
 import (
@@ -12,7 +12,7 @@ import (
 	"github.com/claudeup/claudeup/v2/test/helpers"
 )
 
-var _ = Describe("claudeup profile apply --reset", func() {
+var _ = Describe("claudeup profile apply --replace", func() {
 	var (
 		env        *helpers.TestEnv
 		binaryPath string
@@ -51,9 +51,9 @@ var _ = Describe("claudeup profile apply --reset", func() {
 		env.Cleanup()
 	})
 
-	Describe("with --reset flag", func() {
+	Describe("with --replace flag", func() {
 		It("should clear scope before applying profile", func() {
-			result := env.Run("profile", "apply", "test-profile", "--reset", "-y")
+			result := env.Run("profile", "apply", "test-profile", "--replace", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Scope is cleared, then profile is applied (may show "no changes" if profile is empty)
@@ -65,7 +65,7 @@ var _ = Describe("claudeup profile apply --reset", func() {
 		})
 
 		It("should show cleared message", func() {
-			result := env.Run("profile", "apply", "test-profile", "--reset", "-y")
+			result := env.Run("profile", "apply", "test-profile", "--replace", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Cleared user scope"))
@@ -73,12 +73,12 @@ var _ = Describe("claudeup profile apply --reset", func() {
 	})
 
 	Describe("help text", func() {
-		It("should document --reset flag", func() {
+		It("should document --replace flag", func() {
 			result := env.Run("profile", "apply", "--help")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("--reset"))
-			Expect(result.Stdout).To(ContainSubstring("Clear target scope"))
+			Expect(result.Stdout).To(ContainSubstring("--replace"))
+			Expect(result.Stdout).To(ContainSubstring("Replace user-scope"))
 		})
 	})
 })

@@ -382,8 +382,8 @@ scenario_user_scope() {
     pause
 
     print_step "5. Clean up drift at user scope"
-    print_command "claudeup profile apply base-tools --scope user --reset -y"
-    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile apply base-tools --scope user --reset -y" "Clean up user scope"
+    print_command "claudeup profile apply base-tools --scope user --replace -y"
+    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile apply base-tools --scope user --replace -y" "Clean up user scope"
 
     # Verify python-development was removed
     if ! validate_plugin_exists "python-development@claude-code-workflows" "$CLAUDE_DIR/settings.json" "false"; then
@@ -459,8 +459,8 @@ scenario_project_scope() {
     pause
 
     print_step "5. Clean up drift at project scope"
-    print_command "claudeup profile apply backend-stack --scope project --reset -y"
-    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile apply backend-stack --scope project --reset -y" "Clean up project scope"
+    print_command "claudeup profile apply backend-stack --scope project --replace -y"
+    validate_command "\"$CLAUDEUP_ROOT/bin/claudeup\" profile apply backend-stack --scope project --replace -y" "Clean up project scope"
 
     # Verify python-development was removed
     if ! validate_plugin_exists "python-development@claude-code-workflows" ".claude/settings.json" "false"; then

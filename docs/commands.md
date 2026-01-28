@@ -123,26 +123,26 @@ claudeup profile apply frontend --scope local
 | Flag               | Description                                                                               |
 | ------------------ | ----------------------------------------------------------------------------------------- |
 | `--scope`          | Apply scope: user, project, or local (default: user, or project if .claudeup.json exists) |
-| `--reset`          | Clear target scope before applying (replaces instead of adding)                           |
+| `--replace`        | Clear target scope before applying (replaces instead of adding)                           |
 | `--setup`          | Force post-apply setup wizard to run                                                      |
 | `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                                           |
 | `-f, --force`      | Force reapply even with unsaved changes                                                   |
 | `--reinstall`      | Force reinstall all plugins and marketplaces                                              |
 | `--no-progress`    | Disable progress display (for CI/scripting)                                               |
 
-**Reset mode:**
+**Replace mode:**
 
-The `--reset` flag clears the target scope before applying the profile:
+The `--replace` flag clears the target scope before applying the profile:
 
 ```bash
 # Replace user scope with new profile (instead of merging)
-claudeup profile apply backend-stack --reset
+claudeup profile apply backend-stack --replace
 
 # Replace without prompts (for scripting)
-claudeup profile apply backend-stack --reset -y
+claudeup profile apply backend-stack --replace -y
 ```
 
-A backup is created automatically when using `--reset` (unless `-y` is used).
+A backup is created automatically when using `--replace` (unless `-y` is used).
 Use `claudeup scope restore user` to recover if needed.
 
 **Files created by `--scope project`:**

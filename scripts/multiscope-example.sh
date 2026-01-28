@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ABOUTME: Demonstrates multi-scope profile capture and restoration
-# ABOUTME: Tests additive user-scope behavior and --reset override
+# ABOUTME: Tests additive user-scope behavior and --replace override
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
@@ -211,10 +211,10 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-# Test 2: Replace user-scope behavior (--reset)
+# Test 2: Replace user-scope behavior (--replace)
 # -----------------------------------------------------------------------------
 
-section "Test 2: Replace user-scope behavior (--reset)"
+section "Test 2: Replace user-scope behavior (--replace)"
 
 # Reset to have extra plugins again
 cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
@@ -227,17 +227,17 @@ cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 }
 SETTINGS
 echo "Set up user scope with 3 extra plugins (not in profile)"
-check_plugins "$CLAUDE_CONFIG_DIR/settings.json" "User scope before --reset apply"
+check_plugins "$CLAUDE_CONFIG_DIR/settings.json" "User scope before --replace apply"
 
-# Apply profile with --reset (declarative)
+# Apply profile with --replace (declarative)
 pushd "$PROJECT_DIR" > /dev/null
 echo ""
-echo "Running: claudeup profile apply my-multiscope --reset -y"
-$CLAUDEUP profile apply my-multiscope --reset -y
+echo "Running: claudeup profile apply my-multiscope --replace -y"
+$CLAUDEUP profile apply my-multiscope --replace -y
 popd > /dev/null
 
 echo ""
-echo "After --reset apply:"
+echo "After --replace apply:"
 check_plugins "$CLAUDE_CONFIG_DIR/settings.json" "User scope (should have ONLY profile plugins)"
 
 # Verify replace behavior
@@ -253,7 +253,7 @@ fi
 
 # Verify extra plugins were removed
 if jq -e '.enabledPlugins["extra-plugin-1@marketplace"]' "$CLAUDE_CONFIG_DIR/settings.json" > /dev/null 2>&1; then
-  echo "✗ ERROR: extra-plugin-1 should have been removed with --reset"
+  echo "✗ ERROR: extra-plugin-1 should have been removed with --replace"
   exit 1
 else
   echo "✓ Extra plugins were removed as expected"
@@ -276,10 +276,10 @@ cat > "$PROJECT_DIR/.claude/settings.json" << 'SETTINGS'
 SETTINGS
 echo "Set up project scope with 1 extra + 1 profile plugin"
 
-# Apply profile (even without --reset, project scope should be replaced)
+# Apply profile (even without --replace, project scope should be replaced)
 pushd "$PROJECT_DIR" > /dev/null
 echo ""
-echo "Running: claudeup profile apply my-multiscope -y (no --reset)"
+echo "Running: claudeup profile apply my-multiscope -y (no --replace)"
 $CLAUDEUP profile apply my-multiscope -y
 popd > /dev/null
 
@@ -305,7 +305,7 @@ section "All tests passed!"
 echo "Multi-scope profile feature works correctly:"
 echo "  ✓ Profile save captures all scopes (user, project, local)"
 echo "  ✓ Profile apply uses additive behavior for user scope by default"
-echo "  ✓ Profile apply --reset uses declarative behavior for user scope"
+echo "  ✓ Profile apply --replace uses declarative behavior for user scope"
 echo "  ✓ Project and local scopes always use declarative behavior"
 
 # -----------------------------------------------------------------------------

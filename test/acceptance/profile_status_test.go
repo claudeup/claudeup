@@ -86,7 +86,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 			Expect(result.Stdout).To(ContainSubstring("extra-plugin@marketplace"))
 			// Should suggest how to fix it
 			Expect(result.Stdout).To(ContainSubstring("Remove extra plugin"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --reset"))
+			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --replace"))
 			Expect(result.Stdout).To(ContainSubstring("profile clean --scope project"))
 		})
 	})
@@ -185,7 +185,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 			// Should suggest reset (handles both)
 			Expect(result.Stdout).To(ContainSubstring("Reset to profile"))
 			Expect(result.Stdout).To(ContainSubstring("removes extra, installs missing"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --reset"))
+			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --replace"))
 		})
 	})
 

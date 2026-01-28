@@ -90,10 +90,10 @@ SCOPES:
   --scope local    Apply to current project, but not shared (personal overrides)
   --scope user     Apply globally to ~/.claude/ (default, affects all projects)
 
-RESET MODE:
-  --reset          Clear the target scope before applying the profile.
-                   This replaces existing configuration instead of adding to it.
-                   A backup is created automatically (skip with -y).
+REPLACE MODE:
+  --replace        Replace user-scope settings instead of adding to them.
+                   By default, user-scope plugins are preserved (additive).
+                   Project and local scopes are always replaced.
 
 Precedence: local > project > user. Plugins from all scopes are active simultaneously.
 
@@ -101,14 +101,14 @@ For team projects, use --scope project to create a shareable configuration that
 teammates can sync with 'claudeup profile sync'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
-	Example: `  # Apply profile (adds to existing config)
+	Example: `  # Apply profile (adds to existing user config)
   claudeup profile apply backend-stack
 
-  # Replace existing config with profile
-  claudeup profile apply backend-stack --reset
+  # Replace user-scope config with profile
+  claudeup profile apply backend-stack --replace
 
   # Replace without prompts (for scripting)
-  claudeup profile apply backend-stack --reset -y
+  claudeup profile apply backend-stack --replace -y
 
   # Set up a profile for your team (creates .claudeup.json)
   claudeup profile apply backend-stack --scope project
@@ -335,11 +335,14 @@ var (
 	profileApplyScope         string
 	profileApplyReinstall     bool
 	profileApplyNoProgress    bool
-	profileApplyReset         bool
+	profileApplyReplace       bool
 )
 
 // Flags for profile sync command
-var profileSyncDryRun bool
+var (
+	profileSyncDryRun  bool
+	profileSyncReplace bool
+)
 
 // Flags for profile save command
 // var profileSaveScope string // Removed: profiles always capture all scopes now
@@ -548,7 +551,7 @@ func init() {
 	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user, or project if .claudeup.json exists)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
-	profileApplyCmd.Flags().BoolVar(&profileApplyReset, "reset", false, "Clear target scope before applying profile")
+	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
@@ -556,6 +559,7 @@ func init() {
 
 	// Add flags to profile sync command
 	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
+	profileSyncCmd.Flags().BoolVar(&profileSyncReplace, "replace", false, "Replace user-scope settings (default: additive)")
 
 	// Add flags to profile list command
 	profileListCmd.Flags().StringVar(&profileListScope, "scope", "", "Show only the profile active at specified scope: user, project, local")
@@ -779,8 +783,8 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Handle --reset flag: clear scope before applying
-	if profileApplyReset {
+	// Handle --replace flag: clear scope before applying
+	if profileApplyReplace {
 		scopeStr := string(scope)
 		settingsPath, err := claude.SettingsPathForScope(scopeStr, claudeDir, cwd)
 		if err != nil {
@@ -973,7 +977,7 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	if p.IsMultiScope() {
 		ui.PrintInfo("Applying profile (all scopes)...")
 		applyOpts := &profile.ApplyAllScopesOptions{
-			ReplaceUserScope: profileApplyReset, // --reset flag controls user scope behavior
+			ReplaceUserScope: profileApplyReplace, // --replace flag controls user scope behavior
 		}
 		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, chain, applyOpts)
 		if err != nil {
@@ -1349,11 +1353,11 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 				if hasExtra && hasMissing {
 					// Both types of drift
 					fmt.Printf("  %s Reset to profile (removes extra, installs missing):\n", ui.Muted(ui.SymbolArrow))
-					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --reset", name, activeScope)))
+					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --replace", name, activeScope)))
 				} else if hasExtra {
 					// Only extra plugins
 					fmt.Printf("  %s Remove extra plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsAdded)))
-					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --reset", name, activeScope)))
+					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --replace", name, activeScope)))
 					if len(diff.PluginsAdded) == 1 {
 						fmt.Printf("  %s Or remove specific plugin:\n", ui.Muted(ui.SymbolArrow))
 						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s %s", activeScope, diff.PluginsAdded[0])))
@@ -2563,7 +2567,8 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := profile.SyncOptions{
-		DryRun: profileSyncDryRun,
+		DryRun:           profileSyncDryRun,
+		ReplaceUserScope: profileSyncReplace,
 	}
 
 	// Add progress callback when not in dry-run mode
@@ -2577,7 +2582,8 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 	}
 
 	profilesDir := getProfilesDir()
-	result, err := profile.Sync(profilesDir, cwd, claudeDir, opts)
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+	result, err := profile.Sync(profilesDir, cwd, claudeDir, claudeJSONPath, opts)
 	if err != nil {
 		return err
 	}
@@ -2586,17 +2592,14 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 	if profileSyncDryRun {
 		fmt.Println("Would sync:")
 	} else {
-		fmt.Println("Synced:")
+		fmt.Printf("Synced profile: %s\n", ui.Bold(result.ProfileName))
 	}
 
-	if result.MarketplacesAdded > 0 {
-		fmt.Printf("  Marketplaces: %d\n", result.MarketplacesAdded)
+	if result.ProfileCreated && !profileSyncDryRun {
+		fmt.Printf("  Profile saved locally\n")
 	}
 	if result.PluginsInstalled > 0 {
-		fmt.Printf("  Plugins installed: %d\n", result.PluginsInstalled)
-	}
-	if result.PluginsSkipped > 0 {
-		fmt.Printf("  Plugins already installed: %d\n", result.PluginsSkipped)
+		fmt.Printf("  Plugins configured: %d\n", result.PluginsInstalled)
 	}
 
 	if len(result.Errors) > 0 {
@@ -2607,12 +2610,9 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if !profileSyncDryRun && result.PluginsInstalled > 0 {
+	if !profileSyncDryRun && len(result.Errors) == 0 {
 		fmt.Println()
 		ui.PrintSuccess("Sync complete!")
-	} else if !profileSyncDryRun && result.PluginsInstalled == 0 && len(result.Errors) == 0 {
-		fmt.Println()
-		ui.PrintSuccess("Already synced - no changes needed")
 	}
 
 	return nil

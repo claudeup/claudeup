@@ -354,8 +354,8 @@ var _ = Describe("Multi-Scope Profiles", func() {
 					"new profile plugin should be added")
 			})
 
-			It("replaces user plugins when --reset is used", func() {
-				result := env.RunInDir(projectDir, "profile", "apply", "additive-test", "--reset", "-y")
+			It("replaces user plugins when --replace is used", func() {
+				result := env.RunInDir(projectDir, "profile", "apply", "additive-test", "--replace", "-y")
 				Expect(result.ExitCode).To(Equal(0))
 
 				// Load user settings
@@ -368,9 +368,9 @@ var _ = Describe("Multi-Scope Profiles", func() {
 
 				// Existing plugins should be removed (replace behavior)
 				Expect(enabledPlugins).NotTo(HaveKey("existing-user-plugin@marketplace"),
-					"existing user plugin should be removed with --reset")
+					"existing user plugin should be removed with --replace")
 				Expect(enabledPlugins).NotTo(HaveKey("another-existing@marketplace"),
-					"another existing plugin should be removed with --reset")
+					"another existing plugin should be removed with --replace")
 
 				// Only profile plugin should remain
 				Expect(enabledPlugins["new-profile-plugin@marketplace"]).To(BeTrue(),
