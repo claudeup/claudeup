@@ -36,14 +36,17 @@ section "2. Team Lead Workflow"
 
 step "Creating a shared profile for the team"
 echo
-info "The team lead configures Claude as desired, then saves:"
+info "The team lead configures Claude as desired, then saves and applies:"
 echo
-echo -e "${YELLOW}\$ claudeup profile save team-config --scope project${NC}"
+echo -e "${YELLOW}\$ claudeup profile save team-config${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply team-config --scope project${NC}"
 echo
-info "This creates .claudeup/profiles/team-config.json"
+info "This creates:"
+info "  ~/.claudeup/profiles/team-config.json (profile)"
+info "  .claudeup.json (project configuration)"
 echo
-step "Commit the profile to version control"
-echo -e "${YELLOW}\$ git add .claudeup/profiles/${NC}"
+step "Commit to version control"
+echo -e "${YELLOW}\$ git add .claudeup.json .claudeup/profiles/${NC}"
 echo -e "${YELLOW}\$ git commit -m \"Add shared Claude profile\"${NC}"
 echo -e "${YELLOW}\$ git push${NC}"
 pause

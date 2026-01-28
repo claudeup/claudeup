@@ -124,24 +124,25 @@ var profileSaveCmd = &cobra.Command{
 	Short: "Save current Claude Code state to a profile",
 	Long: `Saves your current Claude Code configuration (plugins, MCP servers, marketplaces) to a profile.
 
-SCOPES:
-  --scope user     Save to ~/.claudeup/profiles/ (personal profile)
-  --scope project  Save to .claudeup/profiles/ (shareable with team)
+MULTI-SCOPE CAPTURE:
+  Save captures settings from ALL scopes (user, project, local) and stores them
+  in a structured format. When the profile is applied, each scope's settings are
+  restored to the correct location.
 
-If --scope is not specified, uses context-aware default:
-  - project scope if .claudeup.json exists in current directory
-  - user scope otherwise
+  Profiles are always saved to ~/.claudeup/profiles/ (user profiles directory).
+  For team sharing, use 'profile apply <name> --scope project' to apply the
+  profile at project scope, which creates .claudeup.json for version control.
 
 If no name is given, saves to the currently active profile.
 If the profile exists, prompts for confirmation unless -y is used.`,
-	Example: `  # Save to user scope (default in non-project directories)
+	Example: `  # Save current state to a named profile
   claudeup profile save my-tools
 
-  # Save to project scope (for team sharing)
-  claudeup profile save team-config --scope project
+  # Update the currently active profile
+  claudeup profile save -y
 
-  # Explicitly save to user scope
-  claudeup profile save my-tools --scope user`,
+  # Save with confirmation prompt
+  claudeup profile save team-config`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileSave,
 }

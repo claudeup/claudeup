@@ -180,12 +180,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				fmt.Println()
 				ui.PrintInfo("To sync:")
 
-				// Always show save option
-				if statusScope != "" {
-					ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save --scope %s'", statusScope))
-				} else {
-					ui.PrintInfo("  • Update profile to match system: 'claudeup profile save --scope <scope>'")
-				}
+				// Always show save option (save now captures all scopes automatically)
+				ui.PrintInfo(fmt.Sprintf("  • Update profile to match system: 'claudeup profile save %s'", activeProfile))
 
 				// Show appropriate commands based on drift type
 				if hasExtraPlugins && hasMissingPlugins {
