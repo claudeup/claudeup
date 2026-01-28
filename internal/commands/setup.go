@@ -77,7 +77,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	if hasExisting {
 		// User has existing Claude Code setup - preserve it
-		if err := handleExistingInstallationPreserve(existing, profilesDir, claudeDir, claudeJSONPath); err != nil {
+		if err := handleExistingInstallationPreserve(existing, profilesDir, claudeDir); err != nil {
 			return err
 		}
 	} else {
@@ -109,7 +109,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 // handleExistingInstallationPreserve saves the existing config as a profile but keeps
 // the user's current settings intact (doesn't overwrite with default)
-func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string, claudeDir string, claudeJSONPath string) error {
+func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string, claudeDir string) error {
 	ui.PrintInfo("Existing Claude Code installation detected:")
 	fmt.Printf("  %s %d MCP servers, %d marketplaces, %d plugins\n",
 		ui.Muted(ui.SymbolArrow), len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
@@ -497,7 +497,8 @@ func installPluginsFromProfile(p *profile.Profile, claudeDir string) error {
 		fmt.Printf("Install %d plugins from profile? [Y/n]: ", len(p.Plugins))
 		input, err := stdinReader.ReadString('\n')
 		if err != nil {
-			ui.PrintWarning("Could not read input, skipping plugin installation")
+			ui.PrintWarning("Could not read input (stdin unavailable), skipping plugin installation")
+			ui.PrintMuted("Run 'claudeup profile apply <profile>' to install plugins later")
 			return nil
 		}
 		choice := strings.TrimSpace(strings.ToLower(input))
