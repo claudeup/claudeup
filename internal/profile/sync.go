@@ -1,20 +1,20 @@
 // ABOUTME: Syncs configuration from .claudeup.json for team members
-// ABOUTME: Applies profile settings to all scopes, creating local profile copy
+// ABOUTME: Installs plugins and applies profile settings to all scopes
 package profile
 
 import (
 	"fmt"
-
-	"github.com/claudeup/claudeup/v3/internal/secrets"
+	"strings"
 )
 
 // SyncResult contains the results of syncing from .claudeup.json
 type SyncResult struct {
-	ProfileName      string
-	ProfileCreated   bool // True if profile was created/updated locally
-	PluginsInstalled int
-	PluginsSkipped   int
-	Errors           []error
+	ProfileName        string
+	ProfileCreated     bool // True if profile was created/updated locally
+	PluginsInstalled   int
+	PluginsSkipped     int
+	MarketplacesAdded  []string
+	Errors             []error
 }
 
 // ProgressCallback reports installation progress for multi-item operations
@@ -28,7 +28,7 @@ type SyncOptions struct {
 }
 
 // Sync applies the profile from .claudeup.json to all scopes.
-// It saves a local copy of the profile and applies settings:
+// It saves a local copy of the profile, installs plugins, and applies settings:
 // - User scope: additive by default, declarative with ReplaceUserScope=true
 // - Project/local scopes: always declarative (replaces settings)
 func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOptions) (*SyncResult, error) {
@@ -70,18 +70,109 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 		result.ProfileCreated = true
 	}
 
-	// Apply the profile to all scopes using ApplyAllScopes
-	applyOpts := &ApplyAllScopesOptions{
-		ReplaceUserScope: opts.ReplaceUserScope,
+	// Create executor for running claude CLI commands
+	executor := &DefaultExecutor{ClaudeDir: claudeDir}
+
+	// 1. Add marketplaces from embedded profiles first (best-effort)
+	// This ensures known marketplaces (like wshobson/agents from hobson profile) are available
+	embeddedMarketplaces := collectEmbeddedMarketplaces()
+	for _, m := range embeddedMarketplaces {
+		key := marketplaceKey(m)
+		if key == "" {
+			continue
+		}
+		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
+		if err == nil {
+			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+		} else if strings.Contains(output, "already installed") {
+			// Already installed is fine, just don't add to MarketplacesAdded
+		}
+		// Other errors are silently ignored - these are best-effort additions
 	}
 
-	// Sync uses a nil secrets chain because:
-	// 1. Sync is primarily for plugin synchronization, not MCP server secrets
-	// 2. Secret resolution requires user interaction (prompts, keychain access)
-	// 3. Sync should be a fast, non-interactive operation
-	// If a profile contains MCP servers with secrets, users should use
-	// `profile apply` directly which supports secret resolution via --secrets flag
-	var chain *secrets.Chain
+	// 2. Add marketplaces from the profile (needed to resolve plugin names)
+	for _, m := range prof.Marketplaces {
+		key := marketplaceKey(m)
+		if key == "" {
+			continue
+		}
+		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
+		if err != nil {
+			// Check if already installed - treat as success
+			if strings.Contains(output, "already installed") {
+				result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+			} else {
+				result.Errors = append(result.Errors, fmt.Errorf("marketplace %s: %w", key, err))
+			}
+		} else {
+			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+		}
+	}
+
+	// 3. Install plugins and write settings for each scope
+	if prof.IsMultiScope() {
+		// Multi-scope profile: install plugins at each scope
+		if prof.PerScope.User != nil && len(prof.PerScope.User.Plugins) > 0 {
+			installResult := InstallPluginsWithProgress(prof.PerScope.User.Plugins, executor, InstallPluginsOptions{
+				Scope:    "", // User scope (no --scope flag)
+				Progress: opts.Progress,
+			})
+			result.PluginsInstalled += len(installResult.Installed)
+			result.PluginsSkipped += len(installResult.Skipped)
+			result.Errors = append(result.Errors, installResult.Errors...)
+
+			// Write user settings (reuse existing function from apply.go)
+			if _, err := applyUserScopeSettings(prof.ForScope("user"), claudeDir, projectDir, opts.ReplaceUserScope); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to write user settings: %w", err))
+			}
+		}
+
+		if prof.PerScope.Project != nil && len(prof.PerScope.Project.Plugins) > 0 && projectDir != "" {
+			installResult := InstallPluginsWithProgress(prof.PerScope.Project.Plugins, executor, InstallPluginsOptions{
+				Scope:    "project",
+				Progress: opts.Progress,
+			})
+			result.PluginsInstalled += len(installResult.Installed)
+			result.PluginsSkipped += len(installResult.Skipped)
+			result.Errors = append(result.Errors, installResult.Errors...)
+
+			// Write project settings (reuse existing function from apply.go)
+			if _, err := applyProjectScopeSettings(prof.ForScope("project"), claudeDir, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to write project settings: %w", err))
+			}
+		}
+
+		if prof.PerScope.Local != nil && len(prof.PerScope.Local.Plugins) > 0 && projectDir != "" {
+			installResult := InstallPluginsWithProgress(prof.PerScope.Local.Plugins, executor, InstallPluginsOptions{
+				Scope:    "local",
+				Progress: opts.Progress,
+			})
+			result.PluginsInstalled += len(installResult.Installed)
+			result.PluginsSkipped += len(installResult.Skipped)
+			result.Errors = append(result.Errors, installResult.Errors...)
+
+			// Write local settings (reuse existing function from apply.go)
+			if _, err := applyLocalScopeSettings(prof.ForScope("local"), claudeDir, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to write local settings: %w", err))
+			}
+		}
+	} else {
+		// Legacy single-scope profile: install at user scope
+		if len(prof.Plugins) > 0 {
+			installResult := InstallPluginsWithProgress(prof.Plugins, executor, InstallPluginsOptions{
+				Scope:    "", // User scope
+				Progress: opts.Progress,
+			})
+			result.PluginsInstalled += len(installResult.Installed)
+			result.PluginsSkipped += len(installResult.Skipped)
+			result.Errors = append(result.Errors, installResult.Errors...)
+
+			// Write user settings (reuse existing function from apply.go)
+			if _, err := applyUserScopeSettings(prof, claudeDir, projectDir, opts.ReplaceUserScope); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to write user settings: %w", err))
+			}
+		}
+	}
 
 	// Warn if profile has MCP servers with secrets that won't be resolved
 	if prof.HasMCPServersWithSecrets() {
@@ -89,15 +180,6 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 			"profile contains MCP servers with secrets; secrets will not be resolved during sync. "+
 				"Use 'claudeup profile apply %s' with --secrets flag for secret resolution", prof.Name))
 	}
-
-	applyResult, err := ApplyAllScopes(prof, claudeDir, claudeJSONPath, projectDir, chain, applyOpts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to apply profile: %w", err)
-	}
-
-	// Aggregate results
-	result.PluginsInstalled = len(applyResult.PluginsInstalled)
-	result.Errors = append(result.Errors, applyResult.Errors...)
 
 	return result, nil
 }
@@ -125,5 +207,38 @@ func dryRunSync(prof *Profile, claudeDir, projectDir string) (*SyncResult, error
 	}
 
 	result.PluginsInstalled = pluginCount
+
+	// Count marketplaces
+	for _, m := range prof.Marketplaces {
+		key := marketplaceKey(m)
+		if key != "" {
+			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+		}
+	}
+
 	return result, nil
+}
+
+// collectEmbeddedMarketplaces returns all unique marketplaces from embedded profiles
+func collectEmbeddedMarketplaces() []Marketplace {
+	embeddedProfiles, err := ListEmbeddedProfiles()
+	if err != nil {
+		return nil
+	}
+
+	// Use a map to deduplicate marketplaces by repo/URL
+	seen := make(map[string]bool)
+	var marketplaces []Marketplace
+
+	for _, p := range embeddedProfiles {
+		for _, m := range p.Marketplaces {
+			key := marketplaceKey(m)
+			if key != "" && !seen[key] {
+				seen[key] = true
+				marketplaces = append(marketplaces, m)
+			}
+		}
+	}
+
+	return marketplaces
 }
