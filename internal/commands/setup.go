@@ -149,7 +149,7 @@ func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir s
 	// Install plugins from the profile
 	if len(existing.Plugins) > 0 {
 		fmt.Println()
-		if err := installPluginsFromProfile(existing, claudeDir, claudeJSONPath); err != nil {
+		if err := installPluginsFromProfile(existing, claudeDir); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Plugin installation issue: %v", err))
 		}
 	}
@@ -486,7 +486,8 @@ func buildSecretChain() *secrets.Chain {
 // installPluginsFromProfile installs plugins defined in a profile.
 // Shows progress spinner, continues on individual failures, displays summary.
 // Returns nil even if some plugins fail (warnings only).
-func installPluginsFromProfile(p *profile.Profile, claudeDir, claudeJSONPath string) error {
+// NOTE: This only installs plugins (additive). It does NOT remove anything.
+func installPluginsFromProfile(p *profile.Profile, claudeDir string) error {
 	if len(p.Plugins) == 0 {
 		return nil
 	}
@@ -494,9 +495,9 @@ func installPluginsFromProfile(p *profile.Profile, claudeDir, claudeJSONPath str
 	// Prompt unless -y
 	if !config.YesFlag {
 		fmt.Printf("Install %d plugins from profile? [Y/n]: ", len(p.Plugins))
-		reader := bufio.NewReader(os.Stdin)
-		input, err := reader.ReadString('\n')
+		input, err := stdinReader.ReadString('\n')
 		if err != nil {
+			ui.PrintWarning("Could not read input, skipping plugin installation")
 			return nil
 		}
 		choice := strings.TrimSpace(strings.ToLower(input))
@@ -509,21 +510,22 @@ func installPluginsFromProfile(p *profile.Profile, claudeDir, claudeJSONPath str
 	fmt.Println()
 	ui.PrintInfo(fmt.Sprintf("Installing plugins (%d)...", len(p.Plugins)))
 
-	chain := buildSecretChain()
-	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
-	if err != nil {
-		ui.PrintWarning(fmt.Sprintf("Plugin installation failed: %v", err))
-		return nil // Don't fail setup for plugin errors
-	}
+	// Use InstallPluginsWithProgress for additive-only behavior.
+	// Unlike profile.Apply() which is declarative (removes items not in profile),
+	// this only installs missing plugins without affecting existing configuration.
+	executor := &profile.DefaultExecutor{ClaudeDir: claudeDir}
+	result := profile.InstallPluginsWithProgress(p.Plugins, executor, profile.InstallPluginsOptions{
+		Scope: "", // user scope
+	})
 
 	// Show summary
-	installed := len(result.PluginsInstalled)
-	alreadyPresent := len(result.PluginsAlreadyPresent)
+	installed := len(result.Installed)
+	alreadyPresent := len(result.Skipped)
 	failed := len(result.Errors)
 
 	if installed > 0 {
 		fmt.Printf("  %s %d plugins installed\n", ui.Success(ui.SymbolSuccess), installed)
-		for _, plugin := range result.PluginsInstalled {
+		for _, plugin := range result.Installed {
 			fmt.Printf("    %s %s\n", ui.Muted(ui.SymbolBullet), plugin)
 		}
 	}
