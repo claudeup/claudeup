@@ -77,7 +77,7 @@ claudeup profile show <name>                 # Display profile contents
 claudeup profile current                     # Show active profile (with scope)
 claudeup profile status [name]               # Show differences from current Claude state
 claudeup profile diff <name>                 # Compare customized built-in to original
-claudeup profile save [name]                 # Save current setup as profile
+claudeup profile save [name]                 # Save current setup as profile (all scopes)
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope)

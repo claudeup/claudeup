@@ -103,8 +103,11 @@ Sync will:
 
 1. Read `.claudeup.json` for the profile name
 2. Find the profile in `.claudeup/profiles/` (project) or `~/.claudeup/profiles/` (user)
-3. Install any missing marketplaces
-4. Install any missing plugins
+3. If profile not found, bootstrap from current state (captures all current settings as the profile)
+4. Install any missing marketplaces
+5. Install any missing plugins
+
+**Bootstrap behavior:** If you have `.claudeup.json` but the profile definition doesn't exist (common when upgrading from older versions), sync creates the profile by capturing your current settings. This ensures sync always works.
 
 ### Viewing Profile Sources
 

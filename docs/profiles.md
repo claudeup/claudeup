@@ -105,11 +105,11 @@ To disable a plugin from a lower scope, explicitly set it to `false`:
 
 ### Scope Storage
 
-| Scope | Location | Shared? | Use Case |
-|-------|----------|---------|----------|
-| **User** | `~/.claude/settings.json` | No | Personal default plugins used everywhere |
-| **Project** | `.claude/settings.json` | Yes (via git) | Project-specific plugins, shared with team |
-| **Local** | `./.claude/settings.local.json` | No (gitignored) | Machine-specific plugins, personal overrides |
+| Scope       | Location                        | Shared?         | Use Case                                     |
+| ----------- | ------------------------------- | --------------- | -------------------------------------------- |
+| **User**    | `~/.claude/settings.json`       | No              | Personal default plugins used everywhere     |
+| **Project** | `.claude/settings.json`         | Yes (via git)   | Project-specific plugins, shared with team   |
+| **Local**   | `./.claude/settings.local.json` | No (gitignored) | Machine-specific plugins, personal overrides |
 
 ### Project Scope Files
 
@@ -465,7 +465,41 @@ The JSON format supports both shorthand and full marketplace syntax:
 
 ## Profile Structure
 
-Profiles are stored in `~/.claudeup/profiles/` as JSON files:
+Profiles are stored in `~/.claudeup/profiles/` as JSON files.
+
+### Multi-Scope Format (v3+)
+
+Profiles capture settings from all scopes (user, project, local) using the `perScope` structure:
+
+```json
+{
+  "name": "team-backend",
+  "description": "Backend development profile",
+  "marketplaces": [
+    { "source": "github", "repo": "anthropics/claude-code-plugins" }
+  ],
+  "perScope": {
+    "user": {
+      "plugins": ["superpowers@superpowers-marketplace"],
+      "mcpServers": []
+    },
+    "project": {
+      "plugins": ["backend-development@claude-code-workflows"],
+      "mcpServers": []
+    },
+    "local": {
+      "plugins": [],
+      "mcpServers": []
+    }
+  }
+}
+```
+
+When you run `profile save`, all three scopes are captured automatically. When you run `profile apply`, settings are restored to the correct scope.
+
+### Legacy Format (backward compatible)
+
+Older profiles with flat `plugins` arrays are still supported and treated as user-scope:
 
 ```json
 {
@@ -484,11 +518,11 @@ Profiles are stored in `~/.claudeup/profiles/` as JSON files:
     }
   ],
   "marketplaces": [
-    {"source": "github", "repo": "anthropics/claude-code-plugins"}
+    { "source": "github", "repo": "anthropics/claude-code-plugins" }
   ],
   "detect": {
     "files": ["package.json", "tsconfig.json"],
-    "contains": {"package.json": "react"}
+    "contains": { "package.json": "react" }
   }
 }
 ```
@@ -508,9 +542,9 @@ MCP servers often need API keys. Profiles support multiple secret backends that 
         "API_KEY": {
           "description": "API key for the service",
           "sources": [
-            {"type": "env", "key": "MY_API_KEY"},
-            {"type": "1password", "ref": "op://Private/My API/credential"},
-            {"type": "keychain", "service": "my-api", "account": "default"}
+            { "type": "env", "key": "MY_API_KEY" },
+            { "type": "1password", "ref": "op://Private/My API/credential" },
+            { "type": "keychain", "service": "my-api", "account": "default" }
           ]
         }
       }
@@ -521,11 +555,11 @@ MCP servers often need API keys. Profiles support multiple secret backends that 
 
 ### Secret Backends
 
-| Backend | Platform | Requirement |
-|---------|----------|-------------|
-| `env` | All | Environment variable set |
-| `1password` | All | `op` CLI installed and signed in |
-| `keychain` | macOS | Keychain item exists |
+| Backend     | Platform | Requirement                      |
+| ----------- | -------- | -------------------------------- |
+| `env`       | All      | Environment variable set         |
+| `1password` | All      | `op` CLI installed and signed in |
+| `keychain`  | macOS    | Keychain item exists             |
 
 Resolution tries each source in order. First success wins.
 
@@ -537,7 +571,7 @@ The `detect` field enables automatic profile suggestion based on project files:
 {
   "detect": {
     "files": ["go.mod", "go.sum"],
-    "contains": {"go.mod": "github.com/"}
+    "contains": { "go.mod": "github.com/" }
   }
 }
 ```
@@ -582,10 +616,10 @@ Profiles can include hooks that run after the profile is applied. This enables i
 
 ### Hook Fields
 
-| Field | Description |
-|-------|-------------|
-| `script` | Path to a bash script (relative to profile). Takes precedence over `command`. |
-| `command` | Direct bash command to run (used if `script` is not set). |
+| Field       | Description                                                                                                          |
+| ----------- | -------------------------------------------------------------------------------------------------------------------- |
+| `script`    | Path to a bash script (relative to profile). Takes precedence over `command`.                                        |
+| `command`   | Direct bash command to run (used if `script` is not set).                                                            |
 | `condition` | When to run: `"always"` (default) or `"first-run"` (only if no plugins from the profile's marketplaces are enabled). |
 
 ### Hook Flags
@@ -682,21 +716,21 @@ This removes your customization file, immediately revealing the original built-i
 
 When you modify a built-in profile (e.g., by saving over it), a custom file is created in `~/.claudeup/profiles/` that shadows the built-in.
 
-| Profile Type | Delete | Restore |
-|--------------|--------|---------|
-| Custom profile | ✓ Permanently removes | ✗ Error (not built-in) |
-| Customized built-in | ✗ Error (use restore) | ✓ Removes customizations |
+| Profile Type        | Delete                 | Restore                      |
+| ------------------- | ---------------------- | ---------------------------- |
+| Custom profile      | ✓ Permanently removes  | ✗ Error (not built-in)       |
+| Customized built-in | ✗ Error (use restore)  | ✓ Removes customizations     |
 | Unmodified built-in | ✗ Error (can't delete) | ✗ Error (nothing to restore) |
 
 ### Reset vs Delete vs Restore
 
 These commands serve different purposes:
 
-| Command | What it does |
-|---------|--------------|
-| `profile reset` | Uninstalls components (plugins, MCP servers, marketplaces) |
-| `profile delete` | Permanently removes a custom profile file |
-| `profile restore` | Removes customizations from a built-in profile |
+| Command           | What it does                                               |
+| ----------------- | ---------------------------------------------------------- |
+| `profile reset`   | Uninstalls components (plugins, MCP servers, marketplaces) |
+| `profile delete`  | Permanently removes a custom profile file                  |
+| `profile restore` | Removes customizations from a built-in profile             |
 
 **To fully restore a customized built-in profile:**
 
