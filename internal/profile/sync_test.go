@@ -64,27 +64,71 @@ func TestSync_NoProjectConfig(t *testing.T) {
 	}
 }
 
-func TestSync_ProfileNotFound(t *testing.T) {
+func TestSync_ProfileNotFound_BootstrapsFromCurrentState(t *testing.T) {
 	projectDir := t.TempDir()
 	claudeDir, claudeJSONPath := setupClaudeDir(t)
 	profilesDir := filepath.Join(projectDir, "profiles")
 	os.MkdirAll(profilesDir, 0755)
 
+	// Create some existing settings that will be captured by bootstrap
+	projectClaudeDir := filepath.Join(projectDir, ".claude")
+	os.MkdirAll(projectClaudeDir, 0755)
+	existingSettings := map[string]interface{}{
+		"enabledPlugins": map[string]interface{}{
+			"existing-plugin@marketplace": true,
+		},
+	}
+	existingData, _ := json.Marshal(existingSettings)
+	os.WriteFile(filepath.Join(projectClaudeDir, "settings.json"), existingData, 0644)
+
 	// Create .claudeup.json pointing to a non-existent profile
 	cfg := &ProjectConfig{
 		Version: "1",
-		Profile: "non-existent-profile",
+		Profile: "bootstrapped-profile",
 	}
 	if err := SaveProjectConfig(projectDir, cfg); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
-	if err == nil {
-		t.Error("expected error for missing profile")
+	// Sync should SUCCEED by bootstrapping from current state
+	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
+	if err != nil {
+		t.Fatalf("Sync should succeed by bootstrapping, got error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "failed to load profile") {
-		t.Errorf("error should mention failed to load profile: %v", err)
+
+	// Verify profile was created
+	if !result.ProfileCreated {
+		t.Error("ProfileCreated should be true")
+	}
+	if result.ProfileName != "bootstrapped-profile" {
+		t.Errorf("ProfileName = %s, want bootstrapped-profile", result.ProfileName)
+	}
+
+	// Verify the bootstrapped profile was saved to profiles directory
+	profilePath := filepath.Join(profilesDir, "bootstrapped-profile.json")
+	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+		t.Errorf("Bootstrapped profile should be saved at %s", profilePath)
+	}
+
+	// Verify the bootstrapped profile captured the existing settings
+	savedProfile, err := Load(profilesDir, "bootstrapped-profile")
+	if err != nil {
+		t.Fatalf("Failed to load bootstrapped profile: %v", err)
+	}
+
+	// Check that multi-scope settings captured the existing plugin
+	if savedProfile.PerScope == nil || savedProfile.PerScope.Project == nil {
+		t.Fatal("Bootstrapped profile should have PerScope.Project settings")
+	}
+	found := false
+	for _, plugin := range savedProfile.PerScope.Project.Plugins {
+		if plugin == "existing-plugin@marketplace" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Bootstrapped profile should contain existing-plugin@marketplace, got: %v", savedProfile.PerScope.Project.Plugins)
 	}
 }
 
