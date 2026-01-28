@@ -1047,21 +1047,33 @@ func RunHook(profile *Profile, opts HookOptions) error {
 	return cmd.Run()
 }
 
+// ApplyAllScopesOptions controls how multi-scope profiles are applied.
+type ApplyAllScopesOptions struct {
+	// ReplaceUserScope controls whether user-scope settings are replaced (true)
+	// or merged additively (false). Default is false (additive).
+	// Project and local scopes always use declarative (replace) semantics.
+	ReplaceUserScope bool
+}
+
 // ApplyAllScopes applies a profile to all scope levels.
 // For multi-scope profiles (with PerScope), it applies each scope independently.
 // For legacy profiles (flat format), it applies to user scope only.
 // The secretChain parameter is optional and used for MCP server secret resolution.
-func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir string, secretChain *secrets.Chain) (*ApplyResult, error) {
+func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir string, secretChain *secrets.Chain, opts *ApplyAllScopesOptions) (*ApplyResult, error) {
 	result := &ApplyResult{}
+
+	if opts == nil {
+		opts = &ApplyAllScopesOptions{}
+	}
 
 	// If legacy profile (no PerScope), apply to user scope only
 	if !profile.IsMultiScope() {
-		return applyUserScopeSettings(profile, claudeDir, projectDir)
+		return applyUserScopeSettings(profile, claudeDir, projectDir, opts.ReplaceUserScope)
 	}
 
 	// Apply each scope in order: user → project → local
 	if profile.PerScope.User != nil {
-		userResult, err := applyUserScopeSettings(profile.ForScope("user"), claudeDir, projectDir)
+		userResult, err := applyUserScopeSettings(profile.ForScope("user"), claudeDir, projectDir, opts.ReplaceUserScope)
 		if err != nil {
 			return nil, fmt.Errorf("failed to apply user scope: %w", err)
 		}
@@ -1087,8 +1099,10 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir stri
 	return result, nil
 }
 
-// applyUserScopeSettings writes plugins to user-scope settings.json
-func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
+// applyUserScopeSettings writes plugins to user-scope settings.json.
+// If replace is false (default), existing plugins are preserved and profile plugins are added.
+// If replace is true, existing plugins are replaced with profile plugins.
+func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string, replace bool) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
 	// Load existing user settings (preserves other fields)
@@ -1099,11 +1113,24 @@ func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string) (*Ap
 		}
 	}
 
-	// Update enabledPlugins with profile plugins
-	settings.EnabledPlugins = make(map[string]bool)
-	for _, plugin := range profile.Plugins {
-		settings.EnabledPlugins[plugin] = true
-		result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+	if replace {
+		// Declarative: replace all plugins with profile plugins
+		settings.EnabledPlugins = make(map[string]bool)
+		for _, plugin := range profile.Plugins {
+			settings.EnabledPlugins[plugin] = true
+			result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+		}
+	} else {
+		// Additive: preserve existing plugins, add profile plugins
+		if settings.EnabledPlugins == nil {
+			settings.EnabledPlugins = make(map[string]bool)
+		}
+		for _, plugin := range profile.Plugins {
+			if !settings.EnabledPlugins[plugin] {
+				result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+			}
+			settings.EnabledPlugins[plugin] = true
+		}
 	}
 
 	// Save settings

@@ -47,8 +47,8 @@ func TestApplyAllScopesMultiScope(t *testing.T) {
 		},
 	}
 
-	// Apply the profile
-	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil)
+	// Apply the profile (nil opts = additive user scope by default)
+	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -118,8 +118,8 @@ func TestApplyAllScopesLegacyProfile(t *testing.T) {
 		Plugins: []string{"legacy-plugin@marketplace"},
 	}
 
-	// Apply the profile
-	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil)
+	// Apply the profile (nil opts = additive user scope by default)
+	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestApplyAllScopesPartialScopes(t *testing.T) {
 		},
 	}
 
-	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil)
+	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestApplyAllScopesPartialScopes(t *testing.T) {
 }
 
 func TestApplyAllScopesPreservesExistingSettings(t *testing.T) {
-	// Test that applying doesn't wipe out other settings
+	// Test that applying doesn't wipe out other settings or existing plugins (additive behavior)
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	projectDir := filepath.Join(tempDir, "project")
@@ -217,7 +217,7 @@ func TestApplyAllScopesPreservesExistingSettings(t *testing.T) {
 	mustMkdir(t, filepath.Join(claudeDir, "plugins"))
 	mustMkdir(t, projectDir)
 
-	// Pre-existing settings with other fields
+	// Pre-existing settings with other fields and existing plugins
 	existingSettings := map[string]any{
 		"enabledPlugins": map[string]bool{
 			"existing-plugin@marketplace": true,
@@ -237,7 +237,8 @@ func TestApplyAllScopesPreservesExistingSettings(t *testing.T) {
 		},
 	}
 
-	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil)
+	// Apply with default options (additive for user scope)
+	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -256,5 +257,74 @@ func TestApplyAllScopesPreservesExistingSettings(t *testing.T) {
 	// Check that other settings are preserved
 	if settings["someOtherSetting"] != "should-be-preserved" {
 		t.Error("expected someOtherSetting to be preserved")
+	}
+
+	// Check that existing plugins are preserved (additive behavior)
+	enabledPlugins := settings["enabledPlugins"].(map[string]any)
+	if enabledPlugins["existing-plugin@marketplace"] != true {
+		t.Error("expected existing-plugin@marketplace to be preserved (additive behavior)")
+	}
+	if enabledPlugins["new-plugin@marketplace"] != true {
+		t.Error("expected new-plugin@marketplace to be added")
+	}
+}
+
+func TestApplyAllScopesReplaceUserScope(t *testing.T) {
+	// Test that ReplaceUserScope option removes existing plugins
+	tempDir := t.TempDir()
+	claudeDir := filepath.Join(tempDir, ".claude")
+	projectDir := filepath.Join(tempDir, "project")
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+
+	mustMkdir(t, claudeDir)
+	mustMkdir(t, filepath.Join(claudeDir, "plugins"))
+	mustMkdir(t, projectDir)
+
+	// Pre-existing settings with existing plugins
+	existingSettings := map[string]any{
+		"enabledPlugins": map[string]bool{
+			"existing-plugin@marketplace":  true,
+			"another-existing@marketplace": true,
+		},
+	}
+	mustWriteJSON(t, filepath.Join(claudeDir, "settings.json"), existingSettings)
+	mustWriteJSON(t, filepath.Join(claudeDir, "plugins", "known_marketplaces.json"), map[string]any{})
+	mustWriteJSON(t, claudeJSONPath, map[string]any{"mcpServers": map[string]any{}})
+
+	profile := &Profile{
+		Name: "new-profile",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{"new-plugin@marketplace"},
+			},
+		},
+	}
+
+	// Apply with ReplaceUserScope = true
+	opts := &ApplyAllScopesOptions{
+		ReplaceUserScope: true,
+	}
+	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, opts)
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	// Load settings
+	userSettings, err := claude.LoadSettings(claudeDir)
+	if err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+
+	// Existing plugins should be removed (replace behavior)
+	if userSettings.IsPluginEnabled("existing-plugin@marketplace") {
+		t.Error("expected existing-plugin@marketplace to be removed (replace behavior)")
+	}
+	if userSettings.IsPluginEnabled("another-existing@marketplace") {
+		t.Error("expected another-existing@marketplace to be removed (replace behavior)")
+	}
+
+	// New plugin should be present
+	if !userSettings.IsPluginEnabled("new-plugin@marketplace") {
+		t.Error("expected new-plugin@marketplace to be enabled")
 	}
 }

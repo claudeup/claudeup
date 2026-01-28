@@ -972,7 +972,10 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	// Use ApplyAllScopes for multi-scope profiles, ApplyWithOptions for legacy
 	if p.IsMultiScope() {
 		ui.PrintInfo("Applying profile (all scopes)...")
-		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, chain)
+		applyOpts := &profile.ApplyAllScopesOptions{
+			ReplaceUserScope: profileApplyReset, // --reset flag controls user scope behavior
+		}
+		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, chain, applyOpts)
 		if err != nil {
 			return fmt.Errorf("failed to apply profile: %w", err)
 		}

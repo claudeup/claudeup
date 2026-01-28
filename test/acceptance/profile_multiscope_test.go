@@ -301,4 +301,81 @@ var _ = Describe("Multi-Scope Profiles", func() {
 			Expect(localPlugins["local-plugin@marketplace"]).To(BeTrue())
 		})
 	})
+
+	Describe("user scope additive behavior", func() {
+		var projectDir string
+
+		BeforeEach(func() {
+			projectDir = env.ProjectDir("additive-test")
+			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
+		})
+
+		Context("when user has existing plugins", func() {
+			BeforeEach(func() {
+				// Set up existing user-scope plugins
+				env.CreateSettings(map[string]bool{
+					"existing-user-plugin@marketplace": true,
+					"another-existing@marketplace":     true,
+				})
+
+				// Create a multi-scope profile with different user plugins
+				profile := map[string]interface{}{
+					"name": "additive-test",
+					"perScope": map[string]interface{}{
+						"user": map[string]interface{}{
+							"plugins": []string{"new-profile-plugin@marketplace"},
+						},
+					},
+				}
+				data, _ := json.MarshalIndent(profile, "", "  ")
+				Expect(os.WriteFile(filepath.Join(env.ProfilesDir, "additive-test.json"), data, 0644)).To(Succeed())
+			})
+
+			It("preserves existing user plugins by default (additive)", func() {
+				result := env.RunInDir(projectDir, "profile", "apply", "additive-test", "-y")
+				Expect(result.ExitCode).To(Equal(0))
+
+				// Load user settings
+				userSettingsPath := filepath.Join(env.ClaudeDir, "settings.json")
+				userData, err := os.ReadFile(userSettingsPath)
+				Expect(err).NotTo(HaveOccurred())
+				var userSettings map[string]interface{}
+				Expect(json.Unmarshal(userData, &userSettings)).To(Succeed())
+				enabledPlugins := userSettings["enabledPlugins"].(map[string]interface{})
+
+				// Existing plugins should be preserved
+				Expect(enabledPlugins["existing-user-plugin@marketplace"]).To(BeTrue(),
+					"existing user plugin should be preserved (additive behavior)")
+				Expect(enabledPlugins["another-existing@marketplace"]).To(BeTrue(),
+					"another existing plugin should be preserved")
+
+				// New profile plugin should be added
+				Expect(enabledPlugins["new-profile-plugin@marketplace"]).To(BeTrue(),
+					"new profile plugin should be added")
+			})
+
+			It("replaces user plugins when --reset is used", func() {
+				result := env.RunInDir(projectDir, "profile", "apply", "additive-test", "--reset", "-y")
+				Expect(result.ExitCode).To(Equal(0))
+
+				// Load user settings
+				userSettingsPath := filepath.Join(env.ClaudeDir, "settings.json")
+				userData, err := os.ReadFile(userSettingsPath)
+				Expect(err).NotTo(HaveOccurred())
+				var userSettings map[string]interface{}
+				Expect(json.Unmarshal(userData, &userSettings)).To(Succeed())
+				enabledPlugins := userSettings["enabledPlugins"].(map[string]interface{})
+
+				// Existing plugins should be removed (replace behavior)
+				Expect(enabledPlugins).NotTo(HaveKey("existing-user-plugin@marketplace"),
+					"existing user plugin should be removed with --reset")
+				Expect(enabledPlugins).NotTo(HaveKey("another-existing@marketplace"),
+					"another existing plugin should be removed with --reset")
+
+				// Only profile plugin should remain
+				Expect(enabledPlugins["new-profile-plugin@marketplace"]).To(BeTrue(),
+					"new profile plugin should be present")
+			})
+		})
+	})
 })
