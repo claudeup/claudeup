@@ -1129,8 +1129,11 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-	// Create snapshot
-	p, err := profile.Snapshot(name, claudeDir, claudeJSONPath)
+	// Create snapshot from the appropriate scope
+	p, err := profile.SnapshotWithScope(name, claudeDir, claudeJSONPath, profile.SnapshotOptions{
+		Scope:      scope,
+		ProjectDir: cwd,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}

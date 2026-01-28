@@ -26,6 +26,41 @@ var _ = Describe("profile save --scope", func() {
 			projectDir = env.ProjectDir("test-project")
 		})
 
+		Context("when project has different settings than user scope", func() {
+			BeforeEach(func() {
+				// Set up user-scope settings with some plugins
+				env.CreateSettings(map[string]bool{
+					"user-plugin-a@marketplace": true,
+					"user-plugin-b@marketplace": true,
+				})
+
+				// Set up project-scope settings with DIFFERENT plugins
+				claudeDir := filepath.Join(projectDir, ".claude")
+				Expect(os.MkdirAll(claudeDir, 0755)).To(Succeed())
+				projectSettings := `{"enabledPlugins":{"project-plugin-x@marketplace":true,"project-plugin-y@marketplace":true}}`
+				Expect(os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(projectSettings), 0644)).To(Succeed())
+			})
+
+			It("captures project-scope settings, not user-scope settings", func() {
+				result := env.RunInDir(projectDir, "profile", "save", "team-profile", "--scope", "project", "-y")
+
+				Expect(result.ExitCode).To(Equal(0))
+
+				// Load the saved profile
+				profilePath := filepath.Join(projectDir, ".claudeup", "profiles", "team-profile.json")
+				data, err := os.ReadFile(profilePath)
+				Expect(err).NotTo(HaveOccurred())
+
+				profileContent := string(data)
+				// Should contain project-scope plugins
+				Expect(profileContent).To(ContainSubstring("project-plugin-x@marketplace"))
+				Expect(profileContent).To(ContainSubstring("project-plugin-y@marketplace"))
+				// Should NOT contain user-scope plugins
+				Expect(profileContent).NotTo(ContainSubstring("user-plugin-a@marketplace"))
+				Expect(profileContent).NotTo(ContainSubstring("user-plugin-b@marketplace"))
+			})
+		})
+
 		It("saves profile to .claudeup/profiles/ in project directory", func() {
 			result := env.RunInDir(projectDir, "profile", "save", "team-profile", "--scope", "project", "-y")
 
