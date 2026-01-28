@@ -68,7 +68,13 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 		ReplaceUserScope: opts.ReplaceUserScope,
 	}
 
-	var chain *secrets.Chain // nil chain - no secret resolution during sync
+	// Sync uses a nil secrets chain because:
+	// 1. Sync is primarily for plugin synchronization, not MCP server secrets
+	// 2. Secret resolution requires user interaction (prompts, keychain access)
+	// 3. Sync should be a fast, non-interactive operation
+	// If a profile contains MCP servers with secrets, users should use
+	// `profile apply` directly which supports secret resolution via --secrets flag
+	var chain *secrets.Chain
 	applyResult, err := ApplyAllScopes(prof, claudeDir, claudeJSONPath, projectDir, chain, applyOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to apply profile: %w", err)
