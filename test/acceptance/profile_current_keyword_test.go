@@ -18,7 +18,7 @@ var _ = Describe("'current' keyword handling", func() {
 	})
 
 	Describe("profile show current", func() {
-		Context("when an active profile is set", func() {
+		Context("when an active profile is set at user scope", func() {
 			BeforeEach(func() {
 				env.CreateProfile(&profile.Profile{
 					Name:        "my-active-profile",
@@ -39,6 +39,43 @@ var _ = Describe("'current' keyword handling", func() {
 				Expect(result.Stdout).To(ContainSubstring("This is my active profile"))
 				Expect(result.Stdout).To(ContainSubstring("plugin-a@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("test/marketplace"))
+			})
+		})
+
+		Context("when project scope profile takes precedence over user scope", func() {
+			BeforeEach(func() {
+				// Create user-scope profile
+				env.CreateProfile(&profile.Profile{
+					Name:        "user-profile",
+					Description: "User scope profile",
+					Plugins:     []string{"user-plugin@marketplace"},
+				})
+				env.SetActiveProfile("user-profile")
+
+				// Create project-scope profile (should take precedence)
+				env.CreateProfile(&profile.Profile{
+					Name:        "project-profile",
+					Description: "Project scope profile",
+					Plugins:     []string{"project-plugin@marketplace"},
+				})
+				env.CreateClaudeupJSON(env.TempDir, map[string]interface{}{
+					"version": "1",
+					"profile": "project-profile",
+				})
+			})
+
+			It("shows the project-scope profile, not user-scope", func() {
+				// Run from env.TempDir where .claudeup.json was created
+				result := env.RunInDir(env.TempDir, "profile", "show", "current")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Should show project-scope profile
+				Expect(result.Stdout).To(ContainSubstring("project-profile"))
+				Expect(result.Stdout).To(ContainSubstring("Project scope profile"))
+				Expect(result.Stdout).To(ContainSubstring("project-plugin@marketplace"))
+				// Should NOT show user-scope profile
+				Expect(result.Stdout).NotTo(ContainSubstring("user-profile"))
+				Expect(result.Stdout).NotTo(ContainSubstring("user-plugin@marketplace"))
 			})
 		})
 

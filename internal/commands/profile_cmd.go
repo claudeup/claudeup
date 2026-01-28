@@ -1190,13 +1190,40 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 
 	// Handle "current" as a special keyword for the active profile
+	// Check scopes in precedence order: project > local > user
 	if name == "current" {
-		// Error ignored: missing/corrupt config is handled same as no active profile
-		cfg, _ := config.Load()
-		if cfg == nil || cfg.Preferences.ActiveProfile == "" {
+		cwd, _ := os.Getwd()
+
+		// Check for project-level profile first (takes precedence)
+		if profile.ProjectConfigExists(cwd) {
+			projectCfg, err := profile.LoadProjectConfig(cwd)
+			if err == nil && projectCfg.Profile != "" {
+				name = projectCfg.Profile
+			}
+		}
+
+		// If not found at project scope, check local scope in registry
+		if name == "current" {
+			registry, err := config.LoadProjectsRegistry()
+			if err == nil {
+				if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
+					name = entry.Profile
+				}
+			}
+		}
+
+		// If still not found, fall back to user-level profile
+		if name == "current" {
+			cfg, _ := config.Load()
+			if cfg != nil && cfg.Preferences.ActiveProfile != "" {
+				name = cfg.Preferences.ActiveProfile
+			}
+		}
+
+		// If still "current", no active profile found at any scope
+		if name == "current" {
 			return fmt.Errorf("no active profile set. Use 'claudeup profile apply <name>' to apply a profile")
 		}
-		name = cfg.Preferences.ActiveProfile
 	}
 
 	// Load the profile (try disk first, then embedded)
