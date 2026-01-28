@@ -34,35 +34,34 @@ echo
 info "This example focuses on project-local profiles (A)"
 pause
 
-section "2. Save a Profile to Project Scope"
+section "2. Save and Apply a Profile for Team Sharing"
 
-step "Use --scope project to save profile in the repo"
+step "Save profile then apply at project scope"
 echo
-info "When you run:"
-echo -e "${YELLOW}\$ claudeup profile save team-config --scope project${NC}"
+info "Step 1 - Save current state:"
+echo -e "${YELLOW}\$ claudeup profile save team-config${NC}"
 echo
-info "claudeup creates:"
-info "  .claudeup/profiles/team-config.json"
+info "This creates:"
+info "  ~/.claudeup/profiles/team-config.json"
 echo
-info "This file contains:"
-info "  • Snapshot of current Claude plugins"
-info "  • Settings configuration"
-info "  • Description and metadata"
+info "Step 2 - Apply at project scope:"
+echo -e "${YELLOW}\$ claudeup profile apply team-config --scope project${NC}"
+echo
+info "This creates:"
+info "  .claudeup.json (for team sharing via git)"
 pause
 
-section "3. Context-Aware Default"
+section "3. Multi-Scope Profiles"
 
-step "Smart scoping when .claudeup.json exists"
+step "Profiles capture all scopes automatically"
 echo
-info "claudeup detects project context:"
+info "When you save a profile, it captures:"
 echo
-info "  If .claudeup.json exists in current directory:"
-info "    → profile save defaults to project scope"
+info "  • User scope plugins (~/.claude/settings.json)"
+info "  • Project scope plugins (.claude/settings.json)"
+info "  • Local scope plugins (.claude/settings.local.json)"
 echo
-info "  Otherwise:"
-info "    → profile save defaults to user scope (~/.claudeup/profiles/)"
-echo
-info "You can always override with --scope user or --scope project"
+info "When applied, settings are restored to the correct scope."
 pause
 
 section "4. Directory Structure"
@@ -102,8 +101,9 @@ section "6. Full Workflow Example"
 
 step "Team lead creates shared profile"
 echo -e "${YELLOW}\$ cd your-project${NC}"
-echo -e "${YELLOW}\$ claudeup profile save team-config --scope project${NC}"
-echo -e "${YELLOW}\$ git add .claudeup/profiles/${NC}"
+echo -e "${YELLOW}\$ claudeup profile save team-config${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply team-config --scope project${NC}"
+echo -e "${YELLOW}\$ git add .claudeup.json .claudeup/profiles/${NC}"
 echo -e "${YELLOW}\$ git commit -m \"Add team Claude profile\"${NC}"
 echo -e "${YELLOW}\$ git push${NC}"
 echo
@@ -120,12 +120,13 @@ section "Summary"
 success "You can share profiles via your project repository"
 echo
 info "Key commands:"
-info "  claudeup profile save <name> --scope project"
+info "  claudeup profile save <name>"
+info "  claudeup profile apply <name> --scope project"
 info "  claudeup profile sync"
 echo
 info "Key files:"
-info "  .claudeup/profiles/     Project-local profile storage"
-info "  .claudeup.json          Project plugin requirements"
+info "  .claudeup/profiles/     Profile storage"
+info "  .claudeup.json          Project configuration"
 echo
 
 prompt_cleanup

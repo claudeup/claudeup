@@ -69,18 +69,19 @@ pause
 
 section "3. How to Set Up Layering"
 
-step "Save your personal profile to user scope"
-echo -e "${YELLOW}\$ claudeup profile save my-tools --scope user${NC}"
+step "Save your personal profile"
+echo -e "${YELLOW}\$ claudeup profile save my-tools${NC}"
 echo
 info "This saves to ~/.claudeup/profiles/my-tools.json"
 echo
 info "Your personal profile follows you to any project"
 pause
 
-step "Team lead saves project profile"
-echo -e "${YELLOW}\$ claudeup profile save backend-team --scope project${NC}"
+step "Team lead saves and applies project profile"
+echo -e "${YELLOW}\$ claudeup profile save backend-team${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply backend-team --scope project${NC}"
 echo
-info "This saves to .claudeup/profiles/backend-team.json"
+info "This creates .claudeup.json for team sharing"
 echo
 info "Then commit and share with the team"
 pause
@@ -154,12 +155,11 @@ pause
 section "7. Recommended Workflow"
 
 step "Developer setup (one time)"
-echo -e "${YELLOW}\$ claudeup profile save my-tools --scope user${NC}"
+echo -e "${YELLOW}\$ claudeup profile save my-tools${NC}"
 echo -e "${YELLOW}\$ claudeup profile apply my-tools --scope user${NC}"
 echo
 step "Each project (after clone)"
 echo -e "${YELLOW}\$ claudeup profile sync${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply team-config --scope project${NC}"
 echo
 info "Now you have: personal tools + team requirements"
 pause

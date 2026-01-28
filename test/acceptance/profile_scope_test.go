@@ -55,6 +55,18 @@ var _ = Describe("profile apply --scope", func() {
 			Expect(env.ClaudeupJSONExists(projectDir)).To(BeTrue())
 		})
 
+		It("saves profile to .claudeup/profiles/ for team sharing", func() {
+			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.ProjectProfileExists(projectDir, "test-profile")).To(BeTrue())
+
+			// Verify the profile content matches the original
+			projectProfile := env.LoadProjectProfile(projectDir, "test-profile")
+			Expect(projectProfile["name"]).To(Equal("test-profile"))
+			Expect(projectProfile["description"]).To(Equal("Test profile for scope testing"))
+		})
+
 		It("writes profile name to .claudeup.json", func() {
 			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
@@ -81,6 +93,21 @@ var _ = Describe("profile apply --scope", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("git add"))
 			Expect(result.Stdout).To(ContainSubstring(".claudeup.json"))
+		})
+
+		Context("team member sync workflow", func() {
+			It("allows sync after apply even without user profile", func() {
+				// Step 1: Team lead applies profile at project scope
+				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
+				Expect(result.ExitCode).To(Equal(0))
+
+				// Step 2: Simulate team member - remove user profile
+				env.DeleteProfile("test-profile")
+
+				// Step 3: Team member runs sync - should succeed using project profile
+				syncResult := env.RunInDir(projectDir, "profile", "sync", "-y")
+				Expect(syncResult.ExitCode).To(Equal(0))
+			})
 		})
 
 		Context("with profile that has no MCP servers", func() {

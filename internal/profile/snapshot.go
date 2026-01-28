@@ -112,10 +112,10 @@ func SnapshotCombined(name, claudeDir, claudeJSONPath, projectDir string) (*Prof
 	}
 
 	p := &Profile{
-		Name:          name,
-		Plugins:       plugins,
-		Marketplaces:  marketplaces,
-		MCPServers:    mcpServers,
+		Name:         name,
+		Plugins:      plugins,
+		Marketplaces: marketplaces,
+		MCPServers:   mcpServers,
 	}
 
 	// Auto-generate description based on contents
@@ -326,4 +326,59 @@ func readMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 	})
 
 	return servers, nil
+}
+
+// SnapshotAllScopes creates a Profile capturing settings from all three scopes
+// (user, project, local) and organizing them in the PerScope structure.
+// This is the preferred way to save profiles as it preserves scope information.
+func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Profile, error) {
+	p := &Profile{
+		Name:     name,
+		PerScope: &PerScopeSettings{},
+	}
+
+	// Capture user scope
+	userPlugins, _ := readPluginsForScope(claudeDir, projectDir, "user")
+	userMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "user")
+	if len(userPlugins) > 0 || len(userMCP) > 0 {
+		p.PerScope.User = &ScopeSettings{
+			Plugins:    userPlugins,
+			MCPServers: userMCP,
+		}
+	}
+
+	// Capture project scope
+	if projectDir != "" {
+		projectPlugins, _ := readPluginsForScope(claudeDir, projectDir, "project")
+		projectMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "project")
+		if len(projectPlugins) > 0 || len(projectMCP) > 0 {
+			p.PerScope.Project = &ScopeSettings{
+				Plugins:    projectPlugins,
+				MCPServers: projectMCP,
+			}
+		}
+	}
+
+	// Capture local scope
+	if projectDir != "" {
+		localPlugins, _ := readPluginsForScope(claudeDir, projectDir, "local")
+		localMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "local")
+		if len(localPlugins) > 0 || len(localMCP) > 0 {
+			p.PerScope.Local = &ScopeSettings{
+				Plugins:    localPlugins,
+				MCPServers: localMCP,
+			}
+		}
+	}
+
+	// Marketplaces are always user-scoped, stored at profile level
+	marketplaces, err := readMarketplaces(claudeDir)
+	if err == nil {
+		p.Marketplaces = marketplaces
+	}
+
+	// Auto-generate description based on contents
+	p.Description = p.GenerateDescription()
+
+	return p, nil
 }

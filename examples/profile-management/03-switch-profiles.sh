@@ -47,7 +47,7 @@ step "Apply a different profile"
 info "Switching profiles will:"
 info "  • Install new plugins from the target profile"
 info "  • Keep plugins that exist in both"
-info "  • Optionally remove plugins not in the target (with --reset)"
+info "  • Optionally remove plugins not in the target (with --replace)"
 echo
 
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then

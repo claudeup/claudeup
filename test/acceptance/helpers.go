@@ -102,7 +102,8 @@ func (e *AcceptanceTestEnv) CreateMarketplace(name, repo string) {
 		e.t.Fatal(err)
 	}
 
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	// Use -c flags to disable signing for test commits
+	cmd = exec.Command("git", "-c", "commit.gpgsign=false", "commit", "-m", "Initial commit")
 	cmd.Dir = marketplaceDir
 	cmd.Env = append(os.Environ(),
 		"GIT_AUTHOR_NAME=Test",

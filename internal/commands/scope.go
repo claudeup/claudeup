@@ -87,7 +87,7 @@ var scopeRestoreCmd = &cobra.Command{
 	Short: "Restore settings from a backup",
 	Long: `Restore settings for a scope from the most recent backup.
 
-Backups are created when using 'scope clear' or 'profile apply --reset'.
+Backups are created when using 'scope clear' or 'profile apply --replace'.
 Only user and local scopes support restore; for project scope, use git.
 
 Examples:
@@ -335,7 +335,7 @@ func runScopeRestore(cmd *cobra.Command, args []string) error {
 	}
 
 	if !backupInfo.Exists {
-		return fmt.Errorf("no backup found for %s scope\nHint: Backups are created when using 'scope clear' or 'profile apply --reset'", scope)
+		return fmt.Errorf("no backup found for %s scope\nHint: Backups are created when using 'scope clear' or 'profile apply --replace'", scope)
 	}
 
 	// Get settings path

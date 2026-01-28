@@ -55,13 +55,17 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			}
 			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
 
-			// Create corresponding profile definition using test env helper
+			// Create corresponding multi-scope profile definition using test env helper
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 		})
@@ -253,13 +257,17 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			}
 			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
 
-			// Create profile definition using test env helper
+			// Create multi-scope profile definition using test env helper
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -312,13 +320,17 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			}
 			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
 
-			// Create profile definition using test env helper
+			// Create multi-scope profile definition using test env helper
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -333,7 +345,7 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
 		})
 
-		It("should recommend removing extra plugins with --reset", func() {
+		It("should recommend removing extra plugins with --replace", func() {
 			result := env.RunInDir(projectDir, "status")
 
 			Expect(result.ExitCode).To(Equal(0))
@@ -341,7 +353,7 @@ var _ = Describe("Status drift detection scope awareness", func() {
 			Expect(result.Stdout).To(ContainSubstring("Update profile to match system"))
 			// Should show specific guidance for removing extra plugins
 			Expect(result.Stdout).To(ContainSubstring("Remove extra plugins"))
-			Expect(result.Stdout).To(ContainSubstring("--reset"))
+			Expect(result.Stdout).To(ContainSubstring("--replace"))
 		})
 
 		It("should also suggest profile clean command", func() {

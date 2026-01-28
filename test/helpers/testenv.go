@@ -117,6 +117,12 @@ func (e *TestEnv) LoadProfile(name string) *profile.Profile {
 	return &p
 }
 
+// DeleteProfile removes a profile from the test environment's user profiles directory
+func (e *TestEnv) DeleteProfile(name string) {
+	path := filepath.Join(e.ProfilesDir, name+".json")
+	_ = os.Remove(path) // Ignore error if file doesn't exist
+}
+
 // SetActiveProfile sets the active profile in config
 func (e *TestEnv) SetActiveProfile(name string) {
 	config := map[string]interface{}{
@@ -319,6 +325,22 @@ func (e *TestEnv) MCPJSONExists(dir string) bool {
 func (e *TestEnv) ClaudeupJSONExists(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, ".claudeup.json"))
 	return err == nil
+}
+
+// ProjectProfileExists checks if a profile exists in the project's .claudeup/profiles/ directory
+func (e *TestEnv) ProjectProfileExists(dir, profileName string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".claudeup", "profiles", profileName+".json"))
+	return err == nil
+}
+
+// LoadProjectProfile loads a profile from the project's .claudeup/profiles/ directory
+func (e *TestEnv) LoadProjectProfile(dir, profileName string) map[string]interface{} {
+	data, err := os.ReadFile(filepath.Join(dir, ".claudeup", "profiles", profileName+".json"))
+	Expect(err).NotTo(HaveOccurred())
+
+	var profile map[string]interface{}
+	Expect(json.Unmarshal(data, &profile)).To(Succeed())
+	return profile
 }
 
 // LoadMCPJSON loads .mcp.json from the given directory

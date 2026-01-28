@@ -11,13 +11,13 @@ import (
 
 // ProfileDiff represents differences between a saved profile and current state
 type ProfileDiff struct {
-	PluginsAdded         []string
-	PluginsRemoved       []string
-	MarketplacesAdded    []Marketplace
-	MarketplacesRemoved  []Marketplace
-	MCPServersAdded      []MCPServer
-	MCPServersRemoved    []MCPServer
-	MCPServersModified   []MCPServer
+	PluginsAdded        []string
+	PluginsRemoved      []string
+	MarketplacesAdded   []Marketplace
+	MarketplacesRemoved []Marketplace
+	MCPServersAdded     []MCPServer
+	MCPServersRemoved   []MCPServer
+	MCPServersModified  []MCPServer
 }
 
 // HasChanges returns true if there are any differences between profiles
@@ -113,13 +113,18 @@ func CompareWithScope(savedProfile *Profile, claudeDir, claudeJSONPath, projectD
 		return nil, err
 	}
 
+	// Extract the saved profile's settings for the requested scope.
+	// For multi-scope profiles (with PerScope), this extracts just that scope's plugins/servers.
+	// For legacy flat profiles, ForScope returns user-scope data for "user", empty for others.
+	scopedSaved := savedProfile.ForScope(scope)
+
 	// Marketplaces are user-scope only - don't compare them for project/local scopes
 	if scope != "user" {
-		current.Marketplaces = savedProfile.Marketplaces
+		current.Marketplaces = scopedSaved.Marketplaces
 	}
 
 	// Compare current vs saved, respecting skipPluginDiff
-	return compare(savedProfile, current), nil
+	return compare(scopedSaved, current), nil
 }
 
 // CompareWithCombinedScopes compares a saved profile with the effective Claude Code configuration
@@ -132,8 +137,12 @@ func CompareWithCombinedScopes(savedProfile *Profile, claudeDir, claudeJSONPath,
 		return nil, err
 	}
 
+	// For multi-scope profiles, combine all scope settings into a flat list for comparison.
+	// For legacy profiles, CombinedScopes() returns the existing flat Plugins/MCPServers.
+	combinedSaved := savedProfile.CombinedScopes()
+
 	// Compare current vs saved, respecting skipPluginDiff
-	return compare(savedProfile, current), nil
+	return compare(combinedSaved, current), nil
 }
 
 // IsActiveProfileModified checks if the active profile has unsaved changes

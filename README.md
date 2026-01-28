@@ -45,15 +45,16 @@ Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more �
 Share Claude configurations with your team via git:
 
 ```bash
-# Team lead: Save profile to project
-claudeup profile save team-config --scope project
-git add .claudeup && git commit -m "Add team profile"
+# Team lead: Save profile and apply to project
+claudeup profile save team-config
+claudeup profile apply team-config --scope project
+git add .claudeup.json && git commit -m "Add team profile"
 
 # Team member: Sync after clone/pull
 claudeup profile sync
 ```
 
-Project profiles live in `.claudeup/profiles/` and travel with your repository. [Learn more →](docs/team-workflows.md)
+Profiles capture settings from all scopes (user, project, local). Use `profile apply --scope project` to create `.claudeup.json` for team sharing. [Learn more →](docs/team-workflows.md)
 
 ### Sandbox
 

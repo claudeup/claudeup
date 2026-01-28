@@ -10,10 +10,10 @@ Share Claude Code configurations with your team by storing profiles in your proj
 
 claudeup supports two locations for profile storage:
 
-| Location | Purpose | Shared |
-|----------|---------|--------|
+| Location                | Purpose           | Shared                     |
+| ----------------------- | ----------------- | -------------------------- |
 | `~/.claudeup/profiles/` | Personal profiles | No (local to your machine) |
-| `.claudeup/profiles/` | Project profiles | Yes (committed to git) |
+| `.claudeup/profiles/`   | Project profiles  | Yes (committed to git)     |
 
 When loading a profile, claudeup checks the project directory first, then falls back to user profiles.
 
@@ -28,11 +28,14 @@ cd your-project
 claude plugin install tdd-workflows@claude-code-workflows --scope project
 claude plugin install backend-development@claude-code-workflows --scope project
 
-# Save current state as a project profile
-claudeup profile save team-config --scope project
+# Save current state as a profile (captures all scopes)
+claudeup profile save team-config
+
+# Apply at project scope to create .claudeup.json for team sharing
+claudeup profile apply team-config --scope project
 
 # Commit to git
-git add .claudeup
+git add .claudeup.json .claudeup/profiles/
 git commit -m "Add team Claude profile"
 git push
 ```
@@ -74,14 +77,15 @@ your-project/
 As a team lead, capture your current Claude configuration:
 
 ```bash
-# Option 1: Save with explicit scope
-claudeup profile save backend-go --scope project
-
-# Option 2: Context-aware (defaults to project when .claudeup.json exists)
+# Save current state as a profile (captures all scopes)
 claudeup profile save backend-go
+
+# Apply at project scope to create .claudeup.json for team sharing
+claudeup profile apply backend-go --scope project
 ```
 
 The profile includes:
+
 - Marketplaces (sources for finding plugins)
 - Installed plugins
 - MCP server configurations
@@ -96,6 +100,7 @@ claudeup profile sync
 ```
 
 Sync will:
+
 1. Read `.claudeup.json` for the profile name
 2. Find the profile in `.claudeup/profiles/` (project) or `~/.claudeup/profiles/` (user)
 3. Install any missing marketplaces
@@ -159,11 +164,12 @@ claude plugin marketplace add superpowers-marketplace
 claude plugin install tdd-workflows@claude-code-workflows --scope project
 claude plugin install backend-development@claude-code-workflows --scope project
 
-# Save as project profile
-claudeup profile save backend-go --scope project
+# Save and apply as project profile
+claudeup profile save backend-go
+claudeup profile apply backend-go --scope project
 
 # Commit to git
-git add .claudeup .claude
+git add .claudeup.json .claudeup/profiles/
 git commit -m "Add Claude Code team profile"
 git push
 ```
@@ -192,11 +198,11 @@ claude
 # Add new plugin
 claude plugin install debugging-toolkit@claude-code-workflows --scope project
 
-# Update the profile
-claudeup profile save backend-go --scope project
+# Update the profile (re-save to capture new plugins)
+claudeup profile save backend-go
 
 # Share with team
-git add .claudeup && git commit -m "Add debugging toolkit" && git push
+git add .claudeup/profiles/ && git commit -m "Add debugging toolkit" && git push
 ```
 
 ### Bob Gets the Update
@@ -215,6 +221,7 @@ When loading a profile by name:
 2. If not found, check `~/.claudeup/profiles/<name>.json` (user)
 
 This means:
+
 - Project profiles override user profiles of the same name
 - Teams can customize shared profiles without affecting each member's personal setup
 - No external dependencies - everything lives in your git repo
@@ -224,11 +231,13 @@ This means:
 ### What to Put Where
 
 **User profiles (`~/.claudeup/profiles/`):**
+
 - Personal productivity tools
 - Writing and style plugins
 - Tools you use across all projects
 
 **Project profiles (`.claudeup/profiles/`):**
+
 - Language/framework specific plugins
 - Security scanning tools
 - Required team plugins
@@ -244,6 +253,7 @@ Add to your project's `.gitignore`:
 ```
 
 Keep tracked:
+
 - `.claudeup/profiles/` - Shared profile definitions
 - `.claudeup.json` - Project configuration
 - `.claude/settings.json` - Project-level Claude settings

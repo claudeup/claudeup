@@ -43,13 +43,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("Extra plugins drift", func() {
 		BeforeEach(func() {
-			// Create project profile with 2 plugins
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -86,20 +90,24 @@ var _ = Describe("Profile diff drift guidance", func() {
 			Expect(result.Stdout).To(ContainSubstring("extra-plugin@marketplace"))
 			// Should suggest how to fix it
 			Expect(result.Stdout).To(ContainSubstring("Remove extra plugin"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --reset"))
+			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --replace"))
 			Expect(result.Stdout).To(ContainSubstring("profile clean --scope project"))
 		})
 	})
 
 	Describe("Missing plugins drift", func() {
 		BeforeEach(func() {
-			// Create project profile with 2 plugins
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -141,13 +149,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("Both extra and missing plugins", func() {
 		BeforeEach(func() {
-			// Create project profile with 2 plugins
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -185,7 +197,7 @@ var _ = Describe("Profile diff drift guidance", func() {
 			// Should suggest reset (handles both)
 			Expect(result.Stdout).To(ContainSubstring("Reset to profile"))
 			Expect(result.Stdout).To(ContainSubstring("removes extra, installs missing"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --reset"))
+			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --replace"))
 		})
 	})
 
@@ -229,13 +241,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("No drift", func() {
 		BeforeEach(func() {
-			// Create project profile
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 

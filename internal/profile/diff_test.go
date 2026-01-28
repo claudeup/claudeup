@@ -443,13 +443,13 @@ var _ = Describe("ProfileDiff", func() {
 
 		It("formats all change types", func() {
 			diff := &ProfileDiff{
-				PluginsAdded:         []string{"plugin1"},
-				PluginsRemoved:       []string{"plugin2"},
-				MarketplacesAdded:    []Marketplace{{Source: "github", Repo: "org/repo1"}},
-				MarketplacesRemoved:  []Marketplace{{Source: "github", Repo: "org/repo2"}},
-				MCPServersAdded:      []MCPServer{{Name: "server1", Command: "cmd1"}},
-				MCPServersRemoved:    []MCPServer{{Name: "server2", Command: "cmd2"}},
-				MCPServersModified:   []MCPServer{{Name: "server3", Command: "cmd3"}},
+				PluginsAdded:        []string{"plugin1"},
+				PluginsRemoved:      []string{"plugin2"},
+				MarketplacesAdded:   []Marketplace{{Source: "github", Repo: "org/repo1"}},
+				MarketplacesRemoved: []Marketplace{{Source: "github", Repo: "org/repo2"}},
+				MCPServersAdded:     []MCPServer{{Name: "server1", Command: "cmd1"}},
+				MCPServersRemoved:   []MCPServer{{Name: "server2", Command: "cmd2"}},
+				MCPServersModified:  []MCPServer{{Name: "server3", Command: "cmd3"}},
 			}
 			summary := diff.Summary()
 			Expect(summary).To(ContainSubstring("1 plugin not in profile"))
@@ -499,7 +499,7 @@ var _ = Describe("ProfileDiff", func() {
 			// Enable at user scope
 			settings := &claude.Settings{
 				EnabledPlugins: map[string]bool{
-					"test-plugin@marketplace": true,
+					"test-plugin@marketplace":  true,
 					"extra-plugin@marketplace": true,
 				},
 			}
@@ -542,10 +542,14 @@ var _ = Describe("ProfileDiff", func() {
 			}
 			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
 
-			// Saved profile with different plugin
+			// Multi-scope profile with different plugin at project scope
 			saved := &Profile{
-				Name:    "test",
-				Plugins: []string{"other-plugin@marketplace"},
+				Name: "test",
+				PerScope: &PerScopeSettings{
+					Project: &ScopeSettings{
+						Plugins: []string{"other-plugin@marketplace"},
+					},
+				},
 			}
 
 			diff, err := CompareWithScope(saved, claudeDir, "", projectDir, "project")
@@ -686,10 +690,14 @@ var _ = Describe("ProfileDiff", func() {
 			}
 			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
 
-			// Save profile matching current state
+			// Save multi-scope profile matching current state at project scope
 			profile := &Profile{
-				Name:    "test",
-				Plugins: []string{"project-plugin@marketplace"},
+				Name: "test",
+				PerScope: &PerScopeSettings{
+					Project: &ScopeSettings{
+						Plugins: []string{"project-plugin@marketplace"},
+					},
+				},
 			}
 			Expect(Save(profilesDir, profile)).To(Succeed())
 
