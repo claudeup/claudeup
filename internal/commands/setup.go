@@ -77,7 +77,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	if hasExisting {
 		// User has existing Claude Code setup - preserve it
-		if err := handleExistingInstallationPreserve(existing, profilesDir); err != nil {
+		if err := handleExistingInstallationPreserve(existing, profilesDir, claudeDir, claudeJSONPath); err != nil {
 			return err
 		}
 	} else {
@@ -109,7 +109,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 // handleExistingInstallationPreserve saves the existing config as a profile but keeps
 // the user's current settings intact (doesn't overwrite with default)
-func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string) error {
+func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string, claudeDir string, claudeJSONPath string) error {
 	ui.PrintInfo("Existing Claude Code installation detected:")
 	fmt.Printf("  %s %d MCP servers, %d marketplaces, %d plugins\n",
 		ui.Muted(ui.SymbolArrow), len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
@@ -144,6 +144,14 @@ func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir s
 		return fmt.Errorf("setup aborted by user")
 	default:
 		return fmt.Errorf("invalid choice: %s", choice)
+	}
+
+	// Install plugins from the profile
+	if len(existing.Plugins) > 0 {
+		fmt.Println()
+		if err := installPluginsFromProfile(existing, claudeDir, claudeJSONPath); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Plugin installation issue: %v", err))
+		}
 	}
 
 	return nil
@@ -499,7 +507,7 @@ func installPluginsFromProfile(p *profile.Profile, claudeDir, claudeJSONPath str
 	}
 
 	fmt.Println()
-	ui.PrintInfo(fmt.Sprintf("Installing %d plugins...", len(p.Plugins)))
+	ui.PrintInfo(fmt.Sprintf("Installing plugins (%d)...", len(p.Plugins)))
 
 	chain := buildSecretChain()
 	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
