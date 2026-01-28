@@ -342,7 +342,7 @@ var (
 var profileSyncDryRun bool
 
 // Flags for profile save command
-var profileSaveScope string
+// var profileSaveScope string // Removed: profiles always capture all scopes now
 
 // Flags for profile list command
 var profileListScope string
@@ -538,7 +538,8 @@ func init() {
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
 
 	profileSaveCmd.Flags().StringVar(&profileSaveDescription, "description", "", "Custom description for the profile")
-	profileSaveCmd.Flags().StringVar(&profileSaveScope, "scope", "", "Where to save: 'user' or 'project' (default: project if .claudeup.json exists, otherwise user)")
+	// --scope flag removed: profiles now always capture all scopes (user, project, local)
+	// and are saved to user profiles directory
 
 	// Add flags to profile apply command
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
@@ -899,8 +900,11 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 
 	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
 
+	// Multi-scope profiles always need to apply (diff only checks one scope)
+	needsApply := p.IsMultiScope() || hasDiffChanges(diff) || shouldRunHook
+
 	// If no changes and no hook to run, we're done
-	if !hasDiffChanges(diff) && !shouldRunHook {
+	if !needsApply {
 		// Update active profile in config even when no changes needed
 		cfg, err = config.Load()
 		if err != nil {
@@ -931,10 +935,15 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	}
 
 	// Show diff and confirm if there are changes
-	if hasDiffChanges(diff) {
+	if hasDiffChanges(diff) || p.IsMultiScope() {
 		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 		fmt.Println()
-		showDiff(diff)
+		if p.IsMultiScope() {
+			// Show per-scope summary for multi-scope profiles
+			showMultiScopeSummary(p)
+		} else {
+			showDiff(diff)
+		}
 		fmt.Println()
 
 		// Skip confirmation if using --force flag
@@ -955,31 +964,43 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 
 	// Apply (hook decision was already made above)
 	fmt.Println()
-	ui.PrintInfo(fmt.Sprintf("Applying profile (%s scope)...", scope))
 
 	chain := buildSecretChain()
 
-	// Build apply options with progress tracking enabled by default
-	opts := profile.ApplyOptions{
-		Scope:        scope,
-		ProjectDir:   cwd,
-		Reinstall:    profileApplyReinstall,
-		ShowProgress: !profileApplyNoProgress, // Enable concurrent apply with progress UI
-	}
-	// Add progress callback for sequential installs (user scope)
-	if !profileApplyNoProgress {
-		opts.Progress = ui.PluginProgress()
-	}
+	var result *profile.ApplyResult
 
-	result, err := profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
-	if err != nil {
-		return fmt.Errorf("failed to apply profile: %w", err)
+	// Use ApplyAllScopes for multi-scope profiles, ApplyWithOptions for legacy
+	if p.IsMultiScope() {
+		ui.PrintInfo("Applying profile (all scopes)...")
+		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, chain)
+		if err != nil {
+			return fmt.Errorf("failed to apply profile: %w", err)
+		}
+	} else {
+		ui.PrintInfo(fmt.Sprintf("Applying profile (%s scope)...", scope))
+
+		// Build apply options with progress tracking enabled by default
+		opts := profile.ApplyOptions{
+			Scope:        scope,
+			ProjectDir:   cwd,
+			Reinstall:    profileApplyReinstall,
+			ShowProgress: !profileApplyNoProgress, // Enable concurrent apply with progress UI
+		}
+		// Add progress callback for sequential installs (user scope)
+		if !profileApplyNoProgress {
+			opts.Progress = ui.PluginProgress()
+		}
+
+		result, err = profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
+		if err != nil {
+			return fmt.Errorf("failed to apply profile: %w", err)
+		}
 	}
 
 	showApplyResults(result)
 
-	// Update active profile in config (only for user scope)
-	if scope == profile.ScopeUser {
+	// Update active profile in config (for user scope or multi-scope profiles)
+	if scope == profile.ScopeUser || p.IsMultiScope() {
 		cfg, err = config.Load()
 		if err != nil {
 			cfg = config.DefaultConfig()
@@ -989,7 +1010,7 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 		}
 
-		// Silently clean up stale plugin entries (only for user scope)
+		// Silently clean up stale plugin entries
 		cleanupStalePlugins(claudeDir)
 	}
 
@@ -1061,35 +1082,13 @@ func cleanupStalePlugins(claudeDir string) {
 }
 
 func runProfileSave(cmd *cobra.Command, args []string) error {
-	// Determine scope from flag or context-aware default
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	var scope string
-	if profileSaveScope != "" {
-		// Explicit scope from flag
-		if profileSaveScope != "user" && profileSaveScope != "project" {
-			return fmt.Errorf("invalid scope %q: must be 'user' or 'project'", profileSaveScope)
-		}
-		scope = profileSaveScope
-	} else {
-		// Context-aware default: project if .claudeup.json exists, otherwise user
-		if profile.ProjectConfigExists(cwd) {
-			scope = "project"
-		} else {
-			scope = "user"
-		}
-	}
-
-	// Determine profiles directory based on scope
-	var profilesDir string
-	if scope == "project" {
-		profilesDir = profile.ProjectProfilesDir(cwd)
-	} else {
-		profilesDir = getProfilesDir()
-	}
+	// Profiles are always saved to user profiles directory
+	profilesDir := getProfilesDir()
 
 	// Determine profile name
 	var name string
@@ -1117,7 +1116,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	existingPath := filepath.Join(profilesDir, name+".json")
 	if _, err := os.Stat(existingPath); err == nil {
 		if !isActiveProfile && !config.YesFlag {
-			fmt.Printf("%s Profile %q already exists at %s scope. ", ui.Warning(ui.SymbolWarning), name, scope)
+			fmt.Printf("%s Profile %q already exists. ", ui.Warning(ui.SymbolWarning), name)
 			choice := promptChoice("Overwrite?", "n")
 			if choice != "y" && choice != "yes" {
 				ui.PrintMuted("Cancelled.")
@@ -1129,11 +1128,8 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-	// Create snapshot from the appropriate scope
-	p, err := profile.SnapshotWithScope(name, claudeDir, claudeJSONPath, profile.SnapshotOptions{
-		Scope:      scope,
-		ProjectDir: cwd,
-	})
+	// Create snapshot capturing ALL scopes (user, project, local)
+	p, err := profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
@@ -1161,29 +1157,34 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	// Only update active profile in config for user-scope saves
-	if scope == "user" {
-		cfg, err := config.Load()
-		if err != nil {
-			cfg = config.DefaultConfig()
-		}
-		cfg.Preferences.ActiveProfile = name
-		if err := config.Save(cfg); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
-		}
+	// Update active profile in config
+	cfg, err := config.Load()
+	if err != nil {
+		cfg = config.DefaultConfig()
+	}
+	cfg.Preferences.ActiveProfile = name
+	if err := config.Save(cfg); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 	}
 
-	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s scope)", name, scope))
+	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (all scopes)", name))
 	fmt.Println()
-	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
-	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 
-	// Show commit hint for project scope
-	if scope == "project" {
-		fmt.Println()
-		fmt.Printf("%s Consider adding to git: %s\n", ui.Muted(ui.SymbolArrow), ui.Bold(".claudeup/profiles/"))
+	// Show per-scope plugin counts for multi-scope profiles
+	if p.IsMultiScope() {
+		if p.PerScope.User != nil && len(p.PerScope.User.Plugins) > 0 {
+			fmt.Println(ui.Indent(ui.RenderDetail("User plugins", fmt.Sprintf("%d", len(p.PerScope.User.Plugins))), 1))
+		}
+		if p.PerScope.Project != nil && len(p.PerScope.Project.Plugins) > 0 {
+			fmt.Println(ui.Indent(ui.RenderDetail("Project plugins", fmt.Sprintf("%d", len(p.PerScope.Project.Plugins))), 1))
+		}
+		if p.PerScope.Local != nil && len(p.PerScope.Local.Plugins) > 0 {
+			fmt.Println(ui.Indent(ui.RenderDetail("Local plugins", fmt.Sprintf("%d", len(p.PerScope.Local.Plugins))), 1))
+		}
+	} else {
+		fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
 	}
+	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
 
 	return nil
 }
@@ -1532,6 +1533,24 @@ func hasDiffChanges(diff *profile.Diff) bool {
 		len(diff.MCPToInstall) > 0 ||
 		len(diff.MarketplacesToAdd) > 0 ||
 		len(diff.MarketplacesToRemove) > 0
+}
+
+func showMultiScopeSummary(p *profile.Profile) {
+	if p.PerScope == nil {
+		return
+	}
+
+	fmt.Printf("  %s\n", ui.Info("Multi-scope profile:"))
+
+	if p.PerScope.User != nil && len(p.PerScope.User.Plugins) > 0 {
+		fmt.Printf("    User scope:    %d plugins\n", len(p.PerScope.User.Plugins))
+	}
+	if p.PerScope.Project != nil && len(p.PerScope.Project.Plugins) > 0 {
+		fmt.Printf("    Project scope: %d plugins\n", len(p.PerScope.Project.Plugins))
+	}
+	if p.PerScope.Local != nil && len(p.PerScope.Local.Plugins) > 0 {
+		fmt.Printf("    Local scope:   %d plugins\n", len(p.PerScope.Local.Plugins))
+	}
 }
 
 func showDiff(diff *profile.Diff) {

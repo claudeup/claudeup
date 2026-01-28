@@ -24,6 +24,74 @@ type Profile struct {
 	Detect         DetectRules    `json:"detect,omitempty"`
 	Sandbox        SandboxConfig  `json:"sandbox,omitempty"`
 	PostApply      *PostApplyHook `json:"postApply,omitempty"`
+
+	// PerScope contains settings organized by scope (user, project, local).
+	// When present, this takes precedence over the flat Plugins/MCPServers fields.
+	// When absent, the flat fields are treated as user-scope (backward compatibility).
+	PerScope *PerScopeSettings `json:"perScope,omitempty"`
+}
+
+// PerScopeSettings organizes configuration by scope level.
+// This enables profiles to capture and restore settings to the correct scope.
+type PerScopeSettings struct {
+	User    *ScopeSettings `json:"user,omitempty"`
+	Project *ScopeSettings `json:"project,omitempty"`
+	Local   *ScopeSettings `json:"local,omitempty"`
+}
+
+// ScopeSettings contains settings for a single scope level.
+type ScopeSettings struct {
+	Plugins    []string    `json:"plugins,omitempty"`
+	MCPServers []MCPServer `json:"mcpServers,omitempty"`
+}
+
+// IsMultiScope returns true if this profile uses per-scope settings.
+func (p *Profile) IsMultiScope() bool {
+	if p == nil {
+		return false
+	}
+	return p.PerScope != nil
+}
+
+// ForScope returns a flat Profile containing only settings for the specified scope.
+// This is useful for applying a single scope from a multi-scope profile.
+// Marketplaces are always included since they're user-scoped.
+func (p *Profile) ForScope(scope string) *Profile {
+	if p == nil {
+		return &Profile{}
+	}
+
+	result := &Profile{
+		Name:         p.Name,
+		Description:  p.Description,
+		Marketplaces: p.Marketplaces,
+	}
+
+	if p.PerScope == nil {
+		// Legacy profile - only "user" scope has data
+		if scope == "user" {
+			result.Plugins = p.Plugins
+			result.MCPServers = p.MCPServers
+		}
+		return result
+	}
+
+	var settings *ScopeSettings
+	switch scope {
+	case "user":
+		settings = p.PerScope.User
+	case "project":
+		settings = p.PerScope.Project
+	case "local":
+		settings = p.PerScope.Local
+	}
+
+	if settings != nil {
+		result.Plugins = settings.Plugins
+		result.MCPServers = settings.MCPServers
+	}
+
+	return result
 }
 
 // PostApplyHook defines a hook to run after a profile is applied.
@@ -78,8 +146,8 @@ type MCPServer struct {
 // Marketplace represents a plugin marketplace source
 type Marketplace struct {
 	Source string `json:"source"`
-	Repo   string `json:"repo,omitempty"`   // Used for github sources
-	URL    string `json:"url,omitempty"`    // Used for git sources
+	Repo   string `json:"repo,omitempty"` // Used for github sources
+	URL    string `json:"url,omitempty"`  // Used for git sources
 }
 
 // DisplayName returns the repo or URL for display purposes

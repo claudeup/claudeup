@@ -1046,3 +1046,140 @@ func RunHook(profile *Profile, opts HookOptions) error {
 
 	return cmd.Run()
 }
+
+// ApplyAllScopes applies a profile to all scope levels.
+// For multi-scope profiles (with PerScope), it applies each scope independently.
+// For legacy profiles (flat format), it applies to user scope only.
+// The secretChain parameter is optional and used for MCP server secret resolution.
+func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir string, secretChain *secrets.Chain) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
+	// If legacy profile (no PerScope), apply to user scope only
+	if !profile.IsMultiScope() {
+		return applyUserScopeSettings(profile, claudeDir, projectDir)
+	}
+
+	// Apply each scope in order: user → project → local
+	if profile.PerScope.User != nil {
+		userResult, err := applyUserScopeSettings(profile.ForScope("user"), claudeDir, projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply user scope: %w", err)
+		}
+		aggregateResults(result, userResult)
+	}
+
+	if profile.PerScope.Project != nil && projectDir != "" {
+		projectResult, err := applyProjectScopeSettings(profile.ForScope("project"), claudeDir, projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply project scope: %w", err)
+		}
+		aggregateResults(result, projectResult)
+	}
+
+	if profile.PerScope.Local != nil && projectDir != "" {
+		localResult, err := applyLocalScopeSettings(profile.ForScope("local"), claudeDir, projectDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to apply local scope: %w", err)
+		}
+		aggregateResults(result, localResult)
+	}
+
+	return result, nil
+}
+
+// applyUserScopeSettings writes plugins to user-scope settings.json
+func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
+	// Load existing user settings (preserves other fields)
+	settings, err := claude.LoadSettings(claudeDir)
+	if err != nil {
+		settings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Update enabledPlugins with profile plugins
+	settings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		settings.EnabledPlugins[plugin] = true
+		result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+	}
+
+	// Save settings
+	if err := claude.SaveSettings(claudeDir, settings); err != nil {
+		return nil, fmt.Errorf("failed to save user settings: %w", err)
+	}
+
+	return result, nil
+}
+
+// applyProjectScopeSettings writes plugins to project-scope settings.json
+func applyProjectScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
+	// Load existing project settings (preserves other fields)
+	settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
+	if err != nil {
+		settings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Update enabledPlugins with profile plugins
+	settings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		settings.EnabledPlugins[plugin] = true
+		result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+	}
+
+	// Save settings
+	if err := claude.SaveSettingsForScope("project", claudeDir, projectDir, settings); err != nil {
+		return nil, fmt.Errorf("failed to save project settings: %w", err)
+	}
+
+	return result, nil
+}
+
+// applyLocalScopeSettings writes plugins to local-scope settings.local.json
+func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
+	// Load existing local settings (preserves other fields)
+	settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
+	if err != nil {
+		settings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Update enabledPlugins with profile plugins
+	settings.EnabledPlugins = make(map[string]bool)
+	for _, plugin := range profile.Plugins {
+		settings.EnabledPlugins[plugin] = true
+		result.PluginsInstalled = append(result.PluginsInstalled, plugin)
+	}
+
+	// Save settings
+	if err := claude.SaveSettingsForScope("local", claudeDir, projectDir, settings); err != nil {
+		return nil, fmt.Errorf("failed to save local settings: %w", err)
+	}
+
+	return result, nil
+}
+
+// aggregateResults combines results from multiple scope applications
+func aggregateResults(target, source *ApplyResult) {
+	if source == nil {
+		return
+	}
+	target.PluginsInstalled = append(target.PluginsInstalled, source.PluginsInstalled...)
+	target.PluginsRemoved = append(target.PluginsRemoved, source.PluginsRemoved...)
+	target.PluginsAlreadyPresent = append(target.PluginsAlreadyPresent, source.PluginsAlreadyPresent...)
+	target.PluginsAlreadyRemoved = append(target.PluginsAlreadyRemoved, source.PluginsAlreadyRemoved...)
+	target.MCPServersInstalled = append(target.MCPServersInstalled, source.MCPServersInstalled...)
+	target.MCPServersRemoved = append(target.MCPServersRemoved, source.MCPServersRemoved...)
+	target.MarketplacesAdded = append(target.MarketplacesAdded, source.MarketplacesAdded...)
+	target.MarketplacesRemoved = append(target.MarketplacesRemoved, source.MarketplacesRemoved...)
+	target.Errors = append(target.Errors, source.Errors...)
+}
