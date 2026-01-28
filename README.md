@@ -15,14 +15,16 @@ go install github.com/claudeup/claudeup/v2/cmd/claudeup@latest
 ## Get Started
 
 ```bash
-# First-time setup - installs Claude CLI and applies a profile
+# Setup preserves existing Claude Code configuration
 claudeup setup
 
-# Or setup with a specific profile
+# For fresh installations, apply a specific profile
 claudeup setup --profile frontend
 ```
 
-That's it. You now have a working Claude Code installation with your chosen plugins and MCP servers.
+**For existing Claude Code users**: Setup detects your current installation and preserves it. You'll be offered the option to save your existing configuration as a profile.
+
+**For new users**: Setup applies the default profile (or your specified `--profile`) to get you started with plugins and MCP servers.
 
 ## Key Features
 
@@ -94,20 +96,20 @@ claudeup upgrade    # Update plugins and marketplaces
 
 ### Update Commands
 
-| Command | Description |
-|---------|-------------|
-| `claudeup update` | Update the claudeup CLI to the latest version |
-| `claudeup upgrade` | Update marketplaces and plugins |
+| Command             | Description                                               |
+| ------------------- | --------------------------------------------------------- |
+| `claudeup update`   | Update the claudeup CLI to the latest version             |
+| `claudeup upgrade`  | Update marketplaces and plugins                           |
 | `claudeup outdated` | Show available updates for CLI, marketplaces, and plugins |
 
 For the complete command reference, see [Full command reference →](docs/commands.md)
 
 ## Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CLAUDEUP_HOME` | Override claudeup's configuration directory | `~/.claudeup` |
-| `CLAUDE_CONFIG_DIR` | Override Claude Code's configuration directory | `~/.claude` |
+| Variable            | Description                                    | Default       |
+| ------------------- | ---------------------------------------------- | ------------- |
+| `CLAUDEUP_HOME`     | Override claudeup's configuration directory    | `~/.claudeup` |
+| `CLAUDE_CONFIG_DIR` | Override Claude Code's configuration directory | `~/.claude`   |
 
 ### Isolated Testing Environment
 

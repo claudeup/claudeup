@@ -27,7 +27,7 @@ var _ = Describe("setup", func() {
 	})
 
 	Describe("existing installation handling", func() {
-		It("offers backup option when existing installation detected", func() {
+		It("offers save and continue options when existing installation detected", func() {
 			// Create an existing installation with content
 			env.CreateInstalledPlugins(map[string]interface{}{
 				"test-plugin@test-marketplace": []map[string]interface{}{
@@ -40,41 +40,8 @@ var _ = Describe("setup", func() {
 
 			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
 			Expect(result.Stdout).To(ContainSubstring("[s] Save current setup as a profile"))
-			Expect(result.Stdout).To(ContainSubstring("[b] Create backup"))
-			Expect(result.Stdout).To(ContainSubstring("[c] Continue anyway"))
+			Expect(result.Stdout).To(ContainSubstring("[c] Continue without saving"))
 			Expect(result.Stdout).To(ContainSubstring("[a] Abort"))
-		})
-
-		It("creates backup when user chooses 'b'", func() {
-			// Clean up any pre-existing backup directories to ensure test isolation
-			existingBackups, _ := filepath.Glob(filepath.Join(env.TempDir, ".claude.backup*"))
-			for _, backup := range existingBackups {
-				os.RemoveAll(backup)
-			}
-
-			// Create an existing installation with content
-			env.CreateInstalledPlugins(map[string]interface{}{
-				"backup-test-plugin@test-marketplace": []map[string]interface{}{
-					{"scope": "user", "version": "1.0"},
-				},
-			})
-
-			// Run setup, choose 'b' to backup, then 'y' to proceed
-			result := env.RunWithInput("b\ny\n", "setup")
-
-			Expect(result.Stdout).To(ContainSubstring("Created backup"))
-
-			// Check that exactly one backup directory was created
-			entries, err := filepath.Glob(filepath.Join(env.TempDir, ".claude.backup*"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).To(HaveLen(1), "Expected exactly one backup directory to be created")
-
-			// Verify backup contains the original plugin data
-			backupDir := entries[0]
-			backupPlugins := filepath.Join(backupDir, "plugins", "installed_plugins.json")
-			data, err := os.ReadFile(backupPlugins)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(data)).To(ContainSubstring("backup-test-plugin"))
 		})
 
 		It("prevents overwriting embedded profiles when saving existing installation", func() {
@@ -85,15 +52,16 @@ var _ = Describe("setup", func() {
 				},
 			})
 
-			// Try to save with "default" (embedded profile), then "my-setup" (valid), then abort
-			result := env.RunWithInput("s\ndefault\nmy-setup\na\n", "setup")
+			// Try to save with "default" (embedded profile), then "custom-name" (valid)
+			result := env.RunWithInput("s\ndefault\ncustom-name\n", "setup")
 
-			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
+			Expect(result.Stdout).To(ContainSubstring("Profile name [my-setup]:"))
 			Expect(result.Stdout).To(ContainSubstring("Cannot overwrite built-in profile"))
-			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
+			// Should prompt again after rejection
+			Expect(result.Stdout).To(ContainSubstring("Saved as 'custom-name'"))
 		})
 
-		It("defaults profile name to 'saved' not 'current'", func() {
+		It("defaults profile name to 'my-setup'", func() {
 			// Create an existing installation with content
 			env.CreateInstalledPlugins(map[string]interface{}{
 				"test-plugin@test-marketplace": []map[string]interface{}{
@@ -101,13 +69,14 @@ var _ = Describe("setup", func() {
 				},
 			})
 
-			// Choose save option, press enter to accept default, then abort
-			result := env.RunWithInput("s\n\na\n", "setup")
+			// Choose save option, press enter to accept default
+			result := env.RunWithInput("s\n\n", "setup")
 
-			Expect(result.Stdout).To(ContainSubstring("Profile name [saved]:"))
+			Expect(result.Stdout).To(ContainSubstring("Profile name [my-setup]:"))
+			Expect(result.Stdout).To(ContainSubstring("Saved as 'my-setup'"))
 		})
 
-		It("validates profile exists before prompting to save existing installation", func() {
+		It("ignores --profile flag for existing installations", func() {
 			// Create an existing installation with content
 			env.CreateInstalledPlugins(map[string]interface{}{
 				"test-plugin@test-marketplace": []map[string]interface{}{
@@ -115,16 +84,27 @@ var _ = Describe("setup", func() {
 				},
 			})
 
-			// Try to setup with non-existent profile
+			// Run setup with a non-existent profile but existing installation
+			// The --profile flag should be ignored for existing installations
+			result := env.RunWithInput("c\n", "setup", "--profile", "nonexistent")
+
+			// Should succeed because --profile is ignored for existing installations
+			Expect(result.ExitCode).To(Equal(0))
+			// Should show existing installation prompt (not profile error)
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+		})
+
+		It("validates profile for fresh installations", func() {
+			// Don't create any existing installation content
+			// Just ensure the claude directory exists (setup creates it)
+
+			// Try to setup with non-existent profile on fresh install
 			result := env.Run("setup", "--profile", "nonexistent")
 
-			// Should fail immediately without prompting
+			// Should fail because the profile doesn't exist
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("profile \"nonexistent\" does not exist"))
 			Expect(result.Stderr).To(ContainSubstring("claudeup profile list"))
-			// Should NOT have prompted for saving
-			Expect(result.Stdout).NotTo(ContainSubstring("Save current setup"))
-			Expect(result.Stdout).NotTo(ContainSubstring("Profile name"))
 		})
 	})
 
@@ -160,8 +140,8 @@ var _ = Describe("setup", func() {
 			Expect(os.WriteFile(claudeJSONFile, []byte(`{"mcpServers": {}}`), 0644)).To(Succeed())
 
 			// Run setup with --claude-dir pointing to custom directory
-			// Use 'c' to continue without saving, 'y' to proceed
-			result := env.RunWithInput("c\ny\n", "setup", "--claude-dir", customClaudeDir)
+			// Use 'c' to continue without saving
+			result := env.RunWithInput("c\n", "setup", "--claude-dir", customClaudeDir)
 
 			// The setup should detect the existing installation in customClaudeDir
 			// (which has 1 plugin) and offer to save it as a profile
