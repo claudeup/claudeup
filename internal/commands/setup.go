@@ -81,8 +81,15 @@ func runSetup(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	} else {
-		// Fresh install - apply the default (or specified) profile
-		if err := applyProfileForFreshInstall(profilesDir, claudeJSONPath); err != nil {
+		// Fresh install - load and validate profile once, then apply
+		p, err := profile.Load(profilesDir, setupProfile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
+			}
+			return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
+		}
+		if err := applyProfileForFreshInstall(p, claudeJSONPath); err != nil {
 			return err
 		}
 	}
@@ -142,16 +149,8 @@ func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir s
 	return nil
 }
 
-// applyProfileForFreshInstall applies a profile for new Claude Code installations
-func applyProfileForFreshInstall(profilesDir string, claudeJSONPath string) error {
-	p, err := profile.Load(profilesDir, setupProfile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
-		}
-		return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
-	}
-
+// applyProfileForFreshInstall applies a pre-loaded profile for new Claude Code installations
+func applyProfileForFreshInstall(p *profile.Profile, claudeJSONPath string) error {
 	ui.PrintInfo("No existing Claude Code configuration found.")
 	fmt.Println()
 	fmt.Println(ui.RenderDetail("Using profile", ui.Bold(p.Name)))
