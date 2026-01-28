@@ -570,6 +570,128 @@ echo ""
 echo "Test 5 PASSED: Sync is idempotent"
 
 # =============================================================================
+# TEST 6: Project profile takes precedence over user profile
+# =============================================================================
+
+section "Test 6: Project profile takes precedence over user profile"
+
+echo "Scenario: Both user and project profiles exist with the same name."
+echo "The project profile should take precedence (LoadWithFallback behavior)."
+echo ""
+
+# Reset state - clear existing plugins and profiles
+rm -f "$CLAUDE_CONFIG_DIR/settings.json"
+rm -f "$PROJECT_DIR/.claude/settings.json"
+rm -f "$CLAUDEUP_HOME/profiles/team-backend.json"
+rm -f "$PROJECT_DIR/.claudeup/profiles/team-backend.json"
+mkdir -p "$CLAUDEUP_HOME/profiles"
+mkdir -p "$PROJECT_DIR/.claudeup/profiles"
+
+# Create USER profile with specific plugins
+cat > "$CLAUDEUP_HOME/profiles/team-backend.json" << 'PROFILE'
+{
+  "name": "team-backend",
+  "description": "User version of team profile",
+  "perScope": {
+    "user": {
+      "plugins": ["user-only-plugin@marketplace"]
+    },
+    "project": {
+      "plugins": ["user-project-plugin@marketplace"]
+    }
+  }
+}
+PROFILE
+echo "Created USER profile with: user-only-plugin, user-project-plugin"
+echo "  $CLAUDEUP_HOME/profiles/team-backend.json"
+
+# Create PROJECT profile with DIFFERENT plugins (this should win)
+cat > "$PROJECT_DIR/.claudeup/profiles/team-backend.json" << 'PROFILE'
+{
+  "name": "team-backend",
+  "description": "Project version of team profile (should take precedence)",
+  "perScope": {
+    "user": {
+      "plugins": ["project-user-plugin@marketplace"]
+    },
+    "project": {
+      "plugins": ["project-project-plugin@marketplace"]
+    }
+  }
+}
+PROFILE
+echo "Created PROJECT profile with: project-user-plugin, project-project-plugin"
+echo "  $PROJECT_DIR/.claudeup/profiles/team-backend.json"
+
+# Create .claudeup.json
+cat > "$PROJECT_DIR/.claudeup.json" << 'CONFIG'
+{
+  "version": "1",
+  "profile": "team-backend"
+}
+CONFIG
+echo "Created .claudeup.json pointing to 'team-backend'"
+
+# Run sync
+echo ""
+echo "Running: claudeup profile sync -y"
+pushd "$PROJECT_DIR" > /dev/null
+$CLAUDEUP profile sync -y
+popd > /dev/null
+
+echo ""
+echo "After sync:"
+check_plugins "$CLAUDE_CONFIG_DIR/settings.json" "User scope"
+check_plugins "$PROJECT_DIR/.claude/settings.json" "Project scope"
+
+# Verify PROJECT profile plugins were applied (not user profile)
+echo ""
+echo "Verifying project profile took precedence..."
+
+# Check that project profile's user-scope plugin was applied
+if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "project-user-plugin@marketplace"; then
+  echo "✗ ERROR: project-user-plugin should have been installed (from project profile)"
+  exit 1
+fi
+echo "✓ project-user-plugin was installed (from project profile)"
+
+# Check that user profile's user-scope plugin was NOT applied
+if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "user-only-plugin@marketplace"; then
+  echo "✗ ERROR: user-only-plugin should NOT have been installed (from user profile)"
+  exit 1
+fi
+echo "✓ user-only-plugin was NOT installed (user profile was not used)"
+
+# Check that project profile's project-scope plugin was applied
+if ! verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "project-project-plugin@marketplace"; then
+  echo "✗ ERROR: project-project-plugin should have been installed (from project profile)"
+  exit 1
+fi
+echo "✓ project-project-plugin was installed (from project profile)"
+
+# Check that user profile's project-scope plugin was NOT applied
+if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "user-project-plugin@marketplace"; then
+  echo "✗ ERROR: user-project-plugin should NOT have been installed (from user profile)"
+  exit 1
+fi
+echo "✓ user-project-plugin was NOT installed (user profile was not used)"
+
+# Verify user profile was updated to match project profile
+echo ""
+echo "Verifying user profile was updated to match project profile..."
+USER_PROFILE_PLUGINS=$(jq -r '.perScope.user.plugins[]' "$CLAUDEUP_HOME/profiles/team-backend.json" 2>/dev/null)
+if [[ "$USER_PROFILE_PLUGINS" != "project-user-plugin@marketplace" ]]; then
+  echo "✗ ERROR: User profile should have been updated to match project profile"
+  echo "  Expected: project-user-plugin@marketplace"
+  echo "  Got: $USER_PROFILE_PLUGINS"
+  exit 1
+fi
+echo "✓ User profile was updated to match project profile"
+
+echo ""
+echo "Test 6 PASSED: Project profile takes precedence over user profile"
+
+# =============================================================================
 # Summary
 # =============================================================================
 
@@ -583,10 +705,12 @@ echo "  ✓ Test 2: Sync restores missing plugins when profile exists"
 echo "  ✓ Test 3: Sync --replace removes extra plugins at user scope"
 echo "  ✓ Test 4: Sync without --replace preserves existing user plugins"
 echo "  ✓ Test 5: Sync is idempotent (multiple runs produce same result)"
+echo "  ✓ Test 6: Project profile takes precedence over user profile"
 echo ""
 echo "Key behaviors:"
 echo "  • Sync reads .claudeup.json to find profile name"
 echo "  • Sync loads profile from project dir first, then user profiles"
+echo "  • Project profile takes precedence when same name exists in both locations"
 echo "  • Sync creates/updates local profile copy in user profiles dir"
 echo "  • User scope: additive by default, declarative with --replace"
 echo "  • Project scope: always declarative (replaces settings)"
