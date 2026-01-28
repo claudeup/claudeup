@@ -101,6 +101,58 @@ mkdir -p "$CLAUDEUP_HOME/profiles"
 mkdir -p "$PROJECT_DIR/.claude"
 
 # =============================================================================
+# TEST -1: Sync fails when profile doesn't exist anywhere
+# =============================================================================
+
+section "Test -1: Sync fails when profile doesn't exist"
+
+echo "Scenario: .claudeup.json exists but profile definition is missing."
+echo "This catches the bug where 'profile apply --scope project' didn't"
+echo "save the profile to .claudeup/profiles/ for team sharing."
+echo ""
+
+# Create .claudeup.json pointing to a profile that doesn't exist
+cat > "$PROJECT_DIR/.claudeup.json" << 'CONFIG'
+{
+  "version": "1",
+  "profile": "missing-profile"
+}
+CONFIG
+echo "Created .claudeup.json pointing to 'missing-profile'"
+
+# Verify profile does NOT exist in either location
+if [[ -f "$CLAUDEUP_HOME/profiles/missing-profile.json" ]]; then
+  echo "ERROR: Profile should not exist in user profiles"
+  exit 1
+fi
+if [[ -f "$PROJECT_DIR/.claudeup/profiles/missing-profile.json" ]]; then
+  echo "ERROR: Profile should not exist in project profiles"
+  exit 1
+fi
+echo "✓ Confirmed: Profile does not exist in user or project profiles"
+
+# Run sync - should FAIL
+echo ""
+echo "Running: claudeup profile sync -y (expecting failure)"
+pushd "$PROJECT_DIR" > /dev/null
+if $CLAUDEUP profile sync -y 2>&1; then
+  echo ""
+  echo "✗ ERROR: Sync should have failed when profile doesn't exist"
+  popd > /dev/null
+  exit 1
+fi
+popd > /dev/null
+
+echo ""
+echo "✓ Sync correctly failed when profile doesn't exist"
+
+# Clean up for next test
+rm "$PROJECT_DIR/.claudeup.json"
+
+echo ""
+echo "Test -1 PASSED: Sync fails with clear error when profile is missing"
+
+# =============================================================================
 # TEST 0: profile apply --scope project creates .claudeup/profiles/
 # =============================================================================
 
@@ -498,6 +550,7 @@ echo "Test 5 PASSED: Sync is idempotent"
 section "All tests passed!"
 
 echo "Profile sync feature works correctly:"
+echo "  ✓ Test -1: Sync fails with clear error when profile doesn't exist"
 echo "  ✓ Test 0: profile apply --scope project creates .claudeup/profiles/"
 echo "  ✓ Test 1: Sync creates local profile copy when profile doesn't exist"
 echo "  ✓ Test 2: Sync restores missing plugins when profile exists"
