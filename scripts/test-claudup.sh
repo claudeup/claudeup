@@ -1,23 +1,74 @@
 #!/usr/bin/env bash
-# Test script for canonical key ordering fix
-set -e
+# ABOUTME: Demonstrates claudeup onboarding workflow for existing Claude Code users
+# ABOUTME: Creates isolated test environment, simulates user config, tests profile management
+set -euo pipefail
 
-curl -fsSL https://claudeup.github.io/install.sh | bash
-# go build -o bin/claudeup ./cmd/claudeup
-# cp bin/claudeup ~/.local/bin/claudeup
+# -----------------------------------------------------------------------------
+# Configuration
+# -----------------------------------------------------------------------------
 
+# Set USE_LOCAL_BUILD=true to test local changes instead of released version
+USE_LOCAL_BUILD="${USE_LOCAL_BUILD:-false}"
+CLEANUP_ON_EXIT="${CLEANUP_ON_EXIT:-false}"
+
+# -----------------------------------------------------------------------------
+# Helper functions
+# -----------------------------------------------------------------------------
+
+section() {
+  echo ""
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "  $1"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+}
+
+cleanup() {
+  if [[ "$CLEANUP_ON_EXIT" == "true" && -n "${TEST_DIR:-}" ]]; then
+    echo "Cleaning up $TEST_DIR..."
+    rm -rf "$TEST_DIR"
+  fi
+}
+
+trap cleanup EXIT
+
+# -----------------------------------------------------------------------------
+# Install claudeup
+# -----------------------------------------------------------------------------
+
+section "Installing claudeup"
+
+if [[ "$USE_LOCAL_BUILD" == "true" ]]; then
+  echo "Building from local source..."
+  go build -o bin/claudeup ./cmd/claudeup
+  cp bin/claudeup ~/.local/bin/claudeup
+else
+  echo "Installing from release..."
+  curl -fsSL https://claudeup.github.io/install.sh | bash
+fi
+
+# -----------------------------------------------------------------------------
 # Create isolated test environment
+# -----------------------------------------------------------------------------
+
+section "Setting up test environment"
+
 TEST_DIR=$(mktemp -d)
 export CLAUDE_CONFIG_DIR="$TEST_DIR/.claude"
 export CLAUDEUP_HOME="$TEST_DIR/.claudeup"
 PROJECT_DIR="$TEST_DIR/project"
 
 echo "TEST_DIR=$TEST_DIR"
+echo "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
 echo "CLAUDEUP_HOME=$CLAUDEUP_HOME"
 echo "PROJECT_DIR=$PROJECT_DIR"
-echo ""
 
-# Create settings.json (simulates existing Claude Code user config)
+# -----------------------------------------------------------------------------
+# Simulate existing Claude Code user configuration
+# -----------------------------------------------------------------------------
+
+section "Creating simulated user configuration"
+
 mkdir -p "$CLAUDE_CONFIG_DIR"
 
 cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
@@ -77,24 +128,42 @@ cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 }
 SETTINGS
 
-# Make a project directory
+echo "Created settings.json with 5 enabled plugins"
+
+# -----------------------------------------------------------------------------
+# Add marketplace (required for plugin installation)
+# -----------------------------------------------------------------------------
+
+section "Adding official plugin marketplace"
+
+claude plugin marketplace add anthropics/claude-plugins-official
+
+# -----------------------------------------------------------------------------
+# Run claudeup setup (preserves existing config)
+# -----------------------------------------------------------------------------
+
+section "Running claudeup setup"
+
 mkdir -p "$PROJECT_DIR"
 pushd "$PROJECT_DIR" > /dev/null
 
-# Add marketplace via Claude CLI (creates proper known_marketplaces.json)
-echo "Adding marketplace via Claude CLI..."
-claude plugin marketplace add anthropics/claude-plugins-official
-
-# setup -y now preserves existing settings automatically (doesn't apply default)
-# and saves them as "my-setup" profile by default
 claudeup setup -y
 
-# Apply profile at user scope (now works because profile has marketplace)
+# -----------------------------------------------------------------------------
+# Apply saved user profile to install plugins
+# -----------------------------------------------------------------------------
+
+section "Applying user profile (my-setup)"
+
 claudeup profile apply my-setup -y --scope user
-# Profile name changed from "saved" to "my-setup" in new setup behavior
 claudeup profile show my-setup
 
-# Create a profile with a plugin to trigger file write
+# -----------------------------------------------------------------------------
+# Create and apply project-specific profile
+# -----------------------------------------------------------------------------
+
+section "Creating project profile"
+
 cat > "$TEST_DIR/my-project.json" << 'PROFILE'
 {
   "name": "my-project",
@@ -110,30 +179,44 @@ PROFILE
 
 claudeup profile create my-project --description "My project description" --from-file "$TEST_DIR/my-project.json"
 
-claudeup profile list
+section "Applying project profile"
 
-echo ""
-
-# Apply profile at project scope
 claudeup profile apply my-project -y --scope project
-if ! jq < "$PROJECT_DIR/.claude/settings.json"; then
+
+# Verify settings.json is valid
+if ! jq < "$PROJECT_DIR/.claude/settings.json" > /dev/null; then
   echo "Error: Invalid JSON in $PROJECT_DIR/.claude/settings.json"
   exit 1
 fi
 
+# -----------------------------------------------------------------------------
+# Show final state
+# -----------------------------------------------------------------------------
+
+section "Final state"
+
+echo "Profile list:"
+claudeup profile list
+
+echo ""
+echo "Project profile:"
 claudeup profile show my-project
+
+echo ""
+echo "Enabled plugins:"
 claudeup plugin list --enabled --format table
 
 popd > /dev/null
 
+# -----------------------------------------------------------------------------
+# Debug output (optional)
+# -----------------------------------------------------------------------------
 
-if [[ $DEBUG == "true" ]]; then
-echo ""
-echo "=== Test environment variables ==="
-echo "export CLAUDE_CONFIG_DIR=\"$TEST_DIR/.claude\""
-echo "export CLAUDEUP_HOME=\"$TEST_DIR/.claudeup\""
-echo "export PROJECT_DIR=\"$TEST_DIR/project\""
+if [[ "${DEBUG:-}" == "true" ]]; then
+  section "Debug: Environment variables for manual testing"
+  echo "export CLAUDE_CONFIG_DIR=\"$CLAUDE_CONFIG_DIR\""
+  echo "export CLAUDEUP_HOME=\"$CLAUDEUP_HOME\""
+  echo "export PROJECT_DIR=\"$PROJECT_DIR\""
+  echo ""
+  echo "To clean up: rm -rf \"$TEST_DIR\""
 fi
-
-# Cleanup
-# rm -rf "$TEST_DIR"
