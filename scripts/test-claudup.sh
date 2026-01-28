@@ -17,23 +17,8 @@ echo "CLAUDEUP_HOME=$CLAUDEUP_HOME"
 echo "PROJECT_DIR=$PROJECT_DIR"
 echo ""
 
-# Create settings.json with keys in alphabetical order (wrong order)
+# Create settings.json (simulates existing Claude Code user config)
 mkdir -p "$CLAUDE_CONFIG_DIR"
-mkdir -p "$CLAUDE_CONFIG_DIR/plugins"
-
-# Create marketplace registry (simulates real Claude Code installation)
-# This is where Claude CLI stores known marketplaces when you run:
-#   claude plugin marketplace add anthropics/claude-plugins-official
-cat > "$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json" << 'MARKETPLACES'
-{
-  "claude-plugins-official": {
-    "source": {
-      "source": "github",
-      "repo": "anthropics/claude-plugins-official"
-    }
-  }
-}
-MARKETPLACES
 
 cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 {
@@ -95,6 +80,10 @@ SETTINGS
 # Make a project directory
 mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
+
+# Add marketplace via Claude CLI (creates proper known_marketplaces.json)
+echo "Adding marketplace via Claude CLI..."
+claude plugin marketplace add anthropics/claude-plugins-official
 
 # setup -y now preserves existing settings automatically (doesn't apply default)
 # and saves them as "my-setup" profile by default
