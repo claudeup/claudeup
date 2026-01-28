@@ -984,6 +984,17 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		if err != nil {
 			return fmt.Errorf("failed to apply profile: %w", err)
 		}
+
+		// For project scope, also write .claudeup.json and save profile for team sharing
+		if scope == profile.ScopeProject {
+			projectCfg := profile.NewProjectConfig(p)
+			if err := profile.SaveProjectConfig(cwd, projectCfg); err != nil {
+				return fmt.Errorf("failed to write %s: %w", profile.ProjectConfigFile, err)
+			}
+			if err := profile.SaveToProject(cwd, p); err != nil {
+				return fmt.Errorf("failed to save profile to project: %w", err)
+			}
+		}
 	} else {
 		ui.PrintInfo(fmt.Sprintf("Applying profile (%s scope)...", scope))
 

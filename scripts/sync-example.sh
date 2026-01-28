@@ -101,6 +101,79 @@ mkdir -p "$CLAUDEUP_HOME/profiles"
 mkdir -p "$PROJECT_DIR/.claude"
 
 # =============================================================================
+# TEST 0: profile apply --scope project creates .claudeup/profiles/
+# =============================================================================
+
+section "Test 0: profile apply --scope project creates project profile"
+
+echo "Scenario: Team lead applies profile at project scope to share with team."
+echo "This should create .claudeup/profiles/<name>.json for team members."
+echo ""
+
+# First, create the profile in user profiles directory (as team lead would have)
+cat > "$CLAUDEUP_HOME/profiles/team-backend.json" << 'PROFILE'
+{
+  "name": "team-backend",
+  "description": "Team backend development profile",
+  "perScope": {
+    "user": {
+      "plugins": ["superpowers@superpowers-marketplace"]
+    },
+    "project": {
+      "plugins": ["backend-development@claude-code-workflows"]
+    }
+  }
+}
+PROFILE
+echo "Created profile in user profiles directory: $CLAUDEUP_HOME/profiles/team-backend.json"
+
+# Verify project profile directory does NOT exist yet
+if [[ -d "$PROJECT_DIR/.claudeup/profiles" ]]; then
+  echo "ERROR: Project profiles directory should not exist yet"
+  exit 1
+fi
+echo "✓ Confirmed: Project profiles directory does not exist yet"
+
+# Run profile apply --scope project
+echo ""
+echo "Running: claudeup profile apply team-backend --scope project -y"
+pushd "$PROJECT_DIR" > /dev/null
+$CLAUDEUP profile apply team-backend --scope project -y
+popd > /dev/null
+
+# Verify .claudeup.json was created
+if [[ ! -f "$PROJECT_DIR/.claudeup.json" ]]; then
+  echo ""
+  echo "✗ ERROR: .claudeup.json should have been created"
+  exit 1
+fi
+echo ""
+echo "✓ .claudeup.json was created"
+
+# Verify profile was saved to project profiles directory
+if [[ ! -f "$PROJECT_DIR/.claudeup/profiles/team-backend.json" ]]; then
+  echo "✗ ERROR: Profile should have been saved to .claudeup/profiles/"
+  exit 1
+fi
+echo "✓ Profile was saved to .claudeup/profiles/team-backend.json"
+
+# Verify the content matches
+SAVED_NAME=$(jq -r '.name' "$PROJECT_DIR/.claudeup/profiles/team-backend.json")
+if [[ "$SAVED_NAME" != "team-backend" ]]; then
+  echo "✗ ERROR: Saved profile has wrong name: $SAVED_NAME"
+  exit 1
+fi
+echo "✓ Saved profile content is correct"
+
+echo ""
+echo "Test 0 PASSED: profile apply --scope project creates .claudeup/profiles/"
+
+# Now remove the user profile to simulate team member scenario
+rm "$CLAUDEUP_HOME/profiles/team-backend.json"
+echo ""
+echo "Removed user profile to simulate team member scenario"
+
+# =============================================================================
 # TEST 1: Sync WITHOUT existing profile (team member clone scenario)
 # =============================================================================
 
@@ -110,9 +183,9 @@ echo "Scenario: A team member clones a repo with .claudeup.json but doesn't"
 echo "have the profile installed locally yet."
 echo ""
 
-# Create the team profile in the PROJECT directory (as if checked into git)
+# Project profile already exists from Test 0 (as if checked into git)
 PROJECT_PROFILES_DIR="$PROJECT_DIR/.claudeup/profiles"
-mkdir -p "$PROJECT_PROFILES_DIR"
+echo "Using project profile from Test 0: $PROJECT_PROFILES_DIR/team-backend.json"
 
 cat > "$PROJECT_PROFILES_DIR/team-backend.json" << 'PROFILE'
 {
@@ -425,6 +498,7 @@ echo "Test 5 PASSED: Sync is idempotent"
 section "All tests passed!"
 
 echo "Profile sync feature works correctly:"
+echo "  ✓ Test 0: profile apply --scope project creates .claudeup/profiles/"
 echo "  ✓ Test 1: Sync creates local profile copy when profile doesn't exist"
 echo "  ✓ Test 2: Sync restores missing plugins when profile exists"
 echo "  ✓ Test 3: Sync --replace removes extra plugins at user scope"

@@ -296,6 +296,12 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 		return fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
 	}
 
+	// Save profile to project profiles directory for team sharing
+	// This ensures team members can run 'profile sync' after cloning
+	if err := SaveToProject(projectDir, profile); err != nil {
+		return fmt.Errorf("failed to save profile to project: %w", err)
+	}
+
 	return nil
 }
 
@@ -391,6 +397,11 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 	projectCfg := NewProjectConfig(profile)
 	if err := SaveProjectConfig(opts.ProjectDir, projectCfg); err != nil {
 		return nil, fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
+	}
+
+	// 6. Save profile to project profiles directory for team sharing
+	if err := SaveToProject(opts.ProjectDir, profile); err != nil {
+		return nil, fmt.Errorf("failed to save profile to project: %w", err)
 	}
 
 	return result, nil
