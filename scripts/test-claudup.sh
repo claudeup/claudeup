@@ -10,13 +10,31 @@ cp bin/claudeup ~/.local/bin/claudeup
 TEST_DIR=$(mktemp -d)
 export CLAUDE_CONFIG_DIR="$TEST_DIR/.claude"
 export CLAUDEUP_HOME="$TEST_DIR/.claudeup"
+PROJECT_DIR="$TEST_DIR/project"
 
 echo "TEST_DIR=$TEST_DIR"
 echo "CLAUDEUP_HOME=$CLAUDEUP_HOME"
+echo "PROJECT_DIR=$PROJECT_DIR"
 echo ""
 
 # Create settings.json with keys in alphabetical order (wrong order)
 mkdir -p "$CLAUDE_CONFIG_DIR"
+mkdir -p "$CLAUDE_CONFIG_DIR/plugins"
+
+# Create marketplace registry (simulates real Claude Code installation)
+# This is where Claude CLI stores known marketplaces when you run:
+#   claude plugin marketplace add anthropics/claude-plugins-official
+cat > "$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json" << 'MARKETPLACES'
+{
+  "claude-plugins-official": {
+    "source": {
+      "source": "github",
+      "repo": "anthropics/claude-plugins-official"
+    }
+  }
+}
+MARKETPLACES
+
 cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
@@ -74,6 +92,10 @@ cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 }
 SETTINGS
 
+# Make a project directory
+mkdir -p "$PROJECT_DIR"
+cd "$PROJECT_DIR"
+
 # setup -y now preserves existing settings automatically (doesn't apply default)
 # and saves them as "my-setup" profile by default
 claudeup setup -y
@@ -92,6 +114,7 @@ cat > "$TEST_DIR/test.json" << 'PROFILE'
   "plugins": ["document-skills@anthropic-agent-skills"]
 }
 PROFILE
+
 claudeup profile create test --description "Test profile for canonical ordering verification" --from-file "$TEST_DIR/test.json"
 
 # Verify claudeup sees the profile
@@ -107,11 +130,6 @@ fi
 
 echo ""
 
-# Make a project directory
-PROJECT_DIR="$TEST_DIR/project"
-mkdir -p "$PROJECT_DIR"
-cd "$PROJECT_DIR"
-
 # Apply profile at project scope
 claudeup profile apply test -y --scope project
 if ! jq < "$PROJECT_DIR/.claude/settings.json"; then
@@ -122,8 +140,8 @@ fi
 claudeup profile show test
 claudeup plugin list
 
-# Apply profile at user scope
-# claudeup profile apply test -y --scope user
+# Apply profile at user scope (now works because profile has marketplace)
+claudeup profile apply my-setup -y --scope user
 
 # echo ""
 # echo "=== AFTER (canonical order) ==="
@@ -138,6 +156,7 @@ echo ""
 echo "=== Test environment variables ==="
 echo "export CLAUDE_CONFIG_DIR=\"$TEST_DIR/.claude\""
 echo "export CLAUDEUP_HOME=\"$TEST_DIR/.claudeup\""
+echo "export PROJECT_DIR=\"$TEST_DIR/project\""
 
 cd "$CLAUDE_CONFIG_DIR"
 # Profile name changed from "saved" to "my-setup" in new setup behavior
