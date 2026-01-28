@@ -2,9 +2,9 @@
 # Test script for canonical key ordering fix
 set -e
 
-# curl -fsSL https://claudeup.github.io/install.sh | bash
-go build -o bin/claudeup ./cmd/claudeup
-cp bin/claudeup ~/.local/bin/claudeup
+curl -fsSL https://claudeup.github.io/install.sh | bash
+# go build -o bin/claudeup ./cmd/claudeup
+# cp bin/claudeup ~/.local/bin/claudeup
 
 # Create isolated test environment
 TEST_DIR=$(mktemp -d)
@@ -79,7 +79,7 @@ SETTINGS
 
 # Make a project directory
 mkdir -p "$PROJECT_DIR"
-cd "$PROJECT_DIR"
+pushd "$PROJECT_DIR" > /dev/null
 
 # Add marketplace via Claude CLI (creates proper known_marketplaces.json)
 echo "Adding marketplace via Claude CLI..."
@@ -89,11 +89,15 @@ claude plugin marketplace add anthropics/claude-plugins-official
 # and saves them as "my-setup" profile by default
 claudeup setup -y
 
-# Create a test profile with a plugin to trigger file write
-cat > "$TEST_DIR/test.json" << 'PROFILE'
+# Apply profile at user scope (now works because profile has marketplace)
+claudeup profile apply my-setup -y --scope user
+# Profile name changed from "saved" to "my-setup" in new setup behavior
+claudeup profile show my-setup
+
+# Create a profile with a plugin to trigger file write
+cat > "$TEST_DIR/my-project.json" << 'PROFILE'
 {
-  "name": "test",
-  "description": "Test profile for canonical ordering verification",
+  "name": "my-project",
   "marketplaces": [
     {
       "source": "github",
@@ -104,49 +108,32 @@ cat > "$TEST_DIR/test.json" << 'PROFILE'
 }
 PROFILE
 
-claudeup profile create test --description "Test profile for canonical ordering verification" --from-file "$TEST_DIR/test.json"
+claudeup profile create my-project --description "My project description" --from-file "$TEST_DIR/my-project.json"
 
-# Verify claudeup sees the profile
-echo "=== PROFILE LIST ==="
 claudeup profile list
-
-echo ""
-echo "=== BEFORE (alphabetical order) ==="
-if ! jq < "$CLAUDE_CONFIG_DIR/settings.json"; then
-  echo "Error: Invalid JSON in $CLAUDE_CONFIG_DIR/settings.json"
-  exit 1
-fi
 
 echo ""
 
 # Apply profile at project scope
-claudeup profile apply test -y --scope project
+claudeup profile apply my-project -y --scope project
 if ! jq < "$PROJECT_DIR/.claude/settings.json"; then
   echo "Error: Invalid JSON in $PROJECT_DIR/.claude/settings.json"
   exit 1
 fi
 
-claudeup profile show test
-claudeup plugin list
+claudeup profile show my-project
+claudeup plugin list --enabled --format table
 
-# Apply profile at user scope (now works because profile has marketplace)
-claudeup profile apply my-setup -y --scope user
-
-# echo ""
-# echo "=== AFTER (canonical order) ==="
-# jq < "$TEST_DIR/settings.json" || echo "invalid json: $TEST_DIR/settings.json"
-# claudeup profile show test
+popd > /dev/null
 
 
-# Cleanup
-# rm -rf "$TEST_DIR"
-
+if [[ $DEBUG == "true" ]]; then
 echo ""
 echo "=== Test environment variables ==="
 echo "export CLAUDE_CONFIG_DIR=\"$TEST_DIR/.claude\""
 echo "export CLAUDEUP_HOME=\"$TEST_DIR/.claudeup\""
 echo "export PROJECT_DIR=\"$TEST_DIR/project\""
+fi
 
-cd "$CLAUDE_CONFIG_DIR"
-# Profile name changed from "saved" to "my-setup" in new setup behavior
-claudeup profile show my-setup
+# Cleanup
+# rm -rf "$TEST_DIR"
