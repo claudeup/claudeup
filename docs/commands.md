@@ -6,22 +6,48 @@ title: Command Reference
 
 ## Global Flags
 
-| Flag | Description |
-|------|-------------|
+| Flag           | Description                                                   |
+| -------------- | ------------------------------------------------------------- |
 | `--claude-dir` | Override Claude installation directory (default: `~/.claude`) |
-| `-y, --yes` | Skip interactive prompts, use defaults |
+| `-y, --yes`    | Skip interactive prompts, use defaults                        |
 
 ## Setup & Profiles
 
 ### setup
 
-First-time setup or reset of Claude Code installation.
+Initialize or configure Claude Code installation.
+
+**Behavior depends on installation state:**
+
+- **Existing installation detected**: Preserves your current settings and offers to save them as a profile
+- **Fresh installation**: Applies the default profile (or specified `--profile`)
 
 ```bash
-claudeup setup                    # Interactive setup with default profile
-claudeup setup --profile frontend # Setup with specific profile
+claudeup setup                    # Interactive setup
+claudeup setup --profile frontend # Setup with specific profile (fresh installs only)
 claudeup setup --yes              # Non-interactive
 ```
+
+**For existing installations:**
+
+When claudeup detects an existing Claude Code installation (plugins, MCP servers, settings), it preserves your configuration instead of overwriting it. You'll be prompted to:
+
+- **Save as profile** - Save your current setup as a named profile for future use
+- **Continue without saving** - Keep your existing configuration, proceed with setup
+- **Abort** - Cancel the setup process
+
+The `--profile` flag is ignored for existing installations since your current settings take precedence.
+
+**For fresh installations:**
+
+When no existing configuration is detected, setup applies a profile to get you started:
+
+```bash
+claudeup setup                    # Applies the "default" profile
+claudeup setup --profile backend  # Applies the "backend" profile
+```
+
+If the specified profile doesn't exist, setup fails with a helpful error message listing available profiles.
 
 ### profile
 
@@ -68,23 +94,23 @@ claudeup profile apply frontend --scope local
 
 **Scope options:**
 
-| Scope | MCP Servers | Plugins | Shared? |
-|-------|-------------|---------|---------|
-| `user` | `~/.claude.json` | user-scoped | No |
-| `project` | `.mcp.json` | project-scoped | Yes (via git) |
-| `local` | `~/.claude.json` | local-scoped | No |
+| Scope     | MCP Servers      | Plugins        | Shared?       |
+| --------- | ---------------- | -------------- | ------------- |
+| `user`    | `~/.claude.json` | user-scoped    | No            |
+| `project` | `.mcp.json`      | project-scoped | Yes (via git) |
+| `local`   | `~/.claude.json` | local-scoped   | No            |
 
 **`profile apply` flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--scope` | Apply scope: user, project, or local (default: user, or project if .claudeup.json exists) |
-| `--reset` | Clear target scope before applying (replaces instead of adding) |
-| `--setup` | Force post-apply setup wizard to run |
-| `--no-interactive` | Skip post-apply setup wizard (for CI/scripting) |
-| `-f, --force` | Force reapply even with unsaved changes |
-| `--reinstall` | Force reinstall all plugins and marketplaces |
-| `--no-progress` | Disable progress display (for CI/scripting) |
+| Flag               | Description                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| `--scope`          | Apply scope: user, project, or local (default: user, or project if .claudeup.json exists) |
+| `--reset`          | Clear target scope before applying (replaces instead of adding)                           |
+| `--setup`          | Force post-apply setup wizard to run                                                      |
+| `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                                           |
+| `-f, --force`      | Force reapply even with unsaved changes                                                   |
+| `--reinstall`      | Force reinstall all plugins and marketplaces                                              |
+| `--no-progress`    | Disable progress display (for CI/scripting)                                               |
 
 **Reset mode:**
 
@@ -133,6 +159,7 @@ MCP servers often require secrets (API keys, tokens). When using `--scope projec
 - The sync command does not handle secrets - configure them separately
 
 Example `.mcp.json` with secret reference:
+
 ```json
 {
   "mcpServers": {
@@ -164,6 +191,7 @@ claudeup profile status backend-stack
 ```
 
 Use this to see:
+
 - Which plugins are missing from your configuration
 - Which plugins are extra (not in the profile)
 - Differences at each scope (user, project, local)
@@ -180,6 +208,7 @@ claudeup profile diff frontend
 ```
 
 Use this to see:
+
 - What plugins you added to a built-in profile
 - What plugins you removed from a built-in profile
 - Description changes
@@ -187,12 +216,12 @@ Use this to see:
 
 **When to use each:**
 
-| Scenario | Command |
-|----------|---------|
-| "Does my Claude match my profile?" | `profile status` |
-| "What did I change from the original?" | `profile diff` |
-| "Why does `profile list` show (customized)?" | `profile diff` |
-| "How do I fix drift?" | `profile status` (shows fix commands) |
+| Scenario                                     | Command                               |
+| -------------------------------------------- | ------------------------------------- |
+| "Does my Claude match my profile?"           | `profile status`                      |
+| "What did I change from the original?"       | `profile diff`                        |
+| "Why does `profile list` show (customized)?" | `profile diff`                        |
+| "How do I fix drift?"                        | `profile status` (shows fix commands) |
 
 ## Sandbox
 
@@ -230,29 +259,29 @@ claudeup scope restore user            # Restore from backup
 
 Claude Code uses three scope levels (in precedence order):
 
-| Scope | Location | Description |
-|-------|----------|-------------|
-| `local` | `./.claude/settings.local.json` | Machine-specific, highest precedence |
-| `project` | `./.claude/settings.json` | Project-level, shared via git |
-| `user` | `~/.claude/settings.json` | Global personal defaults |
+| Scope     | Location                        | Description                          |
+| --------- | ------------------------------- | ------------------------------------ |
+| `local`   | `./.claude/settings.local.json` | Machine-specific, highest precedence |
+| `project` | `./.claude/settings.json`       | Project-level, shared via git        |
+| `user`    | `~/.claude/settings.json`       | Global personal defaults             |
 
 **`scope list` flags:**
 
-| Flag | Description |
-|------|-------------|
+| Flag      | Description                              |
+| --------- | ---------------------------------------- |
 | `--scope` | Filter to scope: user, project, or local |
 
 **`scope clear` flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--force` | Skip confirmation prompts |
+| Flag       | Description                   |
+| ---------- | ----------------------------- |
+| `--force`  | Skip confirmation prompts     |
 | `--backup` | Create backup before clearing |
 
 **`scope restore` flags:**
 
-| Flag | Description |
-|------|-------------|
+| Flag      | Description               |
+| --------- | ------------------------- |
 | `--force` | Skip confirmation prompts |
 
 **Notes:**
@@ -265,13 +294,13 @@ Claude Code uses three scope levels (in precedence order):
 
 **Troubleshooting backup/restore:**
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| "no backup found" | No backup exists for this scope | Run `scope clear --backup` first to create one |
-| "no backup found" for local scope | Backup was made from a different directory | Run restore from the same project directory where backup was created |
-| Restore contains old data | Backups are overwritten on each save | Only the most recent backup is available; older backups are lost |
-| "homeDir must be an absolute path" | Internal error | Report as bug - this shouldn't happen in normal use |
-| "source is a symlink" | Settings file is a symlink | Remove symlink and use a regular file |
+| Problem                            | Cause                                      | Solution                                                             |
+| ---------------------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
+| "no backup found"                  | No backup exists for this scope            | Run `scope clear --backup` first to create one                       |
+| "no backup found" for local scope  | Backup was made from a different directory | Run restore from the same project directory where backup was created |
+| Restore contains old data          | Backups are overwritten on each save       | Only the most recent backup is available; older backups are lost     |
+| "homeDir must be an absolute path" | Internal error                             | Report as bug - this shouldn't happen in normal use                  |
+| "source is a symlink"              | Settings file is a symlink                 | Remove symlink and use a regular file                                |
 
 ## Status & Discovery
 
@@ -289,8 +318,8 @@ Shows marketplaces, plugin counts, MCP servers, and any detected issues.
 
 **Flags:**
 
-| Flag | Description |
-|------|-------------|
+| Flag      | Description                              |
+| --------- | ---------------------------------------- |
 | `--scope` | Filter to scope: user, project, or local |
 
 ### plugin
@@ -313,20 +342,20 @@ claudeup plugin search <query> --all                  # Search all cached plugin
 
 **`plugin list` flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--summary` | Show only summary statistics |
-| `--enabled` | Show only enabled plugins |
-| `--disabled` | Show only disabled plugins |
-| `--format` | Output format (table) |
+| Flag         | Description                    |
+| ------------ | ------------------------------ |
+| `--summary`  | Show only summary statistics   |
+| `--enabled`  | Show only enabled plugins      |
+| `--disabled` | Show only disabled plugins     |
+| `--format`   | Output format (table)          |
 | `--by-scope` | Group enabled plugins by scope |
 
 **`plugin browse` flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--format` | Output format (table) |
-| `--show` | Show contents of a specific plugin |
+| Flag       | Description                        |
+| ---------- | ---------------------------------- |
+| `--format` | Output format (table)              |
+| `--show`   | Show contents of a specific plugin |
 
 **`plugin show`:**
 
@@ -370,14 +399,14 @@ claudeup plugin search api --format json
 
 **`plugin search` flags:**
 
-| Flag | Description |
-|------|-------------|
-| `--all` | Search all cached plugins, not just installed |
-| `--type` | Filter by component type: skills, commands, agents |
-| `--marketplace` | Limit search to specific marketplace |
-| `--by-component` | Group results by component type instead of plugin |
-| `--regex` | Treat query as regular expression |
-| `--format` | Output format: json, table (default: styled text with trees) |
+| Flag             | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| `--all`          | Search all cached plugins, not just installed                |
+| `--type`         | Filter by component type: skills, commands, agents           |
+| `--marketplace`  | Limit search to specific marketplace                         |
+| `--by-component` | Group results by component type instead of plugin            |
+| `--regex`        | Treat query as regular expression                            |
+| `--format`       | Output format: json, table (default: styled text with trees) |
 
 **Output formats:**
 
