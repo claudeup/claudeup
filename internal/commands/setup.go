@@ -29,11 +29,12 @@ var (
 var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Set up Claude Code with a profile",
-	Long: `First-time setup or reset of Claude Code configuration.
+	Long: `Set up claudeup to manage your Claude Code configuration.
 
-Installs Claude CLI if missing, then applies the specified profile.
-If an existing installation is detected, offers to save current state
-as a profile before applying the new one.`,
+Installs Claude CLI if missing, then:
+- If you have an existing Claude Code setup: keeps your settings and offers
+  to save them as a profile for easy backup/restore
+- If this is a fresh install: applies the default profile to get you started`,
 	Args: cobra.NoArgs,
 	RunE: runSetup,
 }
@@ -63,31 +64,91 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to set up profiles: %w", err)
 	}
 
-	// Step 4: Validate the requested profile exists before prompting user
-	// This provides fast feedback if user specified a non-existent profile
-	_, err := profile.Load(profilesDir, setupProfile)
-	if err != nil {
-		return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
-	}
-
-	// Step 5: Check for existing installation
+	// Step 4: Check for existing installation
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	// Derive claudeJSONPath: when using custom dir, .claude.json is inside it
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	existing, err := profile.Snapshot("existing", claudeDir, claudeJSONPath)
-	if err == nil && hasContent(existing) {
-		if err := handleExistingInstallation(existing, profilesDir); err != nil {
+	hasExisting := err == nil && hasContent(existing)
+
+	if hasExisting {
+		// User has existing Claude Code setup - preserve it
+		if err := handleExistingInstallationPreserve(existing, profilesDir); err != nil {
+			return err
+		}
+	} else {
+		// Fresh install - apply the default (or specified) profile
+		if err := applyProfileForFreshInstall(cmd, profilesDir, claudeJSONPath); err != nil {
 			return err
 		}
 	}
 
-	// Step 6: Load and show the profile (we already validated it exists)
-	p, err := profile.Load(profilesDir, setupProfile)
-	if err != nil {
-		return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
+	// Run health check
+	fmt.Println()
+	ui.PrintInfo("Running health check...")
+	if err := runDoctor(cmd, nil); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Health check encountered issues: %v", err))
 	}
 
+	fmt.Println()
+	ui.PrintSuccess("Setup complete!")
+
+	return nil
+}
+
+// handleExistingInstallationPreserve saves the existing config as a profile but keeps
+// the user's current settings intact (doesn't overwrite with default)
+func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir string) error {
+	ui.PrintInfo("Existing Claude Code installation detected:")
+	fmt.Printf("  %s %d MCP servers, %d marketplaces, %d plugins\n",
+		ui.Muted(ui.SymbolArrow), len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
+	fmt.Println()
+
+	fmt.Println("Your current settings will be preserved.")
+	fmt.Println("claudeup can save them as a profile for easy backup/restore.")
+	fmt.Println()
+	fmt.Println(ui.Bold("Options:"))
+	fmt.Println("  [s] Save current setup as a profile (recommended)")
+	fmt.Println("  [c] Continue without saving")
+	fmt.Println("  [a] Abort")
+	fmt.Println()
+
+	choice := promptChoice("Choice", "s")
+
+	switch strings.ToLower(choice) {
+	case "s":
+		name := promptProfileName("Profile name", "my-setup")
+		existing.Name = name
+		existing.Description = "Saved from existing installation"
+		if err := profile.Save(profilesDir, existing); err != nil {
+			return fmt.Errorf("failed to save profile: %w", err)
+		}
+		ui.PrintSuccess(fmt.Sprintf("Saved as '%s'", name))
+		fmt.Println()
+		fmt.Println(ui.Muted("Your current settings are unchanged."))
+		fmt.Println(ui.Muted(fmt.Sprintf("To restore later: claudeup profile apply %s", name)))
+	case "c":
+		fmt.Println("  Continuing without saving...")
+	case "a":
+		return fmt.Errorf("setup aborted by user")
+	default:
+		return fmt.Errorf("invalid choice: %s", choice)
+	}
+
+	return nil
+}
+
+// applyProfileForFreshInstall applies a profile for new Claude Code installations
+func applyProfileForFreshInstall(_ *cobra.Command, profilesDir string, claudeJSONPath string) error {
+	// Validate the requested profile exists
+	p, err := profile.Load(profilesDir, setupProfile)
+	if err != nil {
+		return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
+	}
+
+	ui.PrintInfo("No existing Claude Code configuration found.")
+	fmt.Println()
 	fmt.Println(ui.RenderDetail("Using profile", ui.Bold(p.Name)))
 	if p.Description != "" {
 		fmt.Printf("  %s\n", ui.Muted(p.Description))
@@ -96,13 +157,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	showProfileSummary(p)
 
-	// Step 6: Confirm (unless --yes)
+	// Confirm (unless --yes)
 	if !confirmProceed() {
 		ui.PrintMuted("Setup cancelled.")
 		return nil
 	}
 
-	// Step 7: Apply the profile
+	// Apply the profile
 	fmt.Println()
 	ui.PrintInfo("Applying profile...")
 
@@ -112,21 +173,10 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to apply profile: %w", err)
 	}
 
-	// Step 8: Show results
 	showApplyResults(result)
 
-	// Step 9: Run doctor
-	fmt.Println()
-	ui.PrintInfo("Running health check...")
-	if err := runDoctor(cmd, nil); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Health check encountered issues: %v", err))
-	}
-
-	fmt.Println()
 	if len(result.Errors) > 0 {
-		ui.PrintWarning("Setup completed with errors. Review the issues above.")
-	} else {
-		ui.PrintSuccess("Setup complete!")
+		ui.PrintWarning("Some operations had errors. Review the issues above.")
 	}
 
 	return nil
@@ -325,78 +375,6 @@ func getProfilesDir() string {
 
 func hasContent(p *profile.Profile) bool {
 	return len(p.Plugins) > 0 || len(p.MCPServers) > 0 || len(p.Marketplaces) > 0
-}
-
-func handleExistingInstallation(existing *profile.Profile, profilesDir string) error {
-	ui.PrintInfo("Existing Claude Code installation detected:")
-	fmt.Printf("  %s %d MCP servers, %d marketplaces, %d plugins\n",
-		ui.Muted(ui.SymbolArrow), len(existing.MCPServers), len(existing.Marketplaces), len(existing.Plugins))
-	fmt.Println()
-	fmt.Println(ui.Bold("Options:"))
-	fmt.Println("  [s] Save current setup as a profile, then continue")
-	fmt.Println("  [b] Create backup of directory, then continue")
-	fmt.Println("  [c] Continue anyway (will replace current setup)")
-	fmt.Println("  [a] Abort")
-	fmt.Println()
-
-	choice := promptChoice("Choice", "s")
-
-	switch strings.ToLower(choice) {
-	case "s":
-		name := promptProfileName("Profile name", "saved")
-		existing.Name = name
-		existing.Description = "Saved from existing installation"
-		if err := profile.Save(profilesDir, existing); err != nil {
-			return fmt.Errorf("failed to save profile: %w", err)
-		}
-		ui.PrintSuccess(fmt.Sprintf("Saved as '%s'", name))
-		fmt.Println()
-	case "b":
-		backupPath, err := createBackup(claudeDir)
-		if err != nil {
-			return fmt.Errorf("failed to create backup: %w", err)
-		}
-		ui.PrintSuccess(fmt.Sprintf("Created backup at %s", backupPath))
-		fmt.Println()
-	case "c":
-		fmt.Println("  Continuing without saving...")
-		fmt.Println()
-	case "a":
-		return fmt.Errorf("setup aborted by user")
-	default:
-		return fmt.Errorf("invalid choice: %s", choice)
-	}
-
-	return nil
-}
-
-// createBackup creates a backup copy of the claude directory
-// Returns the path to the backup directory
-func createBackup(srcDir string) (string, error) {
-	// Find an available backup path
-	backupBase := srcDir + ".backup"
-	backupPath := backupBase
-
-	// If backup already exists, add a number suffix
-	const maxBackups = 100
-	counter := 1
-	for counter <= maxBackups {
-		if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-			break
-		}
-		backupPath = fmt.Sprintf("%s.%d", backupBase, counter)
-		counter++
-	}
-	if counter > maxBackups {
-		return "", fmt.Errorf("too many existing backups (max %d), please clean up old backups", maxBackups)
-	}
-
-	// Copy the directory recursively
-	if err := copyDir(srcDir, backupPath); err != nil {
-		return "", err
-	}
-
-	return backupPath, nil
 }
 
 func showProfileSummary(p *profile.Profile) {

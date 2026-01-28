@@ -3,9 +3,9 @@
   "description": "Complete frontend development with E2E testing: Next.js, Tailwind, shadcn, Vercel, Playwright",
   "mcpServers": [],
   "marketplaces": [
-    {"source": "github", "repo": "anthropics/claude-code"},
-    {"source": "github", "repo": "obra/superpowers-marketplace"},
-    {"source": "github", "repo": "davila7/claude-code-templates"}
+    { "source": "github", "repo": "anthropics/claude-plugins-official" },
+    { "source": "github", "repo": "obra/superpowers-marketplace" },
+    { "source": "github", "repo": "davila7/claude-code-templates" }
   ],
   "plugins": [
     "frontend-design@claude-code-plugins",

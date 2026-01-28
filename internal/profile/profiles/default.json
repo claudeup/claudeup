@@ -3,7 +3,7 @@
   "description": "Base Claude Code setup with essential marketplaces",
   "mcpServers": [],
   "marketplaces": [
-    {"source": "github", "repo": "anthropics/claude-code"}
+    { "source": "github", "repo": "anthropics/claude-plugins-official" }
   ],
   "plugins": [],
   "detect": {}
