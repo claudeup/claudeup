@@ -76,7 +76,7 @@ var _ = Describe("setup", func() {
 			Expect(result.Stdout).To(ContainSubstring("Saved as 'my-setup'"))
 		})
 
-		It("validates profile exists before prompting to save existing installation", func() {
+		It("ignores --profile flag for existing installations", func() {
 			// Create an existing installation with content
 			env.CreateInstalledPlugins(map[string]interface{}{
 				"test-plugin@test-marketplace": []map[string]interface{}{
@@ -84,16 +84,27 @@ var _ = Describe("setup", func() {
 				},
 			})
 
-			// Try to setup with non-existent profile
+			// Run setup with a non-existent profile but existing installation
+			// The --profile flag should be ignored for existing installations
+			result := env.RunWithInput("c\n", "setup", "--profile", "nonexistent")
+
+			// Should succeed because --profile is ignored for existing installations
+			Expect(result.ExitCode).To(Equal(0))
+			// Should show existing installation prompt (not profile error)
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+		})
+
+		It("validates profile for fresh installations", func() {
+			// Don't create any existing installation content
+			// Just ensure the claude directory exists (setup creates it)
+
+			// Try to setup with non-existent profile on fresh install
 			result := env.Run("setup", "--profile", "nonexistent")
 
-			// Should fail immediately without prompting
+			// Should fail because the profile doesn't exist
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("profile \"nonexistent\" does not exist"))
 			Expect(result.Stderr).To(ContainSubstring("claudeup profile list"))
-			// Should NOT have prompted for saving
-			Expect(result.Stdout).NotTo(ContainSubstring("Save current setup"))
-			Expect(result.Stdout).NotTo(ContainSubstring("Profile name"))
 		})
 	})
 

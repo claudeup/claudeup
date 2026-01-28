@@ -67,15 +67,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to set up profiles: %w", err)
 	}
 
-	// Step 4: Validate requested profile exists (fail fast before prompts)
-	if _, err := profile.Load(profilesDir, setupProfile); err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
-		}
-		return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
-	}
-
-	// Step 5: Check for existing installation
+	// Step 4: Check for existing installation
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	// Derive claudeJSONPath: when using custom dir, .claude.json is inside it
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
@@ -152,9 +144,11 @@ func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir s
 
 // applyProfileForFreshInstall applies a profile for new Claude Code installations
 func applyProfileForFreshInstall(profilesDir string, claudeJSONPath string) error {
-	// Profile was already validated in runSetup, so this should succeed
 	p, err := profile.Load(profilesDir, setupProfile)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
+		}
 		return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
 	}
 
