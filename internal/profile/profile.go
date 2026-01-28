@@ -53,6 +53,57 @@ func (p *Profile) IsMultiScope() bool {
 	return p.PerScope != nil
 }
 
+// CombinedScopes returns a flat Profile combining all scopes (user + project + local).
+// This aggregates plugins and MCP servers from all scopes into single lists,
+// matching how Claude Code accumulates settings from user → project → local.
+// Useful for comparing a multi-scope profile against the combined system state.
+func (p *Profile) CombinedScopes() *Profile {
+	if p == nil {
+		return &Profile{}
+	}
+
+	result := &Profile{
+		Name:         p.Name,
+		Description:  p.Description,
+		Marketplaces: p.Marketplaces,
+	}
+
+	if p.PerScope == nil {
+		// Legacy profile - all data is already flat
+		result.Plugins = p.Plugins
+		result.MCPServers = p.MCPServers
+		return result
+	}
+
+	// Aggregate plugins from all scopes (use a set to avoid duplicates)
+	pluginSet := make(map[string]bool)
+	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
+		if scope != nil {
+			for _, plugin := range scope.Plugins {
+				pluginSet[plugin] = true
+			}
+		}
+	}
+	for plugin := range pluginSet {
+		result.Plugins = append(result.Plugins, plugin)
+	}
+
+	// Aggregate MCP servers from all scopes (later scopes override earlier)
+	serverMap := make(map[string]MCPServer)
+	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
+		if scope != nil {
+			for _, server := range scope.MCPServers {
+				serverMap[server.Name] = server
+			}
+		}
+	}
+	for _, server := range serverMap {
+		result.MCPServers = append(result.MCPServers, server)
+	}
+
+	return result
+}
+
 // ForScope returns a flat Profile containing only settings for the specified scope.
 // This is useful for applying a single scope from a multi-scope profile.
 // Marketplaces are always included since they're user-scoped.
@@ -68,7 +119,8 @@ func (p *Profile) ForScope(scope string) *Profile {
 	}
 
 	if p.PerScope == nil {
-		// Legacy profile - only "user" scope has data
+		// Legacy profile - all data is user-scoped.
+		// Multi-scope profiles should use PerScope for project/local data.
 		if scope == "user" {
 			result.Plugins = p.Plugins
 			result.MCPServers = p.MCPServers

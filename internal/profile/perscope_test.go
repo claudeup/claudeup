@@ -255,6 +255,82 @@ func TestForScope(t *testing.T) {
 	}
 }
 
+func TestCombinedScopes(t *testing.T) {
+	// Test multi-scope profile
+	multiProfile := &Profile{
+		Name: "test",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{"user-p1", "user-p2"},
+				MCPServers: []MCPServer{
+					{Name: "shared-mcp", Command: "user-cmd"},
+					{Name: "user-only-mcp", Command: "user-cmd"},
+				},
+			},
+			Project: &ScopeSettings{
+				Plugins: []string{"project-p1", "user-p1"}, // user-p1 is a duplicate
+				MCPServers: []MCPServer{
+					{Name: "shared-mcp", Command: "project-cmd"}, // overrides user-scope
+				},
+			},
+			Local: &ScopeSettings{
+				Plugins: []string{"local-p1"},
+			},
+		},
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "user/repo"},
+		},
+	}
+
+	combined := multiProfile.CombinedScopes()
+
+	// Should have unique plugins from all scopes (4 unique: user-p1, user-p2, project-p1, local-p1)
+	if len(combined.Plugins) != 4 {
+		t.Errorf("expected 4 unique plugins, got %d: %v", len(combined.Plugins), combined.Plugins)
+	}
+
+	// Should have 2 MCP servers (shared-mcp and user-only-mcp)
+	// shared-mcp should have project-cmd (later scope overrides)
+	if len(combined.MCPServers) != 2 {
+		t.Errorf("expected 2 MCP servers, got %d: %v", len(combined.MCPServers), combined.MCPServers)
+	}
+	for _, server := range combined.MCPServers {
+		if server.Name == "shared-mcp" && server.Command != "project-cmd" {
+			t.Errorf("expected shared-mcp to have project-cmd (override), got %s", server.Command)
+		}
+	}
+
+	// Marketplaces should be preserved
+	if len(combined.Marketplaces) != 1 {
+		t.Errorf("expected 1 marketplace, got %d", len(combined.Marketplaces))
+	}
+
+	// Test legacy profile (no PerScope)
+	legacyProfile := &Profile{
+		Name:       "legacy",
+		Plugins:    []string{"legacy-p1", "legacy-p2"},
+		MCPServers: []MCPServer{{Name: "legacy-mcp", Command: "cmd"}},
+	}
+
+	legacyCombined := legacyProfile.CombinedScopes()
+	if len(legacyCombined.Plugins) != 2 {
+		t.Errorf("expected 2 plugins for legacy profile, got %d", len(legacyCombined.Plugins))
+	}
+	if len(legacyCombined.MCPServers) != 1 {
+		t.Errorf("expected 1 MCP server for legacy profile, got %d", len(legacyCombined.MCPServers))
+	}
+
+	// Test nil profile
+	var nilProfile *Profile
+	nilCombined := nilProfile.CombinedScopes()
+	if nilCombined == nil {
+		t.Fatal("CombinedScopes() on nil profile should return empty profile, not nil")
+	}
+	if len(nilCombined.Plugins) != 0 {
+		t.Errorf("expected 0 plugins for nil profile, got %d", len(nilCombined.Plugins))
+	}
+}
+
 func TestOmitEmptyPerScope(t *testing.T) {
 	// Profile with nil PerScope should not include perScope in JSON
 	p := &Profile{

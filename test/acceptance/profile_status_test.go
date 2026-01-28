@@ -43,13 +43,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("Extra plugins drift", func() {
 		BeforeEach(func() {
-			// Create project profile with 2 plugins
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -93,13 +97,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("Missing plugins drift", func() {
 		BeforeEach(func() {
-			// Create project profile with 2 plugins
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -141,13 +149,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("Both extra and missing plugins", func() {
 		BeforeEach(func() {
-			// Create project profile with 2 plugins
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
@@ -229,13 +241,17 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("No drift", func() {
 		BeforeEach(func() {
-			// Create project profile
+			// Create multi-scope profile with project-scope plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				Plugins: []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{
+						Plugins: []string{
+							"plugin1@marketplace",
+							"plugin2@marketplace",
+						},
+					},
 				},
 			})
 
