@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/claude"
 )
 
 func TestSaveAndLoadProjectConfig(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/claudeup/claudeup/v2/internal/events"
-	"github.com/claudeup/claudeup/v2/test/helpers"
+	"github.com/claudeup/claudeup/v3/internal/events"
+	"github.com/claudeup/claudeup/v3/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

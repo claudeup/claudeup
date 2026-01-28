@@ -21,7 +21,7 @@ func (e *FormatVersionError) Error() string {
 This likely means your Claude CLI has been updated to a newer format.
 Please update claudeup:
 
-  go install github.com/claudeup/claudeup/v2@latest
+  go install github.com/claudeup/claudeup/v3@latest
 
 If the issue persists, please report at:
   https://github.com/claudeup/claudeup/issues`,

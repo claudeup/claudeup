@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
-	"github.com/claudeup/claudeup/v2/internal/mcp"
+	"github.com/claudeup/claudeup/v3/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/mcp"
 )
 
 // AcceptanceTestEnv represents a complete test environment with real directories

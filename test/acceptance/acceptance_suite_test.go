@@ -19,7 +19,7 @@ func TestAcceptance(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	var err error
-	binaryPath, err = gexec.Build("github.com/claudeup/claudeup/v2/cmd/claudeup")
+	binaryPath, err = gexec.Build("github.com/claudeup/claudeup/v3/cmd/claudeup")
 	Expect(err).NotTo(HaveOccurred())
 })
 

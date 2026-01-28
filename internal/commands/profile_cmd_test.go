@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/claudeup/claudeup/v2/internal/profile"
+	"github.com/claudeup/claudeup/v3/internal/profile"
 )
 
 func TestLoadProfileWithFallback_LoadsFromDiskFirst(t *testing.T) {

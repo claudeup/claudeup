@@ -12,9 +12,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
-	"github.com/claudeup/claudeup/v2/internal/profile"
-	"github.com/claudeup/claudeup/v2/internal/secrets"
+	"github.com/claudeup/claudeup/v3/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/profile"
+	"github.com/claudeup/claudeup/v3/internal/secrets"
 )
 
 // MockExecutor records commands for verification

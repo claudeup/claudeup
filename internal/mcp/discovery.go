@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/claude"
 )
 
 // ServerDefinition represents an MCP server configuration

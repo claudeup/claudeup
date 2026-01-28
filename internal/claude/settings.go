@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/claudeup/claudeup/v2/internal/events"
+	"github.com/claudeup/claudeup/v3/internal/events"
 )
 
 // canonicalKeyOrder defines the key order that Claude Code uses in settings.json.

@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/claudeup/claudeup/v2/internal/events"
+	"github.com/claudeup/claudeup/v3/internal/events"
 )
 
 // Profile represents a Claude Code configuration profile

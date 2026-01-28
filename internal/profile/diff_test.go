@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/claude"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

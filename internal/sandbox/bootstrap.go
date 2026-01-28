@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/claudeup/claudeup/v2/internal/profile"
+	"github.com/claudeup/claudeup/v3/internal/profile"
 )
 
 const sentinelFile = ".bootstrapped"

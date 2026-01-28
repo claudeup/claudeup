@@ -11,7 +11,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/claudeup/claudeup/v2/internal/config"
+	"github.com/claudeup/claudeup/v3/internal/config"
 )
 
 // ErrUserCancelled is returned when user cancels a prompt with Ctrl+C

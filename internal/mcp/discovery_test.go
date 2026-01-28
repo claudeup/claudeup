@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/claude"
 )
 
 func TestDiscoverMCPServers(t *testing.T) {

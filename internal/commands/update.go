@@ -5,8 +5,8 @@ package commands
 import (
 	"fmt"
 
-	"github.com/claudeup/claudeup/v2/internal/selfupdate"
-	"github.com/claudeup/claudeup/v2/internal/ui"
+	"github.com/claudeup/claudeup/v3/internal/selfupdate"
+	"github.com/claudeup/claudeup/v3/internal/ui"
 	"github.com/spf13/cobra"
 )
 

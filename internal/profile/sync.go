@@ -5,7 +5,7 @@ package profile
 import (
 	"fmt"
 
-	"github.com/claudeup/claudeup/v2/internal/secrets"
+	"github.com/claudeup/claudeup/v3/internal/secrets"
 )
 
 // SyncResult contains the results of syncing from .claudeup.json

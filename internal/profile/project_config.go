@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/claudeup/claudeup/v2/internal/claude"
-	"github.com/claudeup/claudeup/v2/internal/events"
+	"github.com/claudeup/claudeup/v3/internal/claude"
+	"github.com/claudeup/claudeup/v3/internal/events"
 )
 
 // ProjectConfigFile is the filename for project-level profile configuration
