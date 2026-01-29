@@ -14,6 +14,7 @@ type SyncResult struct {
 	PluginsInstalled  int
 	PluginsSkipped    int
 	MarketplacesAdded []string
+	Warnings          []string // Non-fatal issues (e.g., embedded marketplace failures)
 	Errors            []error
 }
 
@@ -86,8 +87,11 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 		} else if strings.Contains(output, "already installed") {
 			// Already installed is fine, just don't add to MarketplacesAdded
+		} else {
+			// Track as warning - these are best-effort additions, not fatal errors
+			result.Warnings = append(result.Warnings,
+				fmt.Sprintf("embedded marketplace %s: %v", key, err))
 		}
-		// Other errors are silently ignored - these are best-effort additions
 	}
 
 	// 2. Add marketplaces from the profile (needed to resolve plugin names)

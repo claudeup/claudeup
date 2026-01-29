@@ -2622,6 +2622,14 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if len(result.Warnings) > 0 {
+		fmt.Println()
+		ui.PrintInfo("Notes:")
+		for _, warning := range result.Warnings {
+			fmt.Printf("  - %s\n", warning)
+		}
+	}
+
 	if !profileSyncDryRun && len(result.Errors) == 0 {
 		fmt.Println()
 		ui.PrintSuccess("Sync complete!")
