@@ -184,7 +184,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 		if len(missingPlugins) > 0 {
 			if activeProfile != "" && activeProfile != "none" {
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold("claudeup profile sync"))), 1))
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold("claudeup profile apply"))), 1))
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or remove from settings: "+ui.Bold("claudeup profile clean <plugin-name>")), 1))
 			} else {
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install missing plugins: "+ui.Bold("claude plugin install <name>")), 1))

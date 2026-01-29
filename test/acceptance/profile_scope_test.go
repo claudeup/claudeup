@@ -79,15 +79,15 @@ var _ = Describe("profile apply --scope", func() {
 			Expect(result.Stdout).To(ContainSubstring(".claudeup/"))
 		})
 
-		Context("team member sync workflow", func() {
-			It("allows sync using project profile", func() {
+		Context("team member apply workflow", func() {
+			It("allows apply using project profile", func() {
 				// Step 1: Team lead applies profile at project scope
 				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 				Expect(result.ExitCode).To(Equal(0))
 
-				// Step 2: Team member runs sync with explicit profile name
-				syncResult := env.RunInDir(projectDir, "profile", "sync", "test-profile", "-y")
-				Expect(syncResult.ExitCode).To(Equal(0))
+				// Step 2: Team member runs apply with explicit profile name
+				applyResult := env.RunInDir(projectDir, "profile", "apply", "test-profile", "-y")
+				Expect(applyResult.ExitCode).To(Equal(0))
 			})
 		})
 

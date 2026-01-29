@@ -74,10 +74,13 @@ Use 'claudeup profile status <name>' to see profile contents.`,
 }
 
 var profileApplyCmd = &cobra.Command{
-	Use:     "apply <name>",
+	Use:     "apply [name]",
 	Aliases: []string{"use"},
 	Short:   "Apply a profile to Claude Code",
 	Long: `Apply a profile's configuration to your Claude Code installation.
+
+If no profile name is given, applies the currently active profile. This is
+useful for syncing after pulling changes or reinstalling plugins.
 
 SCOPES:
   --scope project  Apply to current project (.claude/settings.json)
@@ -89,14 +92,23 @@ REPLACE MODE:
                    By default, user-scope plugins are preserved (additive).
                    Project and local scopes are always replaced.
 
+DRY RUN:
+  --dry-run        Show what would change without making any modifications.
+
 Precedence: local > project > user. Plugins from all scopes are active simultaneously.
 
 For team projects, use --scope project to create a shareable configuration that
-teammates can sync with 'claudeup profile sync'.
+teammates can apply with 'claudeup profile apply'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
-	Example: `  # Apply profile (adds to existing user config)
+	Example: `  # Apply active profile (useful after git pull)
+  claudeup profile apply
+
+  # Apply profile (adds to existing user config)
   claudeup profile apply backend-stack
+
+  # Preview changes without applying
+  claudeup profile apply backend-stack --dry-run
 
   # Replace user-scope config with profile
   claudeup profile apply backend-stack --replace
@@ -109,7 +121,7 @@ Shows a diff of changes before applying. Prompts for confirmation unless -y is u
 
   # Force the post-apply setup wizard to run
   claudeup profile apply my-profile --setup`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileApply,
 }
 
@@ -305,20 +317,6 @@ will be updated to point to the new name.`,
 	RunE: runProfileRename,
 }
 
-var profileSyncCmd = &cobra.Command{
-	Use:   "sync [profile-name]",
-	Short: "Sync plugins from a profile",
-	Long: `Install plugins defined in a profile.
-
-This command installs plugins and applies settings from a profile.
-If no profile name is provided, uses the currently active profile.
-
-MCP servers from .mcp.json are loaded automatically by Claude Code.
-This command syncs plugins that require explicit installation.`,
-	Args: cobra.MaximumNArgs(1),
-	RunE: runProfileSync,
-}
-
 // Flags for profile apply command
 var (
 	profileApplySetup         bool
@@ -328,12 +326,7 @@ var (
 	profileApplyReinstall     bool
 	profileApplyNoProgress    bool
 	profileApplyReplace       bool
-)
-
-// Flags for profile sync command
-var (
-	profileSyncDryRun  bool
-	profileSyncReplace bool
+	profileApplyDryRun        bool
 )
 
 // Flags for profile save command
@@ -513,7 +506,6 @@ func init() {
 	profileCmd.AddCommand(profileDeleteCmd)
 	profileCmd.AddCommand(profileRestoreCmd)
 	profileCmd.AddCommand(profileRenameCmd)
-	profileCmd.AddCommand(profileSyncCmd)
 	profileCmd.AddCommand(profileCleanCmd)
 
 	// Add flags to profile create command
@@ -538,14 +530,11 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
 	profileCleanCmd.MarkFlagRequired("scope")
-
-	// Add flags to profile sync command
-	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
-	profileSyncCmd.Flags().BoolVar(&profileSyncReplace, "replace", false, "Replace user-scope settings (default: additive)")
 
 	// Add flags to profile list command
 	profileListCmd.Flags().StringVar(&profileListScope, "scope", "", "Show only the profile active at specified scope: user, project, local")
@@ -740,15 +729,26 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 }
 
 func runProfileApply(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	cwd, _ := os.Getwd()
+
+	// Determine profile name: from argument or active profile
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		// Get currently active profile
+		name, _ = getActiveProfile(cwd)
+		if name == "" {
+			return fmt.Errorf("no profile specified and no active profile found.\nUse 'claudeup profile apply <name>' to apply a profile first")
+		}
+		ui.PrintInfo(fmt.Sprintf("Using active profile: %s", name))
+		fmt.Println()
+	}
 
 	// "current" is reserved as a keyword for the active profile
 	if name == "current" {
 		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile show current' to see the active profile")
 	}
-
-	// Determine scope from flag or auto-detect
-	cwd, _ := os.Getwd()
 	var scope profile.Scope
 
 	if profileApplyScope != "" {
@@ -916,6 +916,12 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		}
 		fmt.Println()
 
+		// Dry run mode: show what would change, then exit
+		if profileApplyDryRun {
+			ui.PrintInfo("Dry run - no changes made")
+			return nil
+		}
+
 		// Skip confirmation if using --force flag
 		if !profileApplyForce && !confirmProceed() {
 			ui.PrintMuted("Cancelled.")
@@ -925,6 +931,10 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		// No changes, but hook needs to run
 		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 		fmt.Println()
+		if profileApplyDryRun {
+			ui.PrintInfo("Dry run - no changes would be made")
+			return nil
+		}
 		ui.PrintInfo("No configuration changes needed.")
 		if profileApplySetup {
 			fmt.Println("Running setup wizard...")
@@ -2326,87 +2336,6 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Renamed profile %q to %q", oldName, newName))
-
-	return nil
-}
-
-func runProfileSync(cmd *cobra.Command, args []string) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	// Determine profile name: from argument or active profile
-	var profileName string
-	if len(args) > 0 {
-		profileName = args[0]
-	} else {
-		// Get currently active profile
-		profileName, _ = getActiveProfile(cwd)
-		if profileName == "" {
-			return fmt.Errorf("no profile specified and no active profile found.\nUse 'claudeup profile sync <name>' or 'claudeup profile apply <name>' first")
-		}
-		ui.PrintInfo(fmt.Sprintf("Using active profile: %s", profileName))
-		fmt.Println()
-	}
-
-	opts := profile.SyncOptions{
-		DryRun:           profileSyncDryRun,
-		ReplaceUserScope: profileSyncReplace,
-	}
-
-	// Add progress callbacks when not in dry-run mode
-	if !profileSyncDryRun {
-		opts.Progress = ui.PluginProgress()
-		opts.MarketplaceProgress = ui.MarketplaceProgress()
-	}
-
-	if profileSyncDryRun {
-		ui.PrintInfo("Dry run - no changes will be made")
-		fmt.Println()
-	}
-
-	profilesDir := getProfilesDir()
-	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-	result, err := profile.Sync(profilesDir, cwd, claudeDir, claudeJSONPath, profileName, opts)
-	if err != nil {
-		return err
-	}
-
-	// Show results
-	if profileSyncDryRun {
-		fmt.Println("Would sync:")
-	} else {
-		fmt.Printf("Synced profile: %s\n", ui.Bold(result.ProfileName))
-	}
-
-	if result.ProfileCreated && !profileSyncDryRun {
-		fmt.Printf("  Profile saved locally\n")
-	}
-	if result.PluginsInstalled > 0 {
-		fmt.Printf("  Plugins configured: %d\n", result.PluginsInstalled)
-	}
-
-	if len(result.Errors) > 0 {
-		fmt.Println()
-		ui.PrintWarning("Some items failed to sync:")
-		for _, err := range result.Errors {
-			fmt.Printf("  - %v\n", err)
-		}
-	}
-
-	if len(result.Warnings) > 0 {
-		fmt.Println()
-		ui.PrintInfo("Notes:")
-		for _, warning := range result.Warnings {
-			fmt.Printf("  - %s\n", warning)
-		}
-	}
-
-	if !profileSyncDryRun && len(result.Errors) == 0 {
-		fmt.Println()
-		ui.PrintSuccess("Sync complete!")
-	}
 
 	return nil
 }
