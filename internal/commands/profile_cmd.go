@@ -46,16 +46,10 @@ var profileListCmd = &cobra.Command{
 INDICATORS:
   *            Active profile with highest precedence (this is what Claude Code uses)
   ○            Active profile at lower precedence scope (overridden, not in effect)
-  [scope]      Scope where profile is active (project/local/user)
   (customized) Built-in profile has been modified and saved locally
-  (modified)   Active profile's effective configuration differs from saved definition
-
-The (modified) indicator only appears on the highest precedence profile (*).
-It compares the saved profile against the EFFECTIVE configuration, which
-combines all scopes: user → project → local (later scopes override earlier).
 
 SCOPE PRECEDENCE:
-  project > local > user
+  local > project > user
 
 Multiple profiles can be active at different scopes, but only the highest
 precedence profile affects Claude Code's behavior. Lower precedence profiles
@@ -70,11 +64,11 @@ Note: --scope project and --scope local require the corresponding
 .claude/settings.json or .claude/settings.local.json file to exist.
 
 Example: If "base-tools" is active at user scope but "claudeup" is
-active at project scope in ~/claudeup/, you'll see:
-  * claudeup    [project] (modified)  ← This is what Claude Code uses
-  ○ base-tools  [user]                ← Overridden, not in effect
+active at local scope in ~/claudeup/, you'll see:
+  * claudeup    [local]   ← This is what Claude Code uses
+  ○ base-tools  [user]    ← Overridden, not in effect
 
-Use 'claudeup profile status' to see how profiles differ from your current setup.`,
+Use 'claudeup profile status <name>' to see profile contents.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
@@ -86,7 +80,7 @@ var profileApplyCmd = &cobra.Command{
 	Long: `Apply a profile's configuration to your Claude Code installation.
 
 SCOPES:
-  --scope project  Apply to current project (creates .claudeup.json for team sharing)
+  --scope project  Apply to current project (.claude/settings.json)
   --scope local    Apply to current project, but not shared (personal overrides)
   --scope user     Apply globally to ~/.claude/ (default, affects all projects)
 
@@ -196,19 +190,16 @@ var profileShowCmd = &cobra.Command{
 
 var profileStatusCmd = &cobra.Command{
 	Use:   "status [name]",
-	Short: "Show differences between profile and current state by scope",
-	Long: `Display how a profile differs from current state, broken down by scope.
+	Short: "Show profile contents and activation status",
+	Long: `Display the contents of a profile.
 
 Shows:
-  - Which scope the profile is active in
-  - Differences at each scope (user, project, local)
-  - Effective configuration (all scopes combined)
+  - Which scope the profile is active in (if any)
+  - Plugins in the profile
+  - MCP servers in the profile
+  - Marketplaces in the profile
 
-If no name is given, uses the currently active profile.
-
-This helps distinguish between:
-  - Profile modifications at the active scope (profile truly changed)
-  - Scope layering (user/project/local scopes adding to the profile)`,
+If no name is given, uses the currently active profile.`,
 	Example: `  # Show status for active profile
   claudeup profile status
 
@@ -1259,7 +1250,6 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 func runProfileStatus(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
-	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Determine profile name
 	var name string
@@ -1294,173 +1284,41 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 	if activeScope != "" {
 		fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("[active at %s scope]", activeScope)))
+	} else {
+		fmt.Printf("  %s\n", ui.Muted("[not currently active]"))
 	}
 	fmt.Println()
 
-	// Compare the active scope against the profile
-	if activeScope != "" {
-		diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, cwd, activeScope)
-		if err == nil {
-			scopeLabel := fmt.Sprintf("%s scope (%s)", activeScope, getScopeFile(activeScope, claudeDir))
-			if !diff.HasSignificantChanges() {
-				fmt.Printf("%s %s\n", ui.Success("✓"), ui.Bold(scopeLabel))
-				scopeProfile := savedProfile.ForScope(activeScope)
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches saved profile (%d plugins)", len(scopeProfile.Plugins))))
-			} else {
-				fmt.Printf("%s %s\n", ui.Warning("○"), ui.Bold(scopeLabel))
-				if len(diff.PluginsAdded) > 0 {
-					fmt.Printf("  %s\n", ui.Success(fmt.Sprintf("%d additional plugin%s:", len(diff.PluginsAdded), pluralS(len(diff.PluginsAdded)))))
-					for _, p := range diff.PluginsAdded {
-						fmt.Printf("    + %s\n", p)
-					}
-				}
-				if len(diff.PluginsRemoved) > 0 {
-					fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("%d missing plugin%s:", len(diff.PluginsRemoved), pluralS(len(diff.PluginsRemoved)))))
-					for _, p := range diff.PluginsRemoved {
-						fmt.Printf("    - %s\n", p)
-					}
-				}
+	// Show profile contents
+	combinedProfile := savedProfile.CombinedScopes()
 
-				// Show actionable guidance based on drift type
-				fmt.Println()
-				hasExtra := len(diff.PluginsAdded) > 0
-				hasMissing := len(diff.PluginsRemoved) > 0
-
-				if hasExtra && hasMissing {
-					// Both types of drift
-					fmt.Printf("  %s Reset to profile (removes extra, installs missing):\n", ui.Muted(ui.SymbolArrow))
-					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --replace", name, activeScope)))
-				} else if hasExtra {
-					// Only extra plugins
-					fmt.Printf("  %s Remove extra plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsAdded)))
-					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --replace", name, activeScope)))
-					if len(diff.PluginsAdded) == 1 {
-						fmt.Printf("  %s Or remove specific plugin:\n", ui.Muted(ui.SymbolArrow))
-						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s %s", activeScope, diff.PluginsAdded[0])))
-					} else {
-						fmt.Printf("  %s Or remove specific plugins:\n", ui.Muted(ui.SymbolArrow))
-						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s <plugin>", activeScope)))
-					}
-				} else if hasMissing {
-					// Only missing plugins
-					if activeScope == "project" {
-						fmt.Printf("  %s Install missing plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsRemoved)))
-						fmt.Printf("    %s\n", ui.Bold("claudeup profile sync"))
-					} else {
-						fmt.Printf("  %s Install missing plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsRemoved)))
-						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s", name, activeScope)))
-					}
-				}
-			}
-			fmt.Println()
-		}
+	// Plugins
+	fmt.Println(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(combinedProfile.Plugins))))
+	for _, p := range combinedProfile.Plugins {
+		fmt.Printf("  • %s\n", p)
 	}
-
-	// For other scopes, show what they're adding on top
-	scopes := []string{"user", "project", "local"}
-	for _, scope := range scopes {
-		if scope == activeScope {
-			continue // Already showed this above
-		}
-
-		// Get snapshot of just this scope
-		scopeSnapshot, err := profile.SnapshotWithScope("", claudeDir, claudeJSONPath, profile.SnapshotOptions{
-			Scope:      scope,
-			ProjectDir: cwd,
-		})
-		if err != nil {
-			continue
-		}
-
-		scopeLabel := fmt.Sprintf("%s scope (%s)", scope, getScopeFile(scope, claudeDir))
-
-		// Get what the profile defines for this scope
-		profileForScope := savedProfile.ForScope(scope)
-		profilePluginSet := make(map[string]bool)
-		for _, p := range profileForScope.Plugins {
-			profilePluginSet[p] = true
-		}
-
-		// Categorize current plugins: in profile vs extra
-		var inProfile, extra []string
-		currentPluginSet := make(map[string]bool)
-		for _, p := range scopeSnapshot.Plugins {
-			currentPluginSet[p] = true
-			if profilePluginSet[p] {
-				inProfile = append(inProfile, p)
-			} else {
-				extra = append(extra, p)
-			}
-		}
-
-		// Find missing plugins (in profile but not in current settings)
-		var missing []string
-		for _, p := range profileForScope.Plugins {
-			if !currentPluginSet[p] {
-				missing = append(missing, p)
-			}
-		}
-
-		// Show what this scope adds
-		if len(scopeSnapshot.Plugins) > 0 || len(missing) > 0 {
-			if len(extra) == 0 && len(missing) == 0 {
-				// All plugins match profile exactly
-				fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches profile (%d plugins)", len(inProfile))))
-			} else {
-				fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
-				// Build summary
-				if len(inProfile) > 0 || len(extra) > 0 || len(missing) > 0 {
-					parts := []string{}
-					if len(inProfile) > 0 {
-						parts = append(parts, fmt.Sprintf("%d from profile", len(inProfile)))
-					}
-					if len(extra) > 0 {
-						parts = append(parts, fmt.Sprintf("%d extra", len(extra)))
-					}
-					if len(missing) > 0 {
-						parts = append(parts, fmt.Sprintf("%d missing", len(missing)))
-					}
-					fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (%s):",
-						len(scopeSnapshot.Plugins), pluralS(len(scopeSnapshot.Plugins)), strings.Join(parts, ", "))))
-				}
-				for _, p := range extra {
-					fmt.Printf("    + %s %s\n", p, ui.Warning("(extra)"))
-				}
-				for _, p := range missing {
-					fmt.Printf("    - %s %s\n", p, ui.Warning("(missing)"))
-				}
-			}
-		} else {
-			fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
-			fmt.Printf("  %s\n", ui.Muted("No additional plugins"))
-		}
-
-		fmt.Println()
+	if len(combinedProfile.Plugins) == 0 {
+		fmt.Printf("  %s\n", ui.Muted("(none)"))
 	}
+	fmt.Println()
 
-	// Show effective configuration (all scopes combined)
-	combinedDiff, err := profile.CompareWithCombinedScopes(savedProfile, claudeDir, claudeJSONPath, cwd)
-	if err != nil {
-		return fmt.Errorf("failed to compare combined scopes: %w", err)
+	// MCP Servers
+	fmt.Println(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(combinedProfile.MCPServers))))
+	for _, s := range combinedProfile.MCPServers {
+		fmt.Printf("  • %s\n", s.Name)
 	}
+	if len(combinedProfile.MCPServers) == 0 {
+		fmt.Printf("  %s\n", ui.Muted("(none)"))
+	}
+	fmt.Println()
 
-	fmt.Println(ui.RenderDetail("Effective configuration", "(all scopes combined)"))
-	if !combinedDiff.HasSignificantChanges() {
-		fmt.Printf("  %s\n", ui.Success("✓ Matches saved profile"))
-	} else {
-		// Use all plugins from the profile (across all scopes) for the count
-		combinedSaved := savedProfile.CombinedScopes()
-		profilePlugins := len(combinedSaved.Plugins)
-		effectivePlugins := profilePlugins + len(combinedDiff.PluginsAdded) - len(combinedDiff.PluginsRemoved)
-		fmt.Printf("  %d plugins total (%d from profile", effectivePlugins, profilePlugins)
-		if len(combinedDiff.PluginsAdded) > 0 {
-			fmt.Printf(" + %d not in profile", len(combinedDiff.PluginsAdded))
-		}
-		if len(combinedDiff.PluginsRemoved) > 0 {
-			fmt.Printf(" - %d missing", len(combinedDiff.PluginsRemoved))
-		}
-		fmt.Println(")")
+	// Marketplaces
+	fmt.Println(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(savedProfile.Marketplaces))))
+	for _, m := range savedProfile.Marketplaces {
+		fmt.Printf("  • %s\n", m.DisplayName())
+	}
+	if len(savedProfile.Marketplaces) == 0 {
+		fmt.Printf("  %s\n", ui.Muted("(none)"))
 	}
 	fmt.Println()
 
