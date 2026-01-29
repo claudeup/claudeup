@@ -272,9 +272,13 @@ claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `set
 ### When Claude CLI Format Changes
 
 1. **Smoke tests fail** - You'll see failures when your local Claude updates
+
 2. **Investigate changes** - Examine actual file structure: `cat ~/.claude/plugins/installed_plugins.json | jq .`
+
 3. **Update validation** - Add new version support in `internal/claude/validation.go`
+
 4. **Update migration** - Extend `LoadPlugins()` to handle new version
+
 5. **Update error messages** - Change supported version range in validation
 
 See `plans/2025-12-17-claude-format-resilience-design.md` for full architecture details.
