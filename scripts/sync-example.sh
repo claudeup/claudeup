@@ -115,11 +115,11 @@ echo ""
 cat > "$PROJECT_DIR/.claude/settings.json" << 'SETTINGS'
 {
   "enabledPlugins": {
-    "existing-plugin@marketplace": true
+    "shell-scripting@claude-code-workflows": true
   }
 }
 SETTINGS
-echo "Created project settings with existing-plugin"
+echo "Created project settings with shell-scripting plugin"
 
 # Create .claudeup.json pointing to a profile that doesn't exist
 cat > "$PROJECT_DIR/.claudeup.json" << 'CONFIG'
@@ -164,8 +164,8 @@ fi
 echo "✓ Profile was created: $CLAUDEUP_HOME/profiles/bootstrapped-profile.json"
 
 # Verify the bootstrapped profile captured the existing plugin
-if ! jq -e '.perScope.project.plugins | index("existing-plugin@marketplace")' "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json" > /dev/null 2>&1; then
-  echo "✗ ERROR: Bootstrapped profile should contain existing-plugin"
+if ! jq -e '.perScope.project.plugins | index("shell-scripting@claude-code-workflows")' "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json" > /dev/null 2>&1; then
+  echo "✗ ERROR: Bootstrapped profile should contain shell-scripting plugin"
   cat "$CLAUDEUP_HOME/profiles/bootstrapped-profile.json"
   exit 1
 fi
@@ -414,8 +414,8 @@ cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 {
   "enabledPlugins": {
     "superpowers@superpowers-marketplace": true,
-    "extra-plugin-1@marketplace": true,
-    "extra-plugin-2@marketplace": true
+    "python-development@claude-code-workflows": true,
+    "systems-programming@claude-code-workflows": true
   }
 }
 SETTINGS
@@ -446,17 +446,17 @@ fi
 echo ""
 echo "✓ Extra plugins removed with --replace (user scope now has 1 plugin)"
 
-if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "extra-plugin-1@marketplace"; then
-  echo "✗ ERROR: extra-plugin-1 should have been removed"
+if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "python-development@claude-code-workflows"; then
+  echo "✗ ERROR: python-development should have been removed"
   exit 1
 fi
-echo "✓ extra-plugin-1 was removed"
+echo "✓ python-development was removed"
 
-if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "extra-plugin-2@marketplace"; then
-  echo "✗ ERROR: extra-plugin-2 should have been removed"
+if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "systems-programming@claude-code-workflows"; then
+  echo "✗ ERROR: systems-programming should have been removed"
   exit 1
 fi
-echo "✓ extra-plugin-2 was removed"
+echo "✓ systems-programming was removed"
 
 echo ""
 echo "Test 3 PASSED: Sync --replace removes extra plugins at user scope"
@@ -474,8 +474,8 @@ echo ""
 cat > "$CLAUDE_CONFIG_DIR/settings.json" << 'SETTINGS'
 {
   "enabledPlugins": {
-    "extra-plugin-a@marketplace": true,
-    "extra-plugin-b@marketplace": true
+    "web-scripting@claude-code-workflows": true,
+    "shell-scripting@claude-code-workflows": true
   }
 }
 SETTINGS
@@ -506,17 +506,17 @@ fi
 echo ""
 echo "✓ Additive mode preserved extra plugins (3 total)"
 
-if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "extra-plugin-a@marketplace"; then
-  echo "✗ ERROR: extra-plugin-a should have been preserved"
+if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "web-scripting@claude-code-workflows"; then
+  echo "✗ ERROR: web-scripting should have been preserved"
   exit 1
 fi
-echo "✓ extra-plugin-a was preserved"
+echo "✓ web-scripting was preserved"
 
-if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "extra-plugin-b@marketplace"; then
-  echo "✗ ERROR: extra-plugin-b should have been preserved"
+if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "shell-scripting@claude-code-workflows"; then
+  echo "✗ ERROR: shell-scripting should have been preserved"
   exit 1
 fi
-echo "✓ extra-plugin-b was preserved"
+echo "✓ shell-scripting was preserved"
 
 if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "superpowers@superpowers-marketplace"; then
   echo "✗ ERROR: Profile plugin should have been added"
@@ -594,15 +594,15 @@ cat > "$CLAUDEUP_HOME/profiles/team-backend.json" << 'PROFILE'
   "description": "User version of team profile",
   "perScope": {
     "user": {
-      "plugins": ["user-only-plugin@marketplace"]
+      "plugins": ["python-development@claude-code-workflows"]
     },
     "project": {
-      "plugins": ["user-project-plugin@marketplace"]
+      "plugins": ["systems-programming@claude-code-workflows"]
     }
   }
 }
 PROFILE
-echo "Created USER profile with: user-only-plugin, user-project-plugin"
+echo "Created USER profile with: python-development (user), systems-programming (project)"
 echo "  $CLAUDEUP_HOME/profiles/team-backend.json"
 
 # Create PROJECT profile with DIFFERENT plugins (this should win)
@@ -612,15 +612,15 @@ cat > "$PROJECT_DIR/.claudeup/profiles/team-backend.json" << 'PROFILE'
   "description": "Project version of team profile (should take precedence)",
   "perScope": {
     "user": {
-      "plugins": ["project-user-plugin@marketplace"]
+      "plugins": ["superpowers@superpowers-marketplace"]
     },
     "project": {
-      "plugins": ["project-project-plugin@marketplace"]
+      "plugins": ["backend-development@claude-code-workflows"]
     }
   }
 }
 PROFILE
-echo "Created PROJECT profile with: project-user-plugin, project-project-plugin"
+echo "Created PROJECT profile with: superpowers (user), backend-development (project)"
 echo "  $PROJECT_DIR/.claudeup/profiles/team-backend.json"
 
 # Create .claudeup.json
@@ -649,40 +649,40 @@ echo ""
 echo "Verifying project profile took precedence..."
 
 # Check that project profile's user-scope plugin was applied
-if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "project-user-plugin@marketplace"; then
-  echo "✗ ERROR: project-user-plugin should have been installed (from project profile)"
+if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "superpowers@superpowers-marketplace"; then
+  echo "✗ ERROR: superpowers should have been installed (from project profile)"
   exit 1
 fi
-echo "✓ project-user-plugin was installed (from project profile)"
+echo "✓ superpowers was installed (from project profile)"
 
 # Check that user profile's user-scope plugin was NOT applied
-if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "user-only-plugin@marketplace"; then
-  echo "✗ ERROR: user-only-plugin should NOT have been installed (from user profile)"
+if verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "python-development@claude-code-workflows"; then
+  echo "✗ ERROR: python-development should NOT have been installed (from user profile)"
   exit 1
 fi
-echo "✓ user-only-plugin was NOT installed (user profile was not used)"
+echo "✓ python-development was NOT installed (user profile was not used)"
 
 # Check that project profile's project-scope plugin was applied
-if ! verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "project-project-plugin@marketplace"; then
-  echo "✗ ERROR: project-project-plugin should have been installed (from project profile)"
+if ! verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "backend-development@claude-code-workflows"; then
+  echo "✗ ERROR: backend-development should have been installed (from project profile)"
   exit 1
 fi
-echo "✓ project-project-plugin was installed (from project profile)"
+echo "✓ backend-development was installed (from project profile)"
 
 # Check that user profile's project-scope plugin was NOT applied
-if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "user-project-plugin@marketplace"; then
-  echo "✗ ERROR: user-project-plugin should NOT have been installed (from user profile)"
+if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "systems-programming@claude-code-workflows"; then
+  echo "✗ ERROR: systems-programming should NOT have been installed (from user profile)"
   exit 1
 fi
-echo "✓ user-project-plugin was NOT installed (user profile was not used)"
+echo "✓ systems-programming was NOT installed (user profile was not used)"
 
 # Verify user profile was updated to match project profile
 echo ""
 echo "Verifying user profile was updated to match project profile..."
 USER_PROFILE_PLUGINS=$(jq -r '.perScope.user.plugins[]' "$CLAUDEUP_HOME/profiles/team-backend.json" 2>/dev/null)
-if [[ "$USER_PROFILE_PLUGINS" != "project-user-plugin@marketplace" ]]; then
+if [[ "$USER_PROFILE_PLUGINS" != "superpowers@superpowers-marketplace" ]]; then
   echo "✗ ERROR: User profile should have been updated to match project profile"
-  echo "  Expected: project-user-plugin@marketplace"
+  echo "  Expected: superpowers@superpowers-marketplace"
   echo "  Got: $USER_PROFILE_PLUGINS"
   exit 1
 fi
@@ -690,6 +690,116 @@ echo "✓ User profile was updated to match project profile"
 
 echo ""
 echo "Test 6 PASSED: Project profile takes precedence over user profile"
+
+# =============================================================================
+# TEST 7: Empty plugin list clears stale settings (ReplaceUserScope semantics)
+# =============================================================================
+
+section "Test 7: Empty plugin list clears stale settings"
+
+echo "Scenario: Profile intentionally has empty project scope plugins."
+echo "With --replace semantics, stale project-scope plugins should be removed."
+echo "This tests the fix for: empty plugin list should write empty settings."
+echo ""
+
+# Reset state
+rm -f "$CLAUDE_CONFIG_DIR/settings.json"
+rm -f "$PROJECT_DIR/.claude/settings.json"
+rm -f "$CLAUDEUP_HOME/profiles/minimal-profile.json"
+rm -f "$PROJECT_DIR/.claudeup/profiles/minimal-profile.json"
+mkdir -p "$PROJECT_DIR/.claude"
+mkdir -p "$PROJECT_DIR/.claudeup/profiles"
+
+# Create STALE project-scope plugins (should be removed by sync)
+cat > "$PROJECT_DIR/.claude/settings.json" << 'SETTINGS'
+{
+  "enabledPlugins": {
+    "python-development@claude-code-workflows": true,
+    "web-scripting@claude-code-workflows": true
+  }
+}
+SETTINGS
+echo "Created stale project-scope plugins:"
+check_plugins "$PROJECT_DIR/.claude/settings.json" "Project scope (BEFORE sync)"
+
+# Create profile with EMPTY project-scope plugins (intentionally empty)
+cat > "$PROJECT_DIR/.claudeup/profiles/minimal-profile.json" << 'PROFILE'
+{
+  "name": "minimal-profile",
+  "description": "Profile with intentionally empty project scope",
+  "perScope": {
+    "user": {
+      "plugins": ["code-review-ai@claude-code-workflows"]
+    },
+    "project": {
+      "plugins": []
+    }
+  }
+}
+PROFILE
+echo ""
+echo "Created profile with:"
+echo "  • user scope: code-review-ai"
+echo "  • project scope: [] (intentionally empty)"
+
+# Create .claudeup.json
+cat > "$PROJECT_DIR/.claudeup.json" << 'CONFIG'
+{
+  "version": "1",
+  "profile": "minimal-profile"
+}
+CONFIG
+
+# Run sync (project scope is always declarative - should clear stale plugins)
+echo ""
+echo "Running: claudeup profile sync -y"
+pushd "$PROJECT_DIR" > /dev/null
+$CLAUDEUP profile sync -y
+popd > /dev/null
+
+echo ""
+echo "After sync:"
+check_plugins "$PROJECT_DIR/.claude/settings.json" "Project scope (AFTER sync)"
+
+# Verify stale plugins were REMOVED (project scope is declarative)
+if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "python-development@claude-code-workflows"; then
+  echo ""
+  echo "✗ ERROR: python-development should have been REMOVED"
+  echo "  BUG: Empty plugin list did not clear stale settings"
+  exit 1
+fi
+echo ""
+echo "✓ python-development was removed (stale plugin cleared)"
+
+if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "web-scripting@claude-code-workflows"; then
+  echo "✗ ERROR: web-scripting should have been REMOVED"
+  exit 1
+fi
+echo "✓ web-scripting was removed (stale plugin cleared)"
+
+# Verify project settings file exists but has empty enabledPlugins
+if [[ ! -f "$PROJECT_DIR/.claude/settings.json" ]]; then
+  echo "✗ ERROR: Project settings.json should exist (even if empty)"
+  exit 1
+fi
+echo "✓ Project settings.json exists"
+
+PROJECT_PLUGIN_COUNT=$(jq '.enabledPlugins | length' "$PROJECT_DIR/.claude/settings.json" 2>/dev/null || echo "0")
+if [[ "$PROJECT_PLUGIN_COUNT" -ne 0 ]]; then
+  echo "✗ ERROR: Project scope should have 0 plugins, got $PROJECT_PLUGIN_COUNT"
+  exit 1
+fi
+echo "✓ Project scope has 0 plugins (as intended by profile)"
+
+# Verify user scope got its plugin
+if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "code-review-ai@claude-code-workflows"; then
+  echo "✗ ERROR: code-review-ai should have been installed at user scope"
+  exit 1
+fi
+echo "✓ User scope plugin was installed (code-review-ai)"
+
+echo ""
+echo "Test 7 PASSED: Empty plugin list clears stale settings"
 
 # =============================================================================
 # Summary
@@ -706,6 +816,7 @@ echo "  ✓ Test 3: Sync --replace removes extra plugins at user scope"
 echo "  ✓ Test 4: Sync without --replace preserves existing user plugins"
 echo "  ✓ Test 5: Sync is idempotent (multiple runs produce same result)"
 echo "  ✓ Test 6: Project profile takes precedence over user profile"
+echo "  ✓ Test 7: Empty plugin list clears stale settings"
 echo ""
 echo "Key behaviors:"
 echo "  • Sync reads .claudeup.json to find profile name"
@@ -714,6 +825,7 @@ echo "  • Project profile takes precedence when same name exists in both locat
 echo "  • Sync creates/updates local profile copy in user profiles dir"
 echo "  • User scope: additive by default, declarative with --replace"
 echo "  • Project scope: always declarative (replaces settings)"
+echo "  • Empty plugin lists write empty settings (clears stale plugins)"
 
 # -----------------------------------------------------------------------------
 # Debug output (optional)

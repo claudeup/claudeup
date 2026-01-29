@@ -133,10 +133,10 @@ func (t *ProgressTracker) IsComplete() bool {
 
 // Rendering constants
 const (
-	barWidth       = 20 // Width of progress bar in characters
-	barFilled      = '━'
-	barEmpty       = '░'
-	spinnerFrames  = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+	barWidth      = 20 // Width of progress bar in characters
+	barFilled     = '━'
+	barEmpty      = '░'
+	spinnerFrames = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 )
 
 // renderProgressBar renders a progress bar of the given width
@@ -347,5 +347,13 @@ func isTerminal(w io.Writer) bool {
 func PluginProgress() func(current, total int, item string) {
 	return func(current, total int, item string) {
 		fmt.Printf("  [%d/%d] Installing %s\n", current, total, item)
+	}
+}
+
+// MarketplaceProgress returns a callback that prints marketplace setup progress.
+// Matches the profile.ProgressCallback signature for use with Sync operations.
+func MarketplaceProgress() func(current, total int, item string) {
+	return func(current, total int, item string) {
+		fmt.Printf("  [%d/%d] Checking marketplace %s\n", current, total, item)
 	}
 }

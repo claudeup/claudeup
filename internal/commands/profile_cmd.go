@@ -2583,9 +2583,10 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 		ReplaceUserScope: profileSyncReplace,
 	}
 
-	// Add progress callback when not in dry-run mode
+	// Add progress callbacks when not in dry-run mode
 	if !profileSyncDryRun {
 		opts.Progress = ui.PluginProgress()
+		opts.MarketplaceProgress = ui.MarketplaceProgress()
 	}
 
 	if profileSyncDryRun {
@@ -2619,6 +2620,14 @@ func runProfileSync(cmd *cobra.Command, args []string) error {
 		ui.PrintWarning("Some items failed to sync:")
 		for _, err := range result.Errors {
 			fmt.Printf("  - %v\n", err)
+		}
+	}
+
+	if len(result.Warnings) > 0 {
+		fmt.Println()
+		ui.PrintInfo("Notes:")
+		for _, warning := range result.Warnings {
+			fmt.Printf("  - %s\n", warning)
 		}
 	}
 
