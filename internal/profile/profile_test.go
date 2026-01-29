@@ -757,21 +757,6 @@ func TestProfile_Equal_DifferentDetectRules(t *testing.T) {
 	}
 }
 
-func TestProfile_Equal_DifferentSandboxConfig(t *testing.T) {
-	p1 := &Profile{
-		Name:    "test",
-		Sandbox: SandboxConfig{Credentials: []string{"git", "ssh"}},
-	}
-	p2 := &Profile{
-		Name:    "test",
-		Sandbox: SandboxConfig{Credentials: []string{"git"}},
-	}
-
-	if p1.Equal(p2) {
-		t.Error("Profiles with different sandbox configs should not be equal")
-	}
-}
-
 func TestProfile_Equal_DifferentMarketplaceOrder(t *testing.T) {
 	// Order should matter for marketplaces (it affects plugin resolution)
 	p1 := &Profile{
@@ -859,14 +844,12 @@ func TestProfile_Equal_PostApplyHook_Identical(t *testing.T) {
 func TestProfile_Equal_NilVsEmptyMaps(t *testing.T) {
 	// Nil and empty maps should be considered equal (consistent with slice behavior)
 	p1 := &Profile{
-		Name:    "test",
-		Sandbox: SandboxConfig{Env: nil},
-		Detect:  DetectRules{Contains: nil},
+		Name:   "test",
+		Detect: DetectRules{Contains: nil},
 	}
 	p2 := &Profile{
-		Name:    "test",
-		Sandbox: SandboxConfig{Env: map[string]string{}},
-		Detect:  DetectRules{Contains: map[string]string{}},
+		Name:   "test",
+		Detect: DetectRules{Contains: map[string]string{}},
 	}
 
 	if !p1.Equal(p2) {
