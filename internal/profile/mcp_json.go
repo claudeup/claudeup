@@ -79,19 +79,3 @@ func MCPJSONExists(projectDir string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
-
-// LoadMCPJSON reads a .mcp.json file from the given directory
-func LoadMCPJSON(projectDir string) (*MCPJSONConfig, error) {
-	path := filepath.Join(projectDir, MCPConfigFile)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var cfg MCPJSONConfig
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, err
-	}
-
-	return &cfg, nil
-}

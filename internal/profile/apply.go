@@ -765,29 +765,12 @@ func DefaultClaudeDir() string {
 	return config.MustClaudeDir()
 }
 
-// DefaultClaudeJSONPath returns the path to .claude.json
-// When CLAUDE_CONFIG_DIR is set, it's inside that directory
-// Otherwise it's at ~/.claude.json
-func DefaultClaudeJSONPath() string {
-	return filepath.Join(config.MustClaudeDir(), ".claude.json")
-}
-
 func toSet(slice []string) map[string]struct{} {
 	set := make(map[string]struct{})
 	for _, item := range slice {
 		set[item] = struct{}{}
 	}
 	return set
-}
-
-// MustHomeDir returns the user's home directory or panics if it cannot be determined.
-// This is appropriate because the tool cannot function without knowing the home directory.
-func MustHomeDir() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		panic(fmt.Sprintf("cannot determine home directory: %v", err))
-	}
-	return homeDir
 }
 
 // HookOptions controls post-apply hook behavior
