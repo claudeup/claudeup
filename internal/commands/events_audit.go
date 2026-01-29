@@ -16,6 +16,9 @@ import (
 
 var (
 	auditScope     string
+	auditUser      bool
+	auditProject   bool
+	auditLocal     bool
 	auditOperation string
 	auditSince     string
 	auditFormat    string
@@ -31,11 +34,11 @@ By default, shows all events from the last 7 days in text format.
 
 Examples:
   claudeup events audit                           # Last 7 days, all scopes
-  claudeup events audit --scope user              # User scope only
+  claudeup events audit --user                    # User scope only
   claudeup events audit --since 30d               # Last 30 days
   claudeup events audit --operation "profile apply"
   claudeup events audit --format markdown > report.md
-  claudeup events audit --scope project --since 2025-01-01`,
+  claudeup events audit --project --since 2025-01-01`,
 	Args: cobra.NoArgs,
 	RunE: runEventsAudit,
 }
@@ -44,12 +47,22 @@ func init() {
 	eventsCmd.AddCommand(eventsAuditCmd)
 
 	eventsAuditCmd.Flags().StringVar(&auditScope, "scope", "", "Filter by scope (user/project/local)")
+	eventsAuditCmd.Flags().BoolVar(&auditUser, "user", false, "Filter to user scope")
+	eventsAuditCmd.Flags().BoolVar(&auditProject, "project", false, "Filter to project scope")
+	eventsAuditCmd.Flags().BoolVar(&auditLocal, "local", false, "Filter to local scope")
 	eventsAuditCmd.Flags().StringVar(&auditOperation, "operation", "", "Filter by operation name")
 	eventsAuditCmd.Flags().StringVar(&auditSince, "since", "7d", "Show events since duration (e.g., 24h, 7d, 30d) or date (YYYY-MM-DD)")
 	eventsAuditCmd.Flags().StringVar(&auditFormat, "format", "text", "Output format: text or markdown")
 }
 
 func runEventsAudit(cmd *cobra.Command, args []string) error {
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(auditScope, auditUser, auditProject, auditLocal)
+	if err != nil {
+		return err
+	}
+	auditScope = resolvedScope
+
 	// Validate format
 	if auditFormat != "text" && auditFormat != "markdown" {
 		return fmt.Errorf("invalid format: %s (must be 'text' or 'markdown')", auditFormat)

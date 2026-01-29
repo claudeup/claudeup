@@ -156,7 +156,7 @@ var _ = Describe("events audit", func() {
 			Expect(result.Stdout).To(ContainSubstring("**Total Events:**"))
 			Expect(result.Stdout).To(ContainSubstring("## Summary"))
 			Expect(result.Stdout).To(ContainSubstring("## Timeline"))
-			Expect(result.Stdout).To(ContainSubstring("###")) // Date headers
+			Expect(result.Stdout).To(ContainSubstring("###"))  // Date headers
 			Expect(result.Stdout).To(ContainSubstring("####")) // Event headers
 		})
 
@@ -206,7 +206,7 @@ var _ = Describe("events audit", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Examples:"))
 			Expect(result.Stdout).To(ContainSubstring("claudeup events audit"))
-			Expect(result.Stdout).To(ContainSubstring("--scope user"))
+			Expect(result.Stdout).To(ContainSubstring("--user"))
 			Expect(result.Stdout).To(ContainSubstring("--format markdown"))
 		})
 	})

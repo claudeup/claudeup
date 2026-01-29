@@ -19,6 +19,9 @@ var (
 	eventsFile      string
 	eventsOperation string
 	eventsScope     string
+	eventsUser      bool
+	eventsProject   bool
+	eventsLocal     bool
 	eventsSince     string
 	eventsLimit     int
 )
@@ -33,7 +36,7 @@ Examples:
   claudeup events --limit 20               # Show last 20 events
   claudeup events --file ~/.claude/settings.json
   claudeup events --operation "profile apply"
-  claudeup events --scope user
+  claudeup events --user                   # User scope only
   claudeup events --since 24h`,
 	Args: cobra.NoArgs,
 	RunE: runEvents,
@@ -45,11 +48,21 @@ func init() {
 	eventsCmd.Flags().StringVar(&eventsFile, "file", "", "Filter by file path")
 	eventsCmd.Flags().StringVar(&eventsOperation, "operation", "", "Filter by operation name")
 	eventsCmd.Flags().StringVar(&eventsScope, "scope", "", "Filter by scope (user/project/local)")
+	eventsCmd.Flags().BoolVar(&eventsUser, "user", false, "Filter to user scope")
+	eventsCmd.Flags().BoolVar(&eventsProject, "project", false, "Filter to project scope")
+	eventsCmd.Flags().BoolVar(&eventsLocal, "local", false, "Filter to local scope")
 	eventsCmd.Flags().StringVar(&eventsSince, "since", "", "Show events since duration (e.g., 24h, 7d)")
 	eventsCmd.Flags().IntVar(&eventsLimit, "limit", 20, "Maximum number of events to show")
 }
 
 func runEvents(cmd *cobra.Command, args []string) error {
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(eventsScope, eventsUser, eventsProject, eventsLocal)
+	if err != nil {
+		return err
+	}
+	eventsScope = resolvedScope
+
 	// Get event log path
 	eventsDir := filepath.Join(config.MustClaudeupHome(), "events")
 	logPath := filepath.Join(eventsDir, "operations.log")

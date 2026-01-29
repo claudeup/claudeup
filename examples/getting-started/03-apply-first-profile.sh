@@ -27,15 +27,15 @@ pause
 section "2. Apply a Profile"
 
 step "Apply a profile to configure Claude Code"
-info "Using --scope user to set it as your default"
+info "Using --user to set it as your default"
 echo
 
 # In temp mode, we need to handle the case where no profiles exist
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply default --scope user
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply default --user
 else
     info "In a real installation, you would run:"
-    echo -e "${YELLOW}\$ claudeup profile apply <profile-name> --scope user${NC}"
+    echo -e "${YELLOW}\$ claudeup profile apply <profile-name> --user${NC}"
     echo
     info "This installs the profile's plugins and applies its settings"
 fi
@@ -55,9 +55,9 @@ section "Summary"
 success "You've learned how to apply profiles"
 echo
 info "Key commands:"
-info "  claudeup profile apply <name> --scope user     Apply as default"
-info "  claudeup profile apply <name> --scope project  Apply for this project"
-info "  claudeup profile apply <name> --scope local    Apply as local override"
+info "  claudeup profile apply <name> --user     Apply as default"
+info "  claudeup profile apply <name> --project  Apply for this project"
+info "  claudeup profile apply <name> --local    Apply as local override"
 echo
 info "Next steps:"
 info "  • Explore profile-management/ to create your own profiles"

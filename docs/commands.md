@@ -487,7 +487,7 @@ Configuration is stored in `~/.claudeup/`:
 └── profiles/         # Saved profiles
 ```
 
-Project-level configuration files (created by `--scope project`):
+Project-level configuration files (created by `--project`):
 
 ```text
 your-project/

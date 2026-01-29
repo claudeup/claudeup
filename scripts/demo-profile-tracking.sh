@@ -87,9 +87,9 @@ wait_for_enter
 section "3. Finding Profile Apply Operations"
 
 demo "Show when profiles were applied (changes to Claude config)" \
-     "$CLAUDEUP_BIN events audit --operation profile --scope local --since 7d"
+     "$CLAUDEUP_BIN events audit --operation profile --local --since 7d"
 
-$CLAUDEUP_BIN events audit --operation profile --scope local --since 7d | head -80
+$CLAUDEUP_BIN events audit --operation profile --local --since 7d | head -80
 
 cat <<EOF
 
@@ -122,7 +122,7 @@ ${GREEN}Let's find a recent profile apply event and diff it...${NC}
 EOF
 
 # Get the most recent profile apply event ID
-RECENT_EVENT=$($CLAUDEUP_BIN events audit --operation profile --scope local --since 30d 2>/dev/null |
+RECENT_EVENT=$($CLAUDEUP_BIN events audit --operation profile --local --since 30d 2>/dev/null |
                grep -E '^\[' |
                head -1 |
                grep -oE 'Event [0-9]+' |

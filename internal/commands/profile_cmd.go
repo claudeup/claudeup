@@ -136,7 +136,7 @@ MULTI-SCOPE CAPTURE:
   restored to the correct location.
 
   Profiles are always saved to ~/.claudeup/profiles/ (user profiles directory).
-  For team sharing, use 'profile apply <name> --scope project' to apply the
+  For team sharing, use 'profile apply <name> --project' to apply the
   profile at project scope, which creates .claude/settings.json for version control.
 
 If no name is given, saves to the currently active profile.
@@ -424,7 +424,7 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 
 	// Validate scope flag is provided
 	if profileCleanScope == "" {
-		return fmt.Errorf("--scope flag is required (--project or --local)")
+		return fmt.Errorf("scope required: use --project or --local")
 	}
 
 	// Validate scope value

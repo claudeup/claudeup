@@ -57,9 +57,9 @@ run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 
 step "Apply a profile to a specific scope"
 info "Commands:"
-echo -e "${YELLOW}\$ claudeup profile apply myprofile --scope user    # Personal default${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply myprofile --scope project # Team setting${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply myprofile --scope local   # Local override${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply myprofile --user    # Personal default${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply myprofile --project # Team setting${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply myprofile --local   # Local override${NC}"
 pause
 
 section "4. View Scope Contents"
