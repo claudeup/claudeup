@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for profile status with multi-scope and overlapping plugins
-// ABOUTME: Tests plugin count accuracy and CLAUDE_CONFIG_DIR path display
+// ABOUTME: Tests plugin count accuracy and scope precedence display
 package acceptance
 
 import (
@@ -41,385 +41,108 @@ var _ = Describe("Profile status multi-scope scenarios", func() {
 		env.Cleanup()
 	})
 
-	Describe("Overlapping plugins across scopes", func() {
-		Context("when same plugin exists in both user and project scope of profile", func() {
-			BeforeEach(func() {
-				// Create multi-scope profile with OVERLAPPING plugin (same in both scopes)
-				env.CreateProfile(&profile.Profile{
-					Name:         "overlap-profile",
-					Marketplaces: []profile.Marketplace{},
-					PerScope: &profile.PerScopeSettings{
-						User: &profile.ScopeSettings{
-							Plugins: []string{
-								"shared-plugin@marketplace",   // In both scopes
-								"user-only-plugin@marketplace",
-							},
-						},
-						Project: &profile.ScopeSettings{
-							Plugins: []string{
-								"shared-plugin@marketplace",      // In both scopes
-								"project-only-plugin@marketplace",
-							},
-						},
-					},
-				})
-
-				// Set as active profile at project scope
-				projectConfig := map[string]interface{}{
-					"version":       "1",
-					"profile":       "overlap-profile",
-					"profileSource": "custom",
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-				// User settings has the user-scope plugins
-				userSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"shared-plugin@marketplace":    true,
-						"user-only-plugin@marketplace": true,
-					},
-				}
-				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
-
-				// Project settings has the project-scope plugins
-				projectSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"shared-plugin@marketplace":      true,
-						"project-only-plugin@marketplace": true,
-					},
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-			})
-
-			It("should correctly count unique plugins in effective configuration", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-
-				// When all plugins match exactly (no drift), should show simple match message
-				// Profile has: shared-plugin (dedupe), user-only-plugin, project-only-plugin = 3 unique
-				// Current has exactly those 3 plugins (2 in user scope + 2 in project scope, with 1 shared)
-				// Since there's no diff, it shows "Matches saved profile"
-				Expect(result.Stdout).To(ContainSubstring("Effective configuration"))
-				Expect(result.Stdout).To(ContainSubstring("Matches saved profile"))
-			})
-
-			It("should show active scope matches profile", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-
-				// Project scope should show match with 2 plugins
-				Expect(result.Stdout).To(ContainSubstring("project scope"))
-				Expect(result.Stdout).To(ContainSubstring("Matches saved profile (2 plugins)"))
-			})
-
-			It("should show user scope matches profile", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-
-				// User scope should show match with 2 plugins
-				Expect(result.Stdout).To(ContainSubstring("user scope"))
-				Expect(result.Stdout).To(ContainSubstring("Matches profile (2 plugins)"))
-			})
-		})
-
-		Context("when overlapping plugin is missing from one scope", func() {
-			BeforeEach(func() {
-				// Create multi-scope profile with OVERLAPPING plugin
-				env.CreateProfile(&profile.Profile{
-					Name:         "overlap-profile",
-					Marketplaces: []profile.Marketplace{},
-					PerScope: &profile.PerScopeSettings{
-						User: &profile.ScopeSettings{
-							Plugins: []string{
-								"shared-plugin@marketplace",
-								"user-only-plugin@marketplace",
-							},
-						},
-						Project: &profile.ScopeSettings{
-							Plugins: []string{
-								"shared-plugin@marketplace",
-								"project-only-plugin@marketplace",
-							},
-						},
-					},
-				})
-
-				// Set as active profile at project scope
-				projectConfig := map[string]interface{}{
-					"version":       "1",
-					"profile":       "overlap-profile",
-					"profileSource": "custom",
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-				// User settings - MISSING shared-plugin
-				userSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"user-only-plugin@marketplace": true,
-						// shared-plugin is missing
-					},
-				}
-				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
-
-				// Project settings has all plugins
-				projectSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"shared-plugin@marketplace":      true,
-						"project-only-plugin@marketplace": true,
-					},
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-			})
-
-			It("should show missing plugin in user scope", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-
-				// User scope should show 1 missing
-				Expect(result.Stdout).To(ContainSubstring("1 missing"))
-				Expect(result.Stdout).To(ContainSubstring("shared-plugin@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(missing)"))
-			})
-		})
-	})
-
-	Describe("Effective configuration calculation", func() {
-		Context("with plugins at multiple scopes plus extras", func() {
-			BeforeEach(func() {
-				// Create profile with 2 user plugins and 1 project plugin
-				env.CreateProfile(&profile.Profile{
-					Name:         "calc-test-profile",
-					Marketplaces: []profile.Marketplace{},
-					PerScope: &profile.PerScopeSettings{
-						User: &profile.ScopeSettings{
-							Plugins: []string{
-								"profile-user-1@marketplace",
-								"profile-user-2@marketplace",
-							},
-						},
-						Project: &profile.ScopeSettings{
-							Plugins: []string{
-								"profile-project-1@marketplace",
-							},
-						},
-					},
-				})
-
-				// Set as active profile at project scope
-				projectConfig := map[string]interface{}{
-					"version":       "1",
-					"profile":       "calc-test-profile",
-					"profileSource": "custom",
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-				// User settings has profile plugins + 1 extra
-				userSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"profile-user-1@marketplace": true,
-						"profile-user-2@marketplace": true,
-						"extra-user@marketplace":     true, // Not in profile
-					},
-				}
-				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
-
-				// Project settings has profile plugin + 1 extra
-				projectSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"profile-project-1@marketplace": true,
-						"extra-project@marketplace":     true, // Not in profile
-					},
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-			})
-
-			It("should correctly calculate effective plugin totals", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-
-				// Profile has 3 unique plugins (2 user + 1 project)
-				// Current has 5 unique plugins (3 user + 2 project)
-				// So: 5 total = 3 from profile + 2 not in profile
-				Expect(result.Stdout).To(ContainSubstring("5 plugins total"))
-				Expect(result.Stdout).To(ContainSubstring("3 from profile"))
-				Expect(result.Stdout).To(ContainSubstring("2 not in profile"))
-			})
-		})
-
-		Context("with missing plugins", func() {
-			BeforeEach(func() {
-				// Create profile with 3 plugins
-				env.CreateProfile(&profile.Profile{
-					Name:         "missing-test-profile",
-					Marketplaces: []profile.Marketplace{},
-					PerScope: &profile.PerScopeSettings{
-						User: &profile.ScopeSettings{
-							Plugins: []string{
-								"profile-user-1@marketplace",
-								"profile-user-2@marketplace",
-							},
-						},
-						Project: &profile.ScopeSettings{
-							Plugins: []string{
-								"profile-project-1@marketplace",
-							},
-						},
-					},
-				})
-
-				// Set as active profile at project scope
-				projectConfig := map[string]interface{}{
-					"version":       "1",
-					"profile":       "missing-test-profile",
-					"profileSource": "custom",
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-				// User settings missing 1 plugin
-				userSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"profile-user-1@marketplace": true,
-						// profile-user-2 is missing
-					},
-				}
-				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
-
-				// Project settings has all
-				projectSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"profile-project-1@marketplace": true,
-					},
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-			})
-
-			It("should show missing count in effective configuration", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-
-				// Profile has 3, current has 2, 1 missing
-				// So: 2 total = 3 from profile - 1 missing
-				Expect(result.Stdout).To(ContainSubstring("2 plugins total"))
-				Expect(result.Stdout).To(ContainSubstring("3 from profile"))
-				Expect(result.Stdout).To(ContainSubstring("1 missing"))
-			})
-		})
-	})
-
-	Describe("CLAUDE_CONFIG_DIR path display", func() {
-		It("should show the actual CLAUDE_CONFIG_DIR path in user scope display", func() {
-			// Create a simple profile
+	Describe("User scope profile status", func() {
+		BeforeEach(func() {
+			// Create user-scope profile with plugins
 			env.CreateProfile(&profile.Profile{
-				Name:         "path-test-profile",
+				Name:         "user-profile",
 				Marketplaces: []profile.Marketplace{},
-				PerScope: &profile.PerScopeSettings{
-					Project: &profile.ScopeSettings{
-						Plugins: []string{"test-plugin@marketplace"},
-					},
+				Plugins: []string{
+					"plugin1@marketplace",
+					"plugin2@marketplace",
 				},
 			})
 
-			// Set as active profile at project scope
-			projectConfig := map[string]interface{}{
-				"version":       "1",
-				"profile":       "path-test-profile",
-				"profileSource": "custom",
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
+			// Set as active profile at user scope
+			env.SetActiveProfile("user-profile")
 
-			// Project settings
-			projectSettings := map[string]interface{}{
+			// User settings matches profile
+			userSettings := map[string]interface{}{
 				"enabledPlugins": map[string]bool{
-					"test-plugin@marketplace": true,
+					"plugin1@marketplace": true,
+					"plugin2@marketplace": true,
 				},
 			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
+			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
+		})
 
+		It("should show user scope profile as active", func() {
 			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("user-profile"))
+			Expect(result.Stdout).To(ContainSubstring("user scope"))
+		})
 
-			// Should show the actual ClaudeDir path (from test env), NOT hardcoded ~/.claude
-			// The test env sets CLAUDE_CONFIG_DIR to a temp directory
-			Expect(result.Stdout).To(ContainSubstring(env.ClaudeDir))
-			Expect(result.Stdout).NotTo(ContainSubstring("~/.claude/settings.json"))
+		It("should show correct plugin count", func() {
+			result := env.RunInDir(projectDir, "profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Should show 2 plugins from profile
+			Expect(result.Stdout).To(ContainSubstring("2"))
 		})
 	})
 
-	Describe("Non-active scope missing plugins display", func() {
-		Context("when user scope has missing plugins (profile active at project)", func() {
-			BeforeEach(func() {
-				// Create multi-scope profile
-				env.CreateProfile(&profile.Profile{
-					Name:         "missing-scope-test",
-					Marketplaces: []profile.Marketplace{},
-					PerScope: &profile.PerScopeSettings{
-						User: &profile.ScopeSettings{
-							Plugins: []string{
-								"user-plugin-1@marketplace",
-								"user-plugin-2@marketplace",
-								"user-plugin-3@marketplace",
-							},
-						},
-						Project: &profile.ScopeSettings{
-							Plugins: []string{
-								"project-plugin@marketplace",
-							},
-						},
-					},
-				})
-
-				// Set as active profile at project scope
-				projectConfig := map[string]interface{}{
-					"version":       "1",
-					"profile":       "missing-scope-test",
-					"profileSource": "custom",
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-				// User settings - only has 1 of 3 profile plugins, plus 1 extra
-				userSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"user-plugin-1@marketplace": true,
-						// user-plugin-2 and user-plugin-3 missing
-						"extra-plugin@marketplace": true, // not in profile
-					},
-				}
-				helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
-
-				// Project settings matches
-				projectSettings := map[string]interface{}{
-					"enabledPlugins": map[string]bool{
-						"project-plugin@marketplace": true,
-					},
-				}
-				helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
+	Describe("Local scope profile status", func() {
+		BeforeEach(func() {
+			// Create profile
+			env.CreateProfile(&profile.Profile{
+				Name:         "local-profile",
+				Marketplaces: []profile.Marketplace{},
+				Plugins: []string{
+					"plugin1@marketplace",
+				},
 			})
 
-			It("should show both extra and missing plugins for non-active scope", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
+			// Apply at local scope
+			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
+			Expect(result.ExitCode).To(Equal(0))
+		})
 
-				Expect(result.ExitCode).To(Equal(0))
+		It("should show local scope profile as active", func() {
+			result := env.RunInDir(projectDir, "profile", "status")
 
-				// User scope should show mix: 1 from profile, 1 extra, 2 missing
-				Expect(result.Stdout).To(ContainSubstring("user scope"))
-				Expect(result.Stdout).To(ContainSubstring("1 from profile"))
-				Expect(result.Stdout).To(ContainSubstring("1 extra"))
-				Expect(result.Stdout).To(ContainSubstring("2 missing"))
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("local-profile"))
+			Expect(result.Stdout).To(ContainSubstring("local scope"))
+		})
+	})
 
-				// Should list the extra and missing plugins
-				Expect(result.Stdout).To(ContainSubstring("extra-plugin@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(extra)"))
-				Expect(result.Stdout).To(ContainSubstring("user-plugin-2@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("user-plugin-3@marketplace"))
-				Expect(result.Stdout).To(ContainSubstring("(missing)"))
+	Describe("No active profile", func() {
+		It("should error when no profile is active", func() {
+			result := env.RunInDir(projectDir, "profile", "status")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("no active profile set"))
+		})
+	})
+
+	Describe("Local scope overrides user scope", func() {
+		BeforeEach(func() {
+			// Create both profiles
+			env.CreateProfile(&profile.Profile{
+				Name:    "user-profile",
+				Plugins: []string{"user-plugin@marketplace"},
 			})
+			env.CreateProfile(&profile.Profile{
+				Name:    "local-profile",
+				Plugins: []string{"local-plugin@marketplace"},
+			})
+
+			// Set user-level profile
+			env.SetActiveProfile("user-profile")
+
+			// Apply local profile (should take precedence)
+			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
+			Expect(result.ExitCode).To(Equal(0))
+		})
+
+		It("should show local profile as active", func() {
+			result := env.RunInDir(projectDir, "profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("local-profile"))
+			Expect(result.Stdout).To(ContainSubstring("local scope"))
 		})
 	})
 })

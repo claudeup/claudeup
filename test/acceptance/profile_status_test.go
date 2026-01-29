@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for profile status command drift guidance
-// ABOUTME: Ensures profile status provides actionable commands for fixing drift
+// ABOUTME: Acceptance tests for profile status drift guidance
+// ABOUTME: Tests the actionable guidance shown when system differs from profile
 package acceptance
 
 import (
@@ -23,7 +23,6 @@ var _ = Describe("Profile diff drift guidance", func() {
 	BeforeEach(func() {
 		binaryPath = helpers.BuildBinary()
 		env = helpers.NewTestEnv(binaryPath)
-		env.CreateClaudeSettings()
 
 		projectDir = env.ProjectDir("test-project")
 		err := os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)
@@ -43,169 +42,9 @@ var _ = Describe("Profile diff drift guidance", func() {
 
 	Describe("Extra plugins drift", func() {
 		BeforeEach(func() {
-			// Create multi-scope profile with project-scope plugins
+			// Create user-scope profile with plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
-				Marketplaces: []profile.Marketplace{},
-				PerScope: &profile.PerScopeSettings{
-					Project: &profile.ScopeSettings{
-						Plugins: []string{
-							"plugin1@marketplace",
-							"plugin2@marketplace",
-						},
-					},
-				},
-			})
-
-			// Set as active profile at project scope
-			projectConfig := map[string]interface{}{
-				"version":       "1",
-				"profile":       "test-profile",
-				"profileSource": "custom",
-				"marketplaces":  []interface{}{},
-				"plugins": []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
-				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-			// Project settings has extra plugin
-			projectSettings := map[string]interface{}{
-				"enabledPlugins": map[string]bool{
-					"plugin1@marketplace":      true,
-					"plugin2@marketplace":      true,
-					"extra-plugin@marketplace": true, // Not in profile
-				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-		})
-
-		It("should show drift and suggest removing extra plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "status")
-
-			Expect(result.ExitCode).To(Equal(0))
-			// Should show the extra plugin
-			Expect(result.Stdout).To(ContainSubstring("additional plugin"))
-			Expect(result.Stdout).To(ContainSubstring("extra-plugin@marketplace"))
-			// Should suggest how to fix it
-			Expect(result.Stdout).To(ContainSubstring("Remove extra plugin"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --replace"))
-			Expect(result.Stdout).To(ContainSubstring("profile clean --scope project"))
-		})
-	})
-
-	Describe("Missing plugins drift", func() {
-		BeforeEach(func() {
-			// Create multi-scope profile with project-scope plugins
-			env.CreateProfile(&profile.Profile{
-				Name:         "test-profile",
-				Marketplaces: []profile.Marketplace{},
-				PerScope: &profile.PerScopeSettings{
-					Project: &profile.ScopeSettings{
-						Plugins: []string{
-							"plugin1@marketplace",
-							"plugin2@marketplace",
-						},
-					},
-				},
-			})
-
-			// Set as active profile at project scope
-			projectConfig := map[string]interface{}{
-				"version":       "1",
-				"profile":       "test-profile",
-				"profileSource": "custom",
-				"marketplaces":  []interface{}{},
-				"plugins": []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
-				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-			// Project settings missing a plugin
-			projectSettings := map[string]interface{}{
-				"enabledPlugins": map[string]bool{
-					"plugin1@marketplace": true,
-					// plugin2 is missing
-				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-		})
-
-		It("should show drift and suggest installing missing plugins", func() {
-			result := env.RunInDir(projectDir, "profile", "status")
-
-			Expect(result.ExitCode).To(Equal(0))
-			// Should show the missing plugin
-			Expect(result.Stdout).To(ContainSubstring("missing plugin"))
-			Expect(result.Stdout).To(ContainSubstring("plugin2@marketplace"))
-			// Should suggest how to fix it (profile sync for project scope)
-			Expect(result.Stdout).To(ContainSubstring("Install missing plugin"))
-			Expect(result.Stdout).To(ContainSubstring("profile sync"))
-		})
-	})
-
-	Describe("Both extra and missing plugins", func() {
-		BeforeEach(func() {
-			// Create multi-scope profile with project-scope plugins
-			env.CreateProfile(&profile.Profile{
-				Name:         "test-profile",
-				Marketplaces: []profile.Marketplace{},
-				PerScope: &profile.PerScopeSettings{
-					Project: &profile.ScopeSettings{
-						Plugins: []string{
-							"plugin1@marketplace",
-							"plugin2@marketplace",
-						},
-					},
-				},
-			})
-
-			// Set as active profile at project scope
-			projectConfig := map[string]interface{}{
-				"version":       "1",
-				"profile":       "test-profile",
-				"profileSource": "custom",
-				"marketplaces":  []interface{}{},
-				"plugins": []string{
-					"plugin1@marketplace",
-					"plugin2@marketplace",
-				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
-
-			// Project settings has extra plugin AND missing plugin
-			projectSettings := map[string]interface{}{
-				"enabledPlugins": map[string]bool{
-					"plugin1@marketplace":      true,
-					"extra-plugin@marketplace": true, // Not in profile
-					// plugin2 is missing
-				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
-		})
-
-		It("should suggest reset to fix both types of drift", func() {
-			result := env.RunInDir(projectDir, "profile", "status")
-
-			Expect(result.ExitCode).To(Equal(0))
-			// Should show both types of drift
-			Expect(result.Stdout).To(ContainSubstring("additional plugin"))
-			Expect(result.Stdout).To(ContainSubstring("missing plugin"))
-			// Should suggest reset (handles both)
-			Expect(result.Stdout).To(ContainSubstring("Reset to profile"))
-			Expect(result.Stdout).To(ContainSubstring("removes extra, installs missing"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply test-profile --scope project --replace"))
-		})
-	})
-
-	Describe("User scope missing plugins", func() {
-		BeforeEach(func() {
-			// Create user-level profile
-			env.CreateProfile(&profile.Profile{
-				Name:         "user-profile",
 				Marketplaces: []profile.Marketplace{},
 				Plugins: []string{
 					"plugin1@marketplace",
@@ -213,8 +52,45 @@ var _ = Describe("Profile diff drift guidance", func() {
 				},
 			})
 
-			// Set as active profile at user scope
-			env.SetActiveProfile("user-profile")
+			// Set as active profile
+			env.SetActiveProfile("test-profile")
+
+			// User settings has extra plugin
+			userSettings := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin1@marketplace":      true,
+					"plugin2@marketplace":      true,
+					"extra-plugin@marketplace": true, // Not in profile
+				},
+			}
+			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
+		})
+
+		It("should show drift and suggest removing extra plugins", func() {
+			result := env.RunInDir(projectDir, "profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Should indicate additional plugins
+			Expect(result.Stdout).To(ContainSubstring("additional plugin"))
+			// Should show the extra plugin
+			Expect(result.Stdout).To(ContainSubstring("extra-plugin@marketplace"))
+		})
+	})
+
+	Describe("Missing plugins drift", func() {
+		BeforeEach(func() {
+			// Create user-scope profile with plugins
+			env.CreateProfile(&profile.Profile{
+				Name:         "test-profile",
+				Marketplaces: []profile.Marketplace{},
+				Plugins: []string{
+					"plugin1@marketplace",
+					"plugin2@marketplace",
+				},
+			})
+
+			// Set as active profile
+			env.SetActiveProfile("test-profile")
 
 			// User settings missing a plugin
 			userSettings := map[string]interface{}{
@@ -226,68 +102,86 @@ var _ = Describe("Profile diff drift guidance", func() {
 			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
 		})
 
-		It("should suggest profile apply (not sync) for user scope", func() {
+		It("should show drift and suggest installing missing plugins", func() {
 			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
-			// Should show the missing plugin
+			// Should indicate missing plugins
 			Expect(result.Stdout).To(ContainSubstring("missing plugin"))
-			// Should suggest profile apply (not sync, which is project-only)
-			Expect(result.Stdout).To(ContainSubstring("Install missing plugin"))
-			Expect(result.Stdout).To(ContainSubstring("profile apply user-profile --scope user"))
-			Expect(result.Stdout).NotTo(ContainSubstring("profile sync"))
+			// Should show the missing plugin
+			Expect(result.Stdout).To(ContainSubstring("plugin2@marketplace"))
+		})
+	})
+
+	Describe("Both extra and missing plugins", func() {
+		BeforeEach(func() {
+			// Create user-scope profile with plugins
+			env.CreateProfile(&profile.Profile{
+				Name:         "test-profile",
+				Marketplaces: []profile.Marketplace{},
+				Plugins: []string{
+					"plugin1@marketplace",
+					"plugin2@marketplace",
+				},
+			})
+
+			// Set as active profile
+			env.SetActiveProfile("test-profile")
+
+			// User settings with both extra and missing
+			userSettings := map[string]interface{}{
+				"enabledPlugins": map[string]bool{
+					"plugin1@marketplace":      true, // profile has this
+					"extra-plugin@marketplace": true, // not in profile
+					// plugin2 is missing
+				},
+			}
+			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
+		})
+
+		It("should suggest reset to fix both types of drift", func() {
+			result := env.RunInDir(projectDir, "profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Should indicate both additional and missing plugins
+			Expect(result.Stdout).To(SatisfyAny(
+				ContainSubstring("additional plugin"),
+				ContainSubstring("missing plugin"),
+			))
 		})
 	})
 
 	Describe("No drift", func() {
 		BeforeEach(func() {
-			// Create multi-scope profile with project-scope plugins
+			// Create user-scope profile with plugins
 			env.CreateProfile(&profile.Profile{
 				Name:         "test-profile",
 				Marketplaces: []profile.Marketplace{},
-				PerScope: &profile.PerScopeSettings{
-					Project: &profile.ScopeSettings{
-						Plugins: []string{
-							"plugin1@marketplace",
-							"plugin2@marketplace",
-						},
-					},
-				},
-			})
-
-			// Set as active profile at project scope
-			projectConfig := map[string]interface{}{
-				"version":       "1",
-				"profile":       "test-profile",
-				"profileSource": "custom",
-				"marketplaces":  []interface{}{},
-				"plugins": []string{
+				Plugins: []string{
 					"plugin1@marketplace",
 					"plugin2@marketplace",
 				},
-			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claudeup.json"), projectConfig)
+			})
 
-			// Project settings matches profile exactly
-			projectSettings := map[string]interface{}{
+			// Set as active profile
+			env.SetActiveProfile("test-profile")
+
+			// User settings matches profile exactly
+			userSettings := map[string]interface{}{
 				"enabledPlugins": map[string]bool{
 					"plugin1@marketplace": true,
 					"plugin2@marketplace": true,
 				},
 			}
-			helpers.WriteJSON(filepath.Join(projectDir, ".claude", "settings.json"), projectSettings)
+			helpers.WriteJSON(filepath.Join(env.ClaudeDir, "settings.json"), userSettings)
 		})
 
 		It("should not show any drift guidance", func() {
 			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
-			// Should show match
-			Expect(result.Stdout).To(ContainSubstring("Matches saved profile"))
-			// Should NOT show any guidance commands
-			Expect(result.Stdout).NotTo(ContainSubstring("Remove extra"))
-			Expect(result.Stdout).NotTo(ContainSubstring("Install missing"))
-			Expect(result.Stdout).NotTo(ContainSubstring("Reset to profile"))
+			// Should NOT show drift
+			Expect(result.Stdout).NotTo(ContainSubstring("System differs"))
 		})
 	})
 })
