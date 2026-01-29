@@ -16,6 +16,9 @@ import (
 
 var (
 	scopeListScope    string
+	scopeListUser     bool
+	scopeListProject  bool
+	scopeListLocal    bool
 	scopeClearForce   bool
 	scopeClearBackup  bool
 	scopeRestoreForce bool
@@ -40,12 +43,12 @@ var scopeListCmd = &cobra.Command{
 	Long: `Display which plugins are enabled at each scope level.
 
 Shows a hierarchical view of all scopes with enabled plugins.
-Use --scope to filter to a specific scope level.
+Use --user, --project, or --local to filter to a specific scope.
 
 Examples:
-  claudeup scope list                    # Show all scopes
-  claudeup scope list --scope user       # Show only user scope
-  claudeup scope list --scope project    # Show only project scope`,
+  claudeup scope list           # Show all scopes
+  claudeup scope list --user    # Show only user scope
+  claudeup scope list --project # Show only project scope`,
 	Args: cobra.NoArgs,
 	RunE: runScopeList,
 }
@@ -104,12 +107,22 @@ func init() {
 	scopeCmd.AddCommand(scopeRestoreCmd)
 
 	scopeListCmd.Flags().StringVar(&scopeListScope, "scope", "", "Filter to scope: user, project, or local (default: show all)")
+	scopeListCmd.Flags().BoolVar(&scopeListUser, "user", false, "Show only user scope")
+	scopeListCmd.Flags().BoolVar(&scopeListProject, "project", false, "Show only project scope")
+	scopeListCmd.Flags().BoolVar(&scopeListLocal, "local", false, "Show only local scope")
 	scopeClearCmd.Flags().BoolVar(&scopeClearForce, "force", false, "Skip confirmation prompts")
 	scopeClearCmd.Flags().BoolVar(&scopeClearBackup, "backup", false, "Create backup before clearing")
 	scopeRestoreCmd.Flags().BoolVar(&scopeRestoreForce, "force", false, "Skip confirmation prompts")
 }
 
 func runScopeList(cmd *cobra.Command, args []string) error {
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(scopeListScope, scopeListUser, scopeListProject, scopeListLocal)
+	if err != nil {
+		return err
+	}
+	scopeListScope = resolvedScope
+
 	// Get current directory for project/local scopes
 	projectDir, err := os.Getwd()
 	if err != nil {

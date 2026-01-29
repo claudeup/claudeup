@@ -99,10 +99,10 @@ Apply profiles at project scope for team sharing:
 
 ```bash
 # Apply profile to current project (creates .claude/settings.json)
-claudeup profile apply frontend --scope project
+claudeup profile apply frontend --project
 
 # Apply profile locally only (not shared via git)
-claudeup profile apply frontend --scope local
+claudeup profile apply frontend --local
 ```
 
 **Scope options:**
@@ -117,7 +117,9 @@ claudeup profile apply frontend --scope local
 
 | Flag               | Description                                                     |
 | ------------------ | --------------------------------------------------------------- |
-| `--scope`          | Apply scope: user, project, or local (default: user)            |
+| `--user`           | Apply to user scope (~/.claude/) - default                      |
+| `--project`        | Apply to project scope (.claude/settings.json)                  |
+| `--local`          | Apply to local scope (.claude/settings.local.json)              |
 | `--replace`        | Clear target scope before applying (replaces instead of adding) |
 | `--setup`          | Force post-apply setup wizard to run                            |
 | `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                 |
@@ -140,16 +142,16 @@ claudeup profile apply backend-stack --replace -y
 A backup is created automatically when using `--replace` (unless `-y` is used).
 Use `claudeup scope restore user` to recover if needed.
 
-**Files created by `--scope project`:**
+**Files created by `--project`:**
 
 - `.claude/settings.json` - Project settings (plugins, MCP servers)
 - `.mcp.json` - MCP servers (Claude auto-loads this)
 
 **Team workflow:**
 
-1. One team member applies the profile with `--scope project`
+1. One team member applies the profile with `--project`
 2. Commit `.claude/settings.json` and `.mcp.json` to version control
-3. Other team members clone/pull and run `claudeup profile apply <name> --scope project`
+3. Other team members clone/pull and run `claudeup profile apply <name> --project`
 4. MCP servers load automatically; plugins are configured by apply
 
 **Scope precedence:**
@@ -163,7 +165,7 @@ Local scope takes precedence over user scope when you're in a project directory.
 
 **Secrets and project scope:**
 
-MCP servers often require secrets (API keys, tokens). When using `--scope project`:
+MCP servers often require secrets (API keys, tokens). When using `--project`:
 
 - Secrets are **not** stored in `.mcp.json` - only secret references
 - Each team member must have the referenced secrets available locally
@@ -239,9 +241,9 @@ Use this to see:
 View and manage Claude Code settings across different scopes.
 
 ```bash
-claudeup scope list                    # Show all scopes
-claudeup scope list --scope user       # Show only user scope
-claudeup scope list --scope project    # Show only project scope
+claudeup scope list           # Show all scopes
+claudeup scope list --user    # Show only user scope
+claudeup scope list --project # Show only project scope
 claudeup scope clear user              # Clear user scope (type 'yes' to confirm)
 claudeup scope clear user --backup     # Create backup before clearing
 claudeup scope clear project --force   # Clear project scope without confirmation
@@ -301,9 +303,9 @@ Claude Code uses three scope levels (in precedence order):
 Overview of your Claude Code installation.
 
 ```bash
-claudeup status                        # Show status for all scopes
-claudeup status --scope user           # Show only user scope
-claudeup status --scope project        # Filter to project scope
+claudeup status           # Show status for all scopes
+claudeup status --user    # Show only user scope
+claudeup status --project # Filter to project scope
 ```
 
 Shows marketplaces, plugin counts, MCP servers, and any detected issues.

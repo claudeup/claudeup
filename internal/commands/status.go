@@ -16,7 +16,10 @@ import (
 )
 
 var (
-	statusScope string
+	statusScope   string
+	statusUser    bool
+	statusProject bool
+	statusLocal   bool
 )
 
 var statusCmd = &cobra.Command{
@@ -39,9 +42,19 @@ For diagnostics, use 'claudeup doctor'.`,
 func init() {
 	rootCmd.AddCommand(statusCmd)
 	statusCmd.Flags().StringVar(&statusScope, "scope", "", "Filter to scope: user, project, or local (default: show all)")
+	statusCmd.Flags().BoolVar(&statusUser, "user", false, "Show only user scope")
+	statusCmd.Flags().BoolVar(&statusProject, "project", false, "Show only project scope")
+	statusCmd.Flags().BoolVar(&statusLocal, "local", false, "Show only local scope")
 }
 
 func runStatus(cmd *cobra.Command, args []string) error {
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(statusScope, statusUser, statusProject, statusLocal)
+	if err != nil {
+		return err
+	}
+	statusScope = resolvedScope
+
 	// Get current directory for scope-aware settings
 	projectDir, err := os.Getwd()
 	if err != nil {
