@@ -1,5 +1,5 @@
 // ABOUTME: Shared plugin installation logic with progress reporting
-// ABOUTME: Used by both apply and sync commands for DRY compliance
+// ABOUTME: Used by apply command for DRY compliance
 
 package profile
 
@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"strings"
 )
+
+// ProgressCallback reports installation progress for multi-item operations
+type ProgressCallback func(current, total int, item string)
 
 // InstallPluginsResult contains the result of installing plugins
 type InstallPluginsResult struct {
