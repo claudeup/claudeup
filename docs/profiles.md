@@ -23,7 +23,7 @@ claudeup profile save [name]       # Save current setup as a profile
 claudeup profile create <name>     # Create a new profile with interactive wizard
 claudeup profile clone <name>      # Clone an existing profile
 claudeup profile apply <name>      # Apply a profile
-claudeup profile sync              # Install plugins from .claudeup.json
+claudeup profile apply             # Re-apply active profile
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile clean <plugin>    # Remove orphaned plugin from config
 claudeup profile delete <name>     # Delete a custom user profile
@@ -113,35 +113,25 @@ To disable a plugin from a lower scope, explicitly set it to `false`:
 
 ### Project Scope Files
 
-When you apply a profile with `--scope project`, two files are created:
+When you apply a profile with `--scope project`, these files are created:
 
-```bash
-.claudeup.json    # Plugin manifest (lists enabled plugins)
-.mcp.json         # MCP server configuration (Claude native format)
+```text
+.claude/settings.json   # Project settings (plugins)
+.mcp.json              # MCP server configuration (Claude native format)
 ```
 
 **Recommended git workflow:**
 
 ```bash
 # After applying project profile
-git add .claudeup.json .mcp.json
+git add .claude/settings.json .mcp.json
 git commit -m "Add project-level Claude configuration"
 
-# Team members sync with:
-claudeup profile sync
+# Team members apply after clone:
+claudeup profile apply <name> --scope project
 ```
 
-### Project Sync
-
-Team members who clone a repository with `.claudeup.json` can install the project's plugins:
-
-```bash
-git clone <repo>
-cd <repo>
-claudeup profile sync
-```
-
-This installs all plugins listed in `.claudeup.json`. MCP servers from `.mcp.json` are loaded automatically by Claude Code.
+MCP servers from `.mcp.json` are loaded automatically by Claude Code.
 
 ### Local Scope Registry
 
@@ -229,14 +219,14 @@ claudeup profile apply lightweight --scope local
 # Maintainer: Set up project configuration
 cd ~/team-project
 claudeup profile apply team-stack --scope project
-git add .claudeup.json .mcp.json
+git add .claude/settings.json .mcp.json
 git commit -m "Add Claude configuration"
 git push
 
-# Team member: Sync project plugins
+# Team member: Apply same profile after clone
 git clone <repo>
 cd team-project
-claudeup profile sync  # Installs plugins from .claudeup.json
+claudeup profile apply team-stack --scope project
 ```
 
 ## Built-in Profiles
@@ -458,8 +448,7 @@ The JSON format supports both shorthand and full marketplace syntax:
   "marketplaces": ["anthropics/claude-code-plugins"],
   "plugins": ["plugin-dev@claude-code-plugins"],
   "mcpServers": [],
-  "detect": {},
-  "sandbox": {}
+  "detect": {}
 }
 ```
 
@@ -746,7 +735,3 @@ claudeup profile apply frontend
 ```
 
 **Note:** If you only want to restore the profile definition without changing what's installed, just run `profile restore`.
-
-## Sandbox Integration
-
-Profiles can include sandbox-specific settings. See [Sandbox documentation](sandbox.md) for details.

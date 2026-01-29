@@ -4,7 +4,7 @@ title: Documentation
 
 # claudeup
 
-Manage Claude Code plugins, profiles, and sandboxes.
+Manage Claude Code plugins and profiles.
 
 ## Quick Start
 
@@ -27,16 +27,13 @@ claudeup profile apply <name>
 - [Command Reference](commands.html) - Complete list of all commands and flags
 - [Profiles](profiles.html) - Save and switch between configurations
 - [File Operations](file-operations.html) - Manage CLAUDE.md and settings.json
-- [Sandbox](sandbox.html) - Run Claude Code in isolated Docker environments
 - [Team Workflows](team-workflows.html) - Share configurations across teams
 - [Troubleshooting](troubleshooting.html) - Common issues and solutions
 
 ## Features
 
-**Profiles** - Save your plugin and MCP server configurations, switch between them instantly.
+**Profiles** - Save your plugin and MCP server configurations, switch between them instantly. Profiles are for bootstrapping - apply once, then manage settings directly.
 
 **File Operations** - Manage CLAUDE.md files and settings.json with merge, diff, and sync commands.
 
-**Sandbox Mode** - Run Claude Code in isolated Docker containers for security and experimentation.
-
-**Team Sharing** - Export and import configurations via `.claudeup.json` files.
+**Team Sharing** - Share profile definitions via `.claudeup/profiles/` in your project repository.

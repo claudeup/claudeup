@@ -5,7 +5,7 @@ theme: null
 remote_theme: null
 
 title: claudeup
-description: Manage Claude Code plugins, profiles, and sandboxes
+description: Manage Claude Code plugins and profiles
 url: https://claudeup.github.io
 baseurl: /claudeup
 

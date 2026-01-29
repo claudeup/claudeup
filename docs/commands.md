@@ -168,7 +168,7 @@ MCP servers often require secrets (API keys, tokens). When using `--scope projec
 - Secrets are **not** stored in `.mcp.json` - only secret references
 - Each team member must have the referenced secrets available locally
 - Common secret sources: environment variables, 1Password, system keychain
-- The sync command does not handle secrets - configure them separately
+- Profile apply does not handle secrets - configure them separately
 
 Example `.mcp.json` with secret reference:
 
