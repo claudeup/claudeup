@@ -1335,34 +1335,12 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// getScopeFile returns the settings file name for a scope
-func getScopeFile(scope, claudeConfigDir string) string {
-	switch scope {
-	case "user":
-		// Show the actual claude config dir (respects CLAUDE_CONFIG_DIR)
-		return filepath.Join(claudeConfigDir, "settings.json")
-	case "project":
-		return ".claude/settings.json"
-	case "local":
-		return ".claude/settings.local.json"
-	default:
-		return ""
-	}
-}
-
 // pluralS returns "s" if count != 1, otherwise empty string
 func pluralS(count int) string {
 	if count == 1 {
 		return ""
 	}
 	return "s"
-}
-
-func pluralYIES(count int) string {
-	if count == 1 {
-		return "y"
-	}
-	return "ies"
 }
 
 func hasDiffChanges(diff *profile.Diff) bool {
