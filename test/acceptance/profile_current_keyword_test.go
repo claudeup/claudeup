@@ -42,8 +42,12 @@ var _ = Describe("'current' keyword handling", func() {
 			})
 		})
 
-		Context("when project scope profile takes precedence over user scope", func() {
+		Context("when local scope profile takes precedence over user scope", func() {
+			var projectDir string
+
 			BeforeEach(func() {
+				projectDir = env.ProjectDir("local-precedence-test")
+
 				// Create user-scope profile
 				env.CreateProfile(&profile.Profile{
 					Name:        "user-profile",
@@ -52,27 +56,24 @@ var _ = Describe("'current' keyword handling", func() {
 				})
 				env.SetActiveProfile("user-profile")
 
-				// Create project-scope profile (should take precedence)
+				// Create and apply local-scope profile (should take precedence)
 				env.CreateProfile(&profile.Profile{
-					Name:        "project-profile",
-					Description: "Project scope profile",
-					Plugins:     []string{"project-plugin@marketplace"},
+					Name:        "local-profile",
+					Description: "Local scope profile",
+					Plugins:     []string{"local-plugin@marketplace"},
 				})
-				env.CreateClaudeupJSON(env.TempDir, map[string]interface{}{
-					"version": "1",
-					"profile": "project-profile",
-				})
+				result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
+				Expect(result.ExitCode).To(Equal(0))
 			})
 
-			It("shows the project-scope profile, not user-scope", func() {
-				// Run from env.TempDir where .claudeup.json was created
-				result := env.RunInDir(env.TempDir, "profile", "show", "current")
+			It("shows the local-scope profile, not user-scope", func() {
+				result := env.RunInDir(projectDir, "profile", "show", "current")
 
 				Expect(result.ExitCode).To(Equal(0))
-				// Should show project-scope profile
-				Expect(result.Stdout).To(ContainSubstring("project-profile"))
-				Expect(result.Stdout).To(ContainSubstring("Project scope profile"))
-				Expect(result.Stdout).To(ContainSubstring("project-plugin@marketplace"))
+				// Should show local-scope profile
+				Expect(result.Stdout).To(ContainSubstring("local-profile"))
+				Expect(result.Stdout).To(ContainSubstring("Local scope profile"))
+				Expect(result.Stdout).To(ContainSubstring("local-plugin@marketplace"))
 				// Should NOT show user-scope profile
 				Expect(result.Stdout).NotTo(ContainSubstring("user-profile"))
 				Expect(result.Stdout).NotTo(ContainSubstring("user-plugin@marketplace"))

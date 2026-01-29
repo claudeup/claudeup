@@ -46,16 +46,10 @@ var profileListCmd = &cobra.Command{
 INDICATORS:
   *            Active profile with highest precedence (this is what Claude Code uses)
   ○            Active profile at lower precedence scope (overridden, not in effect)
-  [scope]      Scope where profile is active (project/local/user)
   (customized) Built-in profile has been modified and saved locally
-  (modified)   Active profile's effective configuration differs from saved definition
-
-The (modified) indicator only appears on the highest precedence profile (*).
-It compares the saved profile against the EFFECTIVE configuration, which
-combines all scopes: user → project → local (later scopes override earlier).
 
 SCOPE PRECEDENCE:
-  project > local > user
+  local > project > user
 
 Multiple profiles can be active at different scopes, but only the highest
 precedence profile affects Claude Code's behavior. Lower precedence profiles
@@ -70,23 +64,26 @@ Note: --scope project and --scope local require the corresponding
 .claude/settings.json or .claude/settings.local.json file to exist.
 
 Example: If "base-tools" is active at user scope but "claudeup" is
-active at project scope in ~/claudeup/, you'll see:
-  * claudeup    [project] (modified)  ← This is what Claude Code uses
-  ○ base-tools  [user]                ← Overridden, not in effect
+active at local scope in ~/claudeup/, you'll see:
+  * claudeup    [local]   ← This is what Claude Code uses
+  ○ base-tools  [user]    ← Overridden, not in effect
 
-Use 'claudeup profile status' to see how profiles differ from your current setup.`,
+Use 'claudeup profile status <name>' to see profile contents.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
 
 var profileApplyCmd = &cobra.Command{
-	Use:     "apply <name>",
+	Use:     "apply [name]",
 	Aliases: []string{"use"},
 	Short:   "Apply a profile to Claude Code",
 	Long: `Apply a profile's configuration to your Claude Code installation.
 
+If no profile name is given, applies the currently active profile. This is
+useful for syncing after pulling changes or reinstalling plugins.
+
 SCOPES:
-  --scope project  Apply to current project (creates .claudeup.json for team sharing)
+  --scope project  Apply to current project (.claude/settings.json)
   --scope local    Apply to current project, but not shared (personal overrides)
   --scope user     Apply globally to ~/.claude/ (default, affects all projects)
 
@@ -95,14 +92,23 @@ REPLACE MODE:
                    By default, user-scope plugins are preserved (additive).
                    Project and local scopes are always replaced.
 
+DRY RUN:
+  --dry-run        Show what would change without making any modifications.
+
 Precedence: local > project > user. Plugins from all scopes are active simultaneously.
 
 For team projects, use --scope project to create a shareable configuration that
-teammates can sync with 'claudeup profile sync'.
+teammates can apply with 'claudeup profile apply'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
-	Example: `  # Apply profile (adds to existing user config)
+	Example: `  # Apply active profile (useful after git pull)
+  claudeup profile apply
+
+  # Apply profile (adds to existing user config)
   claudeup profile apply backend-stack
+
+  # Preview changes without applying
+  claudeup profile apply backend-stack --dry-run
 
   # Replace user-scope config with profile
   claudeup profile apply backend-stack --replace
@@ -110,12 +116,12 @@ Shows a diff of changes before applying. Prompts for confirmation unless -y is u
   # Replace without prompts (for scripting)
   claudeup profile apply backend-stack --replace -y
 
-  # Set up a profile for your team (creates .claudeup.json)
+  # Set up a profile for your team (creates .claude/settings.json)
   claudeup profile apply backend-stack --scope project
 
   # Force the post-apply setup wizard to run
   claudeup profile apply my-profile --setup`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileApply,
 }
 
@@ -131,7 +137,7 @@ MULTI-SCOPE CAPTURE:
 
   Profiles are always saved to ~/.claudeup/profiles/ (user profiles directory).
   For team sharing, use 'profile apply <name> --scope project' to apply the
-  profile at project scope, which creates .claudeup.json for version control.
+  profile at project scope, which creates .claude/settings.json for version control.
 
 If no name is given, saves to the currently active profile.
 If the profile exists, prompts for confirmation unless -y is used.`,
@@ -196,19 +202,16 @@ var profileShowCmd = &cobra.Command{
 
 var profileStatusCmd = &cobra.Command{
 	Use:   "status [name]",
-	Short: "Show differences between profile and current state by scope",
-	Long: `Display how a profile differs from current state, broken down by scope.
+	Short: "Show profile contents and activation status",
+	Long: `Display the contents of a profile.
 
 Shows:
-  - Which scope the profile is active in
-  - Differences at each scope (user, project, local)
-  - Effective configuration (all scopes combined)
+  - Which scope the profile is active in (if any)
+  - Plugins in the profile
+  - MCP servers in the profile
+  - Marketplaces in the profile
 
-If no name is given, uses the currently active profile.
-
-This helps distinguish between:
-  - Profile modifications at the active scope (profile truly changed)
-  - Scope layering (user/project/local scopes adding to the profile)`,
+If no name is given, uses the currently active profile.`,
 	Example: `  # Show status for active profile
   claudeup profile status
 
@@ -314,20 +317,6 @@ will be updated to point to the new name.`,
 	RunE: runProfileRename,
 }
 
-var profileSyncCmd = &cobra.Command{
-	Use:   "sync",
-	Short: "Sync plugins from .claudeup.json",
-	Long: `Install plugins defined in the project's .claudeup.json file.
-
-This command is intended for team members who clone a repository
-that has been configured with 'claudeup profile apply --scope project'.
-
-MCP servers from .mcp.json are loaded automatically by Claude Code.
-This command syncs plugins that require explicit installation.`,
-	Args: cobra.NoArgs,
-	RunE: runProfileSync,
-}
-
 // Flags for profile apply command
 var (
 	profileApplySetup         bool
@@ -337,12 +326,7 @@ var (
 	profileApplyReinstall     bool
 	profileApplyNoProgress    bool
 	profileApplyReplace       bool
-)
-
-// Flags for profile sync command
-var (
-	profileSyncDryRun  bool
-	profileSyncReplace bool
+	profileApplyDryRun        bool
 )
 
 // Flags for profile save command
@@ -372,7 +356,7 @@ This command removes plugins that are enabled but no longer installed.
 If the plugin is also in your saved profile definition, this command will offer to
 remove it from the profile as well (preventing future reinstall attempts).
 
-Use this to clean up drift detected by 'claudeup status' or 'claudeup doctor'.`,
+Use this to clean up issues detected by 'claudeup status' or 'claudeup doctor'.`,
 	Example: `  # Remove plugin from project scope
   claudeup profile clean --scope project nextjs-vercel-pro@claude-code-templates
 
@@ -408,9 +392,9 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 	}
 
 	// Remove plugin from Claude settings
-	// Note: Plugins are defined in profiles, not in .claudeup.json, so we only
-	// need to disable them in settings. To fully remove a plugin from a profile,
-	// edit the profile definition itself.
+	// Note: Plugins are defined in profiles, so we only need to disable them
+	// in settings. To fully remove a plugin from a profile, edit the profile
+	// definition itself.
 	scopeForSettings := profileCleanScope // "project" or "local"
 	settings, err := claude.LoadSettingsForScope(scopeForSettings, claudeDir, projectDir)
 	if err != nil {
@@ -442,13 +426,7 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 	ui.PrintSuccess(fmt.Sprintf("Removed %s from %s scope (%s)", pluginName, scopeName, settingsFile))
 
 	// Check if plugin is also in the saved profile definition
-	var profileName string
-	if scope == profile.ScopeProject && profile.ConfigExistsForScope(projectDir, scope) {
-		cfg, err := profile.LoadConfigForScope(projectDir, scope)
-		if err == nil && cfg != nil {
-			profileName = cfg.Profile
-		}
-	}
+	profileName, _ := getActiveProfile(projectDir)
 	if profileName != "" {
 		profilesDir := getProfilesDir()
 		savedProfile, err := loadProfileWithFallback(profilesDir, profileName)
@@ -528,7 +506,6 @@ func init() {
 	profileCmd.AddCommand(profileDeleteCmd)
 	profileCmd.AddCommand(profileRestoreCmd)
 	profileCmd.AddCommand(profileRenameCmd)
-	profileCmd.AddCommand(profileSyncCmd)
 	profileCmd.AddCommand(profileCleanCmd)
 
 	// Add flags to profile create command
@@ -549,18 +526,15 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVarP(&profileApplyForce, "force", "f", false, "Force reapply even with unsaved changes")
-	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user, or project if .claudeup.json exists)")
+	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
 	profileCleanCmd.MarkFlagRequired("scope")
-
-	// Add flags to profile sync command
-	profileSyncCmd.Flags().BoolVar(&profileSyncDryRun, "dry-run", false, "Show what would be synced without making changes")
-	profileSyncCmd.Flags().BoolVar(&profileSyncReplace, "replace", false, "Replace user-scope settings (default: additive)")
 
 	// Add flags to profile list command
 	profileListCmd.Flags().StringVar(&profileListScope, "scope", "", "Show only the profile active at specified scope: user, project, local")
@@ -755,15 +729,26 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 }
 
 func runProfileApply(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	cwd, _ := os.Getwd()
+
+	// Determine profile name: from argument or active profile
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		// Get currently active profile
+		name, _ = getActiveProfile(cwd)
+		if name == "" {
+			return fmt.Errorf("no profile specified and no active profile found.\nUse 'claudeup profile apply <name>' to apply a profile first")
+		}
+		ui.PrintInfo(fmt.Sprintf("Using active profile: %s", name))
+		fmt.Println()
+	}
 
 	// "current" is reserved as a keyword for the active profile
 	if name == "current" {
 		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile show current' to see the active profile")
 	}
-
-	// Determine scope from flag or auto-detect
-	cwd, _ := os.Getwd()
 	var scope profile.Scope
 
 	if profileApplyScope != "" {
@@ -774,8 +759,8 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	} else {
-		// Auto-detect: if project files exist, use project scope
-		if profile.ProjectConfigExists(cwd) || profile.MCPJSONExists(cwd) {
+		// Auto-detect: if .mcp.json exists, use project scope
+		if profile.MCPJSONExists(cwd) {
 			scope = profile.ScopeProject
 			ui.PrintInfo("Detected existing project configuration, using project scope")
 			fmt.Println()
@@ -828,26 +813,6 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 func applyProfileWithScope(name string, scope profile.Scope) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
-
-	// Warn if we're about to overwrite an existing .claudeup.json with a different profile.
-	// This only applies to project scope - user scope doesn't touch project config files.
-	if scope == profile.ScopeProject && profile.ProjectConfigExists(cwd) {
-		existingConfig, err := profile.LoadProjectConfig(cwd)
-		if err != nil {
-			// Log error but continue - malformed config will be overwritten
-			ui.PrintWarning(fmt.Sprintf("Could not read existing project config: %v", err))
-		} else if existingConfig.Profile != "" && existingConfig.Profile != name {
-			ui.PrintWarning(fmt.Sprintf("Project is already configured with profile %q", existingConfig.Profile))
-			fmt.Printf("  Applying %q will overwrite the existing configuration.\n", name)
-			fmt.Println()
-			if !config.YesFlag {
-				if !confirmProceed() {
-					ui.PrintMuted("Cancelled.")
-					return nil
-				}
-			}
-		}
-	}
 
 	// Load the profile (try disk first, then embedded)
 	p, err := loadProfileWithFallback(profilesDir, name)
@@ -951,6 +916,12 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		}
 		fmt.Println()
 
+		// Dry run mode: show what would change, then exit
+		if profileApplyDryRun {
+			ui.PrintInfo("Dry run - no changes made")
+			return nil
+		}
+
 		// Skip confirmation if using --force flag
 		if !profileApplyForce && !confirmProceed() {
 			ui.PrintMuted("Cancelled.")
@@ -960,6 +931,10 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		// No changes, but hook needs to run
 		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 		fmt.Println()
+		if profileApplyDryRun {
+			ui.PrintInfo("Dry run - no changes would be made")
+			return nil
+		}
 		ui.PrintInfo("No configuration changes needed.")
 		if profileApplySetup {
 			fmt.Println("Running setup wizard...")
@@ -985,12 +960,8 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 			return fmt.Errorf("failed to apply profile: %w", err)
 		}
 
-		// For project scope, also write .claudeup.json and save profile for team sharing
+		// For project scope, save profile for team sharing
 		if scope == profile.ScopeProject {
-			projectCfg := profile.NewProjectConfig(p)
-			if err := profile.SaveProjectConfig(cwd, projectCfg); err != nil {
-				return fmt.Errorf("failed to write %s: %w", profile.ProjectConfigFile, err)
-			}
 			if err := profile.SaveToProject(cwd, p); err != nil {
 				return fmt.Errorf("failed to save profile to project: %w", err)
 			}
@@ -1046,9 +1017,12 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 			fmt.Printf("  %s %s (MCP servers - Claude auto-loads)\n", ui.Success(ui.SymbolSuccess), profile.MCPConfigFile)
 			filesToAdd = append(filesToAdd, profile.MCPConfigFile)
 		}
-		if profile.ProjectConfigExists(cwd) {
-			fmt.Printf("  %s %s (plugins manifest)\n", ui.Success(ui.SymbolSuccess), profile.ProjectConfigFile)
-			filesToAdd = append(filesToAdd, profile.ProjectConfigFile)
+
+		// Check for project profiles directory
+		projectProfilesDir := filepath.Join(cwd, ".claudeup", "profiles")
+		if _, err := os.Stat(projectProfilesDir); err == nil {
+			fmt.Printf("  %s %s (profile for team sharing)\n", ui.Success(ui.SymbolSuccess), ".claudeup/profiles/")
+			filesToAdd = append(filesToAdd, ".claudeup/")
 		}
 
 		if len(filesToAdd) > 0 {
@@ -1213,29 +1187,19 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 
 	// Handle "current" as a special keyword for the active profile
-	// Check scopes in precedence order: project > local > user
+	// Check scopes in precedence order: local > user
 	if name == "current" {
 		cwd, _ := os.Getwd()
 
-		// Check for project-level profile first (takes precedence)
-		if profile.ProjectConfigExists(cwd) {
-			projectCfg, err := profile.LoadProjectConfig(cwd)
-			if err == nil && projectCfg.Profile != "" {
-				name = projectCfg.Profile
+		// Check local scope in registry first (highest precedence)
+		registry, err := config.LoadProjectsRegistry()
+		if err == nil {
+			if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
+				name = entry.Profile
 			}
 		}
 
-		// If not found at project scope, check local scope in registry
-		if name == "current" {
-			registry, err := config.LoadProjectsRegistry()
-			if err == nil {
-				if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
-					name = entry.Profile
-				}
-			}
-		}
-
-		// If still not found, fall back to user-level profile
+		// If not found at local scope, fall back to user-level profile
 		if name == "current" {
 			cfg, _ := config.Load()
 			if cfg != nil && cfg.Preferences.ActiveProfile != "" {
@@ -1296,7 +1260,6 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 func runProfileStatus(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
-	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Determine profile name
 	var name string
@@ -1331,257 +1294,45 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 	if activeScope != "" {
 		fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("[active at %s scope]", activeScope)))
-	}
-	fmt.Println()
-
-	// Compare the active scope against the profile
-	if activeScope != "" {
-		diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, cwd, activeScope)
-		if err == nil {
-			scopeLabel := fmt.Sprintf("%s scope (%s)", activeScope, getScopeFile(activeScope, claudeDir))
-			if !diff.HasSignificantChanges() {
-				fmt.Printf("%s %s\n", ui.Success("✓"), ui.Bold(scopeLabel))
-				scopeProfile := savedProfile.ForScope(activeScope)
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches saved profile (%d plugins)", len(scopeProfile.Plugins))))
-			} else {
-				fmt.Printf("%s %s\n", ui.Warning("○"), ui.Bold(scopeLabel))
-				if len(diff.PluginsAdded) > 0 {
-					fmt.Printf("  %s\n", ui.Success(fmt.Sprintf("%d additional plugin%s:", len(diff.PluginsAdded), pluralS(len(diff.PluginsAdded)))))
-					for _, p := range diff.PluginsAdded {
-						fmt.Printf("    + %s\n", p)
-					}
-				}
-				if len(diff.PluginsRemoved) > 0 {
-					fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("%d missing plugin%s:", len(diff.PluginsRemoved), pluralS(len(diff.PluginsRemoved)))))
-					for _, p := range diff.PluginsRemoved {
-						fmt.Printf("    - %s\n", p)
-					}
-				}
-
-				// Show actionable guidance based on drift type
-				fmt.Println()
-				hasExtra := len(diff.PluginsAdded) > 0
-				hasMissing := len(diff.PluginsRemoved) > 0
-
-				if hasExtra && hasMissing {
-					// Both types of drift
-					fmt.Printf("  %s Reset to profile (removes extra, installs missing):\n", ui.Muted(ui.SymbolArrow))
-					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --replace", name, activeScope)))
-				} else if hasExtra {
-					// Only extra plugins
-					fmt.Printf("  %s Remove extra plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsAdded)))
-					fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s --replace", name, activeScope)))
-					if len(diff.PluginsAdded) == 1 {
-						fmt.Printf("  %s Or remove specific plugin:\n", ui.Muted(ui.SymbolArrow))
-						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s %s", activeScope, diff.PluginsAdded[0])))
-					} else {
-						fmt.Printf("  %s Or remove specific plugins:\n", ui.Muted(ui.SymbolArrow))
-						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile clean --scope %s <plugin>", activeScope)))
-					}
-				} else if hasMissing {
-					// Only missing plugins
-					if activeScope == "project" {
-						fmt.Printf("  %s Install missing plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsRemoved)))
-						fmt.Printf("    %s\n", ui.Bold("claudeup profile sync"))
-					} else {
-						fmt.Printf("  %s Install missing plugin%s:\n", ui.Muted(ui.SymbolArrow), pluralS(len(diff.PluginsRemoved)))
-						fmt.Printf("    %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s", name, activeScope)))
-					}
-				}
-			}
-			fmt.Println()
-		}
-	}
-
-	// For other scopes, show what they're adding on top
-	scopes := []string{"user", "project", "local"}
-	for _, scope := range scopes {
-		if scope == activeScope {
-			continue // Already showed this above
-		}
-
-		// Get snapshot of just this scope
-		scopeSnapshot, err := profile.SnapshotWithScope("", claudeDir, claudeJSONPath, profile.SnapshotOptions{
-			Scope:      scope,
-			ProjectDir: cwd,
-		})
-		if err != nil {
-			continue
-		}
-
-		scopeLabel := fmt.Sprintf("%s scope (%s)", scope, getScopeFile(scope, claudeDir))
-
-		// Get what the profile defines for this scope
-		profileForScope := savedProfile.ForScope(scope)
-		profilePluginSet := make(map[string]bool)
-		for _, p := range profileForScope.Plugins {
-			profilePluginSet[p] = true
-		}
-
-		// Categorize current plugins: in profile vs extra
-		var inProfile, extra []string
-		currentPluginSet := make(map[string]bool)
-		for _, p := range scopeSnapshot.Plugins {
-			currentPluginSet[p] = true
-			if profilePluginSet[p] {
-				inProfile = append(inProfile, p)
-			} else {
-				extra = append(extra, p)
-			}
-		}
-
-		// Find missing plugins (in profile but not in current settings)
-		var missing []string
-		for _, p := range profileForScope.Plugins {
-			if !currentPluginSet[p] {
-				missing = append(missing, p)
-			}
-		}
-
-		// Show what this scope adds
-		if len(scopeSnapshot.Plugins) > 0 || len(missing) > 0 {
-			if len(extra) == 0 && len(missing) == 0 {
-				// All plugins match profile exactly
-				fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches profile (%d plugins)", len(inProfile))))
-			} else {
-				fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
-				// Build summary
-				if len(inProfile) > 0 || len(extra) > 0 || len(missing) > 0 {
-					parts := []string{}
-					if len(inProfile) > 0 {
-						parts = append(parts, fmt.Sprintf("%d from profile", len(inProfile)))
-					}
-					if len(extra) > 0 {
-						parts = append(parts, fmt.Sprintf("%d extra", len(extra)))
-					}
-					if len(missing) > 0 {
-						parts = append(parts, fmt.Sprintf("%d missing", len(missing)))
-					}
-					fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (%s):",
-						len(scopeSnapshot.Plugins), pluralS(len(scopeSnapshot.Plugins)), strings.Join(parts, ", "))))
-				}
-				for _, p := range extra {
-					fmt.Printf("    + %s %s\n", p, ui.Warning("(extra)"))
-				}
-				for _, p := range missing {
-					fmt.Printf("    - %s %s\n", p, ui.Warning("(missing)"))
-				}
-			}
-		} else {
-			fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
-			fmt.Printf("  %s\n", ui.Muted("No additional plugins"))
-		}
-
-		fmt.Println()
-	}
-
-	// Show effective configuration (all scopes combined)
-	combinedDiff, err := profile.CompareWithCombinedScopes(savedProfile, claudeDir, claudeJSONPath, cwd)
-	if err != nil {
-		return fmt.Errorf("failed to compare combined scopes: %w", err)
-	}
-
-	fmt.Println(ui.RenderDetail("Effective configuration", "(all scopes combined)"))
-	if !combinedDiff.HasSignificantChanges() {
-		fmt.Printf("  %s\n", ui.Success("✓ Matches saved profile"))
 	} else {
-		// Use all plugins from the profile (across all scopes) for the count
-		combinedSaved := savedProfile.CombinedScopes()
-		profilePlugins := len(combinedSaved.Plugins)
-		effectivePlugins := profilePlugins + len(combinedDiff.PluginsAdded) - len(combinedDiff.PluginsRemoved)
-		fmt.Printf("  %d plugins total (%d from profile", effectivePlugins, profilePlugins)
-		if len(combinedDiff.PluginsAdded) > 0 {
-			fmt.Printf(" + %d not in profile", len(combinedDiff.PluginsAdded))
-		}
-		if len(combinedDiff.PluginsRemoved) > 0 {
-			fmt.Printf(" - %d missing", len(combinedDiff.PluginsRemoved))
-		}
-		fmt.Println(")")
+		fmt.Printf("  %s\n", ui.Muted("[not currently active]"))
 	}
 	fmt.Println()
 
-	// Check for config drift (orphaned tracking entries)
-	plugins, err := claude.LoadPlugins(claudeDir)
-	if err == nil {
-		profilesDir := getProfilesDir()
-		configDrift, err := profile.DetectConfigDrift(profilesDir, claudeDir, cwd, plugins)
-		if err == nil && len(configDrift) > 0 {
-			// Group by scope
-			driftByScope := make(map[profile.Scope][]string)
-			for _, d := range configDrift {
-				driftByScope[d.Scope] = append(driftByScope[d.Scope], d.PluginName)
-			}
+	// Show profile contents
+	combinedProfile := savedProfile.CombinedScopes()
 
-			// Check which drifted plugins are in the saved profile
-			pluginsInProfile := make(map[string]bool)
-			if savedProfile != nil {
-				for _, p := range savedProfile.Plugins {
-					pluginsInProfile[p] = true
-				}
-			}
-
-			fmt.Printf("%s %s\n", ui.Warning("⚠"), ui.Bold("Config Drift Detected"))
-			fmt.Println()
-
-			// Show project scope drift
-			if projectDrift, ok := driftByScope[profile.ScopeProject]; ok {
-				fmt.Printf("  %s %d orphaned entr%s:\n", ui.Muted(".claudeup.json"), len(projectDrift), pluralYIES(len(projectDrift)))
-				for _, pluginName := range projectDrift {
-					suffix := ""
-					if pluginsInProfile[pluginName] {
-						suffix = ui.Muted(" (also in profile)")
-					}
-					fmt.Printf("    - %s%s\n", pluginName, suffix)
-				}
-				fmt.Println()
-				for _, pluginName := range projectDrift {
-					fmt.Printf("  %s Remove from config and profile: %s\n",
-						ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile clean --scope project %s", pluginName)))
-				}
-				fmt.Printf("  %s Or sync from profile: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile sync"))
-				fmt.Println()
-			}
-
-			// Show local scope drift
-			if localDrift, ok := driftByScope[profile.ScopeLocal]; ok {
-				fmt.Printf("  %s %d orphaned entr%s:\n", ui.Muted(".claude/settings.local.json"), len(localDrift), pluralYIES(len(localDrift)))
-				for _, pluginName := range localDrift {
-					suffix := ""
-					if pluginsInProfile[pluginName] {
-						suffix = ui.Muted(" (also in profile)")
-					}
-					fmt.Printf("    - %s%s\n", pluginName, suffix)
-				}
-				fmt.Println()
-				for _, pluginName := range localDrift {
-					fmt.Printf("  %s Remove from config and profile: %s\n",
-						ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile clean --scope local %s", pluginName)))
-				}
-				fmt.Printf("  %s Or reinstall if available: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", name)))
-				fmt.Println()
-			}
-		}
+	// Plugins
+	fmt.Println(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(combinedProfile.Plugins))))
+	for _, p := range combinedProfile.Plugins {
+		fmt.Printf("  • %s\n", p)
 	}
+	if len(combinedProfile.Plugins) == 0 {
+		fmt.Printf("  %s\n", ui.Muted("(none)"))
+	}
+	fmt.Println()
+
+	// MCP Servers
+	fmt.Println(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(combinedProfile.MCPServers))))
+	for _, s := range combinedProfile.MCPServers {
+		fmt.Printf("  • %s\n", s.Name)
+	}
+	if len(combinedProfile.MCPServers) == 0 {
+		fmt.Printf("  %s\n", ui.Muted("(none)"))
+	}
+	fmt.Println()
+
+	// Marketplaces
+	fmt.Println(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(savedProfile.Marketplaces))))
+	for _, m := range savedProfile.Marketplaces {
+		fmt.Printf("  • %s\n", m.DisplayName())
+	}
+	if len(savedProfile.Marketplaces) == 0 {
+		fmt.Printf("  %s\n", ui.Muted("(none)"))
+	}
+	fmt.Println()
 
 	return nil
-}
-
-// getScopeFile returns the settings file name for a scope
-func getScopeFile(scope, claudeConfigDir string) string {
-	switch scope {
-	case "user":
-		// Show the actual claude config dir (respects CLAUDE_CONFIG_DIR)
-		return filepath.Join(claudeConfigDir, "settings.json")
-	case "project":
-		return ".claude/settings.json"
-	case "local":
-		return ".claude/settings.local.json"
-	default:
-		return ""
-	}
 }
 
 // pluralS returns "s" if count != 1, otherwise empty string
@@ -1590,13 +1341,6 @@ func pluralS(count int) string {
 		return ""
 	}
 	return "s"
-}
-
-func pluralYIES(count int) string {
-	if count == 1 {
-		return "y"
-	}
-	return "ies"
 }
 
 func hasDiffChanges(diff *profile.Diff) bool {
@@ -2126,23 +1870,8 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		// Apply the profile at user scope (not project scope).
 		// This prevents accidentally overwriting existing project configs when
 		// the user just wants to create and try a new profile.
-		// Note: User scope intentionally skips the project overwrite warning since
-		// it doesn't modify .claudeup.json.
 		if err := applyProfileWithScope(name, profile.ScopeUser); err != nil {
 			return err
-		}
-
-		// If there's an existing project config, inform the user about scope choice
-		cwd, _ := os.Getwd()
-		if profile.ProjectConfigExists(cwd) {
-			existingConfig, loadErr := profile.LoadProjectConfig(cwd)
-			if loadErr == nil && existingConfig.Profile != name {
-				fmt.Println()
-				ui.PrintInfo(fmt.Sprintf("Applied profile %q at user scope.", name))
-				fmt.Printf("  Note: This directory has an existing project config (%q).\n", existingConfig.Profile)
-				fmt.Printf("  Use '%s' to apply at project level.\n",
-					ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope project", name)))
-			}
 		}
 
 		// Save snapshot after applying to sync profile with actual installed state
@@ -2246,41 +1975,7 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	profilesDir := getProfilesDir()
 
-	// Check for project-level profile first (takes precedence)
-	if profile.ProjectConfigExists(cwd) {
-		projectCfg, err := profile.LoadProjectConfig(cwd)
-		if err == nil {
-			p, err := loadProfileWithFallback(profilesDir, projectCfg.Profile)
-
-			fmt.Println(ui.RenderDetail("Current profile", ui.Bold(projectCfg.Profile)))
-			fmt.Printf("  %s\n", ui.Info("(project scope)"))
-
-			if err != nil {
-				// Profile doesn't exist, show warning but don't fail
-				fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("Profile definition not found: %v", err)))
-			} else {
-				// Profile exists, show full details
-				if p.Description != "" {
-					fmt.Printf("  %s\n", ui.Muted(p.Description))
-				}
-				fmt.Println()
-				fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-				fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
-
-				// Check for .mcp.json
-				if profile.MCPJSONExists(cwd) {
-					mcpCfg, _ := profile.LoadMCPJSON(cwd)
-					if mcpCfg != nil {
-						fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(mcpCfg.MCPServers))), 1))
-					}
-				}
-			}
-
-			return nil
-		}
-	}
-
-	// Check for local-scope profile in registry
+	// Check for local-scope profile in registry (highest precedence)
 	registry, err := config.LoadProjectsRegistry()
 	if err == nil {
 		if entry, ok := registry.GetProject(cwd); ok {
@@ -2617,78 +2312,6 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Renamed profile %q to %q", oldName, newName))
-
-	return nil
-}
-
-func runProfileSync(cmd *cobra.Command, args []string) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
-
-	// Check for .claudeup.json
-	if !profile.ProjectConfigExists(cwd) {
-		return fmt.Errorf("no %s found in current directory.\nRun `claudeup profile apply <name> --scope project` to create one", profile.ProjectConfigFile)
-	}
-
-	opts := profile.SyncOptions{
-		DryRun:           profileSyncDryRun,
-		ReplaceUserScope: profileSyncReplace,
-	}
-
-	// Add progress callbacks when not in dry-run mode
-	if !profileSyncDryRun {
-		opts.Progress = ui.PluginProgress()
-		opts.MarketplaceProgress = ui.MarketplaceProgress()
-	}
-
-	if profileSyncDryRun {
-		ui.PrintInfo("Dry run - no changes will be made")
-		fmt.Println()
-	}
-
-	profilesDir := getProfilesDir()
-	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-	result, err := profile.Sync(profilesDir, cwd, claudeDir, claudeJSONPath, opts)
-	if err != nil {
-		return err
-	}
-
-	// Show results
-	if profileSyncDryRun {
-		fmt.Println("Would sync:")
-	} else {
-		fmt.Printf("Synced profile: %s\n", ui.Bold(result.ProfileName))
-	}
-
-	if result.ProfileCreated && !profileSyncDryRun {
-		fmt.Printf("  Profile saved locally\n")
-	}
-	if result.PluginsInstalled > 0 {
-		fmt.Printf("  Plugins configured: %d\n", result.PluginsInstalled)
-	}
-
-	if len(result.Errors) > 0 {
-		fmt.Println()
-		ui.PrintWarning("Some items failed to sync:")
-		for _, err := range result.Errors {
-			fmt.Printf("  - %v\n", err)
-		}
-	}
-
-	if len(result.Warnings) > 0 {
-		fmt.Println()
-		ui.PrintInfo("Notes:")
-		for _, warning := range result.Warnings {
-			fmt.Printf("  - %s\n", warning)
-		}
-	}
-
-	if !profileSyncDryRun && len(result.Errors) == 0 {
-		fmt.Println()
-		ui.PrintSuccess("Sync complete!")
-	}
 
 	return nil
 }

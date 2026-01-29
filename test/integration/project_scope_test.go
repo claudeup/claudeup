@@ -1,5 +1,5 @@
 // ABOUTME: Integration tests for project-level profile scopes
-// ABOUTME: Tests scope precedence, file creation, sync, and edge cases
+// ABOUTME: Tests MCP config, scope types, and apply options
 package integration
 
 import (
@@ -134,37 +134,6 @@ func TestWriteMCPJSON_EmptyServers(t *testing.T) {
 	}
 }
 
-func TestProjectConfig_RoundTrip(t *testing.T) {
-	projectDir := t.TempDir()
-
-	cfg := &profile.ProjectConfig{
-		Profile: "test-profile",
-	}
-
-	// Save
-	err := profile.SaveProjectConfig(projectDir, cfg)
-	if err != nil {
-		t.Fatalf("SaveProjectConfig failed: %v", err)
-	}
-
-	// Load
-	loaded, err := profile.LoadProjectConfig(projectDir)
-	if err != nil {
-		t.Fatalf("LoadProjectConfig failed: %v", err)
-	}
-
-	// Verify
-	if loaded.Profile != cfg.Profile {
-		t.Errorf("Profile = %q, want %q", loaded.Profile, cfg.Profile)
-	}
-	if loaded.Version != "1" {
-		t.Errorf("Version = %q, want '1'", loaded.Version)
-	}
-	if loaded.AppliedAt.IsZero() {
-		t.Error("AppliedAt should be set")
-	}
-}
-
 func TestScopeString(t *testing.T) {
 	tests := []struct {
 		scope profile.Scope
@@ -179,45 +148,6 @@ func TestScopeString(t *testing.T) {
 		if got := string(tt.scope); got != tt.want {
 			t.Errorf("Scope string = %q, want %q", got, tt.want)
 		}
-	}
-}
-
-// Sync tests are covered in internal/profile/sync_test.go
-
-func TestNewProjectConfig_FromProfile(t *testing.T) {
-	p := &profile.Profile{
-		Name: "test-profile",
-		Marketplaces: []profile.Marketplace{
-			{Source: "github", Repo: "test/repo"},
-		},
-		Plugins: []string{"plugin@test"},
-	}
-
-	cfg := profile.NewProjectConfig(p)
-
-	if cfg.Profile != "test-profile" {
-		t.Errorf("Profile = %q, want %q", cfg.Profile, "test-profile")
-	}
-	if cfg.AppliedAt.IsZero() {
-		t.Error("AppliedAt should be set")
-	}
-}
-
-func TestProjectConfigExists(t *testing.T) {
-	projectDir := t.TempDir()
-
-	// Should not exist initially
-	if profile.ProjectConfigExists(projectDir) {
-		t.Error("Should return false for empty directory")
-	}
-
-	// Create config
-	cfg := &profile.ProjectConfig{Profile: "test"}
-	profile.SaveProjectConfig(projectDir, cfg)
-
-	// Should exist now
-	if !profile.ProjectConfigExists(projectDir) {
-		t.Error("Should return true after saving")
 	}
 }
 

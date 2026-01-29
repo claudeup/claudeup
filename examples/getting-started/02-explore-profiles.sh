@@ -26,7 +26,6 @@ run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 info "Profile markers:"
 info "  • * = currently active (highest precedence)"
 info "  • ○ = active but overridden by higher scope"
-info "  • (modified) = differs from saved definition"
 pause
 
 section "2. View Profile Contents"

@@ -121,7 +121,6 @@ type CreateSpec struct {
 	Plugins      []string        `json:"plugins"`
 	MCPServers   []MCPServer     `json:"mcpServers,omitempty"`
 	Detect       DetectRules     `json:"detect,omitempty"`
-	Sandbox      SandboxConfig   `json:"sandbox,omitempty"`
 }
 
 // MaxInputSize is the maximum size for JSON input (10MB)
@@ -183,7 +182,6 @@ func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, 
 		Plugins:      plugins,
 		MCPServers:   mcpServers,
 		Detect:       spec.Detect,
-		Sandbox:      spec.Sandbox,
 	}, nil
 }
 

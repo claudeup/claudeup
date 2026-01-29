@@ -56,9 +56,9 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(analysis).To(BeEmpty())
+			Expect(analysis.Installed).To(BeEmpty())
 		})
 	})
 
@@ -88,11 +88,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(analysis).To(HaveLen(1))
+			Expect(analysis.Installed).To(HaveLen(1))
 
-			info := analysis["test-plugin@marketplace"]
+			info := analysis.Installed["test-plugin@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.Name).To(Equal("test-plugin@marketplace"))
 			Expect(info.EnabledAt).To(Equal([]string{"user"}))
@@ -142,11 +142,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(analysis).To(HaveLen(1))
+			Expect(analysis.Installed).To(HaveLen(1))
 
-			info := analysis["multi-scope@marketplace"]
+			info := analysis.Installed["multi-scope@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(ConsistOf("user", "project"))
 			Expect(info.InstalledAt).To(HaveLen(2))
@@ -193,11 +193,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, localSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(analysis).To(HaveLen(1))
+			Expect(analysis.Installed).To(HaveLen(1))
 
-			info := analysis["local-plugin@marketplace"]
+			info := analysis.Installed["local-plugin@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"local"}))
 			Expect(info.InstalledAt).To(HaveLen(3))
@@ -230,11 +230,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(analysis).To(HaveLen(1))
+			Expect(analysis.Installed).To(HaveLen(1))
 
-			info := analysis["disabled-plugin@marketplace"]
+			info := analysis.Installed["disabled-plugin@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(BeEmpty())
 			Expect(info.InstalledAt).To(HaveLen(1))
@@ -245,7 +245,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 	Context("when Claude directory doesn't exist", func() {
 		It("returns an error", func() {
 			nonExistentDir := filepath.Join(tempDir, "nonexistent")
-			_, err := claude.AnalyzePluginScopes(nonExistentDir, projectDir)
+			_, err := claude.AnalyzePluginScopesWithOrphans(nonExistentDir, projectDir)
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -278,10 +278,10 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
 
-			info := analysis["cross-scope@marketplace"]
+			info := analysis.Installed["cross-scope@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"user"}))
 			Expect(info.InstalledAt).To(HaveLen(1))
@@ -314,10 +314,10 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
 
-			info := analysis["local-cross@marketplace"]
+			info := analysis.Installed["local-cross@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"user"}))
 			// Local installation should be used (highest precedence)
@@ -351,10 +351,10 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettingsForScope("local", claudeDir, projectDir, localSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
 
-			info := analysis["user-only@marketplace"]
+			info := analysis.Installed["user-only@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"local"}))
 			// User installation should be used (only available option)
@@ -386,10 +386,10 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
 
-			info := analysis["user-proj@marketplace"]
+			info := analysis.Installed["user-proj@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"project"}))
 			// User installation should be used (only available option)
@@ -429,10 +429,10 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
 
-			analysis, err := claude.AnalyzePluginScopes(claudeDir, projectDir)
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
 			Expect(err).NotTo(HaveOccurred())
 
-			info := analysis["multi-install@marketplace"]
+			info := analysis.Installed["multi-install@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"project"}))
 			Expect(info.InstalledAt).To(HaveLen(2))

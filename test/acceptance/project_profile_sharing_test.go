@@ -70,14 +70,10 @@ func TestProfileResolutionOrder_ProjectFirst(t *testing.T) {
 		t.Fatalf("Failed to save project profile: %v", err)
 	}
 
-	// Load with fallback - should get project version
-	loaded, source, err := profile.LoadWithFallback(env.ProfilesDir, projectDir, "shared-name")
+	// Load from project - should get project version
+	loaded, err := profile.Load(profile.ProjectProfilesDir(projectDir), "shared-name")
 	if err != nil {
-		t.Fatalf("LoadWithFallback failed: %v", err)
-	}
-
-	if source != "project" {
-		t.Errorf("Expected source 'project', got %q", source)
+		t.Fatalf("Failed to load project profile: %v", err)
 	}
 
 	if loaded.Description != "Project version - should win" {
@@ -93,8 +89,6 @@ func TestProfileResolutionOrder_FallbackToUser(t *testing.T) {
 	env := SetupAcceptanceTestEnv(t)
 	defer env.Cleanup()
 
-	projectDir := env.ProjectDir()
-
 	// Create profile only in user location
 	userProfile := &profile.Profile{
 		Name:        "user-only",
@@ -106,14 +100,10 @@ func TestProfileResolutionOrder_FallbackToUser(t *testing.T) {
 		t.Fatalf("Failed to save user profile: %v", err)
 	}
 
-	// Load with fallback - should fall back to user
-	loaded, source, err := profile.LoadWithFallback(env.ProfilesDir, projectDir, "user-only")
+	// Load from user profiles
+	loaded, err := profile.Load(env.ProfilesDir, "user-only")
 	if err != nil {
-		t.Fatalf("LoadWithFallback failed: %v", err)
-	}
-
-	if source != "user" {
-		t.Errorf("Expected source 'user', got %q", source)
+		t.Fatalf("Failed to load user profile: %v", err)
 	}
 
 	if loaded.Description != "Only exists in user profiles" {
@@ -270,23 +260,17 @@ func TestUserAndProjectProfilesCoexist(t *testing.T) {
 	}
 
 	// Verify each can be loaded correctly
-	base, baseSource, err := profile.LoadWithFallback(env.ProfilesDir, projectDir, "base-tools")
+	base, err := profile.Load(env.ProfilesDir, "base-tools")
 	if err != nil {
 		t.Fatalf("Failed to load base-tools: %v", err)
-	}
-	if baseSource != "user" {
-		t.Errorf("Expected base-tools from 'user', got %q", baseSource)
 	}
 	if len(base.Plugins) != 2 {
 		t.Errorf("Expected 2 plugins in base-tools, got %d", len(base.Plugins))
 	}
 
-	backend, backendSource, err := profile.LoadWithFallback(env.ProfilesDir, projectDir, "backend-go")
+	backend, err := profile.Load(profile.ProjectProfilesDir(projectDir), "backend-go")
 	if err != nil {
 		t.Fatalf("Failed to load backend-go: %v", err)
-	}
-	if backendSource != "project" {
-		t.Errorf("Expected backend-go from 'project', got %q", backendSource)
 	}
 	if len(backend.Plugins) != 2 {
 		t.Errorf("Expected 2 plugins in backend-go, got %d", len(backend.Plugins))
@@ -296,8 +280,8 @@ func TestUserAndProjectProfilesCoexist(t *testing.T) {
 // Section 5: End-to-end Alice creates, Bob syncs
 func TestAliceBobWorkflow(t *testing.T) {
 	// This test simulates the complete workflow:
-	// Alice: Saves profile to project → commits
-	// Bob: Pulls → syncs → has the profile available
+	// Alice: Saves profile to project -> commits
+	// Bob: Pulls -> syncs -> has the profile available
 
 	env := SetupAcceptanceTestEnv(t)
 	defer env.Cleanup()
@@ -368,14 +352,10 @@ func TestAliceBobWorkflow(t *testing.T) {
 		t.Errorf("Bob: Expected source 'project', got %q", all[0].Source)
 	}
 
-	// Bob loads the profile
-	loaded, source, err := profile.LoadWithFallback(bobUserProfilesDir, bobProjectDir, "backend-go")
+	// Bob loads the profile from project
+	loaded, err := profile.Load(profile.ProjectProfilesDir(bobProjectDir), "backend-go")
 	if err != nil {
 		t.Fatalf("Bob: Failed to load profile: %v", err)
-	}
-
-	if source != "project" {
-		t.Errorf("Bob: Expected source 'project', got %q", source)
 	}
 
 	if len(loaded.Plugins) != 2 {
@@ -384,7 +364,7 @@ func TestAliceBobWorkflow(t *testing.T) {
 
 	// Verify Bob has access to the plugins list for syncing
 	expectedPlugins := map[string]bool{
-		"tdd-workflows@claude-code-workflows":      true,
+		"tdd-workflows@claude-code-workflows":       true,
 		"backend-development@claude-code-workflows": true,
 	}
 

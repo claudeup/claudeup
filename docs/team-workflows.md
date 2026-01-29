@@ -31,21 +31,21 @@ claude plugin install backend-development@claude-code-workflows --scope project
 # Save current state as a profile (captures all scopes)
 claudeup profile save team-config
 
-# Apply at project scope to create .claudeup.json for team sharing
+# Apply at project scope
 claudeup profile apply team-config --scope project
 
-# Commit to git
-git add .claudeup.json .claudeup/profiles/
+# Commit profile and settings to git
+git add .claudeup/profiles/ .claude/settings.json .mcp.json
 git commit -m "Add team Claude profile"
 git push
 ```
 
-**Team member syncs after clone:**
+**Team member applies after clone:**
 
 ```bash
 git clone <repo-url>
 cd your-project
-claudeup profile sync
+claudeup profile apply team-config --scope project
 ```
 
 ## Project Structure
@@ -57,17 +57,17 @@ your-project/
 ├── .claudeup/
 │   └── profiles/
 │       └── team-config.json    # Shared profile definition
-├── .claudeup.json              # Optional: project configuration
 ├── .claude/
-│   └── settings.json           # Claude Code settings
+│   └── settings.json           # Claude Code settings (plugins)
+├── .mcp.json                   # MCP server configuration
 └── src/
 ```
 
 **What to commit:**
 
 - `.claudeup/profiles/` - Profile definitions (commit this)
-- `.claudeup.json` - Project configuration (commit this)
 - `.claude/settings.json` - Project Claude settings (commit this)
+- `.mcp.json` - MCP server configuration (commit this)
 - `.claude/settings.local.json` - Personal overrides (add to .gitignore)
 
 ## Workflows
@@ -80,7 +80,7 @@ As a team lead, capture your current Claude configuration:
 # Save current state as a profile (captures all scopes)
 claudeup profile save backend-go
 
-# Apply at project scope to create .claudeup.json for team sharing
+# Apply at project scope
 claudeup profile apply backend-go --scope project
 ```
 
@@ -91,23 +91,17 @@ The profile includes:
 - MCP server configurations
 - Profile metadata
 
-### Syncing Team Configuration
+### Applying Team Configuration
 
-When joining a project or after pulling changes:
+When joining a project, apply the team profile:
 
 ```bash
-claudeup profile sync
+claudeup profile apply backend-go --scope project
 ```
 
-Sync will:
+This installs any missing marketplaces and plugins defined in the profile.
 
-1. Read `.claudeup.json` for the profile name
-2. Find the profile in `.claudeup/profiles/` (project) or `~/.claudeup/profiles/` (user)
-3. If profile not found, bootstrap from current state (captures all current settings as the profile)
-4. Install any missing marketplaces
-5. Install any missing plugins
-
-**Bootstrap behavior:** If you have `.claudeup.json` but the profile definition doesn't exist (common when upgrading from older versions), sync creates the profile by capturing your current settings. This ensures sync always works.
+**Philosophy:** Profiles are for bootstrapping - apply once, then manage settings directly. After initial setup, team members can customize their local scope without affecting others.
 
 ### Viewing Profile Sources
 
@@ -172,7 +166,7 @@ claudeup profile save backend-go
 claudeup profile apply backend-go --scope project
 
 # Commit to git
-git add .claudeup.json .claudeup/profiles/
+git add .claudeup/profiles/ .claude/settings.json .mcp.json
 git commit -m "Add Claude Code team profile"
 git push
 ```
@@ -183,13 +177,13 @@ git push
 git clone git@github.com:team/my-go-api.git
 cd my-go-api
 
-# Sync Claude configuration
-claudeup profile sync
+# Apply the team profile
+claudeup profile apply backend-go --scope project
 # Output:
-#   Syncing profile: backend-go (from project)
+#   Applying profile: backend-go
 #   ✓ Installing tdd-workflows@claude-code-workflows
 #   ✓ Installing backend-development@claude-code-workflows
-#   Synced: 2 plugins installed
+#   Applied: 2 plugins installed
 
 # Ready to work
 claude
@@ -198,23 +192,27 @@ claude
 ### Alice Adds a Plugin Later
 
 ```bash
-# Add new plugin
+# Add new plugin directly (profiles are for bootstrapping)
 claude plugin install debugging-toolkit@claude-code-workflows --scope project
 
-# Update the profile (re-save to capture new plugins)
+# Optionally update the profile for future team members
 claudeup profile save backend-go
 
-# Share with team
-git add .claudeup/profiles/ && git commit -m "Add debugging toolkit" && git push
+# Commit changes
+git add .claude/settings.json .claudeup/profiles/
+git commit -m "Add debugging toolkit"
+git push
 ```
 
 ### Bob Gets the Update
 
 ```bash
 git pull
-claudeup profile sync
-# ✓ Installing debugging-toolkit@claude-code-workflows
+# Settings updated automatically via git
+# Plugin is now in .claude/settings.json
 ```
+
+**Note:** After initial bootstrap, team members get plugin changes through git. The profile is primarily for onboarding new team members.
 
 ## Resolution Order
 
@@ -258,8 +256,8 @@ Add to your project's `.gitignore`:
 Keep tracked:
 
 - `.claudeup/profiles/` - Shared profile definitions
-- `.claudeup.json` - Project configuration
 - `.claude/settings.json` - Project-level Claude settings
+- `.mcp.json` - MCP server configuration
 
 ## Related Documentation
 

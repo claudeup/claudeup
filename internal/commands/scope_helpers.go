@@ -9,7 +9,6 @@ import (
 
 	"github.com/claudeup/claudeup/v3/internal/claude"
 	"github.com/claudeup/claudeup/v3/internal/config"
-	"github.com/claudeup/claudeup/v3/internal/profile"
 	"github.com/claudeup/claudeup/v3/internal/ui"
 )
 
@@ -20,20 +19,12 @@ type ActiveProfileInfo struct {
 }
 
 // getActiveProfile returns the active profile name and scope using the hierarchy:
-// 1. Project scope (.claudeup.json in cwd) - highest priority
-// 2. Local scope (projects.json registry)
-// 3. User scope (~/.claudeup/config.json) - lowest priority
+// 1. Local scope (projects.json registry) - highest priority
+// 2. User scope (~/.claudeup/config.json) - lowest priority
 //
 // Returns empty strings if no profile is active.
 func getActiveProfile(cwd string) (profileName, scope string) {
-	// Check project scope first (highest precedence)
-	if profile.ProjectConfigExists(cwd) {
-		if projectCfg, err := profile.LoadProjectConfig(cwd); err == nil && projectCfg.Profile != "" {
-			return projectCfg.Profile, "project"
-		}
-	}
-
-	// Check local scope in registry
+	// Check local scope in registry first (highest precedence)
 	if registry, err := config.LoadProjectsRegistry(); err == nil {
 		if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
 			return entry.Profile, "local"
@@ -49,20 +40,10 @@ func getActiveProfile(cwd string) (profileName, scope string) {
 }
 
 // getAllActiveProfiles returns active profiles from all scopes that have a profile set
-// Returns profiles in order: project, local, user (matching precedence order)
+// Returns profiles in order: local, user (matching precedence order)
 // Used to display all active profiles when they differ across scopes
 func getAllActiveProfiles(cwd string) []ActiveProfileInfo {
 	var profiles []ActiveProfileInfo
-
-	// Project scope
-	if profile.ProjectConfigExists(cwd) {
-		if projectCfg, err := profile.LoadProjectConfig(cwd); err == nil && projectCfg.Profile != "" {
-			profiles = append(profiles, ActiveProfileInfo{
-				Name:  projectCfg.Profile,
-				Scope: "project",
-			})
-		}
-	}
 
 	// Local scope
 	if registry, err := config.LoadProjectsRegistry(); err == nil {

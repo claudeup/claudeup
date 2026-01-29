@@ -1,6 +1,27 @@
 # claudeup
 
-CLI tool for managing Claude Code configurations, profiles, and sandboxed environments.
+CLI tool for managing Claude Code profiles and configurations.
+
+## Design Philosophy
+
+**claudeup is a profile manager for bootstrapping, not an ongoing config management layer.**
+
+- Profiles are most valuable at bootstrap time (applying curated settings to new projects)
+- Users will edit `settings.json` directly during daily work - this is natural and low-friction
+- Forcing users to keep profiles in sync with settings adds friction that leads to abandonment
+- Bootstrap and get out of the way - Claude's native settings files handle ongoing management
+
+**Core scope:**
+
+- Profile management (save/apply/list/delete)
+- Diagnostics (doctor)
+- Onboarding (setup)
+
+**Intentionally excluded:**
+
+- Sandbox (devcontainers do this better)
+- `.claudeup.json` auto-detection (profiles should be explicit)
+- Drift detection / `(modified)` markers (noise, not signal)
 
 ## Project Structure
 
@@ -8,7 +29,6 @@ CLI tool for managing Claude Code configurations, profiles, and sandboxed enviro
 - `internal/commands/` - Cobra command implementations
 - `internal/profile/` - Profile management (save, load, apply, snapshot)
 - `internal/claude/` - Claude Code configuration file handling
-- `internal/sandbox/` - Docker-based sandboxed execution
 - `internal/secrets/` - Secret resolution (env, 1Password, keychain)
 - `test/acceptance/` - Acceptance tests (CLI behavior, real binary execution)
 - `test/integration/` - Integration tests (internal packages with fake fixtures)
@@ -84,11 +104,13 @@ This project uses the `CLAUDE_CONFIG_DIR` environment variable to create isolate
 ### How It Works
 
 When running tests or development builds of claudeup, we set:
+
 ```bash
 export CLAUDE_CONFIG_DIR=/path/to/test/claude-config
 ```
 
 This redirects Claude Code's **user-scope** configuration directory only, including:
+
 - `.claude.json` (main config)
 - `.credentials.json` (auth tokens)
 - `projects/` (project-specific settings)
@@ -119,6 +141,7 @@ This redirects Claude Code's **user-scope** configuration directory only, includ
 ### Testing Commands
 
 Before running tests, ensure `CLAUDE_CONFIG_DIR` is set and points to an isolated directory:
+
 ```bash
 # Verify the variable is set
 echo $CLAUDE_CONFIG_DIR
@@ -142,51 +165,31 @@ Built-in profiles are embedded from `internal/profile/profiles/*.json` using Go'
 claudeup respects Claude Code's scope layering system (user → project → local).
 
 **How Claude Code works:**
+
 - Settings files exist at three scopes: user (`~/.claude/settings.json`), project (`.claude/settings.json`), local (`.claude/settings.local.json`)
 - Claude Code **accumulates** settings from all scopes: user → project → local
 - Later scopes override earlier ones (local > project > user)
 - The effective configuration is the combination of all three scopes
 
 **How claudeup handles this:**
+
 - `profile list` shows which profile is active at each scope
 - `*` marker shows the highest precedence active profile (what Claude actually uses)
 - `○` marker shows profiles active at lower precedence scopes (overridden)
-- `[scope]` indicates which scope a profile is active in
-- `(modified)` compares against the **effective configuration** (all scopes combined)
 
 **Example output:**
+
 ```text
 Your profiles (5)
 
-○ base-tools           Base tools [user] (modified)
-* claudeup             My claudeup setup [project]
+○ base-tools           Base tools [user]
+* claudeup             My claudeup setup [local]
 ```
 
 This shows:
-- `base-tools` is active at user scope but overridden by `claudeup` at project scope
-- The effective configuration differs from the `base-tools` saved definition
+
+- `base-tools` is active at user scope but overridden by `claudeup` at local scope
 - Claude Code is actually using `claudeup` (highest precedence)
-
-## Sandbox
-
-### Sandbox Profile Auto-Detection
-
-When running `claudeup sandbox` from a project directory containing `.claudeup.json`, the sandbox automatically uses the profile specified in that file.
-
-**Precedence order:**
-1. `--ephemeral` - Forces ephemeral mode, ignores all profile settings
-2. `--profile <name>` - Explicit profile, overrides auto-detection
-3. `.claudeup.json` - Auto-detected from current directory
-4. (none) - Ephemeral mode
-
-**Plugin sync:** On first run with a profile, the container entrypoint automatically syncs plugins from the profile's marketplaces. This happens inside the container before Claude launches.
-
-**Example:**
-```bash
-# Project has .claudeup.json pointing to "my-profile"
-cd ~/workspace/my-project
-claudeup sandbox  # Automatically uses "my-profile" and syncs plugins
-```
 
 ## Event Tracking & Privacy
 
@@ -195,16 +198,19 @@ claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit
 ### Content Capture Behavior
 
 **What is captured:**
+
 - JSON files under 1MB have their full content stored in event snapshots
 - This enables the `claudeup events diff` command to show detailed changes
 - Files tracked include: settings.json, installed_plugins.json, profiles, mcp configs
 
 **Privacy considerations:**
+
 - ⚠️ **Event logs may contain sensitive data** if configuration files include API keys, tokens, or credentials
 - Event logs are stored with 0600 permissions (owner-only access)
 - Logs are stored locally at `~/.claudeup/events/operations.log`
 
 **Recommendations:**
+
 - Do not store secrets in Claude configuration files (use environment variables or secret managers instead)
 - Review event logs before sharing for debugging: `cat ~/.claudeup/events/operations.log`
 - Event log retention can be configured in `~/.claudeup/config.json` (future feature)
@@ -225,16 +231,19 @@ claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
 ```
 
 **Default mode** (truncated):
+
 - Nested objects shown as `{...}` to prevent terminal overflow
 - Good for quick overview of changes
 
 **Full mode** (`--full` flag):
+
 - Recursively diffs nested objects showing only changed fields
 - Color-coded symbols: 🟢 `+` added, 🔴 `-` removed, 🔵 `~` modified
 - Bold key names with gray `(added)`/`(removed)` labels
 - Ideal for understanding complex configuration changes
 
 **Example output:**
+
 ```text
 ~ plugins:
   ~ conductor@claude-conductor:
@@ -263,9 +272,13 @@ claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `set
 ### When Claude CLI Format Changes
 
 1. **Smoke tests fail** - You'll see failures when your local Claude updates
+
 2. **Investigate changes** - Examine actual file structure: `cat ~/.claude/plugins/installed_plugins.json | jq .`
+
 3. **Update validation** - Add new version support in `internal/claude/validation.go`
+
 4. **Update migration** - Extend `LoadPlugins()` to handle new version
+
 5. **Update error messages** - Change supported version range in validation
 
 See `plans/2025-12-17-claude-format-resilience-design.md` for full architecture details.

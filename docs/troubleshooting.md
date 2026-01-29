@@ -73,16 +73,6 @@ claudeup events diff --file ~/.claude/settings.json --full
 
 ### Common Scenarios
 
-**Profile was marked as modified:**
-
-```bash
-# See what changed compared to saved profile
-claudeup profile list
-
-# If a profile shows (modified), check what changed:
-claudeup events diff --file ~/.claude/settings.json --full
-```
-
 **Plugin stopped working:**
 
 ```bash
@@ -209,20 +199,6 @@ Test 1Password:
 
 ```bash
 op read "op://Private/My Secret/credential"
-```
-
-### Sandbox won't start
-
-Check Docker is running:
-
-```bash
-docker info
-```
-
-Pull the image manually:
-
-```bash
-docker pull ghcr.io/claudeup/claudeup-sandbox:latest
 ```
 
 ## Getting Help

@@ -266,7 +266,7 @@ func convertConcurrentResult(cr *ConcurrentApplyResult) *ApplyResult {
 	}
 }
 
-// writeProjectScopeConfigs writes .mcp.json, .claudeup.json, and settings.json for project scope
+// writeProjectScopeConfigs writes .mcp.json and settings.json for project scope
 func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
 	// Write .mcp.json for MCP servers
 	if len(profile.MCPServers) > 0 {
@@ -290,14 +290,7 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 		return fmt.Errorf("failed to write project settings.json: %w", err)
 	}
 
-	// Write .claudeup.json
-	projectCfg := NewProjectConfig(profile)
-	if err := SaveProjectConfig(projectDir, projectCfg); err != nil {
-		return fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
-	}
-
 	// Save profile to project profiles directory for team sharing
-	// This ensures team members can run 'profile sync' after cloning
 	if err := SaveToProject(projectDir, profile); err != nil {
 		return fmt.Errorf("failed to save profile to project: %w", err)
 	}
@@ -331,7 +324,7 @@ func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) erro
 	return nil
 }
 
-// applyProjectScope applies a profile at project scope, creating .mcp.json and .claudeup.json
+// applyProjectScope applies a profile at project scope, creating .claude/settings.json and .mcp.json
 func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
@@ -393,13 +386,7 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 		return nil, fmt.Errorf("failed to write project settings.json: %w", err)
 	}
 
-	// 5. Write .claudeup.json
-	projectCfg := NewProjectConfig(profile)
-	if err := SaveProjectConfig(opts.ProjectDir, projectCfg); err != nil {
-		return nil, fmt.Errorf("failed to write %s: %w", ProjectConfigFile, err)
-	}
-
-	// 6. Save profile to project profiles directory for team sharing
+	// 5. Save profile to project profiles directory for team sharing
 	if err := SaveToProject(opts.ProjectDir, profile); err != nil {
 		return nil, fmt.Errorf("failed to save profile to project: %w", err)
 	}
@@ -778,29 +765,12 @@ func DefaultClaudeDir() string {
 	return config.MustClaudeDir()
 }
 
-// DefaultClaudeJSONPath returns the path to .claude.json
-// When CLAUDE_CONFIG_DIR is set, it's inside that directory
-// Otherwise it's at ~/.claude.json
-func DefaultClaudeJSONPath() string {
-	return filepath.Join(config.MustClaudeDir(), ".claude.json")
-}
-
 func toSet(slice []string) map[string]struct{} {
 	set := make(map[string]struct{})
 	for _, item := range slice {
 		set[item] = struct{}{}
 	}
 	return set
-}
-
-// MustHomeDir returns the user's home directory or panics if it cannot be determined.
-// This is appropriate because the tool cannot function without knowing the home directory.
-func MustHomeDir() string {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		panic(fmt.Sprintf("cannot determine home directory: %v", err))
-	}
-	return homeDir
 }
 
 // HookOptions controls post-apply hook behavior

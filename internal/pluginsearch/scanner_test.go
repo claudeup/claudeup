@@ -102,7 +102,7 @@ func TestScanner_ParsesSkills(t *testing.T) {
 	}
 
 	p := plugins[0]
-	if !p.HasSkills() {
+	if len(p.Skills) == 0 {
 		t.Fatal("expected plugin to have skills")
 	}
 	if len(p.Skills) != 1 {

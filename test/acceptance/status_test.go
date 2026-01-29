@@ -175,7 +175,7 @@ var _ = Describe("status", func() {
 			result := env.Run("status")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Configuration Drift Detected"))
+			Expect(result.Stdout).To(ContainSubstring("Issues"))
 		})
 
 		It("mentions stale plugins", func() {

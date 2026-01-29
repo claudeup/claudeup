@@ -57,18 +57,8 @@ type EventFilters struct {
 
 // Tracker records file operations
 type Tracker struct {
-	enabled bool // Exported via Enable/Disable methods
+	enabled bool
 	writer  EventWriter
-}
-
-// SetEnabled enables or disables the tracker
-func (t *Tracker) SetEnabled(enabled bool) {
-	t.enabled = enabled
-}
-
-// IsEnabled returns whether the tracker is enabled
-func (t *Tracker) IsEnabled() bool {
-	return t.enabled
 }
 
 // NewTracker creates a new event tracker

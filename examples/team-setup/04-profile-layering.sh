@@ -81,7 +81,7 @@ step "Team lead saves and applies project profile"
 echo -e "${YELLOW}\$ claudeup profile save backend-team${NC}"
 echo -e "${YELLOW}\$ claudeup profile apply backend-team --scope project${NC}"
 echo
-info "This creates .claudeup.json for team sharing"
+info "This writes settings to .claude/settings.json for team sharing"
 echo
 info "Then commit and share with the team"
 pause
@@ -159,7 +159,7 @@ echo -e "${YELLOW}\$ claudeup profile save my-tools${NC}"
 echo -e "${YELLOW}\$ claudeup profile apply my-tools --scope user${NC}"
 echo
 step "Each project (after clone)"
-echo -e "${YELLOW}\$ claudeup profile sync${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply${NC}"
 echo
 info "Now you have: personal tools + team requirements"
 pause

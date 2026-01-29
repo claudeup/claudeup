@@ -5,7 +5,6 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"text/template"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -197,19 +196,6 @@ func styleFlagUsages(s string) string {
 		}
 	}
 	return strings.Join(styled, "\n")
-}
-
-// AddTemplateFuncs adds our custom template functions to a command
-func AddTemplateFuncs(cmd *cobra.Command) {
-	tmpl := template.New("help")
-	tmpl.Funcs(template.FuncMap{
-		"styleTitle":   styleTitle,
-		"styleHeading": styleHeading,
-		"styleCommand": styleCommand,
-		"styleFlag":    styleFlag,
-		"styleDesc":    styleDesc,
-		"styleExample": styleExample,
-	})
 }
 
 const helpTemplate = `{{if .Long}}{{styleLong .Long}}{{else}}{{styleTitle .Short}}{{end}}

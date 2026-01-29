@@ -22,7 +22,6 @@ type Profile struct {
 	Plugins        []string       `json:"plugins,omitempty"`
 	SkipPluginDiff bool           `json:"skipPluginDiff,omitempty"` // If true, don't add/remove plugins (managed externally e.g. by wizard)
 	Detect         DetectRules    `json:"detect,omitempty"`
-	Sandbox        SandboxConfig  `json:"sandbox,omitempty"`
 	PostApply      *PostApplyHook `json:"postApply,omitempty"`
 
 	// PerScope contains settings organized by scope (user, project, local).
@@ -194,28 +193,6 @@ type PostApplyHook struct {
 	Condition string `json:"condition,omitempty"` // "always" (default) or "first-run"
 }
 
-// SandboxConfig defines sandbox-specific settings for a profile
-type SandboxConfig struct {
-	// Credentials are credential types to mount (git, ssh, gh)
-	Credentials []string `json:"credentials,omitempty"`
-
-	// Secrets are secret names to resolve and inject into the sandbox
-	Secrets []string `json:"secrets,omitempty"`
-
-	// Mounts are additional host:container path mappings
-	Mounts []SandboxMount `json:"mounts,omitempty"`
-
-	// Env are static environment variables to set
-	Env map[string]string `json:"env,omitempty"`
-}
-
-// SandboxMount represents a host-to-container path mapping
-type SandboxMount struct {
-	Host      string `json:"host"`
-	Container string `json:"container"`
-	ReadOnly  bool   `json:"readonly,omitempty"`
-}
-
 // MCPServer represents an MCP server configuration
 type MCPServer struct {
 	Name    string               `json:"name"`
@@ -316,29 +293,6 @@ func ProjectProfilesDir(projectDir string) string {
 func SaveToProject(projectDir string, p *Profile) error {
 	profilesDir := ProjectProfilesDir(projectDir)
 	return Save(profilesDir, p)
-}
-
-// LoadWithFallback loads a profile, checking project directory first, then user directory.
-// Returns the profile, the source ("project" or "user"), and any error.
-func LoadWithFallback(userProfilesDir, projectDir, name string) (*Profile, string, error) {
-	// Try project directory first
-	projectProfilesDir := ProjectProfilesDir(projectDir)
-	p, err := Load(projectProfilesDir, name)
-	if err == nil {
-		return p, "project", nil
-	}
-	// Only fall back to user if file doesn't exist (not on parse errors)
-	if !os.IsNotExist(err) {
-		// Project profile exists but failed to load
-		return nil, "", fmt.Errorf("project profile %q exists but failed to load: %w", name, err)
-	}
-
-	// Fall back to user directory
-	p, err = Load(userProfilesDir, name)
-	if err != nil {
-		return nil, "", fmt.Errorf("could not load profile %q from project or user profiles: %w", name, err)
-	}
-	return p, "user", nil
 }
 
 // List returns all profiles in the profiles directory, sorted by name
@@ -473,26 +427,6 @@ func (p *Profile) Clone(newName string) *Profile {
 		}
 	}
 
-	// Deep copy Sandbox
-	if len(p.Sandbox.Credentials) > 0 {
-		clone.Sandbox.Credentials = make([]string, len(p.Sandbox.Credentials))
-		copy(clone.Sandbox.Credentials, p.Sandbox.Credentials)
-	}
-	if len(p.Sandbox.Secrets) > 0 {
-		clone.Sandbox.Secrets = make([]string, len(p.Sandbox.Secrets))
-		copy(clone.Sandbox.Secrets, p.Sandbox.Secrets)
-	}
-	if len(p.Sandbox.Mounts) > 0 {
-		clone.Sandbox.Mounts = make([]SandboxMount, len(p.Sandbox.Mounts))
-		copy(clone.Sandbox.Mounts, p.Sandbox.Mounts)
-	}
-	if len(p.Sandbox.Env) > 0 {
-		clone.Sandbox.Env = make(map[string]string)
-		for k, v := range p.Sandbox.Env {
-			clone.Sandbox.Env[k] = v
-		}
-	}
-
 	return clone
 }
 
@@ -533,11 +467,6 @@ func (p *Profile) Equal(other *Profile) bool {
 		return false
 	}
 
-	// Compare SandboxConfig
-	if !sandboxConfigStructEqual(p.Sandbox, other.Sandbox) {
-		return false
-	}
-
 	// Compare PostApplyHook
 	if !postApplyHookPtrEqual(p.PostApply, other.PostApply) {
 		return false
@@ -572,7 +501,66 @@ func marketplaceSlicesEqual(a, b []Marketplace) bool {
 	return true
 }
 
-// mcpServerSlicesEqual compares two MCP server slices using the existing mcpServersEqual helper
+// mcpServersEqual checks if two MCP servers are equal
+// Compares: command, args, scope, and secrets
+func mcpServersEqual(a, b MCPServer) bool {
+	// Compare command
+	if a.Command != b.Command {
+		return false
+	}
+
+	// Compare scope
+	if a.Scope != b.Scope {
+		return false
+	}
+
+	// Compare args
+	if len(a.Args) != len(b.Args) {
+		return false
+	}
+	for i := range a.Args {
+		if a.Args[i] != b.Args[i] {
+			return false
+		}
+	}
+
+	// Compare secrets
+	if len(a.Secrets) != len(b.Secrets) {
+		return false
+	}
+	for key, aSecret := range a.Secrets {
+		bSecret, exists := b.Secrets[key]
+		if !exists {
+			return false
+		}
+		if !secretRefsEqual(aSecret, bSecret) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// secretRefsEqual compares two SecretRef values
+func secretRefsEqual(a, b SecretRef) bool {
+	if a.Description != b.Description {
+		return false
+	}
+
+	if len(a.Sources) != len(b.Sources) {
+		return false
+	}
+
+	for i := range a.Sources {
+		if a.Sources[i] != b.Sources[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// mcpServerSlicesEqual compares two MCP server slices using the mcpServersEqual helper
 func mcpServerSlicesEqual(a, b []MCPServer) bool {
 	if len(a) != len(b) {
 		return false
@@ -596,38 +584,6 @@ func detectRulesStructEqual(a, b DetectRules) bool {
 	}
 	if !strMapsEqual(a.Contains, b.Contains) {
 		return false
-	}
-	return true
-}
-
-// sandboxConfigStructEqual compares two SandboxConfig structs
-func sandboxConfigStructEqual(a, b SandboxConfig) bool {
-	if !strSlicesEqual(a.Credentials, b.Credentials) {
-		return false
-	}
-	if !strSlicesEqual(a.Secrets, b.Secrets) {
-		return false
-	}
-	if !sandboxMountSlicesEqual(a.Mounts, b.Mounts) {
-		return false
-	}
-	if !strMapsEqual(a.Env, b.Env) {
-		return false
-	}
-	return true
-}
-
-// sandboxMountSlicesEqual compares two SandboxMount slices
-func sandboxMountSlicesEqual(a, b []SandboxMount) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i].Host != b[i].Host ||
-			a[i].Container != b[i].Container ||
-			a[i].ReadOnly != b[i].ReadOnly {
-			return false
-		}
 	}
 	return true
 }

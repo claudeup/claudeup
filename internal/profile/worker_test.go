@@ -18,7 +18,7 @@ func TestWorkerPoolExecutesAllJobs(t *testing.T) {
 		{Name: "job3", Execute: func() error { atomic.AddInt32(&executed, 1); return nil }},
 	}
 
-	results := RunWorkerPool(jobs, 2)
+	results := RunWorkerPoolWithCallback(jobs, 2, nil)
 
 	if len(results) != 3 {
 		t.Errorf("expected 3 results, got %d", len(results))
@@ -35,7 +35,7 @@ func TestWorkerPoolCollectsErrors(t *testing.T) {
 		{Name: "failure", Execute: func() error { return fmt.Errorf("intentional error") }},
 	}
 
-	results := RunWorkerPool(jobs, 2)
+	results := RunWorkerPoolWithCallback(jobs, 2, nil)
 
 	var successes, failures int
 	for _, r := range results {
@@ -68,7 +68,7 @@ func TestWorkerPoolRunsConcurrently(t *testing.T) {
 		}
 	}
 
-	RunWorkerPool(jobs, 4)
+	RunWorkerPoolWithCallback(jobs, 4, nil)
 
 	elapsed := time.Since(start)
 
@@ -81,7 +81,7 @@ func TestWorkerPoolRunsConcurrently(t *testing.T) {
 }
 
 func TestWorkerPoolWithZeroJobs(t *testing.T) {
-	results := RunWorkerPool(nil, 4)
+	results := RunWorkerPoolWithCallback(nil, 4, nil)
 
 	if len(results) != 0 {
 		t.Errorf("expected 0 results for nil jobs, got %d", len(results))
@@ -93,7 +93,7 @@ func TestWorkerPoolPreservesJobName(t *testing.T) {
 		{Name: "my-plugin@marketplace", Execute: func() error { return nil }},
 	}
 
-	results := RunWorkerPool(jobs, 1)
+	results := RunWorkerPoolWithCallback(jobs, 1, nil)
 
 	if results[0].Name != "my-plugin@marketplace" {
 		t.Errorf("expected job name preserved, got %s", results[0].Name)

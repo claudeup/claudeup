@@ -13,16 +13,16 @@ import (
 )
 
 var (
-	cleanupReinstall bool
-	cleanupDryRun    bool
-	cleanupFixOnly   bool
+	cleanupReinstall  bool
+	cleanupDryRun     bool
+	cleanupFixOnly    bool
 	cleanupRemoveOnly bool
 )
 
 var cleanupCmd = &cobra.Command{
 	Use:   "cleanup",
 	Short: "Fix plugin path issues, remove stale entries, and reinstall missing plugins",
-	Long: `Fix plugin configuration drift and installation issues.
+	Long: `Fix plugin configuration and installation issues.
 
 By default, this command:
   1. Fixes plugins with correctable path issues (missing subdirectories)
