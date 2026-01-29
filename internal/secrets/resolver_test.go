@@ -15,8 +15,8 @@ type mockResolver struct {
 	err       error
 }
 
-func (m *mockResolver) Name() string       { return m.name }
-func (m *mockResolver) Available() bool    { return m.available }
+func (m *mockResolver) Name() string    { return m.name }
+func (m *mockResolver) Available() bool { return m.available }
 func (m *mockResolver) Resolve(_ string) (string, error) {
 	if m.err != nil {
 		return "", m.err
@@ -158,26 +158,5 @@ func TestChainPreservesLastError(t *testing.T) {
 	}
 	if err.Error() != "second error" {
 		t.Errorf("Expected 'second error', got %q", err.Error())
-	}
-}
-
-func TestAddResolver(t *testing.T) {
-	chain := NewChain()
-
-	// Initially empty - should error
-	_, _, err := chain.Resolve("ref")
-	if err == nil {
-		t.Error("Empty chain should error")
-	}
-
-	// Add a resolver
-	chain.AddResolver(&mockResolver{name: "added", available: true, value: "success"})
-
-	value, source, err := chain.Resolve("ref")
-	if err != nil {
-		t.Fatalf("Resolve failed after AddResolver: %v", err)
-	}
-	if value != "success" || source != "added" {
-		t.Errorf("Expected success/added, got %s/%s", value, source)
 	}
 }

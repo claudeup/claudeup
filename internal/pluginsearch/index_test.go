@@ -24,83 +24,7 @@ func TestComponentInfo_Fields(t *testing.T) {
 	}
 }
 
-func TestPluginSearchIndex_HasSkills(t *testing.T) {
-	p := PluginSearchIndex{
-		Name:        "test-plugin",
-		Description: "A test plugin",
-		Marketplace: "test-marketplace",
-		Skills: []ComponentInfo{
-			{Name: "skill1"},
-		},
-	}
-
-	if !p.HasSkills() {
-		t.Error("expected HasSkills() to return true when skills are present")
-	}
-	if p.HasCommands() {
-		t.Error("expected HasCommands() to return false when commands are empty")
-	}
-	if p.HasAgents() {
-		t.Error("expected HasAgents() to return false when agents are empty")
-	}
-}
-
-func TestPluginSearchIndex_HasCommands(t *testing.T) {
-	p := PluginSearchIndex{
-		Name: "test-plugin",
-		Commands: []ComponentInfo{
-			{Name: "cmd1"},
-			{Name: "cmd2"},
-		},
-	}
-
-	if p.HasSkills() {
-		t.Error("expected HasSkills() to return false when skills are empty")
-	}
-	if !p.HasCommands() {
-		t.Error("expected HasCommands() to return true when commands are present")
-	}
-	if p.HasAgents() {
-		t.Error("expected HasAgents() to return false when agents are empty")
-	}
-}
-
-func TestPluginSearchIndex_HasAgents(t *testing.T) {
-	p := PluginSearchIndex{
-		Name: "test-plugin",
-		Agents: []ComponentInfo{
-			{Name: "agent1"},
-		},
-	}
-
-	if p.HasSkills() {
-		t.Error("expected HasSkills() to return false when skills are empty")
-	}
-	if p.HasCommands() {
-		t.Error("expected HasCommands() to return false when commands are empty")
-	}
-	if !p.HasAgents() {
-		t.Error("expected HasAgents() to return true when agents are present")
-	}
-}
-
-func TestPluginSearchIndex_AllEmpty(t *testing.T) {
-	p := PluginSearchIndex{
-		Name: "empty-plugin",
-	}
-
-	if p.HasSkills() {
-		t.Error("expected HasSkills() to return false for empty plugin")
-	}
-	if p.HasCommands() {
-		t.Error("expected HasCommands() to return false for empty plugin")
-	}
-	if p.HasAgents() {
-		t.Error("expected HasAgents() to return false for empty plugin")
-	}
-}
-
-func TestPluginSearchIndex_AllPopulated(t *testing.T) {
+func TestPluginSearchIndex_Fields(t *testing.T) {
 	p := PluginSearchIndex{
 		Name:        "full-plugin",
 		Description: "A full plugin",
@@ -119,16 +43,6 @@ func TestPluginSearchIndex_AllPopulated(t *testing.T) {
 		},
 	}
 
-	if !p.HasSkills() {
-		t.Error("expected HasSkills() to return true")
-	}
-	if !p.HasCommands() {
-		t.Error("expected HasCommands() to return true")
-	}
-	if !p.HasAgents() {
-		t.Error("expected HasAgents() to return true")
-	}
-
 	// Verify all fields are accessible
 	if p.Name != "full-plugin" {
 		t.Errorf("expected Name 'full-plugin', got '%s'", p.Name)
@@ -141,5 +55,14 @@ func TestPluginSearchIndex_AllPopulated(t *testing.T) {
 	}
 	if p.Version != "1.0.0" {
 		t.Errorf("expected Version '1.0.0', got '%s'", p.Version)
+	}
+	if len(p.Skills) != 1 {
+		t.Errorf("expected 1 skill, got %d", len(p.Skills))
+	}
+	if len(p.Commands) != 1 {
+		t.Errorf("expected 1 command, got %d", len(p.Commands))
+	}
+	if len(p.Agents) != 1 {
+		t.Errorf("expected 1 agent, got %d", len(p.Agents))
 	}
 }

@@ -192,7 +192,13 @@ func (e *AcceptanceTestEnv) CreateMarketplaceRegistry(marketplaces map[string]cl
 
 	registry := claude.MarketplaceRegistry(marketplaces)
 
-	if err := claude.SaveMarketplaces(e.ClaudeDir, registry); err != nil {
+	// Write marketplace registry directly (SaveMarketplaces was removed as dead code)
+	marketplacesPath := filepath.Join(e.ClaudeDir, "plugins", "known_marketplaces.json")
+	data, err := json.MarshalIndent(registry, "", "  ")
+	if err != nil {
+		e.t.Fatal(err)
+	}
+	if err := os.WriteFile(marketplacesPath, data, 0644); err != nil {
 		e.t.Fatal(err)
 	}
 }

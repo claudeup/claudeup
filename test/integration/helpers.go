@@ -97,7 +97,11 @@ func (e *TestEnv) CreatePluginRegistry(plugins map[string]claude.PluginMetadata)
 func (e *TestEnv) CreateMarketplaceRegistry(marketplaces map[string]claude.MarketplaceMetadata) {
 	registry := claude.MarketplaceRegistry(marketplaces)
 
-	err := claude.SaveMarketplaces(e.ClaudeDir, registry)
+	// Write marketplace registry directly (SaveMarketplaces was removed as dead code)
+	marketplacesPath := filepath.Join(e.ClaudeDir, "plugins", "known_marketplaces.json")
+	data, err := json.MarshalIndent(registry, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	err = os.WriteFile(marketplacesPath, data, 0644)
 	Expect(err).NotTo(HaveOccurred())
 }
 

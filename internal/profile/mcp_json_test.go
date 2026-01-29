@@ -93,9 +93,16 @@ func TestWriteMCPJSON_EmptyServers(t *testing.T) {
 		t.Fatalf("WriteMCPJSON failed: %v", err)
 	}
 
-	cfg, err := LoadMCPJSON(tempDir)
+	// Read and verify directly
+	path := filepath.Join(tempDir, MCPConfigFile)
+	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("LoadMCPJSON failed: %v", err)
+		t.Fatalf("failed to read file: %v", err)
+	}
+
+	var cfg MCPJSONConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("failed to parse JSON: %v", err)
 	}
 
 	if len(cfg.MCPServers) != 0 {
@@ -123,52 +130,5 @@ func TestMCPJSONExists(t *testing.T) {
 	// Should exist now
 	if !MCPJSONExists(tempDir) {
 		t.Error("MCPJSONExists should return true after writing")
-	}
-}
-
-func TestLoadMCPJSON(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	// Write a file
-	servers := []MCPServer{
-		{Name: "test", Command: "echo", Args: []string{"hello"}},
-	}
-	if err := WriteMCPJSON(tempDir, servers); err != nil {
-		t.Fatalf("WriteMCPJSON failed: %v", err)
-	}
-
-	// Load it back
-	cfg, err := LoadMCPJSON(tempDir)
-	if err != nil {
-		t.Fatalf("LoadMCPJSON failed: %v", err)
-	}
-
-	if len(cfg.MCPServers) != 1 {
-		t.Errorf("len(MCPServers) = %d, want 1", len(cfg.MCPServers))
-	}
-
-	server, ok := cfg.MCPServers["test"]
-	if !ok {
-		t.Fatal("test server not found")
-	}
-	if server.Command != "echo" {
-		t.Errorf("Command = %q, want %q", server.Command, "echo")
-	}
-}
-
-func TestLoadMCPJSON_NotFound(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
-	if err != nil {
-		t.Fatalf("failed to create temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	_, err = LoadMCPJSON(tempDir)
-	if err == nil {
-		t.Error("LoadMCPJSON should fail when file doesn't exist")
 	}
 }

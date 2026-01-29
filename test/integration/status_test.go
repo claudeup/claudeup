@@ -208,9 +208,16 @@ var _ = Describe("MCPListCommand", func() {
 		env.Cleanup()
 	})
 
-	It("discovers MCP servers", func() {
+	It("discovers enabled MCP servers", func() {
 		registry := env.LoadPluginRegistry()
-		servers, err := mcp.DiscoverMCPServers(registry)
+		// Create settings with the plugin enabled
+		settings := &claude.Settings{
+			EnabledPlugins: map[string]bool{
+				"plugin-with-mcp@test-marketplace":    true,
+				"plugin-without-mcp@test-marketplace": true,
+			},
+		}
+		servers, err := mcp.DiscoverEnabledMCPServers(registry, settings)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(servers).To(HaveLen(1))
