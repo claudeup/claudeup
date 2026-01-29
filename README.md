@@ -1,6 +1,6 @@
 # claudeup
 
-A CLI tool for managing Claude Code plugins, profiles, and sandboxed environments.
+A CLI tool for managing Claude Code profiles and configurations.
 
 ## Install
 
@@ -45,27 +45,16 @@ Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more �
 Share Claude configurations with your team via git:
 
 ```bash
-# Team lead: Save profile and apply to project
+# Team lead: Save profile and share via project settings
 claudeup profile save team-config
 claudeup profile apply team-config --scope project
-git add .claudeup.json && git commit -m "Add team profile"
+git add .claude/settings.json && git commit -m "Add team profile"
 
-# Team member: Sync after clone/pull
-claudeup profile sync
+# Team member: Apply after clone/pull
+claudeup profile apply team-config --scope project
 ```
 
-Profiles capture settings from all scopes (user, project, local). Use `profile apply --scope project` to create `.claudeup.json` for team sharing. [Learn more →](docs/team-workflows.md)
-
-### Sandbox
-
-Run Claude Code in an isolated Docker container for security.
-
-```bash
-claudeup sandbox                      # Ephemeral session
-claudeup sandbox --profile untrusted  # Persistent sandboxed environment
-```
-
-Protects your system from untrusted plugins while still letting Claude work on your projects. [Learn more →](docs/sandbox.md)
+Profiles capture settings from all scopes (user, project, local). Use `profile apply --scope project` to write settings to `.claude/settings.json` for team sharing. [Learn more →](docs/team-workflows.md)
 
 ### Plugin & MCP Management
 
@@ -126,7 +115,6 @@ claudeup profile apply base-tools
 
 - [Profiles](docs/profiles.md) - Configuration profiles and secret management
 - [Team Workflows](docs/team-workflows.md) - Sharing configurations via git
-- [Sandbox](docs/sandbox.md) - Running Claude in isolated containers
 - [Commands](docs/commands.md) - Full command reference
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and fixes
 

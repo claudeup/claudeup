@@ -81,7 +81,6 @@ claudeup profile save [name]                 # Save current setup as profile (al
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope)
-claudeup profile sync                        # Install plugins from .claudeup.json
 claudeup profile suggest                     # Suggest profile for current project
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
@@ -99,12 +98,8 @@ claudeup profile clone home --from work --description "Home setup"
 Apply profiles at project scope for team sharing:
 
 ```bash
-# Apply profile to current project (creates .mcp.json + .claudeup.json)
+# Apply profile to current project (creates .claude/settings.json)
 claudeup profile apply frontend --scope project
-
-# Team members clone and sync plugins
-claudeup profile sync              # Install plugins from .claudeup.json
-claudeup profile sync --dry-run    # Preview without changes
 
 # Apply profile locally only (not shared via git)
 claudeup profile apply frontend --scope local
@@ -120,15 +115,15 @@ claudeup profile apply frontend --scope local
 
 **`profile apply` flags:**
 
-| Flag               | Description                                                                               |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| `--scope`          | Apply scope: user, project, or local (default: user, or project if .claudeup.json exists) |
-| `--replace`        | Clear target scope before applying (replaces instead of adding)                           |
-| `--setup`          | Force post-apply setup wizard to run                                                      |
-| `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                                           |
-| `-f, --force`      | Force reapply even with unsaved changes                                                   |
-| `--reinstall`      | Force reinstall all plugins and marketplaces                                              |
-| `--no-progress`    | Disable progress display (for CI/scripting)                                               |
+| Flag               | Description                                                     |
+| ------------------ | --------------------------------------------------------------- |
+| `--scope`          | Apply scope: user, project, or local (default: user)            |
+| `--replace`        | Clear target scope before applying (replaces instead of adding) |
+| `--setup`          | Force post-apply setup wizard to run                            |
+| `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                 |
+| `-f, --force`      | Force reapply even with unsaved changes                         |
+| `--reinstall`      | Force reinstall all plugins and marketplaces                    |
+| `--no-progress`    | Disable progress display (for CI/scripting)                     |
 
 **Replace mode:**
 
@@ -147,25 +142,24 @@ Use `claudeup scope restore user` to recover if needed.
 
 **Files created by `--scope project`:**
 
+- `.claude/settings.json` - Project settings (plugins, MCP servers)
 - `.mcp.json` - MCP servers (Claude auto-loads this)
-- `.claudeup.json` - Plugins manifest (team runs `profile sync`)
 
 **Team workflow:**
 
 1. One team member applies the profile with `--scope project`
-2. Commit `.mcp.json` and `.claudeup.json` to version control
-3. Other team members clone/pull and run `claudeup profile sync`
-4. MCP servers load automatically; plugins are installed by sync
+2. Commit `.claude/settings.json` and `.mcp.json` to version control
+3. Other team members clone/pull and run `claudeup profile apply <name> --scope project`
+4. MCP servers load automatically; plugins are configured by apply
 
 **Scope precedence:**
 
 When determining the active profile, `profile current` checks in order:
 
-1. **Project scope** - `.claudeup.json` in current directory
-2. **Local scope** - Entry in `~/.claudeup/projects.json` for current directory
-3. **User scope** - Global profile from `~/.claudeup/config.json`
+1. **Local scope** - Entry in `~/.claudeup/projects.json` for current directory
+2. **User scope** - Global profile from `~/.claudeup/config.json`
 
-The first match wins. This means project-level configuration always takes precedence over personal settings when you're in a project directory.
+Local scope takes precedence over user scope when you're in a project directory.
 
 **Secrets and project scope:**
 
@@ -198,22 +192,20 @@ Team members set `GITHUB_TOKEN` in their environment before using Claude.
 
 Two commands for understanding profile differences:
 
-**`profile status [name]`** - Shows how a profile differs from your current Claude configuration:
+**`profile status [name]`** - Shows profile contents and activation status:
 
 ```bash
-# Show drift for active profile
+# Show status for active profile
 claudeup profile status
 
-# Show drift for specific profile
+# Show status for specific profile
 claudeup profile status backend-stack
 ```
 
 Use this to see:
 
-- Which plugins are missing from your configuration
-- Which plugins are extra (not in the profile)
-- Differences at each scope (user, project, local)
-- Actionable commands to fix drift
+- Which profile is active and at what scope
+- Plugins, MCP servers, and marketplaces in the profile
 
 **`profile diff <name>`** - Compares a customized built-in profile to its original:
 
@@ -234,29 +226,11 @@ Use this to see:
 
 **When to use each:**
 
-| Scenario                                     | Command                               |
-| -------------------------------------------- | ------------------------------------- |
-| "Does my Claude match my profile?"           | `profile status`                      |
-| "What did I change from the original?"       | `profile diff`                        |
-| "Why does `profile list` show (customized)?" | `profile diff`                        |
-| "How do I fix drift?"                        | `profile status` (shows fix commands) |
-
-## Sandbox
-
-### sandbox
-
-Run Claude Code in an isolated Docker container.
-
-```bash
-claudeup sandbox                       # Ephemeral session
-claudeup sandbox --profile <name>      # Persistent session
-claudeup sandbox --shell               # Drop to bash
-claudeup sandbox --mount <host:container>  # Additional mount
-claudeup sandbox --no-mount            # No working directory mount
-claudeup sandbox --secret <name>       # Add secret
-claudeup sandbox --no-secret <name>    # Exclude secret
-claudeup sandbox --clean --profile <name>  # Reset sandbox state
-```
+| Scenario                                     | Command          |
+| -------------------------------------------- | ---------------- |
+| "What's in this profile?"                    | `profile status` |
+| "What did I change from the original?"       | `profile diff`   |
+| "Why does `profile list` show (customized)?" | `profile diff`   |
 
 ## Scope Management
 
@@ -508,14 +482,13 @@ Configuration is stored in `~/.claudeup/`:
 ~/.claudeup/
 ├── config.json       # Disabled plugins/servers, preferences
 ├── projects.json     # Local-scope project-to-profile mappings
-├── profiles/         # Saved profiles
-└── sandboxes/        # Persistent sandbox state
+└── profiles/         # Saved profiles
 ```
 
 Project-level configuration files (created by `--scope project`):
 
 ```text
 your-project/
-├── .mcp.json         # Claude native MCP server config (auto-loaded)
-└── .claudeup.json    # Plugins manifest (team runs `profile sync`)
+├── .claude/settings.json  # Project-scoped settings (plugins, etc.)
+└── .mcp.json              # Claude native MCP server config (auto-loaded)
 ```
