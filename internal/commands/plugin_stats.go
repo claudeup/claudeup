@@ -4,6 +4,7 @@ package commands
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/claudeup/claudeup/v3/internal/claude"
@@ -75,7 +76,8 @@ func printPluginSummary(stats PluginStatistics) {
 	}
 	fmt.Println()
 	fmt.Println(ui.Bold("By Type:"))
-	fmt.Println(ui.Indent(fmt.Sprintf("Cached: %d %s", stats.Cached, ui.Muted("(copied to ~/.claude/plugins/cache/)")), 1))
+	cachePath := filepath.Join(claudeDir, "plugins", "cache") + "/"
+	fmt.Println(ui.Indent(fmt.Sprintf("Cached: %d %s", stats.Cached, ui.Muted(fmt.Sprintf("(copied to %s)", cachePath))), 1))
 	fmt.Println(ui.Indent(fmt.Sprintf("Local:  %d %s", stats.Local, ui.Muted("(referenced from marketplace)")), 1))
 }
 
