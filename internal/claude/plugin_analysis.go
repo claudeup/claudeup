@@ -91,16 +91,6 @@ func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 	return analysis
 }
 
-// AnalyzePluginScopes examines all scopes and returns comprehensive plugin information
-// showing where each plugin is installed and enabled
-func AnalyzePluginScopes(claudeDir string, projectDir string) (map[string]*PluginScopeInfo, error) {
-	ctx, err := loadAnalysisContext(claudeDir, projectDir)
-	if err != nil {
-		return nil, err
-	}
-	return buildInstalledAnalysis(ctx), nil
-}
-
 // AnalyzePluginScopesWithOrphans examines all scopes and returns comprehensive plugin information
 // including plugins that are enabled in settings but not actually installed.
 // Use this when you need to detect configuration drift (enabled plugins without installations).
@@ -169,11 +159,6 @@ func determineActiveSource(installations []PluginMetadata, enabledScopes []strin
 	return ""
 }
 
-// GetEnabledPlugins returns a sorted list of all plugins enabled at any scope
-func (a *PluginScopeInfo) GetEnabledPlugins() []string {
-	return a.EnabledAt
-}
-
 // IsEnabled returns true if the plugin is enabled at any scope
 func (a *PluginScopeInfo) IsEnabled() bool {
 	return len(a.EnabledAt) > 0
@@ -187,11 +172,6 @@ func (a *PluginScopeInfo) GetInstallationForScope(scope string) *PluginMetadata 
 		}
 	}
 	return nil
-}
-
-// GetSortedScopeNames returns scope names sorted by precedence (highest first)
-func GetSortedScopeNames() []string {
-	return []string{"local", "project", "user"}
 }
 
 // SortScopesByPrecedence sorts a slice of scope names by precedence (highest first)

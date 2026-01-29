@@ -317,34 +317,3 @@ func SaveSettingsForScope(scope string, claudeDir string, projectDir string, set
 		},
 	)
 }
-
-// LoadMergedSettings loads settings from all scopes and merges them
-// Precedence: local > project > user (later scopes override earlier ones)
-func LoadMergedSettings(claudeDir string, projectDir string) (*Settings, error) {
-	merged := &Settings{
-		EnabledPlugins: make(map[string]bool),
-		raw:            make(map[string]interface{}),
-	}
-
-	// Load settings in precedence order (lowest to highest priority)
-	// ValidScopes is ordered: [user, project, local]
-	// This means local settings override project, which override user
-	for _, scope := range ValidScopes {
-		settings, err := LoadSettingsForScope(scope, claudeDir, projectDir)
-		if err != nil {
-			// Only return error for user scope (required), others are optional
-			if scope == ScopeUser {
-				return nil, err
-			}
-			continue
-		}
-
-		// Merge enabled plugins - later scopes override earlier ones
-		// This implements the precedence: local > project > user
-		for plugin, enabled := range settings.EnabledPlugins {
-			merged.EnabledPlugins[plugin] = enabled
-		}
-	}
-
-	return merged, nil
-}
