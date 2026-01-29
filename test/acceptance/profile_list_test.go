@@ -3,7 +3,6 @@
 package acceptance
 
 import (
-	"path/filepath"
 	"strings"
 
 	"github.com/claudeup/claudeup/v3/internal/profile"
@@ -190,47 +189,10 @@ var _ = Describe("profile list", func() {
 			Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+profile-a`))
 		})
 
-		Context("with project-scoped profile", func() {
-			var projectDir string
-
-			BeforeEach(func() {
-				// Create a project directory with .claudeup.json
-				projectDir = env.ProjectDir("my-project")
-
-				// Set user-level active profile to "default"
-				env.SetActiveProfile("default")
-
-				// Create project-scoped profile config with different profile
-				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-					"version": "1",
-					"profile": "frontend",
-				})
-			})
-
-			It("marks project-scoped profile as active when run from project directory", func() {
-				result := env.RunInDir(projectDir, "profile", "list")
-
-				Expect(result.ExitCode).To(Equal(0))
-				// Should mark "frontend" (project scope) as active, not "default" (user scope)
-				Expect(result.Stdout).To(MatchRegexp(`\*\s+frontend`))
-				Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+default`))
-			})
-
-			It("marks user-level profile as active when run from non-project directory", func() {
-				// Run from temp root (no .claudeup.json)
-				result := env.Run("profile", "list")
-
-				Expect(result.ExitCode).To(Equal(0))
-				// Should mark "default" (user scope) as active since no project config
-				Expect(result.Stdout).To(MatchRegexp(`\*\s+default`))
-			})
-		})
-
 		Context("with local-scoped profile (projects registry)", func() {
 			var projectDir string
 
 			BeforeEach(func() {
-				// Create a project directory WITHOUT .claudeup.json
 				projectDir = env.ProjectDir("local-project")
 
 				// Set user-level active profile to "default"
@@ -249,19 +211,13 @@ var _ = Describe("profile list", func() {
 				Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+default`))
 			})
 
-			It("prefers project scope over local scope", func() {
-				// Add a .claudeup.json that specifies a different profile
-				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-					"version": "1",
-					"profile": "hobson",
-				})
-
-				result := env.RunInDir(projectDir, "profile", "list")
+			It("marks user-level profile as active when run from non-registered directory", func() {
+				// Run from temp root (not registered)
+				result := env.Run("profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				// Should mark "hobson" (project scope) as active, not "frontend" (local scope)
-				Expect(result.Stdout).To(MatchRegexp(`\*\s+hobson`))
-				Expect(result.Stdout).NotTo(MatchRegexp(`\*\s+frontend`))
+				// Should mark "default" (user scope) as active since not in local registry
+				Expect(result.Stdout).To(MatchRegexp(`\*\s+default`))
 			})
 		})
 	})
@@ -325,33 +281,6 @@ var _ = Describe("profile list", func() {
 				Expect(result.Stdout).To(ContainSubstring("my-active-profile"))
 				Expect(result.Stdout).NotTo(ContainSubstring("other-profile"))
 				Expect(result.Stdout).To(ContainSubstring("Showing profile active at:"))
-			})
-		})
-
-		Context("with --scope project", func() {
-			var projectDir string
-			BeforeEach(func() {
-				projectDir = env.ProjectDir("project-scope-test")
-				// Create project settings for "hobson"
-				// 1. profile list --scope project checks for .claude/settings.json as a pre-flight
-				settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
-				helpers.WriteJSON(settingsPath, map[string]interface{}{
-					"profile": "hobson",
-				})
-				// 2. getAllActiveProfiles checks for .claudeup.json via profile.ProjectConfigExists
-				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-					"version": "1",
-					"profile": "hobson",
-				})
-			})
-
-			It("shows only the profile active at project scope", func() {
-				result := env.RunInDir(projectDir, "profile", "list", "--scope", "project")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("hobson"))
-				Expect(result.Stdout).NotTo(ContainSubstring("my-active-profile"))
-				Expect(result.Stdout).To(ContainSubstring("Showing profile active at: project"))
 			})
 		})
 
@@ -423,7 +352,6 @@ var _ = Describe("profile list", func() {
 		})
 	})
 })
-
 
 var _ = Describe("profile delete", func() {
 	var env *helpers.TestEnv

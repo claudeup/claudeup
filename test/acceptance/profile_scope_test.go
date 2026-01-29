@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for profile scope commands (project, local)
-// ABOUTME: Tests --scope flag, sync command, and file creation
+// ABOUTME: Tests --scope flag and file creation
 package acceptance
 
 import (
@@ -48,13 +48,6 @@ var _ = Describe("profile apply --scope", func() {
 			Expect(env.MCPJSONExists(projectDir)).To(BeTrue())
 		})
 
-		It("creates .claudeup.json in project directory", func() {
-			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(env.ClaudeupJSONExists(projectDir)).To(BeTrue())
-		})
-
 		It("saves profile to .claudeup/profiles/ for team sharing", func() {
 			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
@@ -65,15 +58,6 @@ var _ = Describe("profile apply --scope", func() {
 			projectProfile := env.LoadProjectProfile(projectDir, "test-profile")
 			Expect(projectProfile["name"]).To(Equal("test-profile"))
 			Expect(projectProfile["description"]).To(Equal("Test profile for scope testing"))
-		})
-
-		It("writes profile name to .claudeup.json", func() {
-			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-			Expect(result.ExitCode).To(Equal(0))
-
-			cfg := env.LoadClaudeupJSON(projectDir)
-			Expect(cfg["profile"]).To(Equal("test-profile"))
 		})
 
 		It("writes MCP servers to .mcp.json", func() {
@@ -92,20 +76,17 @@ var _ = Describe("profile apply --scope", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("git add"))
-			Expect(result.Stdout).To(ContainSubstring(".claudeup.json"))
+			Expect(result.Stdout).To(ContainSubstring(".claudeup/"))
 		})
 
 		Context("team member sync workflow", func() {
-			It("allows sync after apply even without user profile", func() {
+			It("allows sync using project profile", func() {
 				// Step 1: Team lead applies profile at project scope
 				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 				Expect(result.ExitCode).To(Equal(0))
 
-				// Step 2: Simulate team member - remove user profile
-				env.DeleteProfile("test-profile")
-
-				// Step 3: Team member runs sync - should succeed using project profile
-				syncResult := env.RunInDir(projectDir, "profile", "sync", "-y")
+				// Step 2: Team member runs sync with explicit profile name
+				syncResult := env.RunInDir(projectDir, "profile", "sync", "test-profile", "-y")
 				Expect(syncResult.ExitCode).To(Equal(0))
 			})
 		})
@@ -118,92 +99,11 @@ var _ = Describe("profile apply --scope", func() {
 				})
 			})
 
-			It("creates .claudeup.json but not .mcp.json", func() {
+			It("does not create .mcp.json when profile has no MCP servers", func() {
 				result := env.RunInDir(projectDir, "profile", "apply", "no-mcp-profile", "--scope", "project", "-y")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(env.ClaudeupJSONExists(projectDir)).To(BeTrue())
 				Expect(env.MCPJSONExists(projectDir)).To(BeFalse())
-			})
-		})
-
-		Context("when .claudeup.json already exists with different profile", func() {
-			BeforeEach(func() {
-				// Create an existing .claudeup.json pointing to a different profile
-				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-					"version": "1",
-					"profile": "original-profile",
-					"plugins": []string{"original-plugin@test"},
-				})
-			})
-
-			It("warns about overwriting existing config", func() {
-				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("original-profile"))
-				Expect(result.Stdout).To(SatisfyAny(
-					ContainSubstring("overwrite"),
-					ContainSubstring("replace"),
-					ContainSubstring("already configured"),
-				))
-			})
-
-			It("proceeds with -y flag", func() {
-				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				cfg := env.LoadClaudeupJSON(projectDir)
-				Expect(cfg["profile"]).To(Equal("test-profile"))
-			})
-
-			It("preserves existing config when same profile is reapplied", func() {
-				// Reapplying the same profile should not warn
-				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-					"version": "1",
-					"profile": "test-profile",
-				})
-
-				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				// Should NOT show overwrite warning when same profile
-				Expect(result.Stdout).NotTo(ContainSubstring("already configured"))
-			})
-
-			It("shows warning with explicit --scope project flag", func() {
-				// Even with explicit scope flag, should warn about overwriting
-				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				// Warning should appear even with explicit --scope project
-				Expect(result.Stdout).To(ContainSubstring("original-profile"))
-			})
-		})
-
-		Context("when .claudeup.json is malformed", func() {
-			BeforeEach(func() {
-				// Create malformed JSON
-				env.WriteFile(projectDir, ".claudeup.json", "{ invalid json }")
-			})
-
-			It("warns about unreadable config but proceeds", func() {
-				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-				// Should succeed - malformed config is overwritten
-				Expect(result.ExitCode).To(Equal(0))
-				// Should warn about the malformed config
-				Expect(result.Stdout).To(ContainSubstring("Could not read existing project config"))
-				// Should not show the "already configured" warning (can't read profile name)
-				Expect(result.Stdout).NotTo(ContainSubstring("already configured"))
-			})
-
-			It("overwrites malformed config with valid one", func() {
-				result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				cfg := env.LoadClaudeupJSON(projectDir)
-				Expect(cfg["profile"]).To(Equal("test-profile"))
 			})
 		})
 	})
@@ -219,13 +119,6 @@ var _ = Describe("profile apply --scope", func() {
 				Description: "Test profile for local scope",
 				Plugins:     []string{"local-plugin@test"},
 			})
-		})
-
-		It("does not create .claudeup.json in project directory", func() {
-			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
-
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(env.ClaudeupJSONExists(projectDir)).To(BeFalse())
 		})
 
 		It("creates entry in projects.json registry", func() {
@@ -274,14 +167,6 @@ var _ = Describe("profile apply --scope", func() {
 	})
 })
 
-// NOTE: "profile sync" tests removed during .claudeup.json simplification.
-// The old 'profile sync' command expected .claudeup.json to have a 'plugins' field, but the
-// new architecture only stores the profile name. Sync functionality is now handled by
-// 'profile apply' which loads the profile definition and syncs based on that.
-//
-// See recovery doc: ~/.claudeup/prompts/2025-12-27-simplify-claudeup-json.md
-// Unit test coverage for the new architecture exists in internal/profile/*_test.go
-
 var _ = Describe("profile current with scopes", func() {
 	var env *helpers.TestEnv
 
@@ -290,29 +175,35 @@ var _ = Describe("profile current with scopes", func() {
 		env.CreateClaudeSettings()
 	})
 
-	Describe("with project-level profile", func() {
+	Describe("with local-level profile", func() {
 		var projectDir string
 
 		BeforeEach(func() {
 			projectDir = env.ProjectDir("current-test")
-			env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-				"version": "1",
-				"profile": "project-profile",
+
+			// Create profile and apply at local scope
+			env.CreateProfile(&profile.Profile{
+				Name:        "local-profile",
+				Description: "Test local profile",
 			})
+
+			// Apply at local scope to register in projects.json
+			result := env.RunInDir(projectDir, "profile", "apply", "local-profile", "--scope", "local", "-y")
+			Expect(result.ExitCode).To(Equal(0))
 		})
 
-		It("shows project scope profile", func() {
+		It("shows local scope profile", func() {
 			result := env.RunInDir(projectDir, "profile", "current")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("project-profile"))
+			Expect(result.Stdout).To(ContainSubstring("local-profile"))
 		})
 
-		It("indicates project scope", func() {
+		It("indicates local scope", func() {
 			result := env.RunInDir(projectDir, "profile", "current")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("project"))
+			Expect(result.Stdout).To(ContainSubstring("local"))
 		})
 	})
 
@@ -326,26 +217,27 @@ var _ = Describe("profile current with scopes", func() {
 			env.SetActiveProfile("user-profile")
 		})
 
-		Context("project scope takes precedence", func() {
+		Context("local scope takes precedence over user", func() {
 			BeforeEach(func() {
-				env.CreateClaudeupJSON(projectDir, map[string]interface{}{
-					"version": "1",
-					"profile": "project-wins",
+				// Create and apply local profile
+				env.CreateProfile(&profile.Profile{
+					Name: "local-wins",
 				})
+				result := env.RunInDir(projectDir, "profile", "apply", "local-wins", "--scope", "local", "-y")
+				Expect(result.ExitCode).To(Equal(0))
 			})
 
-			It("shows project profile instead of user profile", func() {
+			It("shows local profile instead of user profile", func() {
 				result := env.RunInDir(projectDir, "profile", "current")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("project-wins"))
-				Expect(result.Stdout).NotTo(ContainSubstring("user-profile"))
+				Expect(result.Stdout).To(ContainSubstring("local-wins"))
 			})
 		})
 
-		Context("without project config, user scope applies", func() {
-			It("shows user profile when no project config exists", func() {
-				emptyDir := env.ProjectDir("no-project-config")
+		Context("without local config, user scope applies", func() {
+			It("shows user profile when no local config exists", func() {
+				emptyDir := env.ProjectDir("no-local-config")
 				result := env.RunInDir(emptyDir, "profile", "current")
 
 				// Should show user profile or "none"
