@@ -1420,7 +1420,9 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 
 		// Categorize current plugins: in profile vs extra
 		var inProfile, extra []string
+		currentPluginSet := make(map[string]bool)
 		for _, p := range scopeSnapshot.Plugins {
+			currentPluginSet[p] = true
 			if profilePluginSet[p] {
 				inProfile = append(inProfile, p)
 			} else {
@@ -1428,26 +1430,42 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// Find missing plugins (in profile but not in current settings)
+		var missing []string
+		for _, p := range profileForScope.Plugins {
+			if !currentPluginSet[p] {
+				missing = append(missing, p)
+			}
+		}
+
 		// Show what this scope adds
-		if len(scopeSnapshot.Plugins) > 0 {
-			if len(extra) == 0 {
-				// All plugins match profile
+		if len(scopeSnapshot.Plugins) > 0 || len(missing) > 0 {
+			if len(extra) == 0 && len(missing) == 0 {
+				// All plugins match profile exactly
 				fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
 				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches profile (%d plugins)", len(inProfile))))
-			} else if len(inProfile) == 0 {
-				// All plugins are extra (not in profile for this scope)
-				fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (not in profile):", len(extra), pluralS(len(extra)))))
-				for _, p := range extra {
-					fmt.Printf("    + %s\n", p)
-				}
 			} else {
-				// Mix of profile plugins and extra
 				fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (%d from profile, %d extra):",
-					len(scopeSnapshot.Plugins), pluralS(len(scopeSnapshot.Plugins)), len(inProfile), len(extra))))
+				// Build summary
+				if len(inProfile) > 0 || len(extra) > 0 || len(missing) > 0 {
+					parts := []string{}
+					if len(inProfile) > 0 {
+						parts = append(parts, fmt.Sprintf("%d from profile", len(inProfile)))
+					}
+					if len(extra) > 0 {
+						parts = append(parts, fmt.Sprintf("%d extra", len(extra)))
+					}
+					if len(missing) > 0 {
+						parts = append(parts, fmt.Sprintf("%d missing", len(missing)))
+					}
+					fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (%s):",
+						len(scopeSnapshot.Plugins), pluralS(len(scopeSnapshot.Plugins)), strings.Join(parts, ", "))))
+				}
 				for _, p := range extra {
 					fmt.Printf("    + %s %s\n", p, ui.Warning("(extra)"))
+				}
+				for _, p := range missing {
+					fmt.Printf("    - %s %s\n", p, ui.Warning("(missing)"))
 				}
 			}
 		} else {
