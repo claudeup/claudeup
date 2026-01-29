@@ -198,11 +198,6 @@ func diffHashOnly(before, after *Snapshot) *DiffResult {
 	}
 }
 
-// formatValue formats a JSON value for display with default truncation
-func formatValue(v interface{}) string {
-	return formatValueWithDepth(v, 0, false)
-}
-
 // formatValueFull formats a JSON value with optional truncation based on full flag
 func formatValueFull(v interface{}, full bool) string {
 	return formatValueWithDepth(v, 0, full)

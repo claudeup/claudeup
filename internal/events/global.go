@@ -12,7 +12,6 @@ import (
 var (
 	globalTracker     *Tracker
 	globalTrackerOnce sync.Once
-	globalTrackerMu   sync.RWMutex
 )
 
 // GlobalTracker returns the global event tracker instance
@@ -22,13 +21,6 @@ func GlobalTracker() *Tracker {
 		globalTracker = initializeGlobalTracker()
 	})
 	return globalTracker // sync.Once provides sufficient synchronization
-}
-
-// SetGlobalTracker sets a custom global tracker (useful for testing)
-func SetGlobalTracker(tracker *Tracker) {
-	globalTrackerMu.Lock()
-	defer globalTrackerMu.Unlock()
-	globalTracker = tracker
 }
 
 // initializeGlobalTracker creates the default global tracker
@@ -44,22 +36,4 @@ func initializeGlobalTracker() *Tracker {
 
 	// Enabled by default - can be disabled via config later
 	return NewTracker(writer, true)
-}
-
-// DisableGlobalTracking disables the global event tracker
-func DisableGlobalTracking() {
-	globalTrackerMu.Lock()
-	defer globalTrackerMu.Unlock()
-	if globalTracker != nil {
-		globalTracker.SetEnabled(false)
-	}
-}
-
-// EnableGlobalTracking enables the global event tracker
-func EnableGlobalTracking() {
-	globalTrackerMu.Lock()
-	defer globalTrackerMu.Unlock()
-	if globalTracker != nil {
-		globalTracker.SetEnabled(true)
-	}
 }
