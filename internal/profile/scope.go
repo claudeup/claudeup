@@ -10,7 +10,7 @@ type Scope string
 const (
 	// ScopeUser applies profile at user level (~/.claude/)
 	ScopeUser Scope = "user"
-	// ScopeProject applies profile at project level (.mcp.json + .claudeup.json)
+	// ScopeProject applies profile at project level (.claude/settings.json + .mcp.json)
 	ScopeProject Scope = "project"
 	// ScopeLocal applies profile locally for this project only (~/.claudeup/projects.json)
 	ScopeLocal Scope = "local"

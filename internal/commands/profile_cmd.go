@@ -116,7 +116,7 @@ Shows a diff of changes before applying. Prompts for confirmation unless -y is u
   # Replace without prompts (for scripting)
   claudeup profile apply backend-stack --replace -y
 
-  # Set up a profile for your team (creates .claudeup.json)
+  # Set up a profile for your team (creates .claude/settings.json)
   claudeup profile apply backend-stack --scope project
 
   # Force the post-apply setup wizard to run
@@ -137,7 +137,7 @@ MULTI-SCOPE CAPTURE:
 
   Profiles are always saved to ~/.claudeup/profiles/ (user profiles directory).
   For team sharing, use 'profile apply <name> --scope project' to apply the
-  profile at project scope, which creates .claudeup.json for version control.
+  profile at project scope, which creates .claude/settings.json for version control.
 
 If no name is given, saves to the currently active profile.
 If the profile exists, prompts for confirmation unless -y is used.`,
@@ -356,7 +356,7 @@ This command removes plugins that are enabled but no longer installed.
 If the plugin is also in your saved profile definition, this command will offer to
 remove it from the profile as well (preventing future reinstall attempts).
 
-Use this to clean up drift detected by 'claudeup status' or 'claudeup doctor'.`,
+Use this to clean up issues detected by 'claudeup status' or 'claudeup doctor'.`,
 	Example: `  # Remove plugin from project scope
   claudeup profile clean --scope project nextjs-vercel-pro@claude-code-templates
 
@@ -392,9 +392,9 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 	}
 
 	// Remove plugin from Claude settings
-	// Note: Plugins are defined in profiles, not in .claudeup.json, so we only
-	// need to disable them in settings. To fully remove a plugin from a profile,
-	// edit the profile definition itself.
+	// Note: Plugins are defined in profiles, so we only need to disable them
+	// in settings. To fully remove a plugin from a profile, edit the profile
+	// definition itself.
 	scopeForSettings := profileCleanScope // "project" or "local"
 	settings, err := claude.LoadSettingsForScope(scopeForSettings, claudeDir, projectDir)
 	if err != nil {
@@ -526,7 +526,7 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVarP(&profileApplyForce, "force", "f", false, "Force reapply even with unsaved changes")
-	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user, or project if .claudeup.json exists)")
+	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
@@ -1870,8 +1870,6 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		// Apply the profile at user scope (not project scope).
 		// This prevents accidentally overwriting existing project configs when
 		// the user just wants to create and try a new profile.
-		// Note: User scope intentionally skips the project overwrite warning since
-		// it doesn't modify .claudeup.json.
 		if err := applyProfileWithScope(name, profile.ScopeUser); err != nil {
 			return err
 		}

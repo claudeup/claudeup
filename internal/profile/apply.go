@@ -324,7 +324,7 @@ func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) erro
 	return nil
 }
 
-// applyProjectScope applies a profile at project scope, creating .mcp.json and .claudeup.json
+// applyProjectScope applies a profile at project scope, creating .claude/settings.json and .mcp.json
 func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	result := &ApplyResult{}
 

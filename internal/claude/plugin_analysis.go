@@ -93,7 +93,7 @@ func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 
 // AnalyzePluginScopesWithOrphans examines all scopes and returns comprehensive plugin information
 // including plugins that are enabled in settings but not actually installed.
-// Use this when you need to detect configuration drift (enabled plugins without installations).
+// Use this when you need to find orphaned plugins (enabled in settings but missing installations).
 func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*PluginAnalysisResult, error) {
 	ctx, err := loadAnalysisContext(claudeDir, projectDir)
 	if err != nil {

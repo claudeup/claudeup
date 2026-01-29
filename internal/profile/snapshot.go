@@ -68,9 +68,7 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOpti
 		p.Plugins = plugins
 	}
 
-	// Read marketplaces
-	// For project scope, we could read from .claudeup.json if we want project-specific marketplaces
-	// For now, marketplaces are always user-scoped
+	// Read marketplaces (always user-scoped)
 	marketplaces, err := readMarketplaces(claudeDir)
 	if err == nil {
 		p.Marketplaces = marketplaces
