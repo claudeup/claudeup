@@ -19,10 +19,6 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Preferences.ActiveProfile != "" {
 		t.Error("ActiveProfile should default to empty string")
 	}
-
-	if cfg.Sandbox.CopyAuth != false {
-		t.Error("CopyAuth should default to false")
-	}
 }
 
 func TestIsMCPServerDisabled(t *testing.T) {
