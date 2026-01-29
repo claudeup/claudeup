@@ -23,9 +23,10 @@ type ProgressCallback func(current, total int, item string)
 
 // SyncOptions controls sync behavior
 type SyncOptions struct {
-	DryRun           bool
-	ReplaceUserScope bool             // If true, replace user scope; if false, additive (default)
-	Progress         ProgressCallback // Optional progress reporting
+	DryRun              bool
+	ReplaceUserScope    bool             // If true, replace user scope; if false, additive (default)
+	Progress            ProgressCallback // Optional progress reporting for plugins
+	MarketplaceProgress ProgressCallback // Optional progress reporting for marketplaces
 }
 
 // Sync applies the profile from .claudeup.json to all scopes.
@@ -77,13 +78,13 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 	// 1. Add marketplaces from embedded profiles first (best-effort)
 	// This ensures known marketplaces (like wshobson/agents from hobson profile) are available
 	embeddedMarketplaces := collectEmbeddedMarketplaces()
-	if len(embeddedMarketplaces) > 0 {
-		fmt.Printf("  Checking %d embedded marketplaces...\n", len(embeddedMarketplaces))
-	}
-	for _, m := range embeddedMarketplaces {
+	for i, m := range embeddedMarketplaces {
 		key := marketplaceKey(m)
 		if key == "" {
 			continue
+		}
+		if opts.MarketplaceProgress != nil {
+			opts.MarketplaceProgress(i+1, len(embeddedMarketplaces), key)
 		}
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err == nil {
@@ -98,13 +99,13 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 	}
 
 	// 2. Add marketplaces from the profile (needed to resolve plugin names)
-	if len(prof.Marketplaces) > 0 {
-		fmt.Printf("  Adding %d profile marketplaces...\n", len(prof.Marketplaces))
-	}
-	for _, m := range prof.Marketplaces {
+	for i, m := range prof.Marketplaces {
 		key := marketplaceKey(m)
 		if key == "" {
 			continue
+		}
+		if opts.MarketplaceProgress != nil {
+			opts.MarketplaceProgress(i+1, len(prof.Marketplaces), key)
 		}
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
