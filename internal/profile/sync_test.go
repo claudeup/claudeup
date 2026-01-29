@@ -1,5 +1,5 @@
 // ABOUTME: Unit tests for profile sync functionality
-// ABOUTME: Tests sync from .claudeup.json using ApplyAllScopes
+// ABOUTME: Tests sync from explicit profile name using ApplyAllScopes
 package profile
 
 import (
@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-// Helper to create a test profile with plugins and return profilesDir
+// Helper to create a test profile and return profilesDir
 func setupTestProfile(t *testing.T, projectDir string, plugins []string, marketplaces []Marketplace) string {
 	profilesDir := filepath.Join(projectDir, "profiles")
 	if err := os.MkdirAll(profilesDir, 0755); err != nil {
@@ -26,15 +26,6 @@ func setupTestProfile(t *testing.T, projectDir string, plugins []string, marketp
 		t.Fatalf("failed to save test profile: %v", err)
 	}
 
-	// Create .claudeup.json referencing the profile
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "test-profile",
-	}
-	if err := SaveProjectConfig(projectDir, cfg); err != nil {
-		t.Fatalf("failed to save project config: %v", err)
-	}
-
 	return profilesDir
 }
 
@@ -48,87 +39,34 @@ func setupClaudeDir(t *testing.T) (claudeDir, claudeJSONPath string) {
 	return claudeDir, claudeJSONPath
 }
 
-func TestSync_NoProjectConfig(t *testing.T) {
+func TestSync_NoProfileName(t *testing.T) {
 	projectDir := t.TempDir()
 	claudeDir, claudeJSONPath := setupClaudeDir(t)
 
 	profilesDir := filepath.Join(projectDir, "profiles")
 	os.MkdirAll(profilesDir, 0755)
 
-	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
+	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "", SyncOptions{})
 	if err == nil {
-		t.Error("expected error for missing .claudeup.json")
+		t.Error("expected error for missing profile name")
 	}
-	if !strings.Contains(err.Error(), ProjectConfigFile) {
-		t.Errorf("error should mention %s: %v", ProjectConfigFile, err)
+	if !strings.Contains(err.Error(), "profile name not specified") {
+		t.Errorf("error should mention profile name: %v", err)
 	}
 }
 
-func TestSync_ProfileNotFound_BootstrapsFromCurrentState(t *testing.T) {
+func TestSync_ProfileNotFound(t *testing.T) {
 	projectDir := t.TempDir()
 	claudeDir, claudeJSONPath := setupClaudeDir(t)
 	profilesDir := filepath.Join(projectDir, "profiles")
 	os.MkdirAll(profilesDir, 0755)
 
-	// Create some existing settings that will be captured by bootstrap
-	projectClaudeDir := filepath.Join(projectDir, ".claude")
-	os.MkdirAll(projectClaudeDir, 0755)
-	existingSettings := map[string]interface{}{
-		"enabledPlugins": map[string]interface{}{
-			"existing-plugin@marketplace": true,
-		},
+	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "nonexistent-profile", SyncOptions{})
+	if err == nil {
+		t.Error("expected error for missing profile")
 	}
-	existingData, _ := json.Marshal(existingSettings)
-	os.WriteFile(filepath.Join(projectClaudeDir, "settings.json"), existingData, 0644)
-
-	// Create .claudeup.json pointing to a non-existent profile
-	cfg := &ProjectConfig{
-		Version: "1",
-		Profile: "bootstrapped-profile",
-	}
-	if err := SaveProjectConfig(projectDir, cfg); err != nil {
-		t.Fatal(err)
-	}
-
-	// Sync should SUCCEED by bootstrapping from current state
-	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
-	if err != nil {
-		t.Fatalf("Sync should succeed by bootstrapping, got error: %v", err)
-	}
-
-	// Verify profile was created
-	if !result.ProfileCreated {
-		t.Error("ProfileCreated should be true")
-	}
-	if result.ProfileName != "bootstrapped-profile" {
-		t.Errorf("ProfileName = %s, want bootstrapped-profile", result.ProfileName)
-	}
-
-	// Verify the bootstrapped profile was saved to profiles directory
-	profilePath := filepath.Join(profilesDir, "bootstrapped-profile.json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
-		t.Errorf("Bootstrapped profile should be saved at %s", profilePath)
-	}
-
-	// Verify the bootstrapped profile captured the existing settings
-	savedProfile, err := Load(profilesDir, "bootstrapped-profile")
-	if err != nil {
-		t.Fatalf("Failed to load bootstrapped profile: %v", err)
-	}
-
-	// Check that multi-scope settings captured the existing plugin
-	if savedProfile.PerScope == nil || savedProfile.PerScope.Project == nil {
-		t.Fatal("Bootstrapped profile should have PerScope.Project settings")
-	}
-	found := false
-	for _, plugin := range savedProfile.PerScope.Project.Plugins {
-		if plugin == "existing-plugin@marketplace" {
-			found = true
-			break
-		}
-	}
-	if !found {
-		t.Errorf("Bootstrapped profile should contain existing-plugin@marketplace, got: %v", savedProfile.PerScope.Project.Plugins)
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("error should mention not found: %v", err)
 	}
 }
 
@@ -141,7 +79,7 @@ func TestSync_DryRun(t *testing.T) {
 		[]string{"plugin-a@test", "plugin-b@test"},
 		[]Marketplace{{Source: "github", Repo: "test/plugins"}})
 
-	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{DryRun: true})
+	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "test-profile", SyncOptions{DryRun: true})
 	if err != nil {
 		t.Fatalf("Sync dry run failed: %v", err)
 	}
@@ -149,12 +87,6 @@ func TestSync_DryRun(t *testing.T) {
 	// Dry run should report what would be installed
 	if result.PluginsInstalled != 2 {
 		t.Errorf("PluginsInstalled = %d, want 2", result.PluginsInstalled)
-	}
-
-	// Profile should not have been created (dry run)
-	if result.ProfileCreated {
-		// Note: dry run implementation returns ProfileCreated: true to indicate it would create
-		// This is documenting current behavior
 	}
 
 	// Settings file should NOT exist (dry run doesn't write)
@@ -180,17 +112,11 @@ func TestSync_CreatesLocalProfileCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create .claudeup.json pointing to the profile
-	cfg := &ProjectConfig{Version: "1", Profile: "team-profile"}
-	if err := SaveProjectConfig(projectDir, cfg); err != nil {
-		t.Fatal(err)
-	}
-
 	// User profiles directory (where local copy will be saved)
 	userProfilesDir := filepath.Join(t.TempDir(), "user-profiles")
 	os.MkdirAll(userProfilesDir, 0755)
 
-	result, err := Sync(userProfilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
+	result, err := Sync(userProfilesDir, projectDir, claudeDir, claudeJSONPath, "team-profile", SyncOptions{})
 	if err != nil {
 		t.Fatalf("Sync failed: %v", err)
 	}
@@ -216,7 +142,7 @@ func TestSync_AppliesPluginsToSettings(t *testing.T) {
 		[]string{"plugin-a@test", "plugin-b@test"},
 		nil)
 
-	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
+	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "test-profile", SyncOptions{})
 	if err != nil {
 		t.Fatalf("Sync failed: %v", err)
 	}
@@ -273,17 +199,11 @@ func TestSync_MultiScopeProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create .claudeup.json
-	cfg := &ProjectConfig{Version: "1", Profile: "multi-scope-test"}
-	if err := SaveProjectConfig(projectDir, cfg); err != nil {
-		t.Fatal(err)
-	}
-
 	// Create project .claude directory
 	projectClaudeDir := filepath.Join(projectDir, ".claude")
 	os.MkdirAll(projectClaudeDir, 0755)
 
-	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{})
+	result, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "multi-scope-test", SyncOptions{})
 	if err != nil {
 		t.Fatalf("Sync failed: %v", err)
 	}
@@ -343,7 +263,7 @@ func TestSync_ReplaceUserScope(t *testing.T) {
 		nil)
 
 	// Sync WITHOUT replace - should be additive
-	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{
+	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "test-profile", SyncOptions{
 		ReplaceUserScope: false,
 	})
 	if err != nil {
@@ -383,7 +303,7 @@ func TestSync_ReplaceUserScope_Declarative(t *testing.T) {
 		nil)
 
 	// Sync WITH replace - should be declarative
-	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, SyncOptions{
+	_, err := Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, "test-profile", SyncOptions{
 		ReplaceUserScope: true,
 	})
 	if err != nil {
@@ -408,11 +328,7 @@ func TestSync_EmptyProfilesDir(t *testing.T) {
 	projectDir := t.TempDir()
 	claudeDir, claudeJSONPath := setupClaudeDir(t)
 
-	// Create .claudeup.json without creating the profile
-	cfg := &ProjectConfig{Version: "1", Profile: "test-profile"}
-	SaveProjectConfig(projectDir, cfg)
-
-	_, err := Sync("", projectDir, claudeDir, claudeJSONPath, SyncOptions{})
+	_, err := Sync("", projectDir, claudeDir, claudeJSONPath, "test-profile", SyncOptions{})
 	if err == nil {
 		t.Error("expected error for empty profiles directory")
 	}

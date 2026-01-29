@@ -1,4 +1,4 @@
-// ABOUTME: Syncs configuration from .claudeup.json for team members
+// ABOUTME: Syncs profile configuration for team members
 // ABOUTME: Installs plugins and applies profile settings to all scopes
 package profile
 
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// SyncResult contains the results of syncing from .claudeup.json
+// SyncResult contains the results of syncing a profile
 type SyncResult struct {
 	ProfileName       string
 	ProfileCreated    bool // True if profile was created/updated locally
@@ -29,32 +29,23 @@ type SyncOptions struct {
 	MarketplaceProgress ProgressCallback // Optional progress reporting for marketplaces
 }
 
-// Sync applies the profile from .claudeup.json to all scopes.
+// Sync applies a profile to all scopes.
 // It saves a local copy of the profile, installs plugins, and applies settings:
 // - User scope: additive by default, declarative with ReplaceUserScope=true
 // - Project/local scopes: always declarative (replaces settings)
-func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOptions) (*SyncResult, error) {
+func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath, profileName string, opts SyncOptions) (*SyncResult, error) {
 	if profilesDir == "" {
 		return nil, fmt.Errorf("profiles directory not specified")
 	}
 
-	// Load .claudeup.json
-	cfg, err := LoadProjectConfig(projectDir)
-	if err != nil {
-		return nil, fmt.Errorf("no %s found: %w", ProjectConfigFile, err)
+	if profileName == "" {
+		return nil, fmt.Errorf("profile name not specified")
 	}
 
 	// Load the profile - check project first, then user profiles
-	prof, _, err := LoadWithFallback(profilesDir, projectDir, cfg.Profile)
+	prof, _, err := LoadWithFallback(profilesDir, projectDir, profileName)
 	if err != nil {
-		// Profile doesn't exist - bootstrap by creating from current state
-		// This handles the case where:
-		// 1. Project was set up with an older version that didn't save to .claudeup/profiles/
-		// 2. User is syncing for the first time without the profile
-		prof, err = SnapshotAllScopes(cfg.Profile, claudeDir, claudeJSONPath, projectDir)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create profile %q from current state: %w", cfg.Profile, err)
-		}
+		return nil, fmt.Errorf("profile %q not found: %w", profileName, err)
 	}
 
 	result := &SyncResult{

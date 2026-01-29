@@ -321,12 +321,6 @@ func (e *TestEnv) MCPJSONExists(dir string) bool {
 	return err == nil
 }
 
-// ClaudeupJSONExists checks if .claudeup.json exists in the given directory
-func (e *TestEnv) ClaudeupJSONExists(dir string) bool {
-	_, err := os.Stat(filepath.Join(dir, ".claudeup.json"))
-	return err == nil
-}
-
 // ProjectProfileExists checks if a profile exists in the project's .claudeup/profiles/ directory
 func (e *TestEnv) ProjectProfileExists(dir, profileName string) bool {
 	_, err := os.Stat(filepath.Join(dir, ".claudeup", "profiles", profileName+".json"))
@@ -351,23 +345,6 @@ func (e *TestEnv) LoadMCPJSON(dir string) map[string]interface{} {
 	var config map[string]interface{}
 	Expect(json.Unmarshal(data, &config)).To(Succeed())
 	return config
-}
-
-// LoadClaudeupJSON loads .claudeup.json from the given directory
-func (e *TestEnv) LoadClaudeupJSON(dir string) map[string]interface{} {
-	data, err := os.ReadFile(filepath.Join(dir, ".claudeup.json"))
-	Expect(err).NotTo(HaveOccurred())
-
-	var config map[string]interface{}
-	Expect(json.Unmarshal(data, &config)).To(Succeed())
-	return config
-}
-
-// CreateClaudeupJSON creates a .claudeup.json file in the given directory
-func (e *TestEnv) CreateClaudeupJSON(dir string, cfg map[string]interface{}) {
-	data, err := json.MarshalIndent(cfg, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(os.WriteFile(filepath.Join(dir, ".claudeup.json"), data, 0644)).To(Succeed())
 }
 
 // WriteFile writes arbitrary content to a file in the given directory
