@@ -154,7 +154,7 @@ section "5. Event-Based vs Static Comparison"
 
 cat <<EOF
 ${BOLD}Static Comparison (compare-profile.sh):${NC}
-  ✓ Shows current drift from saved profile
+  ✓ Shows differences from saved profile
   ✓ Fast and simple
   ✗ No history - only shows current state
   ✗ Can't see what changed when
