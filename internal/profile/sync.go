@@ -9,12 +9,12 @@ import (
 
 // SyncResult contains the results of syncing from .claudeup.json
 type SyncResult struct {
-	ProfileName        string
-	ProfileCreated     bool // True if profile was created/updated locally
-	PluginsInstalled   int
-	PluginsSkipped     int
-	MarketplacesAdded  []string
-	Errors             []error
+	ProfileName       string
+	ProfileCreated    bool // True if profile was created/updated locally
+	PluginsInstalled  int
+	PluginsSkipped    int
+	MarketplacesAdded []string
+	Errors            []error
 }
 
 // ProgressCallback reports installation progress for multi-item operations
@@ -110,54 +110,66 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 	}
 
 	// 3. Install plugins and write settings for each scope
+	// IMPORTANT: Decouple installation from settings write so that empty plugin
+	// lists still write settings (clearing stale plugins in declarative mode)
 	if prof.IsMultiScope() {
 		// Multi-scope profile: install plugins at each scope
-		if prof.PerScope.User != nil && len(prof.PerScope.User.Plugins) > 0 {
-			installResult := InstallPluginsWithProgress(prof.PerScope.User.Plugins, executor, InstallPluginsOptions{
-				Scope:    "", // User scope (no --scope flag)
-				Progress: opts.Progress,
-			})
-			result.PluginsInstalled += len(installResult.Installed)
-			result.PluginsSkipped += len(installResult.Skipped)
-			result.Errors = append(result.Errors, installResult.Errors...)
+		if prof.PerScope.User != nil {
+			// Install plugins only if there are any
+			if len(prof.PerScope.User.Plugins) > 0 {
+				installResult := InstallPluginsWithProgress(prof.PerScope.User.Plugins, executor, InstallPluginsOptions{
+					Scope:    "", // User scope (no --scope flag)
+					Progress: opts.Progress,
+				})
+				result.PluginsInstalled += len(installResult.Installed)
+				result.PluginsSkipped += len(installResult.Skipped)
+				result.Errors = append(result.Errors, installResult.Errors...)
+			}
 
-			// Write user settings (reuse existing function from apply.go)
+			// Always write user settings (even for empty plugin list, to clear stale state)
 			if _, err := applyUserScopeSettings(prof.ForScope("user"), claudeDir, projectDir, opts.ReplaceUserScope); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to write user settings: %w", err))
 			}
 		}
 
-		if prof.PerScope.Project != nil && len(prof.PerScope.Project.Plugins) > 0 && projectDir != "" {
-			installResult := InstallPluginsWithProgress(prof.PerScope.Project.Plugins, executor, InstallPluginsOptions{
-				Scope:    "project",
-				Progress: opts.Progress,
-			})
-			result.PluginsInstalled += len(installResult.Installed)
-			result.PluginsSkipped += len(installResult.Skipped)
-			result.Errors = append(result.Errors, installResult.Errors...)
+		if prof.PerScope.Project != nil && projectDir != "" {
+			// Install plugins only if there are any
+			if len(prof.PerScope.Project.Plugins) > 0 {
+				installResult := InstallPluginsWithProgress(prof.PerScope.Project.Plugins, executor, InstallPluginsOptions{
+					Scope:    "project",
+					Progress: opts.Progress,
+				})
+				result.PluginsInstalled += len(installResult.Installed)
+				result.PluginsSkipped += len(installResult.Skipped)
+				result.Errors = append(result.Errors, installResult.Errors...)
+			}
 
-			// Write project settings (reuse existing function from apply.go)
+			// Always write project settings (project scope is always declarative)
 			if _, err := applyProjectScopeSettings(prof.ForScope("project"), claudeDir, projectDir); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to write project settings: %w", err))
 			}
 		}
 
-		if prof.PerScope.Local != nil && len(prof.PerScope.Local.Plugins) > 0 && projectDir != "" {
-			installResult := InstallPluginsWithProgress(prof.PerScope.Local.Plugins, executor, InstallPluginsOptions{
-				Scope:    "local",
-				Progress: opts.Progress,
-			})
-			result.PluginsInstalled += len(installResult.Installed)
-			result.PluginsSkipped += len(installResult.Skipped)
-			result.Errors = append(result.Errors, installResult.Errors...)
+		if prof.PerScope.Local != nil && projectDir != "" {
+			// Install plugins only if there are any
+			if len(prof.PerScope.Local.Plugins) > 0 {
+				installResult := InstallPluginsWithProgress(prof.PerScope.Local.Plugins, executor, InstallPluginsOptions{
+					Scope:    "local",
+					Progress: opts.Progress,
+				})
+				result.PluginsInstalled += len(installResult.Installed)
+				result.PluginsSkipped += len(installResult.Skipped)
+				result.Errors = append(result.Errors, installResult.Errors...)
+			}
 
-			// Write local settings (reuse existing function from apply.go)
+			// Always write local settings (local scope is always declarative)
 			if _, err := applyLocalScopeSettings(prof.ForScope("local"), claudeDir, projectDir); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to write local settings: %w", err))
 			}
 		}
 	} else {
 		// Legacy single-scope profile: install at user scope
+		// Install plugins only if there are any
 		if len(prof.Plugins) > 0 {
 			installResult := InstallPluginsWithProgress(prof.Plugins, executor, InstallPluginsOptions{
 				Scope:    "", // User scope
@@ -166,8 +178,10 @@ func Sync(profilesDir, projectDir, claudeDir, claudeJSONPath string, opts SyncOp
 			result.PluginsInstalled += len(installResult.Installed)
 			result.PluginsSkipped += len(installResult.Skipped)
 			result.Errors = append(result.Errors, installResult.Errors...)
+		}
 
-			// Write user settings (reuse existing function from apply.go)
+		// Write settings if there are plugins OR if in replace mode (to clear stale plugins)
+		if len(prof.Plugins) > 0 || opts.ReplaceUserScope {
 			if _, err := applyUserScopeSettings(prof, claudeDir, projectDir, opts.ReplaceUserScope); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to write user settings: %w", err))
 			}

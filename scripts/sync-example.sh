@@ -692,6 +692,116 @@ echo ""
 echo "Test 6 PASSED: Project profile takes precedence over user profile"
 
 # =============================================================================
+# TEST 7: Empty plugin list clears stale settings (ReplaceUserScope semantics)
+# =============================================================================
+
+section "Test 7: Empty plugin list clears stale settings"
+
+echo "Scenario: Profile intentionally has empty project scope plugins."
+echo "With --replace semantics, stale project-scope plugins should be removed."
+echo "This tests the fix for: empty plugin list should write empty settings."
+echo ""
+
+# Reset state
+rm -f "$CLAUDE_CONFIG_DIR/settings.json"
+rm -f "$PROJECT_DIR/.claude/settings.json"
+rm -f "$CLAUDEUP_HOME/profiles/minimal-profile.json"
+rm -f "$PROJECT_DIR/.claudeup/profiles/minimal-profile.json"
+mkdir -p "$PROJECT_DIR/.claude"
+mkdir -p "$PROJECT_DIR/.claudeup/profiles"
+
+# Create STALE project-scope plugins (should be removed by sync)
+cat > "$PROJECT_DIR/.claude/settings.json" << 'SETTINGS'
+{
+  "enabledPlugins": {
+    "stale-project-plugin@marketplace": true,
+    "another-stale-plugin@marketplace": true
+  }
+}
+SETTINGS
+echo "Created stale project-scope plugins:"
+check_plugins "$PROJECT_DIR/.claude/settings.json" "Project scope (BEFORE sync)"
+
+# Create profile with EMPTY project-scope plugins (intentionally empty)
+cat > "$PROJECT_DIR/.claudeup/profiles/minimal-profile.json" << 'PROFILE'
+{
+  "name": "minimal-profile",
+  "description": "Profile with intentionally empty project scope",
+  "perScope": {
+    "user": {
+      "plugins": ["one-user-plugin@marketplace"]
+    },
+    "project": {
+      "plugins": []
+    }
+  }
+}
+PROFILE
+echo ""
+echo "Created profile with:"
+echo "  • user scope: one-user-plugin"
+echo "  • project scope: [] (intentionally empty)"
+
+# Create .claudeup.json
+cat > "$PROJECT_DIR/.claudeup.json" << 'CONFIG'
+{
+  "version": "1",
+  "profile": "minimal-profile"
+}
+CONFIG
+
+# Run sync (project scope is always declarative - should clear stale plugins)
+echo ""
+echo "Running: claudeup profile sync -y"
+pushd "$PROJECT_DIR" > /dev/null
+$CLAUDEUP profile sync -y
+popd > /dev/null
+
+echo ""
+echo "After sync:"
+check_plugins "$PROJECT_DIR/.claude/settings.json" "Project scope (AFTER sync)"
+
+# Verify stale plugins were REMOVED (project scope is declarative)
+if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "stale-project-plugin@marketplace"; then
+  echo ""
+  echo "✗ ERROR: stale-project-plugin should have been REMOVED"
+  echo "  BUG: Empty plugin list did not clear stale settings"
+  exit 1
+fi
+echo ""
+echo "✓ stale-project-plugin was removed"
+
+if verify_plugin_exists "$PROJECT_DIR/.claude/settings.json" "another-stale-plugin@marketplace"; then
+  echo "✗ ERROR: another-stale-plugin should have been REMOVED"
+  exit 1
+fi
+echo "✓ another-stale-plugin was removed"
+
+# Verify project settings file exists but has empty enabledPlugins
+if [[ ! -f "$PROJECT_DIR/.claude/settings.json" ]]; then
+  echo "✗ ERROR: Project settings.json should exist (even if empty)"
+  exit 1
+fi
+echo "✓ Project settings.json exists"
+
+PROJECT_PLUGIN_COUNT=$(jq '.enabledPlugins | length' "$PROJECT_DIR/.claude/settings.json" 2>/dev/null || echo "0")
+if [[ "$PROJECT_PLUGIN_COUNT" -ne 0 ]]; then
+  echo "✗ ERROR: Project scope should have 0 plugins, got $PROJECT_PLUGIN_COUNT"
+  exit 1
+fi
+echo "✓ Project scope has 0 plugins (as intended by profile)"
+
+# Verify user scope got its plugin
+if ! verify_plugin_exists "$CLAUDE_CONFIG_DIR/settings.json" "one-user-plugin@marketplace"; then
+  echo "✗ ERROR: one-user-plugin should have been installed at user scope"
+  exit 1
+fi
+echo "✓ User scope plugin was installed"
+
+echo ""
+echo "Test 7 PASSED: Empty plugin list clears stale settings"
+
+# =============================================================================
 # Summary
 # =============================================================================
 
@@ -706,6 +816,7 @@ echo "  ✓ Test 3: Sync --replace removes extra plugins at user scope"
 echo "  ✓ Test 4: Sync without --replace preserves existing user plugins"
 echo "  ✓ Test 5: Sync is idempotent (multiple runs produce same result)"
 echo "  ✓ Test 6: Project profile takes precedence over user profile"
+echo "  ✓ Test 7: Empty plugin list clears stale settings"
 echo ""
 echo "Key behaviors:"
 echo "  • Sync reads .claudeup.json to find profile name"
@@ -714,6 +825,7 @@ echo "  • Project profile takes precedence when same name exists in both locat
 echo "  • Sync creates/updates local profile copy in user profiles dir"
 echo "  • User scope: additive by default, declarative with --replace"
 echo "  • Project scope: always declarative (replaces settings)"
+echo "  • Empty plugin lists write empty settings (clears stale plugins)"
 
 # -----------------------------------------------------------------------------
 # Debug output (optional)
