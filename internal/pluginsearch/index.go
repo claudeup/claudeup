@@ -23,18 +23,3 @@ type PluginSearchIndex struct {
 	Commands []ComponentInfo
 	Agents   []ComponentInfo
 }
-
-// HasSkills returns true if the plugin has any skills.
-func (p *PluginSearchIndex) HasSkills() bool {
-	return len(p.Skills) > 0
-}
-
-// HasCommands returns true if the plugin has any commands.
-func (p *PluginSearchIndex) HasCommands() bool {
-	return len(p.Commands) > 0
-}
-
-// HasAgents returns true if the plugin has any agents.
-func (p *PluginSearchIndex) HasAgents() bool {
-	return len(p.Agents) > 0
-}

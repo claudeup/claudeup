@@ -56,8 +56,3 @@ func (c *Chain) Resolve(ref string) (string, string, error) {
 
 	return "", "", errors.New("no available resolvers could resolve the secret")
 }
-
-// AddResolver appends a resolver to the chain
-func (c *Chain) AddResolver(r Resolver) {
-	c.resolvers = append(c.resolvers, r)
-}
