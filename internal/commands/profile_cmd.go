@@ -1338,10 +1338,11 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	if activeScope != "" {
 		diff, err := profile.CompareWithScope(savedProfile, claudeDir, claudeJSONPath, cwd, activeScope)
 		if err == nil {
-			scopeLabel := fmt.Sprintf("%s scope (%s)", activeScope, getScopeFile(activeScope))
+			scopeLabel := fmt.Sprintf("%s scope (%s)", activeScope, getScopeFile(activeScope, claudeDir))
 			if !diff.HasSignificantChanges() {
 				fmt.Printf("%s %s\n", ui.Success("✓"), ui.Bold(scopeLabel))
-				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches saved profile (%d plugins)", len(savedProfile.Plugins))))
+				scopeProfile := savedProfile.ForScope(activeScope)
+				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches saved profile (%d plugins)", len(scopeProfile.Plugins))))
 			} else {
 				fmt.Printf("%s %s\n", ui.Warning("○"), ui.Bold(scopeLabel))
 				if len(diff.PluginsAdded) > 0 {
@@ -1408,14 +1409,46 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		scopeLabel := fmt.Sprintf("%s scope (%s)", scope, getScopeFile(scope))
+		scopeLabel := fmt.Sprintf("%s scope (%s)", scope, getScopeFile(scope, claudeDir))
+
+		// Get what the profile defines for this scope
+		profileForScope := savedProfile.ForScope(scope)
+		profilePluginSet := make(map[string]bool)
+		for _, p := range profileForScope.Plugins {
+			profilePluginSet[p] = true
+		}
+
+		// Categorize current plugins: in profile vs extra
+		var inProfile, extra []string
+		for _, p := range scopeSnapshot.Plugins {
+			if profilePluginSet[p] {
+				inProfile = append(inProfile, p)
+			} else {
+				extra = append(extra, p)
+			}
+		}
 
 		// Show what this scope adds
 		if len(scopeSnapshot.Plugins) > 0 {
-			fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
-			fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s layered on top:", len(scopeSnapshot.Plugins), pluralS(len(scopeSnapshot.Plugins)))))
-			for _, p := range scopeSnapshot.Plugins {
-				fmt.Printf("    + %s\n", p)
+			if len(extra) == 0 {
+				// All plugins match profile
+				fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
+				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("Matches profile (%d plugins)", len(inProfile))))
+			} else if len(inProfile) == 0 {
+				// All plugins are extra (not in profile for this scope)
+				fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
+				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (not in profile):", len(extra), pluralS(len(extra)))))
+				for _, p := range extra {
+					fmt.Printf("    + %s\n", p)
+				}
+			} else {
+				// Mix of profile plugins and extra
+				fmt.Printf("%s %s\n", ui.Info("○"), scopeLabel)
+				fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("%d plugin%s (%d from profile, %d extra):",
+					len(scopeSnapshot.Plugins), pluralS(len(scopeSnapshot.Plugins)), len(inProfile), len(extra))))
+				for _, p := range extra {
+					fmt.Printf("    + %s %s\n", p, ui.Warning("(extra)"))
+				}
 			}
 		} else {
 			fmt.Printf("%s %s\n", ui.Success("✓"), scopeLabel)
@@ -1435,11 +1468,13 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	if !combinedDiff.HasSignificantChanges() {
 		fmt.Printf("  %s\n", ui.Success("✓ Matches saved profile"))
 	} else {
-		totalPlugins := len(savedProfile.Plugins)
-		effectivePlugins := totalPlugins + len(combinedDiff.PluginsAdded) - len(combinedDiff.PluginsRemoved)
-		fmt.Printf("  %d plugins total (%d from profile", effectivePlugins, totalPlugins)
+		// Use all plugins from the profile (across all scopes) for the count
+		combinedSaved := savedProfile.CombinedScopes()
+		profilePlugins := len(combinedSaved.Plugins)
+		effectivePlugins := profilePlugins + len(combinedDiff.PluginsAdded) - len(combinedDiff.PluginsRemoved)
+		fmt.Printf("  %d plugins total (%d from profile", effectivePlugins, profilePlugins)
 		if len(combinedDiff.PluginsAdded) > 0 {
-			fmt.Printf(" + %d from other scope%s", len(combinedDiff.PluginsAdded), pluralS(len(combinedDiff.PluginsAdded)))
+			fmt.Printf(" + %d not in profile", len(combinedDiff.PluginsAdded))
 		}
 		if len(combinedDiff.PluginsRemoved) > 0 {
 			fmt.Printf(" - %d missing", len(combinedDiff.PluginsRemoved))
@@ -1517,10 +1552,11 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 }
 
 // getScopeFile returns the settings file name for a scope
-func getScopeFile(scope string) string {
+func getScopeFile(scope, claudeConfigDir string) string {
 	switch scope {
 	case "user":
-		return "~/.claude/settings.json"
+		// Show the actual claude config dir (respects CLAUDE_CONFIG_DIR)
+		return filepath.Join(claudeConfigDir, "settings.json")
 	case "project":
 		return ".claude/settings.json"
 	case "local":
