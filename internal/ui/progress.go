@@ -111,26 +111,6 @@ func (t *ProgressTracker) RecordResult(phaseName string, result ItemResult) {
 	}
 }
 
-// GetPhase returns a phase by name (for testing/inspection)
-func (t *ProgressTracker) GetPhase(name string) *Phase {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return t.phasesByName[name]
-}
-
-// IsComplete returns true if all phases are done
-func (t *ProgressTracker) IsComplete() bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	for _, phase := range t.phases {
-		if !phase.Done {
-			return false
-		}
-	}
-	return true
-}
-
 // Rendering constants
 const (
 	barWidth      = 20 // Width of progress bar in characters
@@ -343,17 +323,9 @@ func isTerminal(w io.Writer) bool {
 }
 
 // PluginProgress returns a callback that prints plugin installation progress.
-// Matches the profile.ProgressCallback signature for use with Sync operations.
+// Matches the profile.ProgressCallback signature for use with apply operations.
 func PluginProgress() func(current, total int, item string) {
 	return func(current, total int, item string) {
 		fmt.Printf("  [%d/%d] Installing %s\n", current, total, item)
-	}
-}
-
-// MarketplaceProgress returns a callback that prints marketplace setup progress.
-// Matches the profile.ProgressCallback signature for use with Sync operations.
-func MarketplaceProgress() func(current, total int, item string) {
-	return func(current, total int, item string) {
-		fmt.Printf("  [%d/%d] Checking marketplace %s\n", current, total, item)
 	}
 }
