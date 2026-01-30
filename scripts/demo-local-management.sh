@@ -38,11 +38,22 @@ DEMO_DIR=$(mktemp -d)
 export CLAUDE_CONFIG_DIR="$DEMO_DIR/.claude"
 export CLAUDEUP_HOME="$DEMO_DIR/.claudeup"
 
-# Build claudeup from the local-management branch
+# Build claudeup - handle running from main repo or worktree
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-WORKTREE_DIR="$REPO_DIR/.worktrees/local-management"
-CLAUDEUP_BIN="$WORKTREE_DIR/bin/claudeup"
+
+# Check if we're already in a worktree (has cmd/claudeup but no .worktrees)
+if [[ -d "$REPO_DIR/cmd/claudeup" && ! -d "$REPO_DIR/.worktrees" ]]; then
+    # Running from within worktree
+    BUILD_DIR="$REPO_DIR"
+elif [[ -d "$REPO_DIR/.worktrees/local-management" ]]; then
+    # Running from main repo
+    BUILD_DIR="$REPO_DIR/.worktrees/local-management"
+else
+    # Fallback to current repo dir
+    BUILD_DIR="$REPO_DIR"
+fi
+CLAUDEUP_BIN="$BUILD_DIR/bin/claudeup"
 
 cleanup() {
     print_header "Cleanup"
@@ -73,7 +84,7 @@ print_header "Step 1: Build claudeup"
 
 if [[ ! -f "$CLAUDEUP_BIN" ]]; then
     print_step "Building claudeup from local-management branch..."
-    (cd "$WORKTREE_DIR" && go build -o bin/claudeup ./cmd/claudeup)
+    (cd "$BUILD_DIR" && go build -o bin/claudeup ./cmd/claudeup)
     print_success "Built claudeup"
 else
     print_info "Using existing claudeup binary"
