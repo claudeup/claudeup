@@ -106,11 +106,6 @@ print_info "GSD installs directly to active directories."
 print_info "Using 'claudeup local import' to move to .library and create symlinks..."
 echo
 
-# Create .library structure
-mkdir -p "$CLAUDE_CONFIG_DIR/.library/agents"
-mkdir -p "$CLAUDE_CONFIG_DIR/.library/commands"
-mkdir -p "$CLAUDE_CONFIG_DIR/.library/hooks"
-
 # Import GSD agents
 print_step "Importing GSD agents..."
 "$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local import agents "gsd-*"
