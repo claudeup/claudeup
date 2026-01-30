@@ -575,3 +575,139 @@ func TestSaveSettingsForScopeCanonicalKeyOrder(t *testing.T) {
 		t.Error("enabledPlugins should appear after hooks")
 	}
 }
+
+func TestMergeHooks(t *testing.T) {
+	// Create settings with existing hooks
+	settings := &Settings{
+		raw: map[string]interface{}{
+			"hooks": map[string]interface{}{
+				"PostToolUse": []interface{}{
+					map[string]interface{}{
+						"matcher": "Edit|Write",
+						"hooks": []interface{}{
+							map[string]interface{}{
+								"type":    "command",
+								"command": "~/.claude/hooks/format-on-save.sh",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Merge new hooks
+	newHooks := map[string][]map[string]interface{}{
+		"SessionStart": {
+			{"type": "command", "command": "node ~/.claude/hooks/gsd-check-update.js"},
+		},
+	}
+
+	err := settings.MergeHooks(newHooks)
+	if err != nil {
+		t.Fatalf("MergeHooks() error = %v", err)
+	}
+
+	// Verify PostToolUse still exists
+	hooks := settings.raw["hooks"].(map[string]interface{})
+	if hooks["PostToolUse"] == nil {
+		t.Error("PostToolUse hooks were removed")
+	}
+
+	// Verify SessionStart was added
+	if hooks["SessionStart"] == nil {
+		t.Error("SessionStart hooks were not added")
+	}
+
+	sessionStart := hooks["SessionStart"].([]interface{})
+	if len(sessionStart) != 1 {
+		t.Errorf("Expected 1 SessionStart entry, got %d", len(sessionStart))
+	}
+}
+
+func TestMergeHooksDeduplicate(t *testing.T) {
+	settings := &Settings{
+		raw: map[string]interface{}{
+			"hooks": map[string]interface{}{
+				"SessionStart": []interface{}{
+					map[string]interface{}{
+						"hooks": []interface{}{
+							map[string]interface{}{
+								"type":    "command",
+								"command": "node ~/.claude/hooks/existing.js",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Try to add a duplicate and a new hook
+	newHooks := map[string][]map[string]interface{}{
+		"SessionStart": {
+			{"type": "command", "command": "node ~/.claude/hooks/existing.js"}, // duplicate
+			{"type": "command", "command": "node ~/.claude/hooks/new.js"},      // new
+		},
+	}
+
+	err := settings.MergeHooks(newHooks)
+	if err != nil {
+		t.Fatalf("MergeHooks() error = %v", err)
+	}
+
+	// Count unique commands
+	hooks := settings.raw["hooks"].(map[string]interface{})
+	sessionStart := hooks["SessionStart"].([]interface{})
+
+	commandSet := make(map[string]bool)
+	for _, entry := range sessionStart {
+		entryMap := entry.(map[string]interface{})
+		hooksList := entryMap["hooks"].([]interface{})
+		for _, hook := range hooksList {
+			hookMap := hook.(map[string]interface{})
+			if cmd, ok := hookMap["command"].(string); ok {
+				commandSet[cmd] = true
+			}
+		}
+	}
+
+	// Should have 2 unique commands (existing + new, no duplicate)
+	if len(commandSet) != 2 {
+		t.Errorf("Expected 2 unique commands after dedup, got %d", len(commandSet))
+	}
+
+	if !commandSet["node ~/.claude/hooks/existing.js"] {
+		t.Error("existing.js should be present")
+	}
+	if !commandSet["node ~/.claude/hooks/new.js"] {
+		t.Error("new.js should be present")
+	}
+}
+
+func TestMergeHooksEmptySettings(t *testing.T) {
+	settings := &Settings{
+		raw: nil, // No existing settings
+	}
+
+	newHooks := map[string][]map[string]interface{}{
+		"SessionStart": {
+			{"type": "command", "command": "node ~/.claude/hooks/test.js"},
+		},
+	}
+
+	err := settings.MergeHooks(newHooks)
+	if err != nil {
+		t.Fatalf("MergeHooks() error = %v", err)
+	}
+
+	// Verify hooks were created
+	if settings.raw == nil {
+		t.Fatal("raw map should be initialized")
+	}
+
+	hooks := settings.raw["hooks"].(map[string]interface{})
+	if hooks["SessionStart"] == nil {
+		t.Error("SessionStart hooks were not added")
+	}
+}

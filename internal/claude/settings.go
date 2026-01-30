@@ -317,3 +317,68 @@ func SaveSettingsForScope(scope string, claudeDir string, projectDir string, set
 		},
 	)
 }
+
+// MergeHooks merges new hooks into settings, deduplicating by command string.
+// Hooks are added without removing existing ones.
+// newHooks format: map[eventType][]hookEntry where hookEntry has "type" and "command" keys.
+func (s *Settings) MergeHooks(newHooks map[string][]map[string]interface{}) error {
+	if s.raw == nil {
+		s.raw = make(map[string]interface{})
+	}
+
+	// Get or create hooks map
+	var hooks map[string]interface{}
+	if existing, ok := s.raw["hooks"].(map[string]interface{}); ok {
+		hooks = existing
+	} else {
+		hooks = make(map[string]interface{})
+		s.raw["hooks"] = hooks
+	}
+
+	// For each event type in newHooks
+	for eventType, entries := range newHooks {
+		// Get existing hooks for this event type
+		var existingEntries []interface{}
+		if existing, ok := hooks[eventType].([]interface{}); ok {
+			existingEntries = existing
+		}
+
+		// Collect all existing commands for deduplication
+		existingCommands := make(map[string]bool)
+		for _, entry := range existingEntries {
+			if entryMap, ok := entry.(map[string]interface{}); ok {
+				if hooksList, ok := entryMap["hooks"].([]interface{}); ok {
+					for _, hook := range hooksList {
+						if hookMap, ok := hook.(map[string]interface{}); ok {
+							if cmd, ok := hookMap["command"].(string); ok {
+								existingCommands[cmd] = true
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Filter new hooks to only include non-duplicates
+		var newHooksList []interface{}
+		for _, entry := range entries {
+			if cmd, ok := entry["command"].(string); ok {
+				if !existingCommands[cmd] {
+					newHooksList = append(newHooksList, entry)
+					existingCommands[cmd] = true
+				}
+			}
+		}
+
+		if len(newHooksList) > 0 {
+			// Add as a new entry with no matcher (applies to all)
+			newEntry := map[string]interface{}{
+				"hooks": newHooksList,
+			}
+			existingEntries = append(existingEntries, newEntry)
+			hooks[eventType] = existingEntries
+		}
+	}
+
+	return nil
+}
