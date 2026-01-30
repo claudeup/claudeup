@@ -318,3 +318,124 @@ func writeJSON(t *testing.T, path string, data interface{}) {
 		t.Fatal(err)
 	}
 }
+
+func TestSnapshotCapturesLocalItems(t *testing.T) {
+	// Create temp directories
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create mock enabled.json with enabled local items
+	enabledData := map[string]map[string]bool{
+		"agents": {
+			"gsd-planner":  true,
+			"gsd-executor": true,
+			"other-agent":  false, // disabled, should not be captured
+		},
+		"commands": {
+			"gsd/start": true,
+			"gsd/stop":  true,
+		},
+		"hooks": {
+			"gsd-check-update.js": true,
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "enabled.json"), enabledData)
+
+	// Create minimal settings.json
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
+	// Create mock known_marketplaces.json (empty)
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+
+	// Create mock ~/.claude.json
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	// Create snapshot
+	p, err := Snapshot("test-local-items", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Verify LocalItems was captured
+	if p.LocalItems == nil {
+		t.Fatal("Expected LocalItems to be captured, got nil")
+	}
+
+	// Check agents - should only include enabled ones, sorted
+	expectedAgents := []string{"gsd-executor", "gsd-planner"}
+	if len(p.LocalItems.Agents) != len(expectedAgents) {
+		t.Errorf("Expected %d agents, got %d: %v", len(expectedAgents), len(p.LocalItems.Agents), p.LocalItems.Agents)
+	} else {
+		for i, expected := range expectedAgents {
+			if p.LocalItems.Agents[i] != expected {
+				t.Errorf("Agent[%d]: expected %q, got %q", i, expected, p.LocalItems.Agents[i])
+			}
+		}
+	}
+
+	// Check commands - should be sorted
+	expectedCommands := []string{"gsd/start", "gsd/stop"}
+	if len(p.LocalItems.Commands) != len(expectedCommands) {
+		t.Errorf("Expected %d commands, got %d: %v", len(expectedCommands), len(p.LocalItems.Commands), p.LocalItems.Commands)
+	} else {
+		for i, expected := range expectedCommands {
+			if p.LocalItems.Commands[i] != expected {
+				t.Errorf("Command[%d]: expected %q, got %q", i, expected, p.LocalItems.Commands[i])
+			}
+		}
+	}
+
+	// Check hooks
+	expectedHooks := []string{"gsd-check-update.js"}
+	if len(p.LocalItems.Hooks) != len(expectedHooks) {
+		t.Errorf("Expected %d hooks, got %d: %v", len(expectedHooks), len(p.LocalItems.Hooks), p.LocalItems.Hooks)
+	}
+}
+
+func TestSnapshotNoLocalItemsWhenConfigMissing(t *testing.T) {
+	// Create temp directories
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// No enabled.json file - should still work but LocalItems should be nil
+
+	// Create minimal settings.json
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
+	// Create mock known_marketplaces.json (empty)
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+
+	// Create mock ~/.claude.json
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	// Create snapshot
+	p, err := Snapshot("test-no-local", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// LocalItems should be nil when no enabled.json exists
+	if p.LocalItems != nil {
+		t.Errorf("Expected LocalItems to be nil when no enabled.json, got %+v", p.LocalItems)
+	}
+}

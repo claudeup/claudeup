@@ -1,5 +1,5 @@
 // ABOUTME: Creates a profile from current Claude Code state
-// ABOUTME: Reads installed plugins, marketplaces, and MCP servers
+// ABOUTME: Reads installed plugins, marketplaces, MCP servers, and local items
 package profile
 
 import (
@@ -9,6 +9,7 @@ import (
 	"sort"
 
 	"github.com/claudeup/claudeup/v4/internal/claude"
+	"github.com/claudeup/claudeup/v4/internal/local"
 )
 
 // ClaudeJSON represents the ~/.claude.json file structure (relevant parts)
@@ -81,6 +82,12 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOpti
 		p.MCPServers = mcpServers
 	}
 
+	// Read local items from enabled.json
+	localItems, err := readLocalItems(claudeDir)
+	if err == nil && localItems != nil {
+		p.LocalItems = localItems
+	}
+
 	// Auto-generate description based on contents
 	p.Description = p.GenerateDescription()
 
@@ -147,6 +154,71 @@ func readMarketplaces(claudeDir string) ([]Marketplace, error) {
 	})
 
 	return marketplaces, nil
+}
+
+// readLocalItems reads enabled local items from enabled.json
+func readLocalItems(claudeDir string) (*LocalItemSettings, error) {
+	manager := local.NewManager(claudeDir)
+	config, err := manager.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// If config is empty, return nil (no local items to capture)
+	if len(config) == 0 {
+		return nil, nil
+	}
+
+	settings := &LocalItemSettings{}
+	hasItems := false
+
+	// Helper to extract enabled items for a category
+	extractEnabled := func(category string) []string {
+		items, ok := config[category]
+		if !ok {
+			return nil
+		}
+		var enabled []string
+		for name, isEnabled := range items {
+			if isEnabled {
+				enabled = append(enabled, name)
+			}
+		}
+		sort.Strings(enabled)
+		return enabled
+	}
+
+	// Extract each category
+	if agents := extractEnabled(local.CategoryAgents); len(agents) > 0 {
+		settings.Agents = agents
+		hasItems = true
+	}
+	if commands := extractEnabled(local.CategoryCommands); len(commands) > 0 {
+		settings.Commands = commands
+		hasItems = true
+	}
+	if skills := extractEnabled(local.CategorySkills); len(skills) > 0 {
+		settings.Skills = skills
+		hasItems = true
+	}
+	if hooks := extractEnabled(local.CategoryHooks); len(hooks) > 0 {
+		settings.Hooks = hooks
+		hasItems = true
+	}
+	if rules := extractEnabled(local.CategoryRules); len(rules) > 0 {
+		settings.Rules = rules
+		hasItems = true
+	}
+	if outputStyles := extractEnabled(local.CategoryOutputStyles); len(outputStyles) > 0 {
+		settings.OutputStyles = outputStyles
+		hasItems = true
+	}
+
+	if !hasItems {
+		return nil, nil
+	}
+
+	return settings, nil
 }
 
 func readMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServer, error) {
@@ -247,6 +319,12 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 	marketplaces, err := readMarketplaces(claudeDir)
 	if err == nil {
 		p.Marketplaces = marketplaces
+	}
+
+	// Read local items from enabled.json
+	localItems, err := readLocalItems(claudeDir)
+	if err == nil && localItems != nil {
+		p.LocalItems = localItems
 	}
 
 	// Auto-generate description based on contents
