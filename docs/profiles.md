@@ -41,10 +41,10 @@ Profiles can be applied at different scopes, allowing you to layer configuration
 claudeup profile apply my-defaults
 
 # Project scope - Project-specific plugins (shared with team via git)
-claudeup profile apply backend-project --scope project
+claudeup profile apply backend-project --project
 
 # Local scope - Machine-specific plugins (not shared)
-claudeup profile apply laptop-only --scope local
+claudeup profile apply laptop-only --local
 ```
 
 ### How Scopes Work
@@ -75,10 +75,10 @@ claudeup profile apply base-tools
 
 # Project scope: 3 project plugins
 cd ~/my-project
-claudeup profile apply backend-stack --scope project
+claudeup profile apply backend-stack --project
 
 # Local scope: 2 machine-specific plugins
-claudeup profile apply docker-tools --scope local
+claudeup profile apply docker-tools --local
 
 # Result: All 10 plugins (5 + 3 + 2) are active
 ```
@@ -113,7 +113,7 @@ To disable a plugin from a lower scope, explicitly set it to `false`:
 
 ### Project Scope Files
 
-When you apply a profile with `--scope project`, these files are created:
+When you apply a profile with `--project`, these files are created:
 
 ```text
 .claude/settings.json   # Project settings (plugins)
@@ -128,7 +128,7 @@ git add .claude/settings.json .mcp.json
 git commit -m "Add project-level Claude configuration"
 
 # Team members apply after clone:
-claudeup profile apply <name> --scope project
+claudeup profile apply <name> --project
 ```
 
 MCP servers from `.mcp.json` are loaded automatically by Claude Code.
@@ -172,14 +172,14 @@ claudeup profile current
 - Plugins you want everywhere
 - One-time setup on new machines
 
-**Project Scope** (`--scope project`):
+**Project Scope** (`--project`):
 
 - Project requires specific plugins
 - Team needs shared configuration
 - Plugin selection is project-dependent
 - Files committed to git
 
-**Local Scope** (`--scope local`):
+**Local Scope** (`--local`):
 
 - Machine-specific tools (e.g., Docker-related plugins only on machines with Docker)
 - Personal overrides (disable heavy plugins on laptop)
@@ -196,7 +196,7 @@ claudeup profile apply my-base-tools
 
 # Per-project: Add project plugins
 cd ~/backend-api
-claudeup profile apply backend-stack --scope project
+claudeup profile apply backend-stack --project
 ```
 
 **Pattern 2: Base + Project + Local Override**
@@ -207,10 +207,10 @@ claudeup profile apply base
 
 # Project scope: Backend tools
 cd ~/api-service
-claudeup profile apply backend --scope project
+claudeup profile apply backend --project
 
 # Local scope: Disable heavy plugins on laptop
-claudeup profile apply lightweight --scope local
+claudeup profile apply lightweight --local
 ```
 
 **Pattern 3: Team Collaboration**
@@ -218,7 +218,7 @@ claudeup profile apply lightweight --scope local
 ```bash
 # Maintainer: Set up project configuration
 cd ~/team-project
-claudeup profile apply team-stack --scope project
+claudeup profile apply team-stack --project
 git add .claude/settings.json .mcp.json
 git commit -m "Add Claude configuration"
 git push
@@ -226,7 +226,7 @@ git push
 # Team member: Apply same profile after clone
 git clone <repo>
 cd team-project
-claudeup profile apply team-stack --scope project
+claudeup profile apply team-stack --project
 ```
 
 ## Built-in Profiles

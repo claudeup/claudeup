@@ -83,7 +83,7 @@ These files are part of Claude Code's native configuration. `claudeup` reads and
 
 - `internal/claude/settings.go:SaveSettingsForScope("project")`
 - Triggered by:
-  - `profile apply --scope project` - declarative replace of enabledPlugins
+  - `profile apply --project` - declarative replace of enabledPlugins
   - Project scope plugin operations
 
 ---
@@ -103,7 +103,7 @@ These files are part of Claude Code's native configuration. `claudeup` reads and
 
 - `internal/claude/settings.go:SaveSettingsForScope("local")`
 - Triggered by:
-  - `profile apply --scope local` - declarative replace of enabledPlugins
+  - `profile apply --local` - declarative replace of enabledPlugins
   - Local scope plugin operations
 
 ---
@@ -142,7 +142,7 @@ These files are part of Claude Code's native configuration. `claudeup` reads and
 
 - `internal/profile/mcp_json.go:WriteMCPJSON()`
 - Triggered by:
-  - `profile apply --scope project` - writes all MCP servers from profile
+  - `profile apply --project` - writes all MCP servers from profile
 
 ---
 
@@ -185,7 +185,7 @@ These files are created and managed exclusively by `claudeup`.
 
 - `internal/config/projects.go:SaveProjectsRegistry()`
 - Triggered by:
-  - `profile apply --scope local` - records which profile is active
+  - `profile apply --local` - records which profile is active
   - `scope restore` - updates when restoring local scope
 
 ---
@@ -246,8 +246,8 @@ These files are created and managed exclusively by `claudeup`.
 
 - `internal/backup/backup.go:SaveLocalScopeBackup()`
 - Triggered by:
-  - `profile apply --scope local` - backs up before replacing
-  - `scope save --scope local` - explicitly saves
+  - `profile apply --local` - backs up before replacing
+  - `scope save --local` - explicitly saves
 
 ---
 

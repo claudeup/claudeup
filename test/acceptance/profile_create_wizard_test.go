@@ -65,7 +65,7 @@ When applying after create in a directory with .claudeup.json,
 should show message like:
   ℹ Applied profile "my-profile" at user scope.
     Note: This directory has an existing project config ("original-profile").
-    Use 'claudeup profile apply my-profile --scope project' to apply at project level.`)
+    Use 'claudeup profile apply my-profile --project' to apply at project level.`)
 		})
 	})
 })

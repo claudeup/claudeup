@@ -51,9 +51,9 @@ info "  • Optionally remove plugins not in the target (with --replace)"
 echo
 
 if $EXAMPLE_CLAUDEUP_BIN profile list 2>/dev/null | grep -q "default"; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply default --scope user
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply default --user
 else
-    info "Command: claudeup profile apply <profile-name> --scope user"
+    info "Command: claudeup profile apply <profile-name> --user"
 fi
 pause
 
@@ -69,7 +69,7 @@ success "You can switch profiles confidently"
 echo
 info "Tips:"
 info "  • Use 'profile status' to preview before switching"
-info "  • Use '--scope project' for project-specific profiles"
+info "  • Use '--project' for project-specific profiles"
 info "  • Use 'profile reset' to remove all profile components"
 echo
 

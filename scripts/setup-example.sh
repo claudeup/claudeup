@@ -186,7 +186,7 @@ claudeup profile create my-project --description "My project description" --from
 
 section "Applying project profile"
 
-claudeup profile apply my-project -y --scope project
+claudeup profile apply my-project -y --project
 
 # Verify settings.json is valid
 if ! jq < "$PROJECT_DIR/.claude/settings.json" > /dev/null; then

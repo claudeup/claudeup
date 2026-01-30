@@ -56,12 +56,12 @@ precedence profile affects Claude Code's behavior. Lower precedence profiles
 are overridden.
 
 SCOPE FILTERING:
-  --scope user      Show only the profile active at user scope
-  --scope project   Show only the profile active at project scope
-  --scope local     Show only the profile active at local scope
+  --user            Show only the profile active at user scope
+  --project         Show only the profile active at project scope
+  --local           Show only the profile active at local scope
 
-Note: --scope project and --scope local require the corresponding
-.claude/settings.json or .claude/settings.local.json file to exist.
+Note: --project and --local require the corresponding .claude/settings.json
+or .claude/settings.local.json file to exist.
 
 Example: If "base-tools" is active at user scope but "claudeup" is
 active at local scope in ~/claudeup/, you'll see:
@@ -83,9 +83,9 @@ If no profile name is given, applies the currently active profile. This is
 useful for syncing after pulling changes or reinstalling plugins.
 
 SCOPES:
-  --scope project  Apply to current project (.claude/settings.json)
-  --scope local    Apply to current project, but not shared (personal overrides)
-  --scope user     Apply globally to ~/.claude/ (default, affects all projects)
+  --project        Apply to current project (.claude/settings.json)
+  --local          Apply to current project, but not shared (personal overrides)
+  --user           Apply globally to ~/.claude/ (default, affects all projects)
 
 REPLACE MODE:
   --replace        Replace user-scope settings instead of adding to them.
@@ -97,7 +97,7 @@ DRY RUN:
 
 Precedence: local > project > user. Plugins from all scopes are active simultaneously.
 
-For team projects, use --scope project to create a shareable configuration that
+For team projects, use --project to create a shareable configuration that
 teammates can apply with 'claudeup profile apply'.
 
 Shows a diff of changes before applying. Prompts for confirmation unless -y is used.`,
@@ -117,7 +117,7 @@ Shows a diff of changes before applying. Prompts for confirmation unless -y is u
   claudeup profile apply backend-stack --replace -y
 
   # Set up a profile for your team (creates .claude/settings.json)
-  claudeup profile apply backend-stack --scope project
+  claudeup profile apply backend-stack --project
 
   # Force the post-apply setup wizard to run
   claudeup profile apply my-profile --setup`,
@@ -136,7 +136,7 @@ MULTI-SCOPE CAPTURE:
   restored to the correct location.
 
   Profiles are always saved to ~/.claudeup/profiles/ (user profiles directory).
-  For team sharing, use 'profile apply <name> --scope project' to apply the
+  For team sharing, use 'profile apply <name> --project' to apply the
   profile at project scope, which creates .claude/settings.json for version control.
 
 If no name is given, saves to the currently active profile.
@@ -327,16 +327,29 @@ var (
 	profileApplyNoProgress    bool
 	profileApplyReplace       bool
 	profileApplyDryRun        bool
+	// Scope aliases (shorthand for --scope)
+	profileApplyUser    bool
+	profileApplyProject bool
+	profileApplyLocal   bool
 )
 
 // Flags for profile save command
 // var profileSaveScope string // Removed: profiles always capture all scopes now
 
 // Flags for profile list command
-var profileListScope string
+var (
+	profileListScope   string
+	profileListUser    bool
+	profileListProject bool
+	profileListLocal   bool
+)
 
 // Flags for profile clean command
-var profileCleanScope string
+var (
+	profileCleanScope   string
+	profileCleanProject bool
+	profileCleanLocal   bool
+)
 
 // Flags for profile create command
 var (
@@ -358,20 +371,60 @@ remove it from the profile as well (preventing future reinstall attempts).
 
 Use this to clean up issues detected by 'claudeup status' or 'claudeup doctor'.`,
 	Example: `  # Remove plugin from project scope
-  claudeup profile clean --scope project nextjs-vercel-pro@claude-code-templates
+  claudeup profile clean --project nextjs-vercel-pro@claude-code-templates
 
   # Remove plugin from local scope
-  claudeup profile clean --scope local my-plugin@marketplace`,
+  claudeup profile clean --local my-plugin@marketplace`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileClean,
+}
+
+// resolveScopeFlags resolves scope from either --scope string or boolean aliases (--user, --project, --local).
+// Returns empty string if no scope specified. Returns error if multiple scopes specified.
+func resolveScopeFlags(scopeStr string, userFlag, projectFlag, localFlag bool) (string, error) {
+	count := 0
+	if scopeStr != "" {
+		count++
+	}
+	if userFlag {
+		count++
+	}
+	if projectFlag {
+		count++
+	}
+	if localFlag {
+		count++
+	}
+
+	if count > 1 {
+		return "", fmt.Errorf("cannot specify multiple scope flags; use only one of --scope, --user, --project, or --local")
+	}
+
+	if userFlag {
+		return "user", nil
+	}
+	if projectFlag {
+		return "project", nil
+	}
+	if localFlag {
+		return "local", nil
+	}
+	return scopeStr, nil
 }
 
 func runProfileClean(cmd *cobra.Command, args []string) error {
 	pluginName := args[0]
 
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(profileCleanScope, false, profileCleanProject, profileCleanLocal)
+	if err != nil {
+		return err
+	}
+	profileCleanScope = resolvedScope
+
 	// Validate scope flag is provided
 	if profileCleanScope == "" {
-		return fmt.Errorf("--scope flag is required (project or local)")
+		return fmt.Errorf("scope required: use --project or --local")
 	}
 
 	// Validate scope value
@@ -527,6 +580,9 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVarP(&profileApplyForce, "force", "f", false, "Force reapply even with unsaved changes")
 	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyUser, "user", false, "Apply to user scope (~/.claude/)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyProject, "project", false, "Apply to project scope (.claude/settings.json)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyLocal, "local", false, "Apply to local scope (.claude/settings.local.json)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
@@ -534,15 +590,26 @@ func init() {
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
-	profileCleanCmd.MarkFlagRequired("scope")
+	profileCleanCmd.Flags().BoolVar(&profileCleanProject, "project", false, "Clean from project scope (.claude/settings.json)")
+	profileCleanCmd.Flags().BoolVar(&profileCleanLocal, "local", false, "Clean from local scope (.claude/settings.local.json)")
 
 	// Add flags to profile list command
 	profileListCmd.Flags().StringVar(&profileListScope, "scope", "", "Show only the profile active at specified scope: user, project, local")
+	profileListCmd.Flags().BoolVar(&profileListUser, "user", false, "Show only user scope profile")
+	profileListCmd.Flags().BoolVar(&profileListProject, "project", false, "Show only project scope profile")
+	profileListCmd.Flags().BoolVar(&profileListLocal, "local", false, "Show only local scope profile")
 }
 
 func runProfileList(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
+
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(profileListScope, profileListUser, profileListProject, profileListLocal)
+	if err != nil {
+		return err
+	}
+	profileListScope = resolvedScope
 
 	// Validate scope value if provided
 	validScopes := map[string]bool{
@@ -562,14 +629,14 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	if profileListScope == "project" {
 		if _, err := os.Stat(projectSettingsPath); os.IsNotExist(err) {
 			ui.PrintWarning("No .claude/settings.json found in current directory.")
-			fmt.Printf("  %s Use --scope project inside a project with Claude settings.\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("  %s Use --project inside a project with Claude settings.\n", ui.Muted(ui.SymbolArrow))
 			return nil
 		}
 	}
 	if profileListScope == "local" {
 		if _, err := os.Stat(localSettingsPath); os.IsNotExist(err) {
 			ui.PrintWarning("No .claude/settings.local.json found in current directory.")
-			fmt.Printf("  %s Use --scope local inside a project with local Claude settings.\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("  %s Use --local inside a project with local Claude settings.\n", ui.Muted(ui.SymbolArrow))
 			return nil
 		}
 	}
@@ -730,6 +797,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 func runProfileApply(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
+
+	// Resolve scope from --scope or boolean aliases
+	resolvedScope, err := resolveScopeFlags(profileApplyScope, profileApplyUser, profileApplyProject, profileApplyLocal)
+	if err != nil {
+		return err
+	}
+	profileApplyScope = resolvedScope
 
 	// Determine profile name: from argument or active profile
 	var name string

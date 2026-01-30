@@ -111,7 +111,7 @@ func TestProfileResolutionOrder_FallbackToUser(t *testing.T) {
 	}
 }
 
-// Section 2: Saving profiles with --scope project
+// Section 2: Saving profiles with --project
 func TestSaveToProject_CreatesCorrectFiles(t *testing.T) {
 	env := SetupAcceptanceTestEnv(t)
 	defer env.Cleanup()

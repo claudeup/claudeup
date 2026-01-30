@@ -47,14 +47,14 @@ Share Claude configurations with your team via git:
 ```bash
 # Team lead: Save profile and share via project settings
 claudeup profile save team-config
-claudeup profile apply team-config --scope project
+claudeup profile apply team-config --project
 git add .claude/settings.json && git commit -m "Add team profile"
 
 # Team member: Apply after clone/pull
-claudeup profile apply team-config --scope project
+claudeup profile apply team-config --project
 ```
 
-Profiles capture settings from all scopes (user, project, local). Use `profile apply --scope project` to write settings to `.claude/settings.json` for team sharing. [Learn more →](docs/team-workflows.md)
+Profiles capture settings from all scopes (user, project, local). Use `profile apply --project` to write settings to `.claude/settings.json` for team sharing. [Learn more →](docs/team-workflows.md)
 
 ### Plugin & MCP Management
 

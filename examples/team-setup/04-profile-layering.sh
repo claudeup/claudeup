@@ -79,7 +79,7 @@ pause
 
 step "Team lead saves and applies project profile"
 echo -e "${YELLOW}\$ claudeup profile save backend-team${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply backend-team --scope project${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply backend-team --project${NC}"
 echo
 info "This writes settings to .claude/settings.json for team sharing"
 echo
@@ -89,13 +89,13 @@ pause
 section "4. Applying Layered Profiles"
 
 step "Apply user profile at user scope"
-echo -e "${YELLOW}\$ claudeup profile apply my-tools --scope user${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply my-tools --user${NC}"
 echo
 info "Your personal tools are now active globally"
 pause
 
 step "Apply project profile at project scope"
-echo -e "${YELLOW}\$ claudeup profile apply backend-team --scope project${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply backend-team --project${NC}"
 echo
 info "Team requirements are active for this project"
 pause
@@ -156,7 +156,7 @@ section "7. Recommended Workflow"
 
 step "Developer setup (one time)"
 echo -e "${YELLOW}\$ claudeup profile save my-tools${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply my-tools --scope user${NC}"
+echo -e "${YELLOW}\$ claudeup profile apply my-tools --user${NC}"
 echo
 step "Each project (after clone)"
 echo -e "${YELLOW}\$ claudeup profile apply${NC}"

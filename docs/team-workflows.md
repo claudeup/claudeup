@@ -25,14 +25,14 @@ When loading a profile, claudeup checks the project directory first, then falls 
 cd your-project
 
 # Configure Claude with the plugins your team needs
-claude plugin install tdd-workflows@claude-code-workflows --scope project
-claude plugin install backend-development@claude-code-workflows --scope project
+claude plugin install tdd-workflows@claude-code-workflows --project
+claude plugin install backend-development@claude-code-workflows --project
 
 # Save current state as a profile (captures all scopes)
 claudeup profile save team-config
 
 # Apply at project scope
-claudeup profile apply team-config --scope project
+claudeup profile apply team-config --project
 
 # Commit profile and settings to git
 git add .claudeup/profiles/ .claude/settings.json .mcp.json
@@ -45,7 +45,7 @@ git push
 ```bash
 git clone <repo-url>
 cd your-project
-claudeup profile apply team-config --scope project
+claudeup profile apply team-config --project
 ```
 
 ## Project Structure
@@ -81,7 +81,7 @@ As a team lead, capture your current Claude configuration:
 claudeup profile save backend-go
 
 # Apply at project scope
-claudeup profile apply backend-go --scope project
+claudeup profile apply backend-go --project
 ```
 
 The profile includes:
@@ -96,7 +96,7 @@ The profile includes:
 When joining a project, apply the team profile:
 
 ```bash
-claudeup profile apply backend-go --scope project
+claudeup profile apply backend-go --project
 ```
 
 This installs any missing marketplaces and plugins defined in the profile.
@@ -131,10 +131,10 @@ Combine personal preferences with team requirements:
 
 ```bash
 # User scope: Your personal tools (available in all projects)
-claudeup profile apply my-tools --scope user
+claudeup profile apply my-tools --user
 
 # Project scope: Team requirements (this project only)
-claudeup profile apply team-config --scope project
+claudeup profile apply team-config --project
 ```
 
 Both profiles are active simultaneously. Claude Code merges them with project settings taking precedence on conflicts.
@@ -158,12 +158,12 @@ cd my-go-api
 
 # Install plugins for the team
 claude plugin marketplace add superpowers-marketplace
-claude plugin install tdd-workflows@claude-code-workflows --scope project
-claude plugin install backend-development@claude-code-workflows --scope project
+claude plugin install tdd-workflows@claude-code-workflows --project
+claude plugin install backend-development@claude-code-workflows --project
 
 # Save and apply as project profile
 claudeup profile save backend-go
-claudeup profile apply backend-go --scope project
+claudeup profile apply backend-go --project
 
 # Commit to git
 git add .claudeup/profiles/ .claude/settings.json .mcp.json
@@ -178,7 +178,7 @@ git clone git@github.com:team/my-go-api.git
 cd my-go-api
 
 # Apply the team profile
-claudeup profile apply backend-go --scope project
+claudeup profile apply backend-go --project
 # Output:
 #   Applying profile: backend-go
 #   ✓ Installing tdd-workflows@claude-code-workflows
@@ -193,7 +193,7 @@ claude
 
 ```bash
 # Add new plugin directly (profiles are for bootstrapping)
-claude plugin install debugging-toolkit@claude-code-workflows --scope project
+claude plugin install debugging-toolkit@claude-code-workflows --project
 
 # Optionally update the profile for future team members
 claudeup profile save backend-go
