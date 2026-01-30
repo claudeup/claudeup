@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/v3/internal/events"
+	"github.com/claudeup/claudeup/v4/internal/events"
 )
 
 // MCPConfigFile is the filename for Claude's native MCP configuration

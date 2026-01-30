@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/claudeup/claudeup/v3/internal/config"
+	"github.com/claudeup/claudeup/v4/internal/config"
 )
 
 var (

@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/v3/internal/claude"
+	"github.com/claudeup/claudeup/v4/internal/claude"
 )
 
 var _ = Describe("Profile operations preserve non-plugin settings", func() {

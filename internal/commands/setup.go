@@ -11,10 +11,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/claudeup/claudeup/v3/internal/config"
-	"github.com/claudeup/claudeup/v3/internal/profile"
-	"github.com/claudeup/claudeup/v3/internal/secrets"
-	"github.com/claudeup/claudeup/v3/internal/ui"
+	"github.com/claudeup/claudeup/v4/internal/config"
+	"github.com/claudeup/claudeup/v4/internal/profile"
+	"github.com/claudeup/claudeup/v4/internal/secrets"
+	"github.com/claudeup/claudeup/v4/internal/ui"
 	"github.com/spf13/cobra"
 )
 

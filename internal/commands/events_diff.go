@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/v3/internal/config"
-	"github.com/claudeup/claudeup/v3/internal/events"
-	"github.com/claudeup/claudeup/v3/internal/ui"
+	"github.com/claudeup/claudeup/v4/internal/config"
+	"github.com/claudeup/claudeup/v4/internal/events"
+	"github.com/claudeup/claudeup/v4/internal/ui"
 	"github.com/spf13/cobra"
 )
 
