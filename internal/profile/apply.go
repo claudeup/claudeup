@@ -13,6 +13,7 @@ import (
 
 	"github.com/claudeup/claudeup/v4/internal/claude"
 	"github.com/claudeup/claudeup/v4/internal/config"
+	"github.com/claudeup/claudeup/v4/internal/local"
 	"github.com/claudeup/claudeup/v4/internal/secrets"
 )
 
@@ -391,6 +392,16 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 		return nil, fmt.Errorf("failed to save profile to project: %w", err)
 	}
 
+	// 6. Apply local items if present
+	if err := applyLocalItems(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
+	}
+
+	// 7. Apply settings hooks if present
+	if err := applySettingsHooks(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
+	}
+
 	return result, nil
 }
 
@@ -501,6 +512,16 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 		if err := config.SaveProjectsRegistry(registry); err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("save registry: %w", err))
 		}
+	}
+
+	// 7. Apply local items if present
+	if err := applyLocalItems(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
+	}
+
+	// 8. Apply settings hooks if present
+	if err := applySettingsHooks(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
 	}
 
 	return result, nil
@@ -684,6 +705,16 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath string, secretCh
 		} else {
 			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
 		}
+	}
+
+	// Apply local items if present
+	if err := applyLocalItems(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
+	}
+
+	// Apply settings hooks if present
+	if err := applySettingsHooks(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
 	}
 
 	return result, nil
@@ -1190,4 +1221,93 @@ func aggregateResults(target, source *ApplyResult) {
 	target.MarketplacesAdded = append(target.MarketplacesAdded, source.MarketplacesAdded...)
 	target.MarketplacesRemoved = append(target.MarketplacesRemoved, source.MarketplacesRemoved...)
 	target.Errors = append(target.Errors, source.Errors...)
+}
+
+// applyLocalItems enables local items from the profile
+func applyLocalItems(profile *Profile, claudeDir string) error {
+	if profile.LocalItems == nil {
+		return nil
+	}
+
+	manager := local.NewManager(claudeDir)
+
+	// Enable agents
+	if len(profile.LocalItems.Agents) > 0 {
+		if _, _, err := manager.Enable(local.CategoryAgents, profile.LocalItems.Agents); err != nil {
+			return fmt.Errorf("failed to enable agents: %w", err)
+		}
+	}
+
+	// Enable commands
+	if len(profile.LocalItems.Commands) > 0 {
+		if _, _, err := manager.Enable(local.CategoryCommands, profile.LocalItems.Commands); err != nil {
+			return fmt.Errorf("failed to enable commands: %w", err)
+		}
+	}
+
+	// Enable skills
+	if len(profile.LocalItems.Skills) > 0 {
+		if _, _, err := manager.Enable(local.CategorySkills, profile.LocalItems.Skills); err != nil {
+			return fmt.Errorf("failed to enable skills: %w", err)
+		}
+	}
+
+	// Enable hooks
+	if len(profile.LocalItems.Hooks) > 0 {
+		if _, _, err := manager.Enable(local.CategoryHooks, profile.LocalItems.Hooks); err != nil {
+			return fmt.Errorf("failed to enable hooks: %w", err)
+		}
+	}
+
+	// Enable rules
+	if len(profile.LocalItems.Rules) > 0 {
+		if _, _, err := manager.Enable(local.CategoryRules, profile.LocalItems.Rules); err != nil {
+			return fmt.Errorf("failed to enable rules: %w", err)
+		}
+	}
+
+	// Enable output-styles
+	if len(profile.LocalItems.OutputStyles) > 0 {
+		if _, _, err := manager.Enable(local.CategoryOutputStyles, profile.LocalItems.OutputStyles); err != nil {
+			return fmt.Errorf("failed to enable output-styles: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// applySettingsHooks merges profile hooks into settings.json
+func applySettingsHooks(profile *Profile, claudeDir string) error {
+	if len(profile.SettingsHooks) == 0 {
+		return nil
+	}
+
+	settings, err := claude.LoadSettings(claudeDir)
+	if err != nil {
+		// Create new settings if none exist
+		settings = &claude.Settings{
+			EnabledPlugins: make(map[string]bool),
+		}
+	}
+
+	// Convert HookEntry to map format for MergeHooks
+	hooksMap := make(map[string][]map[string]interface{})
+	for eventType, entries := range profile.SettingsHooks {
+		for _, entry := range entries {
+			hooksMap[eventType] = append(hooksMap[eventType], map[string]interface{}{
+				"type":    entry.Type,
+				"command": entry.Command,
+			})
+		}
+	}
+
+	if err := settings.MergeHooks(hooksMap); err != nil {
+		return fmt.Errorf("failed to merge hooks: %w", err)
+	}
+
+	if err := claude.SaveSettings(claudeDir, settings); err != nil {
+		return fmt.Errorf("failed to save settings: %w", err)
+	}
+
+	return nil
 }

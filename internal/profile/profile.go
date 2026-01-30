@@ -28,6 +28,12 @@ type Profile struct {
 	// When present, this takes precedence over the flat Plugins/MCPServers fields.
 	// When absent, the flat fields are treated as user-scope (backward compatibility).
 	PerScope *PerScopeSettings `json:"perScope,omitempty"`
+
+	// LocalItems contains patterns for local items to enable (agents, commands, etc.)
+	LocalItems *LocalItemSettings `json:"localItems,omitempty"`
+
+	// SettingsHooks contains hooks to merge into settings.json by event type
+	SettingsHooks map[string][]HookEntry `json:"settingsHooks,omitempty"`
 }
 
 // PerScopeSettings organizes configuration by scope level.
@@ -236,6 +242,23 @@ type SecretSource struct {
 type DetectRules struct {
 	Files    []string          `json:"files,omitempty"`
 	Contains map[string]string `json:"contains,omitempty"`
+}
+
+// LocalItemSettings contains local item patterns to enable.
+// These are items from ~/.claude/.library that get symlinked to ~/.claude/
+type LocalItemSettings struct {
+	Agents       []string `json:"agents,omitempty"`
+	Commands     []string `json:"commands,omitempty"`
+	Skills       []string `json:"skills,omitempty"`
+	Hooks        []string `json:"hooks,omitempty"`
+	Rules        []string `json:"rules,omitempty"`
+	OutputStyles []string `json:"output-styles,omitempty"`
+}
+
+// HookEntry represents a single hook configuration for settings.json
+type HookEntry struct {
+	Type    string `json:"type"`
+	Command string `json:"command"`
 }
 
 // Save writes a profile to the profiles directory
