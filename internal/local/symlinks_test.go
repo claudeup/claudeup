@@ -5,6 +5,7 @@ package local
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -119,6 +120,47 @@ func TestEnableWildcard(t *testing.T) {
 	}
 	if len(enabled) != 2 {
 		t.Errorf("Enable() enabled %d items, want 2: %v", len(enabled), enabled)
+	}
+}
+
+func TestEnableNestedCommand(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create library structure for commands with subdirectory
+	libraryDir := filepath.Join(tmpDir, ".library")
+	gsdCommandsDir := filepath.Join(libraryDir, "commands", "gsd")
+	os.MkdirAll(gsdCommandsDir, 0755)
+	os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644)
+	os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute Phase"), 0644)
+
+	// Enable nested command using gsd/* wildcard
+	enabled, _, err := manager.Enable("commands", []string{"gsd/*"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+	if len(enabled) != 2 {
+		t.Errorf("Enable() enabled %d items, want 2: %v", len(enabled), enabled)
+	}
+
+	// Verify symlinks exist in nested structure (commands/gsd/new-project.md)
+	symlinkPath := filepath.Join(tmpDir, "commands", "gsd", "new-project.md")
+	info, err := os.Lstat(symlinkPath)
+	if err != nil {
+		t.Fatalf("Lstat() error = %v (symlink not created)", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("Expected symlink, got regular file")
+	}
+
+	// Verify symlink target is correct
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
+		t.Fatalf("Readlink() error = %v", err)
+	}
+	expectedTarget := filepath.Join("..", "..", ".library", "commands", "gsd", "new-project.md")
+	if target != expectedTarget {
+		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
 }
 
@@ -306,6 +348,46 @@ func TestImportAll(t *testing.T) {
 	// Verify other-agent.md was NOT moved (didn't match pattern)
 	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); os.IsNotExist(err) {
 		t.Error("other-agent.md should not have been moved")
+	}
+}
+
+func TestEnableRejectsPathTraversal(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create library structure
+	libraryDir := filepath.Join(tmpDir, ".library")
+	commandsDir := filepath.Join(libraryDir, "commands")
+	os.MkdirAll(commandsDir, 0755)
+	os.WriteFile(filepath.Join(commandsDir, "legit.md"), []byte("# Legit"), 0644)
+
+	// Manually write a malicious config with path traversal
+	config := Config{
+		"commands": {
+			"../../../etc/passwd":     true,
+			"legit/../../../tmp/evil": true,
+			"gsd/../../outside":       true,
+			"legit.md":                true, // This one is fine
+		},
+	}
+	manager.SaveConfig(config)
+
+	// Sync should reject path traversal attempts
+	err := manager.Sync()
+	if err == nil {
+		t.Fatal("Sync() should have rejected path traversal, got nil error")
+	}
+
+	// Error should mention path traversal
+	if !strings.Contains(err.Error(), "path traversal") {
+		t.Errorf("Error should mention path traversal, got: %v", err)
+	}
+
+	// Verify no symlinks were created outside the target directory
+	// (the legit.md should NOT have been created either - fail fast)
+	legitPath := filepath.Join(tmpDir, "commands", "legit.md")
+	if _, err := os.Lstat(legitPath); err == nil {
+		t.Error("Sync should fail fast - no symlinks created when traversal detected")
 	}
 }
 

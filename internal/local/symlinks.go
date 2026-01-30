@@ -3,10 +3,24 @@
 package local
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// validateItemPath checks that an item name doesn't contain path traversal sequences
+func validateItemPath(item string) error {
+	// Check for explicit path traversal
+	if strings.Contains(item, "..") {
+		return fmt.Errorf("path traversal detected in item name: %q", item)
+	}
+	// Check for absolute paths
+	if filepath.IsAbs(item) {
+		return fmt.Errorf("path traversal detected in item name: %q", item)
+	}
+	return nil
+}
 
 // Enable enables items matching the given patterns.
 // Returns (enabled items, not found patterns, error).
@@ -138,18 +152,18 @@ func (m *Manager) syncCategory(category string, config Config) error {
 }
 
 func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig map[string]bool) error {
-	// Remove existing symlinks
-	entries, _ := os.ReadDir(targetDir)
-	for _, entry := range entries {
-		path := filepath.Join(targetDir, entry.Name())
-		info, err := os.Lstat(path)
-		if err != nil {
+	// Validate all items before making any changes (fail fast)
+	for item, enabled := range catConfig {
+		if !enabled {
 			continue
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			os.Remove(path)
+		if err := validateItemPath(item); err != nil {
+			return err
 		}
 	}
+
+	// Remove existing symlinks (including in subdirectories)
+	m.cleanupSymlinksRecursive(targetDir)
 
 	// Create symlinks for enabled items
 	for item, enabled := range catConfig {
@@ -158,17 +172,64 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 		}
 
 		target := filepath.Join(targetDir, item)
-		// Relative path: ../.library/{category}/{item}
-		relSource := filepath.Join("..", ".library", category, item)
-		if err := os.Symlink(relSource, target); err != nil {
-			return err
+
+		// For nested items (e.g., gsd/new-project.md), create parent directories
+		if strings.Contains(item, "/") {
+			parentDir := filepath.Dir(target)
+			if err := os.MkdirAll(parentDir, 0755); err != nil {
+				return err
+			}
+			// Relative path needs extra .. for each nesting level
+			relSource := filepath.Join("..", "..", ".library", category, item)
+			if err := os.Symlink(relSource, target); err != nil {
+				return err
+			}
+		} else {
+			// Flat item: ../.library/{category}/{item}
+			relSource := filepath.Join("..", ".library", category, item)
+			if err := os.Symlink(relSource, target); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
 }
 
+// cleanupSymlinksRecursive removes symlinks in a directory and its subdirectories
+func (m *Manager) cleanupSymlinksRecursive(dir string) {
+	entries, _ := os.ReadDir(dir)
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		info, err := os.Lstat(path)
+		if err != nil {
+			continue
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			os.Remove(path)
+		} else if entry.IsDir() {
+			// Recurse into subdirectories
+			m.cleanupSymlinksRecursive(path)
+			// Remove directory if empty
+			remaining, _ := os.ReadDir(path)
+			if len(remaining) == 0 {
+				os.Remove(path)
+			}
+		}
+	}
+}
+
 func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error {
+	// Validate all items before making any changes (fail fast)
+	for item, enabled := range catConfig {
+		if !enabled {
+			continue
+		}
+		if err := validateItemPath(item); err != nil {
+			return err
+		}
+	}
+
 	// Remove existing symlinks and empty group directories
 	entries, _ := os.ReadDir(targetDir)
 	for _, entry := range entries {

@@ -23,25 +23,30 @@ func (m *Manager) ListItems(category string) ([]string, error) {
 	}
 
 	var items []string
+	var err error
 
 	if category == CategoryAgents {
 		// Agents can have groups (subdirectories)
-		items = m.listAgentItems(libPath)
+		items, err = m.listAgentItems(libPath)
 	} else {
-		// Other categories are flat
-		items = m.listFlatItems(libPath)
+		// Other categories support nested structure
+		items, err = m.listFlatItems(libPath)
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	sort.Strings(items)
 	return items, nil
 }
 
-func (m *Manager) listFlatItems(dir string) []string {
+func (m *Manager) listFlatItems(dir string) ([]string, error) {
 	var items []string
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return items
+		return nil, err
 	}
 
 	for _, entry := range entries {
@@ -49,18 +54,38 @@ func (m *Manager) listFlatItems(dir string) []string {
 		if strings.HasPrefix(name, ".") || name == "CLAUDE.md" {
 			continue
 		}
-		items = append(items, name)
+
+		if entry.IsDir() {
+			// Walk subdirectory for nested items (e.g., commands/gsd/*)
+			subDir := filepath.Join(dir, name)
+			subEntries, err := os.ReadDir(subDir)
+			if err != nil {
+				// Subdirectory unreadable - skip it (non-fatal)
+				continue
+			}
+			for _, subEntry := range subEntries {
+				subName := subEntry.Name()
+				if strings.HasPrefix(subName, ".") || subName == "CLAUDE.md" {
+					continue
+				}
+				if !subEntry.IsDir() {
+					items = append(items, name+"/"+subName)
+				}
+			}
+		} else {
+			items = append(items, name)
+		}
 	}
 
-	return items
+	return items, nil
 }
 
-func (m *Manager) listAgentItems(dir string) []string {
+func (m *Manager) listAgentItems(dir string) ([]string, error) {
 	var items []string
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return items
+		return nil, err
 	}
 
 	for _, entry := range entries {
@@ -74,6 +99,7 @@ func (m *Manager) listAgentItems(dir string) []string {
 			groupPath := filepath.Join(dir, name)
 			groupEntries, err := os.ReadDir(groupPath)
 			if err != nil {
+				// Group directory unreadable - skip it (non-fatal)
 				continue
 			}
 			for _, groupEntry := range groupEntries {
@@ -91,5 +117,5 @@ func (m *Manager) listAgentItems(dir string) []string {
 		}
 	}
 
-	return items
+	return items, nil
 }

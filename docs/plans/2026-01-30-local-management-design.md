@@ -21,8 +21,9 @@ claudeup local disable <category> <items...>
 # View item contents
 claudeup local view <category> <item>
 
-# Add new items from a path
-claudeup local add <category> <path>
+# Import items from active directories to .library
+claudeup local import <category> <items...>
+claudeup local import-all [patterns...]
 
 # Sync symlinks from enabled.json (repair command)
 claudeup local sync
@@ -31,11 +32,13 @@ claudeup local sync
 **Categories:** `agents`, `commands`, `skills`, `hooks`, `rules`, `output-styles`
 
 **Wildcards:**
+
 - `gsd-*` - matches items starting with `gsd-`
 - `gsd/*` - matches all items in a subdirectory
 - `*` - matches everything in a category
 
 **Examples:**
+
 ```bash
 claudeup local enable agents gsd-*
 claudeup local enable commands gsd/*
@@ -76,6 +79,7 @@ Profiles gain two new sections: `local` for enabling local items, and `settingsH
 ### Apply Behavior
 
 When `claudeup profile apply gsd` runs:
+
 1. Install marketplaces and plugins (existing behavior)
 2. Enable local items via symlinks (new)
 3. Merge `settingsHooks` into settings.json, deduplicating by command string (new)
@@ -83,6 +87,7 @@ When `claudeup profile apply gsd` runs:
 ### Save Behavior
 
 When `claudeup profile save my-setup` runs:
+
 1. Capture marketplaces, plugins, MCP servers (existing)
 2. Capture enabled local items from `enabled.json` (new)
 3. Capture relevant hooks from settings.json (new - only captures hooks that reference files in `~/.claude/hooks/`)
@@ -212,12 +217,12 @@ No breaking changes - enabled.json format, .library/ structure, and symlinks all
 
 ## Design Decisions
 
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| CLI name | `local` | Distinguishes from marketplace plugins |
-| Go package location | `internal/local/` | No external dependencies |
-| Settings hooks | First-class `settingsHooks` section | Simpler than generic JSON patches |
-| Hook merge behavior | Merge + deduplicate | Least surprising, matches plugin accumulation |
-| statusLine | Not managed by profiles | User preference |
-| Storage | Keep `enabled.json` | Backwards compatible |
-| Reset behavior | Local items are sticky | User owns local files |
+| Decision            | Choice                              | Rationale                                     |
+| ------------------- | ----------------------------------- | --------------------------------------------- |
+| CLI name            | `local`                             | Distinguishes from marketplace plugins        |
+| Go package location | `internal/local/`                   | No external dependencies                      |
+| Settings hooks      | First-class `settingsHooks` section | Simpler than generic JSON patches             |
+| Hook merge behavior | Merge + deduplicate                 | Least surprising, matches plugin accumulation |
+| statusLine          | Not managed by profiles             | User preference                               |
+| Storage             | Keep `enabled.json`                 | Backwards compatible                          |
+| Reset behavior      | Local items are sticky              | User owns local files                         |
