@@ -260,3 +260,80 @@ func TestImportSkipsSymlinks(t *testing.T) {
 		t.Errorf("Import() imported = %v, want [new-agent.md]", imported)
 	}
 }
+
+func TestImportAll(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create files directly in active directories (simulating GSD install)
+	activeAgentsDir := filepath.Join(tmpDir, "agents")
+	activeCommandsDir := filepath.Join(tmpDir, "commands")
+	activeHooksDir := filepath.Join(tmpDir, "hooks")
+	os.MkdirAll(activeAgentsDir, 0755)
+	os.MkdirAll(activeCommandsDir, 0755)
+	os.MkdirAll(activeHooksDir, 0755)
+
+	os.WriteFile(filepath.Join(activeAgentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
+	os.WriteFile(filepath.Join(activeAgentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
+	os.WriteFile(filepath.Join(activeAgentsDir, "other-agent.md"), []byte("# Other"), 0644)
+	os.MkdirAll(filepath.Join(activeCommandsDir, "gsd"), 0755)
+	os.WriteFile(filepath.Join(activeCommandsDir, "gsd", "start.md"), []byte("# Start"), 0644)
+	os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
+
+	// Import all with pattern
+	results, err := manager.ImportAll([]string{"gsd-*", "gsd"})
+	if err != nil {
+		t.Fatalf("ImportAll() error = %v", err)
+	}
+
+	// Should import gsd-* agents, gsd commands dir, gsd-* hooks
+	if len(results["agents"]) != 2 {
+		t.Errorf("ImportAll() agents = %v, want 2 items", results["agents"])
+	}
+	if len(results["commands"]) != 1 || results["commands"][0] != "gsd" {
+		t.Errorf("ImportAll() commands = %v, want [gsd]", results["commands"])
+	}
+	if len(results["hooks"]) != 1 {
+		t.Errorf("ImportAll() hooks = %v, want 1 item", results["hooks"])
+	}
+
+	// Verify files moved to .library
+	libraryDir := filepath.Join(tmpDir, ".library")
+	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+		t.Error("gsd-planner.md was not moved to .library")
+	}
+
+	// Verify other-agent.md was NOT moved (didn't match pattern)
+	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); os.IsNotExist(err) {
+		t.Error("other-agent.md should not have been moved")
+	}
+}
+
+func TestImportAllNoPattern(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create files directly in active directories
+	activeAgentsDir := filepath.Join(tmpDir, "agents")
+	activeHooksDir := filepath.Join(tmpDir, "hooks")
+	os.MkdirAll(activeAgentsDir, 0755)
+	os.MkdirAll(activeHooksDir, 0755)
+
+	os.WriteFile(filepath.Join(activeAgentsDir, "agent1.md"), []byte("# Agent1"), 0644)
+	os.WriteFile(filepath.Join(activeAgentsDir, "agent2.md"), []byte("# Agent2"), 0644)
+	os.WriteFile(filepath.Join(activeHooksDir, "hook1.js"), []byte("// JS"), 0644)
+
+	// Import all without pattern (should import everything)
+	results, err := manager.ImportAll(nil)
+	if err != nil {
+		t.Fatalf("ImportAll() error = %v", err)
+	}
+
+	// Should import all items
+	if len(results["agents"]) != 2 {
+		t.Errorf("ImportAll() agents = %v, want 2 items", results["agents"])
+	}
+	if len(results["hooks"]) != 1 {
+		t.Errorf("ImportAll() hooks = %v, want 1 item", results["hooks"])
+	}
+}

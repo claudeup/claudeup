@@ -334,3 +334,27 @@ func (m *Manager) findImportCandidates(activeDir string) ([]string, error) {
 
 	return candidates, nil
 }
+
+// ImportAll imports items from all categories that match the given patterns.
+// If patterns is empty/nil, imports all non-symlink items.
+// Returns a map of category -> imported items.
+func (m *Manager) ImportAll(patterns []string) (map[string][]string, error) {
+	results := make(map[string][]string)
+
+	// If no patterns provided, use "*" to match everything
+	if len(patterns) == 0 {
+		patterns = []string{"*"}
+	}
+
+	for _, category := range AllCategories() {
+		imported, _, err := m.Import(category, patterns)
+		if err != nil {
+			return nil, err
+		}
+		if len(imported) > 0 {
+			results[category] = imported
+		}
+	}
+
+	return results, nil
+}

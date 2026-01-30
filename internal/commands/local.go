@@ -108,6 +108,21 @@ Supports wildcards:
 	RunE: runLocalImport,
 }
 
+var localImportAllCmd = &cobra.Command{
+	Use:   "import-all [patterns...]",
+	Short: "Import items from all categories to .library",
+	Long: `Import items from all active directories to .library.
+
+Scans all category directories (agents, commands, skills, hooks, rules, output-styles)
+for items that are not already symlinks, moves them to .library, and enables them.
+
+If patterns are provided, only items matching the patterns are imported.
+Without patterns, all non-symlink items are imported.`,
+	Example: `  claudeup local import-all           # Import everything
+  claudeup local import-all gsd-* gsd # Import only GSD items`,
+	RunE: runLocalImportAll,
+}
+
 func init() {
 	rootCmd.AddCommand(localCmd)
 	localCmd.AddCommand(localListCmd)
@@ -116,6 +131,7 @@ func init() {
 	localCmd.AddCommand(localViewCmd)
 	localCmd.AddCommand(localSyncCmd)
 	localCmd.AddCommand(localImportCmd)
+	localCmd.AddCommand(localImportAllCmd)
 
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
@@ -341,6 +357,34 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 
 	if len(notFound) > 0 && len(imported) == 0 {
 		return fmt.Errorf("no items found matching patterns")
+	}
+
+	return nil
+}
+
+func runLocalImportAll(cmd *cobra.Command, args []string) error {
+	manager := local.NewManager(claudeDir)
+
+	var patterns []string
+	if len(args) > 0 {
+		patterns = args
+	}
+
+	results, err := manager.ImportAll(patterns)
+	if err != nil {
+		return err
+	}
+
+	totalImported := 0
+	for category, items := range results {
+		for _, item := range items {
+			ui.PrintSuccess(fmt.Sprintf("Imported: %s/%s", category, item))
+			totalImported++
+		}
+	}
+
+	if totalImported == 0 {
+		fmt.Println("No items to import (all items are already symlinks or no matching items found)")
 	}
 
 	return nil

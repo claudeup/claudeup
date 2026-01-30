@@ -103,22 +103,11 @@ print_success "GSD installed"
 print_header "Step 4: Import GSD to .library"
 
 print_info "GSD installs directly to active directories."
-print_info "Using 'claudeup local import' to move to .library and create symlinks..."
+print_info "Using 'claudeup local import-all' to move to .library and create symlinks..."
 echo
 
-# Import GSD agents
-print_step "Importing GSD agents..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local import agents "gsd-*"
-echo
-
-# Import GSD commands directory
-print_step "Importing GSD commands directory..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local import commands gsd
-echo
-
-# Import GSD hooks
-print_step "Importing GSD hooks..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local import hooks "gsd-*"
+print_step "Importing all GSD items..."
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local import-all "gsd-*" gsd
 echo
 
 # Count imported items
