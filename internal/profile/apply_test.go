@@ -400,34 +400,34 @@ func TestMarketplaceName(t *testing.T) {
 
 func TestIsFirstRun(t *testing.T) {
 	tests := []struct {
-		name            string
-		profileMarkets  []Marketplace
-		currentPlugins  []string
-		expectedResult  bool
+		name           string
+		profileMarkets []Marketplace
+		currentPlugins []string
+		expectedResult bool
 	}{
 		{
-			name:            "no plugins - first run",
-			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}},
-			currentPlugins:  []string{},
-			expectedResult:  true,
+			name:           "no plugins - first run",
+			profileMarkets: []Marketplace{{Repo: "wshobson/agents"}},
+			currentPlugins: []string{},
+			expectedResult: true,
 		},
 		{
-			name:            "plugins from other marketplace - first run",
-			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}},
-			currentPlugins:  []string{"superpowers@superpowers-marketplace", "frontend@claude-code-plugins"},
-			expectedResult:  true,
+			name:           "plugins from other marketplace - first run",
+			profileMarkets: []Marketplace{{Repo: "wshobson/agents"}},
+			currentPlugins: []string{"superpowers@superpowers-marketplace", "frontend@claude-code-plugins"},
+			expectedResult: true,
 		},
 		{
-			name:            "plugins from same marketplace - not first run",
-			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}},
-			currentPlugins:  []string{"debugging-toolkit@wshobson-agents", "superpowers@superpowers-marketplace"},
-			expectedResult:  false,
+			name:           "plugins from same marketplace - not first run",
+			profileMarkets: []Marketplace{{Repo: "wshobson/agents"}},
+			currentPlugins: []string{"debugging-toolkit@wshobson-agents", "superpowers@superpowers-marketplace"},
+			expectedResult: false,
 		},
 		{
-			name:            "multiple marketplaces - any match stops first run",
-			profileMarkets:  []Marketplace{{Repo: "wshobson/agents"}, {Repo: "other/marketplace"}},
-			currentPlugins:  []string{"something@other-marketplace"},
-			expectedResult:  false,
+			name:           "multiple marketplaces - any match stops first run",
+			profileMarkets: []Marketplace{{Repo: "wshobson/agents"}, {Repo: "other/marketplace"}},
+			currentPlugins: []string{"something@other-marketplace"},
+			expectedResult: false,
 		},
 	}
 
@@ -1359,5 +1359,108 @@ func TestResetHandlesPluginNotFoundError(t *testing.T) {
 	// Should have NO errors (plugin not found is not an error when trying to remove it)
 	if len(result.Errors) != 0 {
 		t.Errorf("Expected no errors for 'not found' during reset, got %d: %v", len(result.Errors), result.Errors)
+	}
+}
+
+func TestApplyWithLocalItems(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := tmpDir
+
+	// Create library structure
+	libraryDir := filepath.Join(claudeDir, ".library")
+	agentsDir := filepath.Join(libraryDir, "agents")
+	os.MkdirAll(agentsDir, 0755)
+	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
+	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
+
+	// Create profile with LocalItems
+	p := &Profile{
+		Name: "test-local",
+		LocalItems: &LocalItemSettings{
+			Agents: []string{"gsd-*"},
+		},
+	}
+
+	// Apply local items
+	err := applyLocalItems(p, claudeDir)
+	if err != nil {
+		t.Fatalf("applyLocalItems() error = %v", err)
+	}
+
+	// Verify symlinks created
+	symlinkPath := filepath.Join(claudeDir, "agents", "gsd-planner.md")
+	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+		t.Error("Symlink was not created for gsd-planner.md")
+	}
+
+	// Verify second symlink
+	symlinkPath2 := filepath.Join(claudeDir, "agents", "gsd-executor.md")
+	if _, err := os.Lstat(symlinkPath2); os.IsNotExist(err) {
+		t.Error("Symlink was not created for gsd-executor.md")
+	}
+}
+
+func TestApplyWithSettingsHooks(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := tmpDir
+
+	// Create existing settings.json
+	existingSettings := `{"enabledPlugins": {}}`
+	os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(existingSettings), 0644)
+
+	// Create profile with SettingsHooks
+	p := &Profile{
+		Name: "test-hooks",
+		SettingsHooks: map[string][]HookEntry{
+			"SessionStart": {
+				{Type: "command", Command: "node ~/.claude/hooks/test.js"},
+			},
+		},
+	}
+
+	// Apply settings hooks
+	err := applySettingsHooks(p, claudeDir)
+	if err != nil {
+		t.Fatalf("applySettingsHooks() error = %v", err)
+	}
+
+	// Verify settings.json was updated
+	data, _ := os.ReadFile(filepath.Join(claudeDir, "settings.json"))
+	if !strings.Contains(string(data), "SessionStart") {
+		t.Error("SessionStart hook was not added to settings.json")
+	}
+	if !strings.Contains(string(data), "test.js") {
+		t.Error("Hook command was not added to settings.json")
+	}
+}
+
+func TestApplyLocalItemsNilProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Profile with no LocalItems
+	p := &Profile{
+		Name: "test-no-local",
+	}
+
+	// Should return nil with no error
+	err := applyLocalItems(p, tmpDir)
+	if err != nil {
+		t.Fatalf("applyLocalItems() should return nil for nil LocalItems, got error = %v", err)
+	}
+}
+
+func TestApplySettingsHooksEmptyHooks(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Profile with empty SettingsHooks
+	p := &Profile{
+		Name:          "test-empty-hooks",
+		SettingsHooks: map[string][]HookEntry{},
+	}
+
+	// Should return nil with no error
+	err := applySettingsHooks(p, tmpDir)
+	if err != nil {
+		t.Fatalf("applySettingsHooks() should return nil for empty hooks, got error = %v", err)
 	}
 }
