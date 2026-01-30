@@ -752,3 +752,64 @@ func TestProfile_Equal_NilVsEmptyMaps(t *testing.T) {
 		t.Error("Profiles with nil vs empty maps should be equal")
 	}
 }
+
+func TestProfileWithLocalItems(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	p := &Profile{
+		Name:        "gsd-profile",
+		Description: "Get Shit Done workflow",
+		LocalItems: &LocalItemSettings{
+			Agents:   []string{"gsd-*"},
+			Commands: []string{"gsd/*"},
+			Hooks:    []string{"gsd-check-update.js"},
+		},
+		SettingsHooks: map[string][]HookEntry{
+			"SessionStart": {
+				{Type: "command", Command: "node ~/.claude/hooks/gsd-check-update.js"},
+			},
+		},
+	}
+
+	// Save
+	err := Save(profilesDir, p)
+	if err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	// Load
+	loaded, err := Load(profilesDir, "gsd-profile")
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// Verify LocalItems
+	if loaded.LocalItems == nil {
+		t.Fatal("LocalItems is nil")
+	}
+	if len(loaded.LocalItems.Agents) != 1 || loaded.LocalItems.Agents[0] != "gsd-*" {
+		t.Errorf("LocalItems.Agents = %v, want [gsd-*]", loaded.LocalItems.Agents)
+	}
+	if len(loaded.LocalItems.Commands) != 1 || loaded.LocalItems.Commands[0] != "gsd/*" {
+		t.Errorf("LocalItems.Commands = %v, want [gsd/*]", loaded.LocalItems.Commands)
+	}
+	if len(loaded.LocalItems.Hooks) != 1 || loaded.LocalItems.Hooks[0] != "gsd-check-update.js" {
+		t.Errorf("LocalItems.Hooks = %v, want [gsd-check-update.js]", loaded.LocalItems.Hooks)
+	}
+
+	// Verify SettingsHooks
+	if loaded.SettingsHooks == nil {
+		t.Fatal("SettingsHooks is nil")
+	}
+	if len(loaded.SettingsHooks["SessionStart"]) != 1 {
+		t.Errorf("SettingsHooks[SessionStart] = %v, want 1 entry", loaded.SettingsHooks["SessionStart"])
+	}
+	hook := loaded.SettingsHooks["SessionStart"][0]
+	if hook.Type != "command" {
+		t.Errorf("Hook.Type = %q, want 'command'", hook.Type)
+	}
+	if hook.Command != "node ~/.claude/hooks/gsd-check-update.js" {
+		t.Errorf("Hook.Command = %q, want expected command", hook.Command)
+	}
+}
