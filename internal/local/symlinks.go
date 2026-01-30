@@ -248,3 +248,89 @@ func (m *Manager) Sync() error {
 
 	return nil
 }
+
+// Import moves items from active directory to .library and enables them.
+// This is useful when tools like GSD install directly to active directories.
+// Returns (imported items, not found patterns, error).
+func (m *Manager) Import(category string, patterns []string) ([]string, []string, error) {
+	if err := ValidateCategory(category); err != nil {
+		return nil, nil, err
+	}
+
+	activeDir := filepath.Join(m.claudeDir, category)
+	libraryDir := filepath.Join(m.claudeDir, ".library", category)
+
+	// Ensure library directory exists
+	if err := os.MkdirAll(libraryDir, 0755); err != nil {
+		return nil, nil, err
+	}
+
+	// Find all items in active directory that are NOT symlinks
+	candidates, err := m.findImportCandidates(activeDir)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var imported []string
+	var notFound []string
+
+	for _, pattern := range patterns {
+		matched := MatchWildcard(pattern, candidates)
+		if len(matched) == 0 {
+			notFound = append(notFound, pattern)
+			continue
+		}
+
+		for _, item := range matched {
+			sourcePath := filepath.Join(activeDir, item)
+			destPath := filepath.Join(libraryDir, item)
+
+			// Move to .library
+			if err := os.Rename(sourcePath, destPath); err != nil {
+				return nil, nil, err
+			}
+
+			imported = append(imported, item)
+		}
+	}
+
+	// Enable all imported items (creates symlinks)
+	if len(imported) > 0 {
+		_, _, err := m.Enable(category, imported)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return imported, notFound, nil
+}
+
+// findImportCandidates finds files and directories in activeDir that are not symlinks
+func (m *Manager) findImportCandidates(activeDir string) ([]string, error) {
+	var candidates []string
+
+	entries, err := os.ReadDir(activeDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return candidates, nil
+		}
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(activeDir, entry.Name())
+		info, err := os.Lstat(path)
+		if err != nil {
+			continue
+		}
+
+		// Skip symlinks - they're already managed
+		if info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+
+		candidates = append(candidates, entry.Name())
+	}
+
+	return candidates, nil
+}

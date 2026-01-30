@@ -1,5 +1,5 @@
 // ABOUTME: CLI commands for managing local Claude Code extensions
-// ABOUTME: Provides list, enable, disable, view, and sync subcommands
+// ABOUTME: Provides list, enable, disable, view, sync, and import subcommands
 package commands
 
 import (
@@ -87,6 +87,27 @@ var localSyncCmd = &cobra.Command{
 	RunE:  runLocalSync,
 }
 
+var localImportCmd = &cobra.Command{
+	Use:   "import <category> <items...>",
+	Short: "Import items from active directory to .library",
+	Long: `Import items that were installed directly to active directories (like GSD).
+
+This command moves files from ~/.claude/<category>/ to ~/.claude/.library/<category>/
+and creates symlinks back, enabling management via claudeup.
+
+This is useful when tools install directly to active directories instead of .library.
+Existing symlinks (already managed items) are skipped.
+
+Supports wildcards:
+  - gsd-* matches items starting with "gsd-"
+  - * matches all non-symlink items in the category`,
+	Example: `  claudeup local import agents gsd-*
+  claudeup local import commands gsd
+  claudeup local import hooks gsd-*`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runLocalImport,
+}
+
 func init() {
 	rootCmd.AddCommand(localCmd)
 	localCmd.AddCommand(localListCmd)
@@ -94,6 +115,7 @@ func init() {
 	localCmd.AddCommand(localDisableCmd)
 	localCmd.AddCommand(localViewCmd)
 	localCmd.AddCommand(localSyncCmd)
+	localCmd.AddCommand(localImportCmd)
 
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
@@ -296,5 +318,30 @@ func runLocalSync(cmd *cobra.Command, args []string) error {
 	}
 
 	ui.PrintSuccess("Sync complete")
+	return nil
+}
+
+func runLocalImport(cmd *cobra.Command, args []string) error {
+	category := args[0]
+	patterns := args[1:]
+
+	manager := local.NewManager(claudeDir)
+	imported, notFound, err := manager.Import(category, patterns)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range imported {
+		ui.PrintSuccess(fmt.Sprintf("Imported: %s/%s", category, item))
+	}
+
+	for _, pattern := range notFound {
+		ui.PrintWarning(fmt.Sprintf("Not found: %s/%s", category, pattern))
+	}
+
+	if len(notFound) > 0 && len(imported) == 0 {
+		return fmt.Errorf("no items found matching patterns")
+	}
+
 	return nil
 }
