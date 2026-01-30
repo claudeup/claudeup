@@ -5,7 +5,7 @@ package commands
 import (
 	"testing"
 
-	"github.com/claudeup/claudeup/v3/internal/claude"
+	"github.com/claudeup/claudeup/v4/internal/claude"
 )
 
 func TestCalculatePluginStatistics(t *testing.T) {

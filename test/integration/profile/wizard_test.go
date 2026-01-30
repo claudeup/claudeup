@@ -3,7 +3,7 @@
 package profile_test
 
 import (
-	"github.com/claudeup/claudeup/v3/internal/profile"
+	"github.com/claudeup/claudeup/v4/internal/profile"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

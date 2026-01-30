@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claudeup/claudeup/v3/internal/claude"
-	"github.com/claudeup/claudeup/v3/internal/ui"
+	"github.com/claudeup/claudeup/v4/internal/claude"
+	"github.com/claudeup/claudeup/v4/internal/ui"
 )
 
 // PluginStatistics holds aggregated counts for plugin analysis

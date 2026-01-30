@@ -10,7 +10,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/claudeup/claudeup/v3/internal/ui"
+	"github.com/claudeup/claudeup/v4/internal/ui"
 )
 
 // FormatOptions configures output rendering.

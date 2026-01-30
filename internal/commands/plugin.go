@@ -11,10 +11,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/claudeup/claudeup/v3/internal/claude"
-	"github.com/claudeup/claudeup/v3/internal/config"
-	"github.com/claudeup/claudeup/v3/internal/profile"
-	"github.com/claudeup/claudeup/v3/internal/ui"
+	"github.com/claudeup/claudeup/v4/internal/claude"
+	"github.com/claudeup/claudeup/v4/internal/config"
+	"github.com/claudeup/claudeup/v4/internal/profile"
+	"github.com/claudeup/claudeup/v4/internal/ui"
 	"github.com/spf13/cobra"
 )
 
