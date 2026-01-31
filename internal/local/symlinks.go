@@ -22,7 +22,55 @@ func validateItemPath(item string) error {
 	return nil
 }
 
+// resolvePattern resolves a pattern to matching items.
+// If pattern matches via wildcard, returns those matches.
+// If pattern resolves to a directory (not a skill), expands to all items inside.
+// Returns (matched items, directory to clear from config, found).
+func (m *Manager) resolvePattern(category, pattern string, allItems []string) ([]string, string, bool) {
+	// Try wildcard match first
+	matched := MatchWildcard(pattern, allItems)
+	if len(matched) > 0 {
+		return matched, "", true
+	}
+
+	// Try to resolve as a single item
+	resolved, err := m.ResolveItemName(category, pattern)
+	if err != nil {
+		return nil, "", false
+	}
+
+	// Check if resolved item is a directory (not a skill)
+	resolvedPath := filepath.Join(m.libraryDir, category, resolved)
+	info, statErr := os.Stat(resolvedPath)
+	if statErr != nil || !info.IsDir() {
+		// Not a directory - return as single item
+		return []string{resolved}, "", true
+	}
+
+	// Check if it's a skill directory (has SKILL.md)
+	skillFile := filepath.Join(resolvedPath, "SKILL.md")
+	if _, skillErr := os.Stat(skillFile); skillErr == nil {
+		// It's a skill directory - treat as single item
+		return []string{resolved}, "", true
+	}
+
+	// Not a skill - expand to contents using wildcard
+	expandedPattern := resolved + "/*"
+	matched = MatchWildcard(expandedPattern, allItems)
+	if len(matched) == 0 {
+		// Directory exists but is empty
+		return nil, "", false
+	}
+
+	// Return matches and the directory name to clear from config
+	return matched, resolved, true
+}
+
 // Enable enables items matching the given patterns.
+// Supports wildcards (gsd-*, gsd/*) and directory names.
+// When a directory name is given (without wildcard), it expands to enable all
+// items inside, e.g., "vsphere-architect" becomes "vsphere-architect/*".
+// Skill directories (containing SKILL.md) are treated as single items.
 // Returns (enabled items, not found patterns, error).
 func (m *Manager) Enable(category string, patterns []string) ([]string, []string, error) {
 	if err := ValidateCategory(category); err != nil {
@@ -48,15 +96,15 @@ func (m *Manager) Enable(category string, patterns []string) ([]string, []string
 	var notFound []string
 
 	for _, pattern := range patterns {
-		matched := MatchWildcard(pattern, allItems)
-		if len(matched) == 0 {
-			// Try to resolve as a single item
-			resolved, err := m.ResolveItemName(category, pattern)
-			if err != nil {
-				notFound = append(notFound, pattern)
-				continue
-			}
-			matched = []string{resolved}
+		matched, dirToClear, found := m.resolvePattern(category, pattern, allItems)
+		if !found {
+			notFound = append(notFound, pattern)
+			continue
+		}
+
+		// Clear directory-level entry to prevent conflict with individual files
+		if dirToClear != "" {
+			config[category][dirToClear] = false
 		}
 
 		for _, item := range matched {
@@ -78,6 +126,10 @@ func (m *Manager) Enable(category string, patterns []string) ([]string, []string
 }
 
 // Disable disables items matching the given patterns.
+// Supports wildcards (gsd-*, gsd/*) and directory names.
+// When a directory name is given (without wildcard), it expands to disable all
+// items inside, e.g., "vsphere-architect" becomes "vsphere-architect/*".
+// Skill directories (containing SKILL.md) are treated as single items.
 // Returns (disabled items, not found patterns, error).
 func (m *Manager) Disable(category string, patterns []string) ([]string, []string, error) {
 	if err := ValidateCategory(category); err != nil {
@@ -102,14 +154,15 @@ func (m *Manager) Disable(category string, patterns []string) ([]string, []strin
 	var notFound []string
 
 	for _, pattern := range patterns {
-		matched := MatchWildcard(pattern, allItems)
-		if len(matched) == 0 {
-			resolved, err := m.ResolveItemName(category, pattern)
-			if err != nil {
-				notFound = append(notFound, pattern)
-				continue
-			}
-			matched = []string{resolved}
+		matched, dirToClear, found := m.resolvePattern(category, pattern, allItems)
+		if !found {
+			notFound = append(notFound, pattern)
+			continue
+		}
+
+		// Clear directory-level entry if it exists (for config cleanup)
+		if dirToClear != "" {
+			config[category][dirToClear] = false
 		}
 
 		for _, item := range matched {
@@ -312,10 +365,15 @@ func (m *Manager) Sync() error {
 
 // Import moves items from active directory to .library and enables them.
 // This is useful when tools like GSD install directly to active directories.
-// Returns (imported items, not found patterns, error).
-func (m *Manager) Import(category string, patterns []string) ([]string, []string, error) {
+//
+// Reconciliation: If an item already exists in .library, the local copy in the
+// active directory is removed and a symlink to the library version is created.
+// This ensures the state is consistent (no duplicate items, symlinks point to library).
+//
+// Returns (imported items, skipped/reconciled items, not found patterns, error).
+func (m *Manager) Import(category string, patterns []string) ([]string, []string, []string, error) {
 	if err := ValidateCategory(category); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	activeDir := filepath.Join(m.claudeDir, category)
@@ -323,16 +381,17 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 
 	// Ensure library directory exists
 	if err := os.MkdirAll(libraryDir, 0755); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Find all items in active directory that are NOT symlinks
 	candidates, err := m.findImportCandidates(activeDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var imported []string
+	var skipped []string
 	var notFound []string
 
 	for _, pattern := range patterns {
@@ -346,24 +405,36 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 			sourcePath := filepath.Join(activeDir, item)
 			destPath := filepath.Join(libraryDir, item)
 
+			// Check if destination already exists in library
+			if _, err := os.Stat(destPath); err == nil {
+				// Library already has this item - remove source and enable the library version
+				// This reconciles the state (replaces local file with symlink to library)
+				if err := os.RemoveAll(sourcePath); err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to remove %s: %w", sourcePath, err)
+				}
+				skipped = append(skipped, item)
+				continue
+			}
+
 			// Move to .library
 			if err := os.Rename(sourcePath, destPath); err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 
 			imported = append(imported, item)
 		}
 	}
 
-	// Enable all imported items (creates symlinks)
-	if len(imported) > 0 {
-		_, _, err := m.Enable(category, imported)
+	// Enable all items (creates symlinks) - both imported and skipped (already in library)
+	toEnable := append(imported, skipped...)
+	if len(toEnable) > 0 {
+		_, _, err := m.Enable(category, toEnable)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
-	return imported, notFound, nil
+	return imported, skipped, notFound, nil
 }
 
 // findImportCandidates finds files and directories in activeDir that are not symlinks
@@ -398,9 +469,10 @@ func (m *Manager) findImportCandidates(activeDir string) ([]string, error) {
 
 // ImportAll imports items from all categories that match the given patterns.
 // If patterns is empty/nil, imports all non-symlink items.
-// Returns a map of category -> imported items.
-func (m *Manager) ImportAll(patterns []string) (map[string][]string, error) {
-	results := make(map[string][]string)
+// Returns maps of category -> imported items and category -> skipped items.
+func (m *Manager) ImportAll(patterns []string) (map[string][]string, map[string][]string, error) {
+	imported := make(map[string][]string)
+	skipped := make(map[string][]string)
 
 	// If no patterns provided, use "*" to match everything
 	if len(patterns) == 0 {
@@ -408,14 +480,17 @@ func (m *Manager) ImportAll(patterns []string) (map[string][]string, error) {
 	}
 
 	for _, category := range AllCategories() {
-		imported, _, err := m.Import(category, patterns)
+		catImported, catSkipped, _, err := m.Import(category, patterns)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		if len(imported) > 0 {
-			results[category] = imported
+		if len(catImported) > 0 {
+			imported[category] = catImported
+		}
+		if len(catSkipped) > 0 {
+			skipped[category] = catSkipped
 		}
 	}
 
-	return results, nil
+	return imported, skipped, nil
 }
