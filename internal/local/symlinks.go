@@ -23,6 +23,10 @@ func validateItemPath(item string) error {
 }
 
 // Enable enables items matching the given patterns.
+// Supports wildcards (gsd-*, gsd/*) and directory names.
+// When a directory name is given (without wildcard), it expands to enable all
+// items inside, e.g., "vsphere-architect" becomes "vsphere-architect/*".
+// Skill directories (containing SKILL.md) are treated as single items.
 // Returns (enabled items, not found patterns, error).
 func (m *Manager) Enable(category string, patterns []string) ([]string, []string, error) {
 	if err := ValidateCategory(category); err != nil {
@@ -104,6 +108,10 @@ func (m *Manager) Enable(category string, patterns []string) ([]string, []string
 }
 
 // Disable disables items matching the given patterns.
+// Supports wildcards (gsd-*, gsd/*) and directory names.
+// When a directory name is given (without wildcard), it expands to disable all
+// items inside, e.g., "vsphere-architect" becomes "vsphere-architect/*".
+// Skill directories (containing SKILL.md) are treated as single items.
 // Returns (disabled items, not found patterns, error).
 func (m *Manager) Disable(category string, patterns []string) ([]string, []string, error) {
 	if err := ValidateCategory(category); err != nil {
@@ -363,7 +371,12 @@ func (m *Manager) Sync() error {
 
 // Import moves items from active directory to .library and enables them.
 // This is useful when tools like GSD install directly to active directories.
-// Returns (imported items, skipped items, not found patterns, error).
+//
+// Reconciliation: If an item already exists in .library, the local copy in the
+// active directory is removed and a symlink to the library version is created.
+// This ensures the state is consistent (no duplicate items, symlinks point to library).
+//
+// Returns (imported items, skipped/reconciled items, not found patterns, error).
 func (m *Manager) Import(category string, patterns []string) ([]string, []string, []string, error) {
 	if err := ValidateCategory(category); err != nil {
 		return nil, nil, nil, err

@@ -500,3 +500,148 @@ func TestImportAllNoPattern(t *testing.T) {
 		t.Errorf("ImportAll() hooks = %v, want 1 item", results["hooks"])
 	}
 }
+
+// TestImportReconciliation verifies that when importing items that already exist
+// in the library, the local copies are removed and symlinks are created.
+func TestImportReconciliation(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create library with an existing item
+	libraryDir := filepath.Join(tmpDir, ".library")
+	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(libraryDir, "agents", "existing-agent.md"), []byte("# Library Version"), 0644)
+
+	// Create active directory with a duplicate (local version)
+	activeAgentsDir := filepath.Join(tmpDir, "agents")
+	os.MkdirAll(activeAgentsDir, 0755)
+	os.WriteFile(filepath.Join(activeAgentsDir, "existing-agent.md"), []byte("# Local Version"), 0644)
+
+	// Import the duplicate item
+	imported, skipped, _, err := manager.Import("agents", []string{"existing-agent.md"})
+	if err != nil {
+		t.Fatalf("Import() error = %v", err)
+	}
+
+	// Should be reported as skipped (reconciled), not imported
+	if len(imported) != 0 {
+		t.Errorf("Import() imported = %v, want []", imported)
+	}
+	if len(skipped) != 1 || skipped[0] != "existing-agent.md" {
+		t.Errorf("Import() skipped = %v, want [existing-agent.md]", skipped)
+	}
+
+	// Local file should be removed
+	localPath := filepath.Join(activeAgentsDir, "existing-agent.md")
+	info, err := os.Lstat(localPath)
+	if err != nil {
+		t.Fatalf("Lstat() error = %v (symlink should exist)", err)
+	}
+
+	// Should now be a symlink (not the original file)
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("Local path should be a symlink after reconciliation")
+	}
+
+	// Library version should be preserved (not overwritten)
+	content, _ := os.ReadFile(filepath.Join(libraryDir, "agents", "existing-agent.md"))
+	if string(content) != "# Library Version" {
+		t.Error("Library version should be preserved during reconciliation")
+	}
+}
+
+// TestEnableMixedItems tests enabling both a directory and individual files simultaneously
+func TestEnableMixedItems(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create library structure
+	libraryDir := filepath.Join(tmpDir, ".library")
+	commandsDir := filepath.Join(libraryDir, "commands")
+	groupDir := filepath.Join(commandsDir, "group")
+	os.MkdirAll(groupDir, 0755)
+	os.WriteFile(filepath.Join(commandsDir, "standalone.md"), []byte("# Standalone"), 0644)
+	os.WriteFile(filepath.Join(groupDir, "item1.md"), []byte("# Item 1"), 0644)
+	os.WriteFile(filepath.Join(groupDir, "item2.md"), []byte("# Item 2"), 0644)
+
+	// Enable both a directory and a standalone file
+	enabled, notFound, err := manager.Enable("commands", []string{"group", "standalone.md"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+	if len(notFound) != 0 {
+		t.Errorf("Enable() notFound = %v, want []", notFound)
+	}
+	// Should have 3 items: 2 from group + 1 standalone
+	if len(enabled) != 3 {
+		t.Errorf("Enable() enabled %d items, want 3: %v", len(enabled), enabled)
+	}
+
+	// Verify config
+	config, _ := manager.LoadConfig()
+	if !config["commands"]["group/item1.md"] {
+		t.Error("Config should have 'group/item1.md' enabled")
+	}
+	if !config["commands"]["group/item2.md"] {
+		t.Error("Config should have 'group/item2.md' enabled")
+	}
+	if !config["commands"]["standalone.md"] {
+		t.Error("Config should have 'standalone.md' enabled")
+	}
+}
+
+// TestEnableEmptyDirectory tests behavior when enabling an empty directory
+func TestEnableEmptyDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create library with empty directory
+	libraryDir := filepath.Join(tmpDir, ".library")
+	emptyDir := filepath.Join(libraryDir, "commands", "empty-dir")
+	os.MkdirAll(emptyDir, 0755)
+
+	// Enable empty directory - should report as not found (no items inside)
+	enabled, notFound, err := manager.Enable("commands", []string{"empty-dir"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+	if len(enabled) != 0 {
+		t.Errorf("Enable() enabled = %v, want [] for empty directory", enabled)
+	}
+	if len(notFound) != 1 || notFound[0] != "empty-dir" {
+		t.Errorf("Enable() notFound = %v, want [empty-dir] for empty directory", notFound)
+	}
+}
+
+// TestEnableNestedDirectories tests enabling items in nested directory structures
+func TestEnableNestedDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create nested directory structure (only one level is expanded)
+	libraryDir := filepath.Join(tmpDir, ".library")
+	topDir := filepath.Join(libraryDir, "commands", "top")
+	os.MkdirAll(topDir, 0755)
+	os.WriteFile(filepath.Join(topDir, "item.md"), []byte("# Item"), 0644)
+
+	// Enable top-level directory
+	enabled, _, err := manager.Enable("commands", []string{"top"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+
+	// Should enable the item inside
+	if len(enabled) != 1 || enabled[0] != "top/item.md" {
+		t.Errorf("Enable() enabled = %v, want [top/item.md]", enabled)
+	}
+
+	// Verify symlink exists
+	symlinkPath := filepath.Join(tmpDir, "commands", "top", "item.md")
+	info, err := os.Lstat(symlinkPath)
+	if err != nil {
+		t.Fatalf("Lstat() error = %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("Expected symlink")
+	}
+}
