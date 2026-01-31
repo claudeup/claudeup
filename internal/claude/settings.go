@@ -246,7 +246,7 @@ func getNestedKeyOrder(parentKey string) []string {
 	if order, ok := nestedKeyOrders[parentKey]; ok {
 		return order
 	}
-	// For unknown nested objects, return empty slice (will use alphabetical)
+	// For unknown nested objects, return nil (caller will fall back to alphabetical order)
 	return nil
 }
 

@@ -823,28 +823,50 @@ func TestNestedCanonicalKeyOrder(t *testing.T) {
 	// Schema order: matcher, hooks
 	// Find the first hookMatcher (contains both "matcher" and nested "hooks")
 	matcherIdx := indexOf(content, `"matcher"`)
-	hooksArrayIdx := indexOf(content[matcherIdx:], `"hooks"`) + matcherIdx
-
 	if matcherIdx == -1 {
 		t.Error("hookMatcher.matcher not found")
 	}
-	if hooksArrayIdx <= matcherIdx {
+
+	hooksArrayIdx := -1
+	if matcherIdx != -1 {
+		if relIdx := indexOf(content[matcherIdx:], `"hooks"`); relIdx != -1 {
+			hooksArrayIdx = matcherIdx + relIdx
+		}
+	}
+	if hooksArrayIdx == -1 {
+		t.Error("hookMatcher.hooks not found")
+	} else if hooksArrayIdx <= matcherIdx {
 		t.Error("hookMatcher: 'hooks' should appear after 'matcher'")
 	}
 
 	// === Test hookCommand key order ===
 	// Schema order: type, command, timeout
 	typeIdx := indexOf(content, `"type"`)
-	commandIdx := indexOf(content[typeIdx:], `"command"`) + typeIdx
-	timeoutIdx := indexOf(content[commandIdx:], `"timeout"`) + commandIdx
-
 	if typeIdx == -1 {
 		t.Error("hookCommand.type not found")
 	}
-	if commandIdx <= typeIdx {
+
+	commandIdx := -1
+	if typeIdx != -1 {
+		if relIdx := indexOf(content[typeIdx:], `"command"`); relIdx != -1 {
+			commandIdx = typeIdx + relIdx
+		}
+	}
+	if commandIdx == -1 {
+		t.Error("hookCommand.command not found")
+	} else if commandIdx <= typeIdx {
 		t.Error("hookCommand: 'command' should appear after 'type'")
 	}
-	if timeoutIdx <= commandIdx {
+
+	timeoutIdx := -1
+	if commandIdx != -1 {
+		if relIdx := indexOf(content[commandIdx:], `"timeout"`); relIdx != -1 {
+			timeoutIdx = commandIdx + relIdx
+		}
+	}
+	if timeoutIdx == -1 {
+		t.Error("hookCommand.timeout not found")
+	} else if timeoutIdx <= commandIdx {
 		t.Error("hookCommand: 'timeout' should appear after 'command'")
 	}
 }
