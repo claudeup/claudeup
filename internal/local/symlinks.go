@@ -22,6 +22,50 @@ func validateItemPath(item string) error {
 	return nil
 }
 
+// resolvePattern resolves a pattern to matching items.
+// If pattern matches via wildcard, returns those matches.
+// If pattern resolves to a directory (not a skill), expands to all items inside.
+// Returns (matched items, directory to clear from config, found).
+func (m *Manager) resolvePattern(category, pattern string, allItems []string) ([]string, string, bool) {
+	// Try wildcard match first
+	matched := MatchWildcard(pattern, allItems)
+	if len(matched) > 0 {
+		return matched, "", true
+	}
+
+	// Try to resolve as a single item
+	resolved, err := m.ResolveItemName(category, pattern)
+	if err != nil {
+		return nil, "", false
+	}
+
+	// Check if resolved item is a directory (not a skill)
+	resolvedPath := filepath.Join(m.libraryDir, category, resolved)
+	info, statErr := os.Stat(resolvedPath)
+	if statErr != nil || !info.IsDir() {
+		// Not a directory - return as single item
+		return []string{resolved}, "", true
+	}
+
+	// Check if it's a skill directory (has SKILL.md)
+	skillFile := filepath.Join(resolvedPath, "SKILL.md")
+	if _, skillErr := os.Stat(skillFile); skillErr == nil {
+		// It's a skill directory - treat as single item
+		return []string{resolved}, "", true
+	}
+
+	// Not a skill - expand to contents using wildcard
+	expandedPattern := resolved + "/*"
+	matched = MatchWildcard(expandedPattern, allItems)
+	if len(matched) == 0 {
+		// Directory exists but is empty
+		return nil, "", false
+	}
+
+	// Return matches and the directory name to clear from config
+	return matched, resolved, true
+}
+
 // Enable enables items matching the given patterns.
 // Supports wildcards (gsd-*, gsd/*) and directory names.
 // When a directory name is given (without wildcard), it expands to enable all
@@ -52,41 +96,15 @@ func (m *Manager) Enable(category string, patterns []string) ([]string, []string
 	var notFound []string
 
 	for _, pattern := range patterns {
-		matched := MatchWildcard(pattern, allItems)
-		if len(matched) == 0 {
-			// Try to resolve as a single item
-			resolved, err := m.ResolveItemName(category, pattern)
-			if err != nil {
-				notFound = append(notFound, pattern)
-				continue
-			}
+		matched, dirToClear, found := m.resolvePattern(category, pattern, allItems)
+		if !found {
+			notFound = append(notFound, pattern)
+			continue
+		}
 
-			// Check if resolved item is a directory (not a skill)
-			// If so, expand to match all items inside it
-			resolvedPath := filepath.Join(m.libraryDir, category, resolved)
-			info, statErr := os.Stat(resolvedPath)
-			if statErr == nil && info.IsDir() {
-				// Check if it's a skill directory (has SKILL.md)
-				skillFile := filepath.Join(resolvedPath, "SKILL.md")
-				if _, skillErr := os.Stat(skillFile); os.IsNotExist(skillErr) {
-					// Not a skill - expand to contents using wildcard
-					expandedPattern := resolved + "/*"
-					matched = MatchWildcard(expandedPattern, allItems)
-					if len(matched) == 0 {
-						// Directory exists but is empty
-						notFound = append(notFound, pattern)
-						continue
-					}
-					// Remove directory-level entry to prevent conflict with individual files
-					// (old configs may have "dir": true which conflicts with "dir/file.md": true)
-					config[category][resolved] = false
-				} else {
-					// It's a skill directory - treat as single item
-					matched = []string{resolved}
-				}
-			} else {
-				matched = []string{resolved}
-			}
+		// Clear directory-level entry to prevent conflict with individual files
+		if dirToClear != "" {
+			config[category][dirToClear] = false
 		}
 
 		for _, item := range matched {
@@ -136,39 +154,15 @@ func (m *Manager) Disable(category string, patterns []string) ([]string, []strin
 	var notFound []string
 
 	for _, pattern := range patterns {
-		matched := MatchWildcard(pattern, allItems)
-		if len(matched) == 0 {
-			resolved, err := m.ResolveItemName(category, pattern)
-			if err != nil {
-				notFound = append(notFound, pattern)
-				continue
-			}
+		matched, dirToClear, found := m.resolvePattern(category, pattern, allItems)
+		if !found {
+			notFound = append(notFound, pattern)
+			continue
+		}
 
-			// Check if resolved item is a directory (not a skill)
-			// If so, expand to match all items inside it
-			resolvedPath := filepath.Join(m.libraryDir, category, resolved)
-			info, statErr := os.Stat(resolvedPath)
-			if statErr == nil && info.IsDir() {
-				// Check if it's a skill directory (has SKILL.md)
-				skillFile := filepath.Join(resolvedPath, "SKILL.md")
-				if _, skillErr := os.Stat(skillFile); os.IsNotExist(skillErr) {
-					// Not a skill - expand to contents using wildcard
-					expandedPattern := resolved + "/*"
-					matched = MatchWildcard(expandedPattern, allItems)
-					if len(matched) == 0 {
-						// Directory exists but is empty
-						notFound = append(notFound, pattern)
-						continue
-					}
-					// Also disable directory-level entry if it exists (for config cleanup)
-					config[category][resolved] = false
-				} else {
-					// It's a skill directory - treat as single item
-					matched = []string{resolved}
-				}
-			} else {
-				matched = []string{resolved}
-			}
+		// Clear directory-level entry if it exists (for config cleanup)
+		if dirToClear != "" {
+			config[category][dirToClear] = false
 		}
 
 		for _, item := range matched {
