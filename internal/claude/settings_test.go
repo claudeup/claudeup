@@ -711,3 +711,162 @@ func TestMergeHooksEmptySettings(t *testing.T) {
 		t.Error("SessionStart hooks were not added")
 	}
 }
+
+func TestNestedCanonicalKeyOrder(t *testing.T) {
+	// Create temp directory
+	tempDir, err := os.MkdirTemp("", "claudeup-nested-order-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create settings with nested objects where keys are in non-canonical order
+	// The schema-defined order for permissions is: allow, deny, ask, defaultMode, ...
+	// The schema-defined order for hooks is: PreToolUse, PostToolUse, ..., SessionStart, SessionEnd
+	originalSettings := map[string]interface{}{
+		"permissions": map[string]interface{}{
+			"defaultMode": "default",                           // Should be 4th
+			"deny":        []interface{}{"Bash(rm -rf *)"},     // Should be 2nd
+			"allow":       []interface{}{"Read", "Glob"},       // Should be 1st
+			"ask":         []interface{}{"Bash(npm install)"}, // Should be 3rd
+		},
+		"hooks": map[string]interface{}{
+			"SessionStart": []interface{}{ // Should be 12th
+				map[string]interface{}{
+					"hooks": []interface{}{ // hookMatcher: "matcher" should come before "hooks"
+						map[string]interface{}{
+							"command": "echo start", // hookCommand: "type" should come before "command"
+							"type":    "command",
+							"timeout": 5000,
+						},
+					},
+					"matcher": "Bash", // Should come before "hooks"
+				},
+			},
+			"PreToolUse": []interface{}{ // Should be 1st
+				map[string]interface{}{
+					"hooks": []interface{}{
+						map[string]interface{}{
+							"timeout": 3000,
+							"type":    "command",
+							"command": "echo pre",
+						},
+					},
+				},
+			},
+			"PostToolUse": []interface{}{}, // Should be 2nd
+		},
+		"enabledPlugins": map[string]bool{"test@marketplace": true},
+	}
+
+	data, _ := json.Marshal(originalSettings)
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load and save settings
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read the saved file
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(savedData)
+
+	// === Test permissions nested key order ===
+	// Schema order: allow, deny, ask, defaultMode
+	allowIdx := indexOf(content, `"allow"`)
+	denyIdx := indexOf(content, `"deny"`)
+	askIdx := indexOf(content, `"ask"`)
+	defaultModeIdx := indexOf(content, `"defaultMode"`)
+
+	if allowIdx == -1 {
+		t.Error("permissions.allow not found")
+	}
+	if denyIdx == -1 || denyIdx < allowIdx {
+		t.Error("permissions.deny should appear after allow")
+	}
+	if askIdx == -1 || askIdx < denyIdx {
+		t.Error("permissions.ask should appear after deny")
+	}
+	if defaultModeIdx == -1 || defaultModeIdx < askIdx {
+		t.Error("permissions.defaultMode should appear after ask")
+	}
+
+	// === Test hooks nested key order ===
+	// Schema order: PreToolUse, PostToolUse, ..., SessionStart, SessionEnd
+	preToolUseIdx := indexOf(content, `"PreToolUse"`)
+	postToolUseIdx := indexOf(content, `"PostToolUse"`)
+	sessionStartIdx := indexOf(content, `"SessionStart"`)
+
+	if preToolUseIdx == -1 {
+		t.Error("hooks.PreToolUse not found")
+	}
+	if postToolUseIdx == -1 || postToolUseIdx < preToolUseIdx {
+		t.Error("hooks.PostToolUse should appear after PreToolUse")
+	}
+	if sessionStartIdx == -1 || sessionStartIdx < postToolUseIdx {
+		t.Error("hooks.SessionStart should appear after PostToolUse")
+	}
+
+	// === Test hookMatcher key order ===
+	// Schema order: matcher, hooks
+	// Find the first hookMatcher (contains both "matcher" and nested "hooks")
+	matcherIdx := indexOf(content, `"matcher"`)
+	if matcherIdx == -1 {
+		t.Error("hookMatcher.matcher not found")
+	}
+
+	hooksArrayIdx := -1
+	if matcherIdx != -1 {
+		if relIdx := indexOf(content[matcherIdx:], `"hooks"`); relIdx != -1 {
+			hooksArrayIdx = matcherIdx + relIdx
+		}
+	}
+	if hooksArrayIdx == -1 {
+		t.Error("hookMatcher.hooks not found")
+	} else if hooksArrayIdx <= matcherIdx {
+		t.Error("hookMatcher: 'hooks' should appear after 'matcher'")
+	}
+
+	// === Test hookCommand key order ===
+	// Schema order: type, command, timeout
+	typeIdx := indexOf(content, `"type"`)
+	if typeIdx == -1 {
+		t.Error("hookCommand.type not found")
+	}
+
+	commandIdx := -1
+	if typeIdx != -1 {
+		if relIdx := indexOf(content[typeIdx:], `"command"`); relIdx != -1 {
+			commandIdx = typeIdx + relIdx
+		}
+	}
+	if commandIdx == -1 {
+		t.Error("hookCommand.command not found")
+	} else if commandIdx <= typeIdx {
+		t.Error("hookCommand: 'command' should appear after 'type'")
+	}
+
+	timeoutIdx := -1
+	if commandIdx != -1 {
+		if relIdx := indexOf(content[commandIdx:], `"timeout"`); relIdx != -1 {
+			timeoutIdx = commandIdx + relIdx
+		}
+	}
+	if timeoutIdx == -1 {
+		t.Error("hookCommand.timeout not found")
+	} else if timeoutIdx <= commandIdx {
+		t.Error("hookCommand: 'timeout' should appear after 'command'")
+	}
+}
