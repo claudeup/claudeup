@@ -15,25 +15,119 @@ import (
 
 // canonicalKeyOrder defines the key order that Claude Code uses in settings.json.
 // Keys are output in this order, with any unknown keys appended alphabetically at the end.
+// This ordering is based on the official schema at https://www.schemastore.org/claude-code-settings.json
 var canonicalKeyOrder = []string{
 	"$schema",
+	"apiKeyHelper",
+	"autoUpdatesChannel",
+	"awsCredentialExport",
+	"awsAuthRefresh",
+	"cleanupPeriodDays",
+	"env",
+	"attribution",
 	"includeCoAuthoredBy",
+	"plansDirectory",
+	"respectGitignore",
 	"permissions",
+	"language",
+	"model",
+	"enableAllProjectMcpServers",
+	"enabledMcpjsonServers",
+	"disabledMcpjsonServers",
+	"allowedMcpServers",
+	"deniedMcpServers",
 	"hooks",
+	"disableAllHooks",
+	"allowManagedHooksOnly",
 	"statusLine",
+	"fileSuggestion",
 	"enabledPlugins",
+	"extraKnownMarketplaces",
+	"strictKnownMarketplaces",
+	"skippedMarketplaces",
+	"skippedPlugins",
+	"forceLoginMethod",
+	"forceLoginOrgUUID",
+	"otelHeadersHelper",
+	"outputStyle",
+	"skipWebFetchPreflight",
+	"sandbox",
+	"spinnerTipsEnabled",
+	"terminalProgressBarEnabled",
+	"showTurnDuration",
+	"alwaysThinkingEnabled",
+	"companyAnnouncements",
+	"pluginConfigs",
+}
+
+// nestedKeyOrders defines canonical key ordering for nested objects
+var nestedKeyOrders = map[string][]string{
+	"permissions": {
+		"allow",
+		"deny",
+		"ask",
+		"defaultMode",
+		"disableBypassPermissionsMode",
+		"additionalDirectories",
+	},
+	"hooks": {
+		"PreToolUse",
+		"PostToolUse",
+		"PostToolUseFailure",
+		"PermissionRequest",
+		"Notification",
+		"UserPromptSubmit",
+		"Stop",
+		"SubagentStart",
+		"SubagentStop",
+		"PreCompact",
+		"Setup",
+		"SessionStart",
+		"SessionEnd",
+	},
+	"hookMatcher": {
+		"matcher",
+		"hooks",
+	},
+	"hookCommand": {
+		"type",
+		"command",
+		"prompt",
+		"timeout",
+	},
+	"sandbox": {
+		"network",
+		"ignoreViolations",
+		"excludedCommands",
+		"autoAllowBashIfSandboxed",
+		"enableWeakerNestedSandbox",
+		"allowUnsandboxedCommands",
+		"enabled",
+	},
+	"attribution": {
+		"commit",
+		"pr",
+	},
 }
 
 // marshalCanonical marshals a map to JSON with keys in Claude Code's canonical order.
 // Known keys appear in the order defined by canonicalKeyOrder, followed by
-// any unknown keys in alphabetical order.
+// any unknown keys in alphabetical order. Nested objects are also ordered canonically.
 func marshalCanonical(data map[string]any) ([]byte, error) {
+	return marshalCanonicalWithIndent(data, "", canonicalKeyOrder)
+}
+
+// marshalCanonicalWithIndent handles recursive canonical marshaling with proper indentation.
+// It uses the provided keyOrder for the current level, and looks up nested key orders
+// based on the parent key context.
+func marshalCanonicalWithIndent(data map[string]any, indent string, keyOrder []string) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteString("{\n")
+	nextIndent := indent + "  "
 
 	// Build set of canonical keys for quick lookup
 	canonicalSet := make(map[string]bool)
-	for _, key := range canonicalKeyOrder {
+	for _, key := range keyOrder {
 		canonicalSet[key] = true
 	}
 
@@ -48,7 +142,7 @@ func marshalCanonical(data map[string]any) ([]byte, error) {
 
 	// Build ordered keys: canonical first, then unknown (alphabetically)
 	var orderedKeys []string
-	for _, key := range canonicalKeyOrder {
+	for _, key := range keyOrder {
 		if _, exists := data[key]; exists {
 			orderedKeys = append(orderedKeys, key)
 		}
@@ -65,13 +159,13 @@ func marshalCanonical(data map[string]any) ([]byte, error) {
 			return nil, err
 		}
 
-		// Marshal value with indentation
-		valueJSON, err := json.MarshalIndent(value, "  ", "  ")
+		// Marshal value with canonical ordering if it's a nested object
+		valueJSON, err := marshalValueCanonical(value, nextIndent, key)
 		if err != nil {
 			return nil, err
 		}
 
-		buf.WriteString("  ")
+		buf.WriteString(nextIndent)
 		buf.Write(keyJSON)
 		buf.WriteString(": ")
 		buf.Write(valueJSON)
@@ -82,8 +176,102 @@ func marshalCanonical(data map[string]any) ([]byte, error) {
 		buf.WriteString("\n")
 	}
 
+	buf.WriteString(indent)
 	buf.WriteString("}")
 	return buf.Bytes(), nil
+}
+
+// marshalValueCanonical marshals a value with canonical key ordering for nested objects.
+// The parentKey is used to look up the appropriate nested key order.
+func marshalValueCanonical(value any, indent string, parentKey string) ([]byte, error) {
+	switch v := value.(type) {
+	case map[string]any:
+		// Determine the key order for this nested object
+		keyOrder := getNestedKeyOrder(parentKey)
+		return marshalCanonicalWithIndent(v, indent, keyOrder)
+
+	case []any:
+		return marshalArrayCanonical(v, indent, parentKey)
+
+	default:
+		// For primitives and other types, use standard marshaling
+		return json.Marshal(value)
+	}
+}
+
+// marshalArrayCanonical marshals an array with canonical ordering for nested objects.
+func marshalArrayCanonical(arr []any, indent string, parentKey string) ([]byte, error) {
+	if len(arr) == 0 {
+		return []byte("[]"), nil
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("[\n")
+	nextIndent := indent + "  "
+
+	// Determine element key order based on parent context
+	elementKeyOrder := getElementKeyOrder(parentKey)
+
+	for i, elem := range arr {
+		buf.WriteString(nextIndent)
+
+		var elemJSON []byte
+		var err error
+
+		switch e := elem.(type) {
+		case map[string]any:
+			elemJSON, err = marshalCanonicalWithIndent(e, nextIndent, elementKeyOrder)
+		default:
+			elemJSON, err = json.Marshal(elem)
+		}
+
+		if err != nil {
+			return nil, err
+		}
+
+		buf.Write(elemJSON)
+		if i < len(arr)-1 {
+			buf.WriteString(",")
+		}
+		buf.WriteString("\n")
+	}
+
+	buf.WriteString(indent)
+	buf.WriteString("]")
+	return buf.Bytes(), nil
+}
+
+// getNestedKeyOrder returns the canonical key order for a nested object.
+func getNestedKeyOrder(parentKey string) []string {
+	if order, ok := nestedKeyOrders[parentKey]; ok {
+		return order
+	}
+	// For unknown nested objects, return empty slice (will use alphabetical)
+	return nil
+}
+
+// getElementKeyOrder returns the key order for array elements based on the parent key.
+func getElementKeyOrder(parentKey string) []string {
+	// Hook event arrays contain hookMatcher objects
+	if isHookEventType(parentKey) {
+		return nestedKeyOrders["hookMatcher"]
+	}
+	// The "hooks" array within a hookMatcher contains hookCommand objects
+	if parentKey == "hooks" {
+		return nestedKeyOrders["hookCommand"]
+	}
+	return nil
+}
+
+// isHookEventType returns true if the key is a hook event type.
+func isHookEventType(key string) bool {
+	hookEventTypes := nestedKeyOrders["hooks"]
+	for _, eventType := range hookEventTypes {
+		if key == eventType {
+			return true
+		}
+	}
+	return false
 }
 
 // Settings represents the Claude Code settings.json file structure
