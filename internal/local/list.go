@@ -56,8 +56,17 @@ func (m *Manager) listFlatItems(dir string) ([]string, error) {
 		}
 
 		if entry.IsDir() {
-			// Walk subdirectory for nested items (e.g., commands/gsd/*)
 			subDir := filepath.Join(dir, name)
+
+			// Check if this is a skill directory (contains SKILL.md)
+			// Skills are directories containing a SKILL.md file - the directory name IS the item
+			skillFile := filepath.Join(subDir, "SKILL.md")
+			if _, err := os.Stat(skillFile); err == nil {
+				items = append(items, name)
+				continue
+			}
+
+			// Walk subdirectory for nested items (e.g., commands/gsd/*)
 			subEntries, err := os.ReadDir(subDir)
 			if err != nil {
 				// Subdirectory unreadable - skip it (non-fatal)
