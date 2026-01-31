@@ -123,6 +123,25 @@ Without patterns, all non-symlink items are imported.`,
 	RunE: runLocalImportAll,
 }
 
+var localInstallCmd = &cobra.Command{
+	Use:   "install <category> <path>",
+	Short: "Install items from an external path to .library",
+	Long: `Install items from an external path (file or directory) to .library.
+
+This copies files to .library/<category>/ and automatically enables them.
+Use this to install items from a git repo, downloads folder, or other location.
+
+For single files/directories: installed as-is.
+For directories containing multiple items: each item is installed individually.
+
+Existing items with the same name are skipped (not overwritten).`,
+	Example: `  claudeup local install agents ~/code/my-agents/
+  claudeup local install hooks ~/Downloads/format-on-save.sh
+  claudeup local install skills ~/code/my-skills/awesome-skill`,
+	Args: cobra.ExactArgs(2),
+	RunE: runLocalInstall,
+}
+
 func init() {
 	rootCmd.AddCommand(localCmd)
 	localCmd.AddCommand(localListCmd)
@@ -132,6 +151,7 @@ func init() {
 	localCmd.AddCommand(localSyncCmd)
 	localCmd.AddCommand(localImportCmd)
 	localCmd.AddCommand(localImportAllCmd)
+	localCmd.AddCommand(localInstallCmd)
 
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
@@ -385,6 +405,31 @@ func runLocalImportAll(cmd *cobra.Command, args []string) error {
 
 	if totalImported == 0 {
 		fmt.Println("No items to import (all items are already symlinks or no matching items found)")
+	}
+
+	return nil
+}
+
+func runLocalInstall(cmd *cobra.Command, args []string) error {
+	category := args[0]
+	sourcePath := args[1]
+
+	manager := local.NewManager(claudeDir)
+	installed, skipped, err := manager.Install(category, sourcePath)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range installed {
+		ui.PrintSuccess(fmt.Sprintf("Installed: %s/%s", category, item))
+	}
+
+	for _, item := range skipped {
+		ui.PrintWarning(fmt.Sprintf("Skipped (already exists): %s/%s", category, item))
+	}
+
+	if len(installed) == 0 && len(skipped) > 0 {
+		fmt.Println("All items already exist in library")
 	}
 
 	return nil
