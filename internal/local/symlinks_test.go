@@ -185,7 +185,7 @@ func TestImport(t *testing.T) {
 	os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
 
 	// Import GSD agents with wildcard
-	imported, notFound, err := manager.Import("agents", []string{"gsd-*"})
+	imported, _, notFound, err := manager.Import("agents", []string{"gsd-*"})
 	if err != nil {
 		t.Fatalf("Import() error = %v", err)
 	}
@@ -250,7 +250,7 @@ func TestImportDirectory(t *testing.T) {
 	os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute"), 0644)
 
 	// Import the gsd directory
-	imported, _, err := manager.Import("commands", []string{"gsd"})
+	imported, _, _, err := manager.Import("commands", []string{"gsd"})
 	if err != nil {
 		t.Fatalf("Import() error = %v", err)
 	}
@@ -263,14 +263,41 @@ func TestImportDirectory(t *testing.T) {
 		t.Error("gsd directory was not moved to .library")
 	}
 
-	// Verify symlink was created
-	symlinkPath := filepath.Join(activeCommandsDir, "gsd")
+	// Verify gsd directory was created (as regular dir with symlinks inside)
+	// The enable logic expands directories to their individual files for proper list display
+	gsdDir := filepath.Join(activeCommandsDir, "gsd")
+	dirInfo, err := os.Stat(gsdDir)
+	if err != nil {
+		t.Fatalf("Stat() error = %v", err)
+	}
+	if !dirInfo.IsDir() {
+		t.Error("gsd should be a directory")
+	}
+
+	// Verify individual files inside are symlinks
+	symlinkPath := filepath.Join(gsdDir, "new-project.md")
 	info, err := os.Lstat(symlinkPath)
 	if err != nil {
 		t.Fatalf("Lstat() error = %v", err)
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		t.Error("gsd should be a symlink after import")
+		t.Error("gsd/new-project.md should be a symlink after import")
+	}
+
+	// Verify symlink target
+	target, _ := os.Readlink(symlinkPath)
+	expectedTarget := filepath.Join("..", "..", ".library", "commands", "gsd", "new-project.md")
+	if target != expectedTarget {
+		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
+	}
+
+	// Verify config has individual items enabled (for correct list display)
+	config, _ := manager.LoadConfig()
+	if !config["commands"]["gsd/new-project.md"] {
+		t.Error("Config should have 'gsd/new-project.md' enabled")
+	}
+	if !config["commands"]["gsd/execute-phase.md"] {
+		t.Error("Config should have 'gsd/execute-phase.md' enabled")
 	}
 }
 
@@ -292,7 +319,7 @@ func TestImportSkipsSymlinks(t *testing.T) {
 	os.WriteFile(filepath.Join(activeAgentsDir, "new-agent.md"), []byte("# New"), 0644)
 
 	// Import all
-	imported, _, err := manager.Import("agents", []string{"*"})
+	imported, _, _, err := manager.Import("agents", []string{"*"})
 	if err != nil {
 		t.Fatalf("Import() error = %v", err)
 	}
@@ -323,7 +350,7 @@ func TestImportAll(t *testing.T) {
 	os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
 
 	// Import all with pattern
-	results, err := manager.ImportAll([]string{"gsd-*", "gsd"})
+	results, _, err := manager.ImportAll([]string{"gsd-*", "gsd"})
 	if err != nil {
 		t.Fatalf("ImportAll() error = %v", err)
 	}
@@ -348,6 +375,60 @@ func TestImportAll(t *testing.T) {
 	// Verify other-agent.md was NOT moved (didn't match pattern)
 	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); os.IsNotExist(err) {
 		t.Error("other-agent.md should not have been moved")
+	}
+}
+
+// TestEnableDirectoryByName tests that enabling a directory by name (without wildcard)
+// expands to enable all items inside it. This was a bug where:
+// - `enable commands vsphere-architect` would set config["vsphere-architect"]=true
+// - `list commands` would check config["vsphere-architect/capacity-plan.md"] and find nothing
+func TestEnableDirectoryByName(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create library structure for commands with a subdirectory
+	libraryDir := filepath.Join(tmpDir, ".library")
+	vsphereDir := filepath.Join(libraryDir, "commands", "vsphere-architect")
+	os.MkdirAll(vsphereDir, 0755)
+	os.WriteFile(filepath.Join(vsphereDir, "capacity-plan.md"), []byte("# Capacity Plan"), 0644)
+	os.WriteFile(filepath.Join(vsphereDir, "ha-design.md"), []byte("# HA Design"), 0644)
+	os.WriteFile(filepath.Join(vsphereDir, "storage-design.md"), []byte("# Storage Design"), 0644)
+
+	// Enable using just the directory name (no wildcard)
+	enabled, notFound, err := manager.Enable("commands", []string{"vsphere-architect"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+	if len(notFound) != 0 {
+		t.Errorf("Enable() notFound = %v, want []", notFound)
+	}
+	if len(enabled) != 3 {
+		t.Errorf("Enable() enabled %d items, want 3: %v", len(enabled), enabled)
+	}
+
+	// Verify config has individual items (not the directory)
+	config, _ := manager.LoadConfig()
+	if config["commands"]["vsphere-architect"] {
+		t.Error("Config should NOT have 'vsphere-architect' as a single item")
+	}
+	if !config["commands"]["vsphere-architect/capacity-plan.md"] {
+		t.Error("Config should have 'vsphere-architect/capacity-plan.md' enabled")
+	}
+	if !config["commands"]["vsphere-architect/ha-design.md"] {
+		t.Error("Config should have 'vsphere-architect/ha-design.md' enabled")
+	}
+	if !config["commands"]["vsphere-architect/storage-design.md"] {
+		t.Error("Config should have 'vsphere-architect/storage-design.md' enabled")
+	}
+
+	// Verify symlinks exist for each individual item
+	symlinkPath := filepath.Join(tmpDir, "commands", "vsphere-architect", "capacity-plan.md")
+	info, err := os.Lstat(symlinkPath)
+	if err != nil {
+		t.Fatalf("Lstat() error = %v (symlink not created)", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Error("Expected symlink, got regular file")
 	}
 }
 
@@ -406,7 +487,7 @@ func TestImportAllNoPattern(t *testing.T) {
 	os.WriteFile(filepath.Join(activeHooksDir, "hook1.js"), []byte("// JS"), 0644)
 
 	// Import all without pattern (should import everything)
-	results, err := manager.ImportAll(nil)
+	results, _, err := manager.ImportAll(nil)
 	if err != nil {
 		t.Fatalf("ImportAll() error = %v", err)
 	}

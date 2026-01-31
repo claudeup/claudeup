@@ -362,7 +362,7 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 	patterns := args[1:]
 
 	manager := local.NewManager(claudeDir)
-	imported, notFound, err := manager.Import(category, patterns)
+	imported, skipped, notFound, err := manager.Import(category, patterns)
 	if err != nil {
 		return err
 	}
@@ -371,11 +371,15 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 		ui.PrintSuccess(fmt.Sprintf("Imported: %s/%s", category, item))
 	}
 
+	for _, item := range skipped {
+		ui.PrintSuccess(fmt.Sprintf("Linked (already in library): %s/%s", category, item))
+	}
+
 	for _, pattern := range notFound {
 		ui.PrintWarning(fmt.Sprintf("Not found: %s/%s", category, pattern))
 	}
 
-	if len(notFound) > 0 && len(imported) == 0 {
+	if len(notFound) > 0 && len(imported) == 0 && len(skipped) == 0 {
 		return fmt.Errorf("no items found matching patterns")
 	}
 
@@ -390,20 +394,26 @@ func runLocalImportAll(cmd *cobra.Command, args []string) error {
 		patterns = args
 	}
 
-	results, err := manager.ImportAll(patterns)
+	imported, linked, err := manager.ImportAll(patterns)
 	if err != nil {
 		return err
 	}
 
-	totalImported := 0
-	for category, items := range results {
+	totalProcessed := 0
+	for category, items := range imported {
 		for _, item := range items {
 			ui.PrintSuccess(fmt.Sprintf("Imported: %s/%s", category, item))
-			totalImported++
+			totalProcessed++
+		}
+	}
+	for category, items := range linked {
+		for _, item := range items {
+			ui.PrintSuccess(fmt.Sprintf("Linked (already in library): %s/%s", category, item))
+			totalProcessed++
 		}
 	}
 
-	if totalImported == 0 {
+	if totalProcessed == 0 {
 		fmt.Println("No items to import (all items are already symlinks or no matching items found)")
 	}
 
