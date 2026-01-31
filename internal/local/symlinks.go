@@ -450,7 +450,14 @@ func (m *Manager) findImportCandidates(activeDir string) ([]string, error) {
 	}
 
 	for _, entry := range entries {
-		path := filepath.Join(activeDir, entry.Name())
+		name := entry.Name()
+
+		// Skip hidden files (like .gitkeep) and CLAUDE.md
+		if strings.HasPrefix(name, ".") || name == "CLAUDE.md" {
+			continue
+		}
+
+		path := filepath.Join(activeDir, name)
 		info, err := os.Lstat(path)
 		if err != nil {
 			continue
@@ -461,7 +468,7 @@ func (m *Manager) findImportCandidates(activeDir string) ([]string, error) {
 			continue
 		}
 
-		candidates = append(candidates, entry.Name())
+		candidates = append(candidates, name)
 	}
 
 	return candidates, nil
