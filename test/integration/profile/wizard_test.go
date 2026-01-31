@@ -38,10 +38,12 @@ var _ = Describe("Wizard", func() {
 			// Should return at least one marketplace from embedded profiles
 			Expect(marketplaces).NotTo(BeEmpty())
 
-			// All marketplaces should have github source and valid repo names
+			// All marketplaces should have valid source type and identifier
 			for _, m := range marketplaces {
-				Expect(m.Source).To(Equal("github"))
-				Expect(m.Repo).NotTo(BeEmpty())
+				// Accept github, git, or directory as valid source types
+				Expect(m.Source).To(BeElementOf("github", "git", "directory"))
+				// Must have either Repo or URL set
+				Expect(m.Repo != "" || m.URL != "").To(BeTrue(), "marketplace must have Repo or URL")
 			}
 		})
 

@@ -341,11 +341,13 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 	}
 
 	// 2. Add marketplaces (user-level, needed to resolve plugins)
-	for _, m := range profile.Marketplaces {
+	totalMarketplaces := len(profile.Marketplaces)
+	for i, m := range profile.Marketplaces {
 		key := marketplaceKey(m)
 		if key == "" {
 			continue
 		}
+		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, totalMarketplaces, key)
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
 			// Check if already installed - treat as success
@@ -458,11 +460,13 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 	}
 
 	// 3. Add marketplaces (user-level)
-	for _, m := range profile.Marketplaces {
+	totalMarketplaces := len(profile.Marketplaces)
+	for i, m := range profile.Marketplaces {
 		key := marketplaceKey(m)
 		if key == "" {
 			continue
 		}
+		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, totalMarketplaces, key)
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
 			if strings.Contains(output, "already installed") {
@@ -649,9 +653,11 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath string, secretCh
 	}
 
 	// Add marketplaces
-	for _, m := range diff.MarketplacesToAdd {
+	totalMarketplaces := len(diff.MarketplacesToAdd)
+	for i, m := range diff.MarketplacesToAdd {
 		key := marketplaceKey(m)
 		if key != "" {
+			fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, totalMarketplaces, key)
 			output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 			if err != nil {
 				// Check if already installed - treat as success
