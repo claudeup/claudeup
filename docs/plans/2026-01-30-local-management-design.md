@@ -32,13 +32,11 @@ claudeup local sync
 **Categories:** `agents`, `commands`, `skills`, `hooks`, `rules`, `output-styles`
 
 **Wildcards:**
-
 - `gsd-*` - matches items starting with `gsd-`
 - `gsd/*` - matches all items in a subdirectory
 - `*` - matches everything in a category
 
 **Examples:**
-
 ```bash
 claudeup local enable agents gsd-*
 claudeup local enable commands gsd/*
@@ -79,7 +77,6 @@ Profiles gain two new sections: `local` for enabling local items, and `settingsH
 ### Apply Behavior
 
 When `claudeup profile apply gsd` runs:
-
 1. Install marketplaces and plugins (existing behavior)
 2. Enable local items via symlinks (new)
 3. Merge `settingsHooks` into settings.json, deduplicating by command string (new)
@@ -87,7 +84,6 @@ When `claudeup profile apply gsd` runs:
 ### Save Behavior
 
 When `claudeup profile save my-setup` runs:
-
 1. Capture marketplaces, plugins, MCP servers (existing)
 2. Capture enabled local items from `enabled.json` (new)
 3. Capture relevant hooks from settings.json (new - only captures hooks that reference files in `~/.claude/hooks/`)
