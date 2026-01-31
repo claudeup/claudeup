@@ -1464,3 +1464,66 @@ func TestApplySettingsHooksEmptyHooks(t *testing.T) {
 		t.Fatalf("applySettingsHooks() should return nil for empty hooks, got error = %v", err)
 	}
 }
+
+func TestFilterValidMarketplaceKeys(t *testing.T) {
+	tests := []struct {
+		name         string
+		marketplaces []Marketplace
+		want         []string
+	}{
+		{
+			name:         "empty list",
+			marketplaces: []Marketplace{},
+			want:         nil,
+		},
+		{
+			name: "all valid repos",
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "owner/repo1"},
+				{Source: "github", Repo: "owner/repo2"},
+			},
+			want: []string{"owner/repo1", "owner/repo2"},
+		},
+		{
+			name: "mixed repo and url",
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "owner/repo"},
+				{Source: "git", URL: "https://example.com/repo.git"},
+			},
+			want: []string{"owner/repo", "https://example.com/repo.git"},
+		},
+		{
+			name: "filters empty keys",
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "owner/repo1"},
+				{Source: "github", Repo: ""}, // empty repo
+				{Source: "git", URL: ""},     // empty url
+				{Source: "github", Repo: "owner/repo2"},
+			},
+			want: []string{"owner/repo1", "owner/repo2"},
+		},
+		{
+			name: "all empty",
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: ""},
+				{Source: "git", URL: ""},
+			},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := filterValidMarketplaceKeys(tt.marketplaces)
+			if len(got) != len(tt.want) {
+				t.Errorf("filterValidMarketplaceKeys() = %v, want %v", got, tt.want)
+				return
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("filterValidMarketplaceKeys()[%d] = %v, want %v", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}

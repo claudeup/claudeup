@@ -341,13 +341,9 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 	}
 
 	// 2. Add marketplaces (user-level, needed to resolve plugins)
-	totalMarketplaces := len(profile.Marketplaces)
-	for i, m := range profile.Marketplaces {
-		key := marketplaceKey(m)
-		if key == "" {
-			continue
-		}
-		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, totalMarketplaces, key)
+	validMarketplaces := filterValidMarketplaceKeys(profile.Marketplaces)
+	for i, key := range validMarketplaces {
+		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, len(validMarketplaces), key)
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
 			// Check if already installed - treat as success
@@ -460,13 +456,9 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 	}
 
 	// 3. Add marketplaces (user-level)
-	totalMarketplaces := len(profile.Marketplaces)
-	for i, m := range profile.Marketplaces {
-		key := marketplaceKey(m)
-		if key == "" {
-			continue
-		}
-		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, totalMarketplaces, key)
+	validMarketplaces := filterValidMarketplaceKeys(profile.Marketplaces)
+	for i, key := range validMarketplaces {
+		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, len(validMarketplaces), key)
 		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
 		if err != nil {
 			if strings.Contains(output, "already installed") {
@@ -653,22 +645,19 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath string, secretCh
 	}
 
 	// Add marketplaces
-	totalMarketplaces := len(diff.MarketplacesToAdd)
-	for i, m := range diff.MarketplacesToAdd {
-		key := marketplaceKey(m)
-		if key != "" {
-			fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, totalMarketplaces, key)
-			output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
-			if err != nil {
-				// Check if already installed - treat as success
-				if strings.Contains(output, "already installed") {
-					result.MarketplacesAdded = append(result.MarketplacesAdded, key)
-				} else {
-					result.Errors = append(result.Errors, fmt.Errorf("failed to add marketplace %s: %w\n  Output: %s", key, err, strings.TrimSpace(output)))
-				}
-			} else {
+	validMarketplaces := filterValidMarketplaceKeys(diff.MarketplacesToAdd)
+	for i, key := range validMarketplaces {
+		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, len(validMarketplaces), key)
+		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
+		if err != nil {
+			// Check if already installed - treat as success
+			if strings.Contains(output, "already installed") {
 				result.MarketplacesAdded = append(result.MarketplacesAdded, key)
+			} else {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to add marketplace %s: %w\n  Output: %s", key, err, strings.TrimSpace(output)))
 			}
+		} else {
+			result.MarketplacesAdded = append(result.MarketplacesAdded, key)
 		}
 	}
 
@@ -878,6 +867,17 @@ func marketplaceKey(m Marketplace) string {
 		return m.Repo
 	}
 	return m.URL
+}
+
+// filterValidMarketplaceKeys returns only non-empty marketplace keys
+func filterValidMarketplaceKeys(marketplaces []Marketplace) []string {
+	var keys []string
+	for _, m := range marketplaces {
+		if key := marketplaceKey(m); key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 // marketplaceName extracts the marketplace name from a repo path or URL
