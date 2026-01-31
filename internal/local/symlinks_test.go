@@ -645,3 +645,56 @@ func TestEnableNestedDirectories(t *testing.T) {
 		t.Error("Expected symlink")
 	}
 }
+
+// TestImportSkipsGitkeep verifies that .gitkeep files are not imported or enabled
+func TestImportSkipsGitkeep(t *testing.T) {
+	tmpDir := t.TempDir()
+	manager := NewManager(tmpDir)
+
+	// Create active directories with .gitkeep files and real items
+	activeHooksDir := filepath.Join(tmpDir, "hooks")
+	activeCommandsDir := filepath.Join(tmpDir, "commands")
+	os.MkdirAll(activeHooksDir, 0755)
+	os.MkdirAll(activeCommandsDir, 0755)
+
+	// Add .gitkeep files (should be ignored)
+	os.WriteFile(filepath.Join(activeHooksDir, ".gitkeep"), []byte(""), 0644)
+	os.WriteFile(filepath.Join(activeCommandsDir, ".gitkeep"), []byte(""), 0644)
+
+	// Add real items
+	os.WriteFile(filepath.Join(activeHooksDir, "format.sh"), []byte("#!/bin/bash"), 0755)
+	os.WriteFile(filepath.Join(activeCommandsDir, "build.md"), []byte("# Build"), 0644)
+
+	// Import all
+	imported, skipped, err := manager.ImportAll([]string{"*"})
+	if err != nil {
+		t.Fatalf("ImportAll() error = %v", err)
+	}
+
+	// Should import the real items
+	if len(imported["hooks"]) != 1 || imported["hooks"][0] != "format.sh" {
+		t.Errorf("ImportAll() hooks = %v, want [format.sh]", imported["hooks"])
+	}
+	if len(imported["commands"]) != 1 || imported["commands"][0] != "build.md" {
+		t.Errorf("ImportAll() commands = %v, want [build.md]", imported["commands"])
+	}
+
+	// .gitkeep should not appear in skipped either
+	for category, items := range skipped {
+		for _, item := range items {
+			if item == ".gitkeep" {
+				t.Errorf("ImportAll() skipped[%s] should not contain .gitkeep", category)
+			}
+		}
+	}
+
+	// Verify config does not contain .gitkeep
+	config, _ := manager.LoadConfig()
+	for category, items := range config {
+		for item := range items {
+			if item == ".gitkeep" {
+				t.Errorf("Config[%s] should not contain .gitkeep", category)
+			}
+		}
+	}
+}
