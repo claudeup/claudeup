@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -1108,6 +1109,113 @@ func TestProfileEntry_DisplayName(t *testing.T) {
 		if got := e.DisplayName(); got != tt.expected {
 			t.Errorf("DisplayName(%q) = %q, want %q", tt.relPath, got, tt.expected)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Load with nested profile support tests
+// ---------------------------------------------------------------------------
+
+func TestLoad_FindsNestedProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create only a nested profile
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create dir: %v", err)
+	}
+	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write: %v", err)
+	}
+
+	loaded, err := Load(profilesDir, "api")
+	if err != nil {
+		t.Fatalf("Load should find nested profile, got error: %v", err)
+	}
+
+	if loaded.Name != "api" {
+		t.Errorf("Name = %q, want %q", loaded.Name, "api")
+	}
+	if loaded.Description != "Backend API" {
+		t.Errorf("Description = %q, want %q", loaded.Description, "Backend API")
+	}
+}
+
+func TestLoad_AmbiguousNameReturnsError(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create api.json at root and in backend/
+	if err := Save(profilesDir, &Profile{Name: "api", Description: "Root API"}); err != nil {
+		t.Fatalf("Failed to save: %v", err)
+	}
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create dir: %v", err)
+	}
+	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write: %v", err)
+	}
+
+	_, err := Load(profilesDir, "api")
+	if err == nil {
+		t.Fatal("Load should return an error for ambiguous profile name")
+	}
+
+	// Error message should mention ambiguity
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "ambiguous") {
+		t.Errorf("Error should mention 'ambiguous', got: %q", errMsg)
+	}
+}
+
+func TestLoad_PathReferenceResolvesDirectly(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create root api.json and backend/api.json
+	if err := Save(profilesDir, &Profile{Name: "api", Description: "Root API"}); err != nil {
+		t.Fatalf("Failed to save: %v", err)
+	}
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create dir: %v", err)
+	}
+	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write: %v", err)
+	}
+
+	// Using path reference should bypass ambiguity
+	loaded, err := Load(profilesDir, "backend/api")
+	if err != nil {
+		t.Fatalf("Load with path reference should succeed, got: %v", err)
+	}
+
+	if loaded.Description != "Backend API" {
+		t.Errorf("Description = %q, want %q", loaded.Description, "Backend API")
+	}
+}
+
+func TestLoad_StillWorksFlatProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Flat profile at root (existing behavior)
+	if err := Save(profilesDir, &Profile{Name: "mobile", Description: "Mobile profile"}); err != nil {
+		t.Fatalf("Failed to save: %v", err)
+	}
+
+	loaded, err := Load(profilesDir, "mobile")
+	if err != nil {
+		t.Fatalf("Load should work for flat profiles: %v", err)
+	}
+
+	if loaded.Name != "mobile" {
+		t.Errorf("Name = %q, want %q", loaded.Name, "mobile")
 	}
 }
 

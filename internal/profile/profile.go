@@ -294,26 +294,34 @@ func Save(profilesDir string, p *Profile) error {
 	)
 }
 
-// Load reads a profile from the profiles directory
+// Load reads a profile from the profiles directory.
+// If name contains "/", it is treated as a relative path within profilesDir.
+// Otherwise, profilesDir is searched recursively for a matching .json file.
+// Returns an error if the name matches multiple profiles (ambiguous).
 func Load(profilesDir, name string) (*Profile, error) {
-	profilePath := filepath.Join(profilesDir, name+".json")
-
-	data, err := os.ReadFile(profilePath)
+	paths, err := FindProfilePaths(profilesDir, name)
 	if err != nil {
 		return nil, err
 	}
 
-	var p Profile
-	if err := json.Unmarshal(data, &p); err != nil {
-		return nil, err
+	switch len(paths) {
+	case 0:
+		return nil, &os.PathError{Op: "open", Path: filepath.Join(profilesDir, name+".json"), Err: os.ErrNotExist}
+	case 1:
+		return LoadFromPath(paths[0])
+	default:
+		// Build relative paths for the error message
+		var relPaths []string
+		for _, p := range paths {
+			rel, err := filepath.Rel(profilesDir, p)
+			if err != nil {
+				rel = p
+			}
+			relPaths = append(relPaths, strings.TrimSuffix(rel, ".json"))
+		}
+		return nil, fmt.Errorf("ambiguous profile name %q matches %d profiles: %s",
+			name, len(paths), strings.Join(relPaths, ", "))
 	}
-
-	// Set name from filename if not present in JSON
-	if p.Name == "" {
-		p.Name = name
-	}
-
-	return &p, nil
 }
 
 // ProfileEntry is a profile with its location relative to the profiles directory.
