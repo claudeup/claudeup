@@ -106,6 +106,19 @@ func (e *TestEnv) CreateProfile(p *profile.Profile) {
 	Expect(os.WriteFile(path, data, 0644)).To(Succeed())
 }
 
+// CreateNestedProfile creates a profile in a subdirectory of the profiles dir.
+// subdir is the relative path under profiles (e.g., "backend" or "team/backend").
+func (e *TestEnv) CreateNestedProfile(subdir string, p *profile.Profile) {
+	dir := filepath.Join(e.ProfilesDir, subdir)
+	Expect(os.MkdirAll(dir, 0755)).To(Succeed())
+
+	data, err := json.MarshalIndent(p, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+
+	path := filepath.Join(dir, p.Name+".json")
+	Expect(os.WriteFile(path, data, 0644)).To(Succeed())
+}
+
 // LoadProfile loads a profile from the test environment
 func (e *TestEnv) LoadProfile(name string) *profile.Profile {
 	path := filepath.Join(e.ProfilesDir, name+".json")
