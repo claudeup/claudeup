@@ -829,11 +829,12 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		for _, p := range customProfiles {
 			marker := getProfileMarker(p.Name)
+			displayName := p.DisplayName()
 			desc := p.Description
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
-			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
+			fmt.Printf("%s%-20s %s\n", marker, displayName, desc)
 		}
 		fmt.Println()
 	}
