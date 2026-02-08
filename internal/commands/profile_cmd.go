@@ -945,10 +945,23 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
-	// Load the profile (try disk first, then embedded)
-	p, err := loadProfileWithFallback(profilesDir, name)
-	if err != nil {
-		return fmt.Errorf("profile %q not found: %w", name, err)
+	// Resolve to exact path if ambiguous (handles nested profiles)
+	var p *profile.Profile
+	resolvedPath, resolveErr := resolveProfileArg(profilesDir, name)
+	if resolveErr == nil {
+		// Found on disk -- load from resolved path
+		var loadErr error
+		p, loadErr = profile.LoadFromPath(resolvedPath)
+		if loadErr != nil {
+			return fmt.Errorf("failed to load profile %q: %w", name, loadErr)
+		}
+	} else {
+		// Not found on disk -- try embedded profiles
+		var embeddedErr error
+		p, embeddedErr = profile.GetEmbeddedProfile(name)
+		if embeddedErr != nil {
+			return fmt.Errorf("profile %q not found: %w", name, resolveErr)
+		}
 	}
 
 	// In a declarative system, reapplying a profile should always be allowed
@@ -1832,12 +1845,18 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 }
 
 // loadProfileWithFallback tries to load a profile from disk first,
-// falling back to embedded profiles if not found
+// falling back to embedded profiles if not found on disk.
+// Ambiguity errors (multiple profiles with the same name) are not swallowed.
 func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error) {
 	// Try disk first
 	p, err := profile.Load(profilesDir, name)
 	if err == nil {
 		return p, nil
+	}
+
+	// Propagate ambiguity errors -- don't fall back to embedded
+	if strings.Contains(err.Error(), "ambiguous") {
+		return nil, err
 	}
 
 	// Fall back to embedded profiles
