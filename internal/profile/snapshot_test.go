@@ -345,6 +345,28 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 	}
 	writeJSON(t, filepath.Join(claudeDir, "enabled.json"), enabledData)
 
+	// Create corresponding active directory entries (symlinks/dirs)
+	for _, dir := range []string{
+		filepath.Join(claudeDir, "agents", "gsd-planner"),
+		filepath.Join(claudeDir, "agents", "gsd-executor"),
+		filepath.Join(claudeDir, "commands", "gsd"),
+		filepath.Join(claudeDir, "hooks"),
+	} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Create files for commands and hooks
+	for _, f := range []string{
+		filepath.Join(claudeDir, "commands", "gsd", "start"),
+		filepath.Join(claudeDir, "commands", "gsd", "stop"),
+		filepath.Join(claudeDir, "hooks", "gsd-check-update.js"),
+	} {
+		if err := os.WriteFile(f, []byte(""), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Create minimal settings.json
 	settingsData := map[string]interface{}{
 		"enabledPlugins": map[string]bool{},
@@ -399,6 +421,58 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 	expectedHooks := []string{"gsd-check-update.js"}
 	if len(p.LocalItems.Hooks) != len(expectedHooks) {
 		t.Errorf("Expected %d hooks, got %d: %v", len(expectedHooks), len(p.LocalItems.Hooks), p.LocalItems.Hooks)
+	}
+}
+
+func TestSnapshotExcludesStaleLocalItems(t *testing.T) {
+	// enabled.json may have stale entries (marked true but no corresponding
+	// symlink in the active directory). These should be excluded from snapshots.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Config has both a real entry and a stale entry
+	enabledData := map[string]map[string]bool{
+		"agents": {
+			"real-agent":  true, // has active directory entry
+			"stale-agent": true, // NO active directory entry (stale)
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "enabled.json"), enabledData)
+
+	// Only create active entry for real-agent
+	if err := os.MkdirAll(filepath.Join(claudeDir, "agents", "real-agent"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	p, err := Snapshot("test-stale", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Should only include real-agent, not stale-agent
+	if p.LocalItems == nil {
+		t.Fatal("Expected LocalItems to be non-nil")
+	}
+	if len(p.LocalItems.Agents) != 1 {
+		t.Errorf("Expected 1 agent (real-agent only), got %d: %v", len(p.LocalItems.Agents), p.LocalItems.Agents)
+	}
+	if len(p.LocalItems.Agents) > 0 && p.LocalItems.Agents[0] != "real-agent" {
+		t.Errorf("Expected real-agent, got %q", p.LocalItems.Agents[0])
 	}
 }
 

@@ -195,17 +195,24 @@ func readLocalItems(claudeDir string) (*LocalItemSettings, error) {
 	settings := &LocalItemSettings{}
 	hasItems := false
 
-	// Helper to extract enabled items for a category
+	// Helper to extract enabled items for a category, verifying each
+	// item actually exists in the active directory (filters stale entries)
 	extractEnabled := func(category string) []string {
 		items, ok := config[category]
 		if !ok {
 			return nil
 		}
+		activeDir := filepath.Join(claudeDir, category)
 		var enabled []string
 		for name, isEnabled := range items {
-			if isEnabled {
-				enabled = append(enabled, name)
+			if !isEnabled {
+				continue
 			}
+			// Verify the item exists in the active directory
+			if _, err := os.Stat(filepath.Join(activeDir, name)); err != nil {
+				continue
+			}
+			enabled = append(enabled, name)
 		}
 		sort.Strings(enabled)
 		return enabled
