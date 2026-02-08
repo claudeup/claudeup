@@ -712,6 +712,150 @@ func TestMergeHooksEmptySettings(t *testing.T) {
 	}
 }
 
+func TestMarshalDoesNotHTMLEscapeSpecialCharacters(t *testing.T) {
+	// Go's json.Marshal escapes >, <, & as \u003e, \u003c, \u0026 by default.
+	// Settings values (like shell commands) must preserve these characters literally.
+	tempDir, err := os.MkdirTemp("", "claudeup-escape-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Create settings with a command containing > (shell redirect)
+	originalSettings := `{
+  "statusLine": {
+    "type": "command",
+    "command": "bash -c 'some-cmd 2>/dev/null | head -1'"
+  },
+  "enabledPlugins": {
+    "plugin1@marketplace": true
+  }
+}`
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(originalSettings), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Load and save settings (round-trip)
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	// Read back and verify > is NOT escaped as \u003e
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(savedData)
+	if indexOf(content, `\u003e`) != -1 {
+		t.Error("'>' was HTML-escaped to '\\u003e' in output; shell commands must preserve literal '>'")
+	}
+	if indexOf(content, `2>/dev/null`) == -1 {
+		t.Error("'2>/dev/null' should appear literally in output")
+	}
+}
+
+func TestEnabledPluginsPrettyPrinted(t *testing.T) {
+	// enabledPlugins must be pretty-printed with each key on its own line,
+	// not compacted to a single line.
+	tempDir, err := os.MkdirTemp("", "claudeup-plugins-format-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalSettings := `{
+  "enabledPlugins": {
+    "plugin-a@marketplace": true,
+    "plugin-b@marketplace": true
+  }
+}`
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(originalSettings), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(savedData)
+
+	// Each plugin key should be on its own indented line, not all on one line
+	if indexOf(content, `    "plugin-a@marketplace": true`) == -1 {
+		t.Errorf("plugin-a should be on its own indented line, got:\n%s", content)
+	}
+	if indexOf(content, `    "plugin-b@marketplace": true`) == -1 {
+		t.Errorf("plugin-b should be on its own indented line, got:\n%s", content)
+	}
+}
+
+func TestStatusLineKeyOrder(t *testing.T) {
+	// statusLine should preserve "type" before "command", not alphabetize
+	tempDir, err := os.MkdirTemp("", "claudeup-statusline-order-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalSettings := `{
+  "statusLine": {
+    "type": "command",
+    "command": "echo hello"
+  },
+  "enabledPlugins": {}
+}`
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(originalSettings), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(savedData)
+
+	typeIdx := indexOf(content, `"type"`)
+	commandIdx := indexOf(content, `"command"`)
+
+	if typeIdx == -1 {
+		t.Fatal("statusLine.type not found in output")
+	}
+	if commandIdx == -1 {
+		t.Fatal("statusLine.command not found in output")
+	}
+	if commandIdx < typeIdx {
+		t.Error("statusLine: 'type' should appear before 'command', but 'command' came first (keys were alphabetized)")
+	}
+}
+
 func TestNestedCanonicalKeyOrder(t *testing.T) {
 	// Create temp directory
 	tempDir, err := os.MkdirTemp("", "claudeup-nested-order-test-*")
@@ -725,9 +869,9 @@ func TestNestedCanonicalKeyOrder(t *testing.T) {
 	// The schema-defined order for hooks is: PreToolUse, PostToolUse, ..., SessionStart, SessionEnd
 	originalSettings := map[string]interface{}{
 		"permissions": map[string]interface{}{
-			"defaultMode": "default",                           // Should be 4th
-			"deny":        []interface{}{"Bash(rm -rf *)"},     // Should be 2nd
-			"allow":       []interface{}{"Read", "Glob"},       // Should be 1st
+			"defaultMode": "default",                          // Should be 4th
+			"deny":        []interface{}{"Bash(rm -rf *)"},    // Should be 2nd
+			"allow":       []interface{}{"Read", "Glob"},      // Should be 1st
 			"ask":         []interface{}{"Bash(npm install)"}, // Should be 3rd
 		},
 		"hooks": map[string]interface{}{
