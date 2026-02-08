@@ -12,22 +12,50 @@ import (
 )
 
 // resolvePluginFile resolves a relative file path within a plugin root directory.
-// It tries: exact match, SKILL.md inside directory, then common extensions.
+// It tries: exact match, SKILL.md inside skill directories, then common extensions.
+// Returns an error for paths that escape the plugin root.
 func resolvePluginFile(pluginRoot, filePath string) (string, error) {
-	fullPath := filepath.Join(pluginRoot, filePath)
+	// Reject absolute paths
+	if filepath.IsAbs(filePath) {
+		return "", fmt.Errorf("path traversal not allowed: %s", filePath)
+	}
+
+	// Clean the path and verify it stays within the plugin root
+	cleaned := filepath.Clean(filePath)
+	fullPath := filepath.Join(pluginRoot, cleaned)
+
+	// After joining and cleaning, verify the result is still under pluginRoot
+	absRoot, err := filepath.Abs(pluginRoot)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve plugin path: %w", err)
+	}
+	absTarget, err := filepath.Abs(fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve file path: %w", err)
+	}
+	if !strings.HasPrefix(absTarget, absRoot+string(filepath.Separator)) && absTarget != absRoot {
+		return "", fmt.Errorf("path traversal not allowed: %s", filePath)
+	}
 
 	// Exact match (file)
 	if info, err := os.Stat(fullPath); err == nil && !info.IsDir() {
 		return fullPath, nil
 	}
 
-	// If it's a directory, look for SKILL.md inside (skill convention)
+	// If it's a directory, apply SKILL.md convention only for skills/ subtree
 	if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
-		skillFile := filepath.Join(fullPath, "SKILL.md")
-		if _, err := os.Stat(skillFile); err == nil {
-			return skillFile, nil
+		rel, relErr := filepath.Rel(pluginRoot, fullPath)
+		if relErr == nil {
+			parts := strings.SplitN(rel, string(filepath.Separator), 2)
+			if parts[0] == "skills" {
+				skillFile := filepath.Join(fullPath, "SKILL.md")
+				if _, err := os.Stat(skillFile); err == nil {
+					return skillFile, nil
+				}
+				return "", fmt.Errorf("skill directory %q has no SKILL.md", filePath)
+			}
 		}
-		return "", fmt.Errorf("directory %q has no SKILL.md -- specify a file inside it", filePath)
+		return "", fmt.Errorf("%q is a directory; specify a file inside it", filePath)
 	}
 
 	// Try common extensions
