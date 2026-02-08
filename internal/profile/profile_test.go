@@ -753,6 +753,75 @@ func TestProfile_Equal_NilVsEmptyMaps(t *testing.T) {
 	}
 }
 
+func TestSaveProfileTrailingNewline(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	p := &Profile{
+		Name:    "test",
+		Plugins: []string{"plugin1@marketplace"},
+	}
+
+	if err := Save(profilesDir, p); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(profilesDir, "test.json"))
+	if err != nil {
+		t.Fatalf("Failed to read saved profile: %v", err)
+	}
+
+	if len(data) == 0 {
+		t.Fatal("Saved profile is empty")
+	}
+	if data[len(data)-1] != '\n' {
+		t.Error("Saved profile should end with a trailing newline")
+	}
+}
+
+func TestPreserveFromExisting(t *testing.T) {
+	// When overwriting an existing profile, localItems should be preserved
+	// from the original, not re-snapshotted.
+	existing := &Profile{
+		LocalItems: &LocalItemSettings{
+			Agents: []string{"original-agent"},
+		},
+	}
+
+	// Fresh snapshot picked up extra stuff from the environment
+	fresh := &Profile{
+		LocalItems: &LocalItemSettings{
+			Agents: []string{"original-agent", "extra-agent"},
+		},
+	}
+
+	fresh.PreserveFrom(existing)
+
+	if len(fresh.LocalItems.Agents) != 1 {
+		t.Errorf("Expected 1 agent (preserved), got %d", len(fresh.LocalItems.Agents))
+	}
+	if fresh.LocalItems.Agents[0] != "original-agent" {
+		t.Errorf("Expected original agent, got %q", fresh.LocalItems.Agents[0])
+	}
+}
+
+func TestPreserveFromExistingNilFields(t *testing.T) {
+	// When existing profile has no localItems, fresh should keep them nil
+	existing := &Profile{}
+
+	fresh := &Profile{
+		LocalItems: &LocalItemSettings{
+			Agents: []string{"extra-agent"},
+		},
+	}
+
+	fresh.PreserveFrom(existing)
+
+	if fresh.LocalItems != nil {
+		t.Errorf("Expected nil localItems (existing had none), got %v", fresh.LocalItems)
+	}
+}
+
 func TestProfileWithLocalItems(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilesDir := filepath.Join(tmpDir, "profiles")

@@ -1201,22 +1201,23 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
 
-	// Handle description: preserve existing custom descriptions, update generic ones
+	// When overwriting, preserve the existing profile's marketplaces, localItems, and description.
+	// These accumulate from various sources and the snapshot would pick up items
+	// installed by other tools (mpm, plugins, etc.) that aren't part of this profile.
+	existingProfile, _ := profile.Load(profilesDir, name)
+	if existingProfile != nil {
+		p.PreserveFrom(existingProfile)
+	}
+
+	// Handle description
 	if profileSaveDescription != "" {
 		// User provided explicit description via flag
 		p.Description = profileSaveDescription
-	} else {
-		// Check if existing profile has custom description
-		existingProfile, err := profile.Load(profilesDir, name)
-		if err == nil {
-			// Profile exists - preserve custom descriptions
-			if existingProfile.Description != "" && existingProfile.Description != "Snapshot of current Claude Code configuration" {
-				// Has custom description, preserve it
-				p.Description = existingProfile.Description
-			}
-			// Otherwise use auto-generated description (already set by Snapshot)
+	} else if existingProfile != nil {
+		// Preserve custom descriptions from existing profile
+		if existingProfile.Description != "" && existingProfile.Description != "Snapshot of current Claude Code configuration" {
+			p.Description = existingProfile.Description
 		}
-		// If profile doesn't exist, use auto-generated description (already set by Snapshot)
 	}
 
 	// Save

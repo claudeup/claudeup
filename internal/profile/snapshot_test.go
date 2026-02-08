@@ -402,6 +402,125 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 	}
 }
 
+func TestSnapshotOnlyCapturesMarketplacesUsedByPlugins(t *testing.T) {
+	// SnapshotAllScopes (used by profile save) filters marketplaces to only
+	// those referenced by enabled plugins. Marketplaces installed by other
+	// tools should be excluded.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plugins reference marketplaces via the @marketplace suffix
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"superpowers@superpowers-marketplace": true,
+			"claude-hud@claude-hud":               true,
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
+	// Registry has 3 marketplaces, but only 2 are used by plugins
+	registry := map[string]interface{}{
+		"superpowers-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "obra/superpowers-marketplace",
+			},
+		},
+		"claude-hud": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "jarrodwatts/claude-hud",
+			},
+		},
+		"unused-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "someone/unused-repo",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), registry)
+
+	// Create mock ~/.claude.json
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	// SnapshotAllScopes filters marketplaces by plugin references
+	p, err := SnapshotAllScopes("test-filter", claudeDir, claudeJSONPath, "")
+	if err != nil {
+		t.Fatalf("SnapshotAllScopes failed: %v", err)
+	}
+
+	// Should only have the 2 marketplaces referenced by plugins
+	if len(p.Marketplaces) != 2 {
+		t.Errorf("Expected 2 marketplaces (used by plugins), got %d: %v", len(p.Marketplaces), p.Marketplaces)
+	}
+
+	// Verify the unused marketplace was excluded
+	for _, m := range p.Marketplaces {
+		if m.Repo == "someone/unused-repo" {
+			t.Errorf("Marketplace %q should not be in snapshot (no plugins use it)", m.Repo)
+		}
+	}
+}
+
+func TestSnapshotReturnsAllMarketplacesForDiff(t *testing.T) {
+	// Snapshot (used by ComputeDiff) returns all marketplaces without
+	// filtering, so removals can be detected.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only one plugin enabled
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"superpowers@superpowers-marketplace": true,
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
+	// Registry has 2 marketplaces, but only 1 is used by plugins
+	registry := map[string]interface{}{
+		"superpowers-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "obra/superpowers-marketplace",
+			},
+		},
+		"unused-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "someone/unused-repo",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), registry)
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	p, err := Snapshot("test-all", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Snapshot returns ALL marketplaces (no filtering) for diff computation
+	if len(p.Marketplaces) != 2 {
+		t.Errorf("Expected 2 marketplaces (all, unfiltered), got %d: %v", len(p.Marketplaces), p.Marketplaces)
+	}
+}
+
 func TestSnapshotNoLocalItemsWhenConfigMissing(t *testing.T) {
 	// Create temp directories
 	tmpDir := t.TempDir()

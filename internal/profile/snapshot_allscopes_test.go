@@ -69,8 +69,9 @@ func TestSnapshotAllScopes(t *testing.T) {
 	mustWriteJSON(t, filepath.Join(projectDir, ".mcp.json"), projectMCP)
 
 	// Set up marketplaces (always user-scoped)
+	// The registry key must match the @suffix in plugin names for filtering
 	marketplaces := map[string]interface{}{
-		"test-marketplace": map[string]interface{}{
+		"marketplace": map[string]interface{}{
 			"source": map[string]interface{}{
 				"source": "github",
 				"repo":   "user/repo",

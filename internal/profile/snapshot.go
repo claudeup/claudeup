@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/claudeup/claudeup/v4/internal/claude"
 	"github.com/claudeup/claudeup/v4/internal/local"
@@ -69,8 +70,9 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOpti
 		p.Plugins = plugins
 	}
 
-	// Read marketplaces (always user-scoped)
-	marketplaces, err := readMarketplaces(claudeDir)
+	// Read all marketplaces (no filtering; this snapshot is used by ComputeDiff
+	// which needs all marketplaces to detect removals)
+	marketplaces, err := readMarketplaces(claudeDir, nil)
 	if err == nil {
 		p.Marketplaces = marketplaces
 	}
@@ -113,7 +115,22 @@ func readPluginsForScope(claudeDir, projectDir, scope string) ([]string, error) 
 	return plugins, nil
 }
 
-func readMarketplaces(claudeDir string) ([]Marketplace, error) {
+// marketplaceNamesFromPlugins extracts the set of marketplace names
+// referenced by plugin identifiers (the part after @).
+func marketplaceNamesFromPlugins(plugins []string) map[string]bool {
+	names := make(map[string]bool)
+	for _, plugin := range plugins {
+		parts := strings.SplitN(plugin, "@", 2)
+		if len(parts) == 2 && parts[1] != "" {
+			names[parts[1]] = true
+		}
+	}
+	return names
+}
+
+// readMarketplaces reads the marketplace registry and returns only marketplaces
+// that are referenced by at least one of the given plugins.
+func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error) {
 	marketplacesPath := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
 
 	data, err := os.ReadFile(marketplacesPath)
@@ -126,8 +143,14 @@ func readMarketplaces(claudeDir string) ([]Marketplace, error) {
 		return nil, err
 	}
 
+	usedNames := marketplaceNamesFromPlugins(plugins)
+
 	var marketplaces []Marketplace
-	for _, meta := range registry {
+	for name, meta := range registry {
+		// Only include marketplaces referenced by at least one plugin
+		if len(usedNames) > 0 && !usedNames[name] {
+			continue
+		}
 		m := Marketplace{
 			Source: meta.Source.Source,
 			Repo:   meta.Source.Repo,
@@ -281,9 +304,13 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 		PerScope: &PerScopeSettings{},
 	}
 
+	// Collect all plugins across scopes for marketplace filtering
+	var allPlugins []string
+
 	// Capture user scope
 	userPlugins, _ := readPluginsForScope(claudeDir, projectDir, "user")
 	userMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "user")
+	allPlugins = append(allPlugins, userPlugins...)
 	if len(userPlugins) > 0 || len(userMCP) > 0 {
 		p.PerScope.User = &ScopeSettings{
 			Plugins:    userPlugins,
@@ -295,6 +322,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 	if projectDir != "" {
 		projectPlugins, _ := readPluginsForScope(claudeDir, projectDir, "project")
 		projectMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "project")
+		allPlugins = append(allPlugins, projectPlugins...)
 		if len(projectPlugins) > 0 || len(projectMCP) > 0 {
 			p.PerScope.Project = &ScopeSettings{
 				Plugins:    projectPlugins,
@@ -307,6 +335,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 	if projectDir != "" {
 		localPlugins, _ := readPluginsForScope(claudeDir, projectDir, "local")
 		localMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "local")
+		allPlugins = append(allPlugins, localPlugins...)
 		if len(localPlugins) > 0 || len(localMCP) > 0 {
 			p.PerScope.Local = &ScopeSettings{
 				Plugins:    localPlugins,
@@ -315,8 +344,8 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 		}
 	}
 
-	// Marketplaces are always user-scoped, stored at profile level
-	marketplaces, err := readMarketplaces(claudeDir)
+	// Marketplaces are always user-scoped; only include those used by plugins
+	marketplaces, err := readMarketplaces(claudeDir, allPlugins)
 	if err == nil {
 		p.Marketplaces = marketplaces
 	}
