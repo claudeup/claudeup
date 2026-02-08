@@ -32,6 +32,41 @@ claudeup profile rename <old> <new> # Rename a custom profile
 claudeup profile suggest           # Get profile suggestion based on project
 ```
 
+## Viewing Profiles
+
+Use `profile show` to inspect a profile's contents:
+
+```bash
+claudeup profile show my-work
+```
+
+```text
+Profile: my-work
+Description: 3 marketplaces, 5 plugins, 1 MCP server
+
+Plugins:
+  - feature-dev@claude-plugins-official [user]
+  - superpowers@superpowers-marketplace [user]
+  - backend-dev@claude-code-workflows [project]
+
+MCP Servers:
+  - context7 (npx) [user]
+
+Marketplaces:
+  - anthropics/claude-plugins-official
+  - obra/superpowers-marketplace
+
+Local Items:
+  Agents:
+    - test-runner/test-runner.md
+  Commands:
+    - commit.md
+  Skills:
+    - golang
+```
+
+Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Local items are grouped by category.
+
 ## Profile Scopes
 
 Profiles can be applied at different scopes, allowing you to layer configurations:
@@ -374,17 +409,23 @@ claudeup profile save my-work --description "TAS development setup"
 claudeup profile save my-work
 ```
 
+**What gets captured:**
+
+- Plugins and MCP servers from all scopes (user, project, local)
+- Marketplaces referenced by at least one enabled plugin (unreferenced marketplaces are excluded)
+- Local items (agents, commands, skills, hooks, rules, output styles) that exist in the active directory
+
+**When re-saving an existing profile:**
+
+- Local items are preserved from the existing profile (not re-scanned from the system)
+- Marketplaces are always re-filtered based on current plugins
+- Custom descriptions are preserved unless overridden with `--description`
+
 **Auto-generated descriptions:**
 
 - Profiles automatically get meaningful descriptions based on their contents
 - Example: "2 marketplaces, 5 plugins" or "1 marketplace, 10 plugins, 2 MCP servers"
 - Empty profiles show "Empty profile"
-
-**Description preservation:**
-
-- Custom descriptions (set via `--description`) are preserved when re-saving
-- Old generic "Snapshot of current Claude Code configuration" descriptions are automatically updated to auto-generated ones
-- Use `--description` flag to override at any time
 
 ### Creating Profiles from Existing Ones
 
@@ -475,16 +516,21 @@ Profiles capture settings from all scopes (user, project, local) using the `perS
     "project": {
       "plugins": ["backend-development@claude-code-workflows"],
       "mcpServers": []
-    },
-    "local": {
-      "plugins": [],
-      "mcpServers": []
     }
+  },
+  "localItems": {
+    "agents": ["test-runner/test-runner.md"],
+    "commands": ["commit.md"],
+    "skills": ["golang"]
   }
 }
 ```
 
 When you run `profile save`, all three scopes are captured automatically. When you run `profile apply`, settings are restored to the correct scope.
+
+**Marketplace filtering:** Only marketplaces referenced by at least one enabled plugin are included. Marketplaces installed by other tools (e.g., mpm) that have no corresponding plugins in the profile are excluded.
+
+**Local items:** Enabled local items (agents, commands, skills, hooks, rules, output styles) are captured from the active directory. When re-saving an existing profile, local items are preserved from the original to prevent accumulation of items enabled by other tools.
 
 ### Legacy Format (backward compatible)
 

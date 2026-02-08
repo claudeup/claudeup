@@ -108,13 +108,36 @@ var nestedKeyOrders = map[string][]string{
 		"commit",
 		"pr",
 	},
+	"statusLine": {
+		"type",
+		"command",
+	},
+}
+
+// marshalJSON marshals a value to JSON without HTML escaping.
+// Go's json.Marshal escapes <, >, & for HTML safety, but settings values
+// contain shell commands where these characters must be preserved literally.
+func marshalJSON(value any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(value); err != nil {
+		return nil, err
+	}
+	// Encode appends a trailing newline; trim it
+	return bytes.TrimRight(buf.Bytes(), "\n"), nil
 }
 
 // marshalCanonical marshals a map to JSON with keys in Claude Code's canonical order.
 // Known keys appear in the order defined by canonicalKeyOrder, followed by
 // any unknown keys in alphabetical order. Nested objects are also ordered canonically.
 func marshalCanonical(data map[string]any) ([]byte, error) {
-	return marshalCanonicalWithIndent(data, "", canonicalKeyOrder)
+	b, err := marshalCanonicalWithIndent(data, "", canonicalKeyOrder)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure trailing newline (POSIX text file convention)
+	return append(b, '\n'), nil
 }
 
 // marshalCanonicalWithIndent handles recursive canonical marshaling with proper indentation.
@@ -154,7 +177,7 @@ func marshalCanonicalWithIndent(data map[string]any, indent string, keyOrder []s
 		value := data[key]
 
 		// Marshal key
-		keyJSON, err := json.Marshal(key)
+		keyJSON, err := marshalJSON(key)
 		if err != nil {
 			return nil, err
 		}
@@ -190,12 +213,21 @@ func marshalValueCanonical(value any, indent string, parentKey string) ([]byte, 
 		keyOrder := getNestedKeyOrder(parentKey)
 		return marshalCanonicalWithIndent(v, indent, keyOrder)
 
+	case map[string]bool:
+		// Convert to map[string]any so the canonical marshaler handles it
+		m := make(map[string]any, len(v))
+		for k, val := range v {
+			m[k] = val
+		}
+		keyOrder := getNestedKeyOrder(parentKey)
+		return marshalCanonicalWithIndent(m, indent, keyOrder)
+
 	case []any:
 		return marshalArrayCanonical(v, indent, parentKey)
 
 	default:
 		// For primitives and other types, use standard marshaling
-		return json.Marshal(value)
+		return marshalJSON(value)
 	}
 }
 
@@ -222,7 +254,7 @@ func marshalArrayCanonical(arr []any, indent string, parentKey string) ([]byte, 
 		case map[string]any:
 			elemJSON, err = marshalCanonicalWithIndent(e, nextIndent, elementKeyOrder)
 		default:
-			elemJSON, err = json.Marshal(elem)
+			elemJSON, err = marshalJSON(elem)
 		}
 
 		if err != nil {

@@ -73,7 +73,7 @@ Manage configuration profiles.
 
 ```bash
 claudeup profile list                        # List available profiles
-claudeup profile show <name>                 # Display profile contents
+claudeup profile show <name>                 # Display profile contents (with scope labels)
 claudeup profile current                     # Show active profile (with scope)
 claudeup profile status [name]               # Show differences from current Claude state
 claudeup profile diff <name>                 # Compare customized built-in to original

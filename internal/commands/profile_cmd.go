@@ -1201,22 +1201,24 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
 
-	// Handle description: preserve existing custom descriptions, update generic ones
+	// When overwriting, preserve localItems from the existing profile.
+	// LocalItems accumulate from various sources and the snapshot would pick
+	// up items enabled by other tools that aren't part of this profile.
+	// Marketplaces are already filtered by plugin references at snapshot time.
+	existingProfile, _ := profile.Load(profilesDir, name) // OK if doesn't exist
+	if existingProfile != nil {
+		p.PreserveFrom(existingProfile)
+	}
+
+	// Handle description
 	if profileSaveDescription != "" {
 		// User provided explicit description via flag
 		p.Description = profileSaveDescription
-	} else {
-		// Check if existing profile has custom description
-		existingProfile, err := profile.Load(profilesDir, name)
-		if err == nil {
-			// Profile exists - preserve custom descriptions
-			if existingProfile.Description != "" && existingProfile.Description != "Snapshot of current Claude Code configuration" {
-				// Has custom description, preserve it
-				p.Description = existingProfile.Description
-			}
-			// Otherwise use auto-generated description (already set by Snapshot)
+	} else if existingProfile != nil {
+		// Preserve custom descriptions from existing profile
+		if existingProfile.Description != "" && existingProfile.Description != "Snapshot of current Claude Code configuration" {
+			p.Description = existingProfile.Description
 		}
-		// If profile doesn't exist, use auto-generated description (already set by Snapshot)
 	}
 
 	// Save
@@ -1299,11 +1301,75 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	if len(p.MCPServers) > 0 {
+	if p.IsMultiScope() {
+		showMultiScopeProfile(p)
+	} else {
+		showLegacyProfile(p)
+	}
+
+	if len(p.Marketplaces) > 0 {
+		fmt.Println("Marketplaces:")
+		for _, m := range p.Marketplaces {
+			fmt.Printf("  - %s\n", m.DisplayName())
+		}
+		fmt.Println()
+	}
+
+	if p.LocalItems != nil {
+		showLocalItems(p.LocalItems)
+	}
+
+	return nil
+}
+
+func showMultiScopeProfile(p *profile.Profile) {
+	type scopeEntry struct {
+		label    string
+		settings *profile.ScopeSettings
+	}
+	scopes := []scopeEntry{
+		{"user", p.PerScope.User},
+		{"project", p.PerScope.Project},
+		{"local", p.PerScope.Local},
+	}
+
+	// Collect all plugins across scopes with labels
+	var hasPlugins bool
+	for _, s := range scopes {
+		if s.settings != nil && len(s.settings.Plugins) > 0 {
+			hasPlugins = true
+			break
+		}
+	}
+	if hasPlugins {
+		fmt.Println("Plugins:")
+		for _, s := range scopes {
+			if s.settings == nil || len(s.settings.Plugins) == 0 {
+				continue
+			}
+			for _, plug := range s.settings.Plugins {
+				fmt.Printf("  - %s [%s]\n", plug, s.label)
+			}
+		}
+		fmt.Println()
+	}
+
+	// Collect all MCP servers across scopes with labels
+	var hasMCP bool
+	for _, s := range scopes {
+		if s.settings != nil && len(s.settings.MCPServers) > 0 {
+			hasMCP = true
+			break
+		}
+	}
+	if hasMCP {
 		fmt.Println("MCP Servers:")
-		for _, m := range p.MCPServers {
-			fmt.Printf("  - %s (%s)\n", m.Name, m.Command)
-			if len(m.Secrets) > 0 {
+		for _, s := range scopes {
+			if s.settings == nil || len(s.settings.MCPServers) == 0 {
+				continue
+			}
+			for _, m := range s.settings.MCPServers {
+				fmt.Printf("  - %s (%s) [%s]\n", m.Name, m.Command, s.label)
 				for envVar := range m.Secrets {
 					fmt.Printf("      requires: %s\n", envVar)
 				}
@@ -1311,11 +1377,16 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Println()
 	}
+}
 
-	if len(p.Marketplaces) > 0 {
-		fmt.Println("Marketplaces:")
-		for _, m := range p.Marketplaces {
-			fmt.Printf("  - %s\n", m.DisplayName())
+func showLegacyProfile(p *profile.Profile) {
+	if len(p.MCPServers) > 0 {
+		fmt.Println("MCP Servers:")
+		for _, m := range p.MCPServers {
+			fmt.Printf("  - %s (%s)\n", m.Name, m.Command)
+			for envVar := range m.Secrets {
+				fmt.Printf("      requires: %s\n", envVar)
+			}
 		}
 		fmt.Println()
 	}
@@ -1327,8 +1398,44 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Println()
 	}
+}
 
-	return nil
+func showLocalItems(items *profile.LocalItemSettings) {
+	type category struct {
+		label string
+		items []string
+	}
+	categories := []category{
+		{"Agents", items.Agents},
+		{"Commands", items.Commands},
+		{"Skills", items.Skills},
+		{"Hooks", items.Hooks},
+		{"Rules", items.Rules},
+		{"Output Styles", items.OutputStyles},
+	}
+
+	var hasItems bool
+	for _, c := range categories {
+		if len(c.items) > 0 {
+			hasItems = true
+			break
+		}
+	}
+	if !hasItems {
+		return
+	}
+
+	fmt.Println("Local Items:")
+	for _, c := range categories {
+		if len(c.items) == 0 {
+			continue
+		}
+		fmt.Printf("  %s:\n", c.label)
+		for _, item := range c.items {
+			fmt.Printf("    - %s\n", item)
+		}
+	}
+	fmt.Println()
 }
 
 func runProfileStatus(cmd *cobra.Command, args []string) error {

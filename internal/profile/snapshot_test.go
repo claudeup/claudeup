@@ -345,6 +345,28 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 	}
 	writeJSON(t, filepath.Join(claudeDir, "enabled.json"), enabledData)
 
+	// Create corresponding active directory entries (symlinks/dirs)
+	for _, dir := range []string{
+		filepath.Join(claudeDir, "agents", "gsd-planner"),
+		filepath.Join(claudeDir, "agents", "gsd-executor"),
+		filepath.Join(claudeDir, "commands", "gsd"),
+		filepath.Join(claudeDir, "hooks"),
+	} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Create files for commands and hooks
+	for _, f := range []string{
+		filepath.Join(claudeDir, "commands", "gsd", "start"),
+		filepath.Join(claudeDir, "commands", "gsd", "stop"),
+		filepath.Join(claudeDir, "hooks", "gsd-check-update.js"),
+	} {
+		if err := os.WriteFile(f, []byte(""), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	// Create minimal settings.json
 	settingsData := map[string]interface{}{
 		"enabledPlugins": map[string]bool{},
@@ -399,6 +421,219 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 	expectedHooks := []string{"gsd-check-update.js"}
 	if len(p.LocalItems.Hooks) != len(expectedHooks) {
 		t.Errorf("Expected %d hooks, got %d: %v", len(expectedHooks), len(p.LocalItems.Hooks), p.LocalItems.Hooks)
+	}
+}
+
+func TestSnapshotExcludesStaleLocalItems(t *testing.T) {
+	// enabled.json may have stale entries (marked true but no corresponding
+	// symlink in the active directory). These should be excluded from snapshots.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Config has both a real entry and a stale entry
+	enabledData := map[string]map[string]bool{
+		"agents": {
+			"real-agent":  true, // has active directory entry
+			"stale-agent": true, // NO active directory entry (stale)
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "enabled.json"), enabledData)
+
+	// Only create active entry for real-agent
+	if err := os.MkdirAll(filepath.Join(claudeDir, "agents", "real-agent"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	p, err := Snapshot("test-stale", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Should only include real-agent, not stale-agent
+	if p.LocalItems == nil {
+		t.Fatal("Expected LocalItems to be non-nil")
+	}
+	if len(p.LocalItems.Agents) != 1 {
+		t.Errorf("Expected 1 agent (real-agent only), got %d: %v", len(p.LocalItems.Agents), p.LocalItems.Agents)
+	}
+	if len(p.LocalItems.Agents) > 0 && p.LocalItems.Agents[0] != "real-agent" {
+		t.Errorf("Expected real-agent, got %q", p.LocalItems.Agents[0])
+	}
+}
+
+func TestSnapshotAllScopesNoPluginsReturnsNoMarketplaces(t *testing.T) {
+	// When no plugins are enabled, SnapshotAllScopes should return no
+	// marketplaces (empty plugins means filter strictly, not include all).
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// No plugins enabled
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{
+		"enabledPlugins": map[string]bool{},
+	})
+
+	// Registry has marketplaces, but no plugins reference them
+	registry := map[string]interface{}{
+		"some-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "someone/repo",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), registry)
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	p, err := SnapshotAllScopes("no-plugins", claudeDir, claudeJSONPath, "")
+	if err != nil {
+		t.Fatalf("SnapshotAllScopes failed: %v", err)
+	}
+
+	// No plugins means no marketplaces should be included
+	if len(p.Marketplaces) != 0 {
+		t.Errorf("Expected 0 marketplaces when no plugins exist, got %d: %v", len(p.Marketplaces), p.Marketplaces)
+	}
+}
+
+func TestSnapshotOnlyCapturesMarketplacesUsedByPlugins(t *testing.T) {
+	// SnapshotAllScopes (used by profile save) filters marketplaces to only
+	// those referenced by enabled plugins. Marketplaces installed by other
+	// tools should be excluded.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Plugins reference marketplaces via the @marketplace suffix
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"superpowers@superpowers-marketplace": true,
+			"claude-hud@claude-hud":               true,
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
+	// Registry has 3 marketplaces, but only 2 are used by plugins
+	registry := map[string]interface{}{
+		"superpowers-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "obra/superpowers-marketplace",
+			},
+		},
+		"claude-hud": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "jarrodwatts/claude-hud",
+			},
+		},
+		"unused-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "someone/unused-repo",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), registry)
+
+	// Create mock ~/.claude.json
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	// SnapshotAllScopes filters marketplaces by plugin references
+	p, err := SnapshotAllScopes("test-filter", claudeDir, claudeJSONPath, "")
+	if err != nil {
+		t.Fatalf("SnapshotAllScopes failed: %v", err)
+	}
+
+	// Should only have the 2 marketplaces referenced by plugins
+	if len(p.Marketplaces) != 2 {
+		t.Errorf("Expected 2 marketplaces (used by plugins), got %d: %v", len(p.Marketplaces), p.Marketplaces)
+	}
+
+	// Verify the unused marketplace was excluded
+	for _, m := range p.Marketplaces {
+		if m.Repo == "someone/unused-repo" {
+			t.Errorf("Marketplace %q should not be in snapshot (no plugins use it)", m.Repo)
+		}
+	}
+}
+
+func TestSnapshotReturnsAllMarketplacesForDiff(t *testing.T) {
+	// Snapshot (used by ComputeDiff) returns all marketplaces without
+	// filtering, so removals can be detected.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only one plugin enabled
+	settingsData := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"superpowers@superpowers-marketplace": true,
+		},
+	}
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), settingsData)
+
+	// Registry has 2 marketplaces, but only 1 is used by plugins
+	registry := map[string]interface{}{
+		"superpowers-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "obra/superpowers-marketplace",
+			},
+		},
+		"unused-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "someone/unused-repo",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), registry)
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	p, err := Snapshot("test-all", claudeDir, claudeJSONPath)
+	if err != nil {
+		t.Fatalf("Snapshot failed: %v", err)
+	}
+
+	// Snapshot returns ALL marketplaces (no filtering) for diff computation
+	if len(p.Marketplaces) != 2 {
+		t.Errorf("Expected 2 marketplaces (all, unfiltered), got %d: %v", len(p.Marketplaces), p.Marketplaces)
 	}
 }
 

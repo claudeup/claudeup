@@ -261,6 +261,13 @@ type HookEntry struct {
 	Command string `json:"command"`
 }
 
+// PreserveFrom copies localItems from an existing profile.
+// When re-saving, this keeps only the local items the user originally saved,
+// preventing accumulation of items enabled by other tools.
+func (p *Profile) PreserveFrom(existing *Profile) {
+	p.LocalItems = existing.LocalItems
+}
+
 // Save writes a profile to the profiles directory
 func Save(profilesDir string, p *Profile) error {
 	if err := os.MkdirAll(profilesDir, 0755); err != nil {
@@ -273,6 +280,8 @@ func Save(profilesDir string, p *Profile) error {
 	if err != nil {
 		return err
 	}
+	// Ensure trailing newline (POSIX text file convention)
+	data = append(data, '\n')
 
 	// Wrap file write with event tracking
 	return events.GlobalTracker().RecordFileWrite(
