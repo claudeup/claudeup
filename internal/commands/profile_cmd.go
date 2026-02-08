@@ -1201,10 +1201,11 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
 
-	// When overwriting, preserve the existing profile's marketplaces, localItems, and description.
-	// These accumulate from various sources and the snapshot would pick up items
-	// installed by other tools (mpm, plugins, etc.) that aren't part of this profile.
-	existingProfile, _ := profile.Load(profilesDir, name)
+	// When overwriting, preserve localItems from the existing profile.
+	// LocalItems accumulate from various sources and the snapshot would pick
+	// up items enabled by other tools that aren't part of this profile.
+	// Marketplaces are already filtered by plugin references at snapshot time.
+	existingProfile, _ := profile.Load(profilesDir, name) // OK if doesn't exist
 	if existingProfile != nil {
 		p.PreserveFrom(existingProfile)
 	}

@@ -476,6 +476,48 @@ func TestSnapshotExcludesStaleLocalItems(t *testing.T) {
 	}
 }
 
+func TestSnapshotAllScopesNoPluginsReturnsNoMarketplaces(t *testing.T) {
+	// When no plugins are enabled, SnapshotAllScopes should return no
+	// marketplaces (empty plugins means filter strictly, not include all).
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// No plugins enabled
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{
+		"enabledPlugins": map[string]bool{},
+	})
+
+	// Registry has marketplaces, but no plugins reference them
+	registry := map[string]interface{}{
+		"some-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "someone/repo",
+			},
+		},
+	}
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), registry)
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	p, err := SnapshotAllScopes("no-plugins", claudeDir, claudeJSONPath, "")
+	if err != nil {
+		t.Fatalf("SnapshotAllScopes failed: %v", err)
+	}
+
+	// No plugins means no marketplaces should be included
+	if len(p.Marketplaces) != 0 {
+		t.Errorf("Expected 0 marketplaces when no plugins exist, got %d: %v", len(p.Marketplaces), p.Marketplaces)
+	}
+}
+
 func TestSnapshotOnlyCapturesMarketplacesUsedByPlugins(t *testing.T) {
 	// SnapshotAllScopes (used by profile save) filters marketplaces to only
 	// those referenced by enabled plugins. Marketplaces installed by other

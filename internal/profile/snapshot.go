@@ -70,9 +70,7 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOpti
 		p.Plugins = plugins
 	}
 
-	// Read all marketplaces (no filtering; this snapshot is used by ComputeDiff
-	// which needs all marketplaces to detect removals)
-	marketplaces, err := readMarketplaces(claudeDir, nil)
+	marketplaces, err := readAllMarketplaces(claudeDir)
 	if err == nil {
 		p.Marketplaces = marketplaces
 	}
@@ -128,8 +126,22 @@ func marketplaceNamesFromPlugins(plugins []string) map[string]bool {
 	return names
 }
 
-// readMarketplaces reads the marketplace registry and returns only marketplaces
-// that are referenced by at least one of the given plugins.
+// readAllMarketplaces returns all valid marketplaces from the registry.
+// Used by ComputeDiff which needs the full set to detect removals.
+func readAllMarketplaces(claudeDir string) ([]Marketplace, error) {
+	return readMarketplaces(claudeDir, nil)
+}
+
+// readUsedMarketplaces returns only marketplaces referenced by at least one
+// of the given plugins (matched by the @suffix in plugin names).
+// If plugins is empty, no marketplaces are returned.
+func readUsedMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error) {
+	return readMarketplaces(claudeDir, plugins)
+}
+
+// readMarketplaces reads the marketplace registry. When plugins is nil, all
+// marketplaces are returned. When plugins is non-nil, only marketplaces
+// referenced by at least one plugin are included (empty slice returns none).
 func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error) {
 	marketplacesPath := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
 
@@ -143,12 +155,15 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 		return nil, err
 	}
 
-	usedNames := marketplaceNamesFromPlugins(plugins)
+	var usedNames map[string]bool
+	if plugins != nil {
+		usedNames = marketplaceNamesFromPlugins(plugins)
+	}
 
 	var marketplaces []Marketplace
 	for name, meta := range registry {
-		// Only include marketplaces referenced by at least one plugin
-		if len(usedNames) > 0 && !usedNames[name] {
+		// When filtering, only include marketplaces referenced by plugins
+		if usedNames != nil && !usedNames[name] {
 			continue
 		}
 		m := Marketplace{
@@ -208,8 +223,8 @@ func readLocalItems(claudeDir string) (*LocalItemSettings, error) {
 			if !isEnabled {
 				continue
 			}
-			// Verify the item exists in the active directory
-			if _, err := os.Stat(filepath.Join(activeDir, name)); err != nil {
+			// Verify the item exists in the active directory (skip stale entries)
+			if _, err := os.Stat(filepath.Join(activeDir, name)); os.IsNotExist(err) {
 				continue
 			}
 			enabled = append(enabled, name)
@@ -311,8 +326,9 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 		PerScope: &PerScopeSettings{},
 	}
 
-	// Collect all plugins across scopes for marketplace filtering
-	var allPlugins []string
+	// Collect all plugins across scopes for marketplace filtering.
+	// Non-nil empty slice means "filter strictly" (no marketplaces if no plugins).
+	allPlugins := []string{}
 
 	// Capture user scope
 	userPlugins, _ := readPluginsForScope(claudeDir, projectDir, "user")
@@ -352,7 +368,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 	}
 
 	// Marketplaces are always user-scoped; only include those used by plugins
-	marketplaces, err := readMarketplaces(claudeDir, allPlugins)
+	marketplaces, err := readUsedMarketplaces(claudeDir, allPlugins)
 	if err == nil {
 		p.Marketplaces = marketplaces
 	}
