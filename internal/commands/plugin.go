@@ -26,6 +26,7 @@ var (
 	pluginListByScope    bool
 	pluginBrowseFormat   string
 	pluginBrowseShow     string
+	pluginShowRaw        bool
 )
 
 var pluginCmd = &cobra.Command{
@@ -81,15 +82,22 @@ Accepts marketplace name, repo (user/repo), or URL as identifier.`,
 }
 
 var pluginShowCmd = &cobra.Command{
-	Use:   "show <plugin>@<marketplace>",
+	Use:   "show <plugin>@<marketplace> [file]",
 	Short: "Show plugin contents",
-	Long: `Display the directory structure of a plugin in a marketplace.
+	Long: `Display the directory structure or file contents of a plugin.
 
-Shows Claude Code plugin components: agents/, commands/, skills/, hooks/, scripts/,
-.claude-plugin/, .mcp.json, and README.md. Other files are filtered out.`,
+Without a file argument, shows the plugin directory tree.
+With a file argument, displays the file contents. Markdown files are
+rendered for the terminal; use --raw for unformatted output.
+
+File paths are relative to the plugin root. Extension inference is
+supported (e.g. "agents/test" resolves to "agents/test.md").
+Skill directories resolve to their SKILL.md file.`,
 	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
-  claudeup plugin show my-plugin@acme-marketplace`,
-	Args:              cobra.ExactArgs(1),
+  claudeup plugin show my-plugin@acme-marketplace agents/test
+  claudeup plugin show my-plugin@acme-marketplace skills/awesome-skill
+  claudeup plugin show my-plugin@acme-marketplace agents/test --raw`,
+	Args:              cobra.RangeArgs(1, 2),
 	RunE:              runPluginShow,
 	ValidArgsFunction: pluginShowCompletionFunc,
 }
@@ -109,6 +117,7 @@ func init() {
 	pluginListCmd.Flags().BoolVar(&pluginListByScope, "by-scope", false, "Group enabled plugins by scope")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseFormat, "format", "", "Output format (table)")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseShow, "show", "", "Show contents of a specific plugin")
+	pluginShowCmd.Flags().BoolVar(&pluginShowRaw, "raw", false, "Output raw content without rendering")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
@@ -537,6 +546,15 @@ func runPluginShow(cmd *cobra.Command, args []string) error {
 
 	pluginName := parts[0]
 	marketplaceID := parts[1]
+
+	// If a file argument is provided, show file contents
+	if len(args) == 2 {
+		loc, err := resolvePluginPath(claudeDir, pluginName, marketplaceID)
+		if err != nil {
+			return err
+		}
+		return showPluginFile(loc.Path, args[1], pluginShowRaw)
+	}
 
 	return showPluginTree(pluginName, marketplaceID)
 }
