@@ -54,6 +54,9 @@ docker/claudeup*
 
 # Claude
 settings.local.json
+.claude-mpm/
+.mcp-vector-search/
+kuzu-memories/
 
 # Jekyll
 docs/_site/
