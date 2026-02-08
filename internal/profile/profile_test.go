@@ -885,6 +885,233 @@ func TestProfileWithLocalItems(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// List with nested profiles tests
+// ---------------------------------------------------------------------------
+
+func TestList_IncludesNestedProfiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create flat profile
+	if err := Save(profilesDir, &Profile{Name: "alpha", Description: "Alpha profile"}); err != nil {
+		t.Fatalf("Failed to save alpha: %v", err)
+	}
+
+	// Create nested profile
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create backend dir: %v", err)
+	}
+	data, err := json.Marshal(&Profile{Name: "api", Description: "API profile"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	listed, err := List(profilesDir)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(listed) != 2 {
+		t.Fatalf("Expected 2 profiles, got %d", len(listed))
+	}
+
+	// Sorted by name: alpha, api
+	if listed[0].Name != "alpha" {
+		t.Errorf("Profile 0: got %q, want %q", listed[0].Name, "alpha")
+	}
+	if listed[1].Name != "api" {
+		t.Errorf("Profile 1: got %q, want %q", listed[1].Name, "api")
+	}
+}
+
+func TestList_ProfileEntryRelPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create flat and nested profiles
+	if err := Save(profilesDir, &Profile{Name: "flat"}); err != nil {
+		t.Fatalf("Failed to save flat: %v", err)
+	}
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create backend dir: %v", err)
+	}
+	data, _ := json.Marshal(&Profile{Name: "nested"})
+	if err := os.WriteFile(filepath.Join(backendDir, "nested.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write: %v", err)
+	}
+
+	listed, err := List(profilesDir)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(listed) != 2 {
+		t.Fatalf("Expected 2, got %d", len(listed))
+	}
+
+	// Find each by name and check RelPath
+	relPaths := make(map[string]string)
+	for _, e := range listed {
+		relPaths[e.Name] = e.RelPath
+	}
+
+	if relPaths["flat"] != "flat.json" {
+		t.Errorf("flat RelPath = %q, want %q", relPaths["flat"], "flat.json")
+	}
+	if relPaths["nested"] != filepath.Join("backend", "nested.json") {
+		t.Errorf("nested RelPath = %q, want %q", relPaths["nested"], filepath.Join("backend", "nested.json"))
+	}
+}
+
+func TestList_DuplicateNamesBothReturned(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create api.json at root
+	if err := Save(profilesDir, &Profile{Name: "api", Description: "Root API"}); err != nil {
+		t.Fatalf("Failed to save root api: %v", err)
+	}
+
+	// Create api.json in backend/
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create dir: %v", err)
+	}
+	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write: %v", err)
+	}
+
+	listed, err := List(profilesDir)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(listed) != 2 {
+		t.Fatalf("Expected 2 profiles (duplicate names included), got %d", len(listed))
+	}
+
+	// Both should be named "api" with different RelPaths
+	for _, e := range listed {
+		if e.Name != "api" {
+			t.Errorf("Expected name 'api', got %q", e.Name)
+		}
+	}
+}
+
+func TestList_SortedByNameThenRelPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create profiles: alpha, backend/api, api (root)
+	if err := Save(profilesDir, &Profile{Name: "alpha"}); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	if err := Save(profilesDir, &Profile{Name: "api", Description: "Root API"}); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	listed, err := List(profilesDir)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(listed) != 3 {
+		t.Fatalf("Expected 3, got %d", len(listed))
+	}
+
+	// alpha, then api (root -- "api.json" < "backend/api.json"), then backend/api
+	if listed[0].Name != "alpha" {
+		t.Errorf("listed[0].Name = %q, want 'alpha'", listed[0].Name)
+	}
+	if listed[1].RelPath != "api.json" {
+		t.Errorf("listed[1].RelPath = %q, want 'api.json'", listed[1].RelPath)
+	}
+	if listed[2].RelPath != filepath.Join("backend", "api.json") {
+		t.Errorf("listed[2].RelPath = %q, want 'backend/api.json'", listed[2].RelPath)
+	}
+}
+
+func TestList_SkipsEmptySubdirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	if err := Save(profilesDir, &Profile{Name: "solo"}); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	// Create empty subdir
+	emptyDir := filepath.Join(profilesDir, "empty")
+	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	listed, err := List(profilesDir)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(listed) != 1 {
+		t.Errorf("Expected 1 profile, got %d", len(listed))
+	}
+}
+
+func TestList_SkipsNonJSONInSubdirs(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	if err := Save(profilesDir, &Profile{Name: "real"}); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	// Create non-JSON file in subdir
+	subDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(subDir, "readme.md"), []byte("# Profiles"), 0644); err != nil {
+		t.Fatalf("Failed: %v", err)
+	}
+
+	listed, err := List(profilesDir)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+
+	if len(listed) != 1 {
+		t.Errorf("Expected 1 profile, got %d", len(listed))
+	}
+}
+
+func TestProfileEntry_DisplayName(t *testing.T) {
+	tests := []struct {
+		relPath  string
+		expected string
+	}{
+		{"mobile.json", "mobile"},
+		{filepath.Join("backend", "api.json"), filepath.Join("backend", "api")},
+		{filepath.Join("team", "backend", "worker.json"), filepath.Join("team", "backend", "worker")},
+	}
+	for _, tt := range tests {
+		e := ProfileEntry{Profile: &Profile{Name: "test"}, RelPath: tt.relPath}
+		if got := e.DisplayName(); got != tt.expected {
+			t.Errorf("DisplayName(%q) = %q, want %q", tt.relPath, got, tt.expected)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // FindProfilePaths tests
 // ---------------------------------------------------------------------------
 

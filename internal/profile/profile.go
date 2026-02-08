@@ -407,44 +407,64 @@ func SaveToProject(projectDir string, p *Profile) error {
 	return Save(profilesDir, p)
 }
 
-// List returns all profiles in the profiles directory, sorted by name
-func List(profilesDir string) ([]*Profile, error) {
-	entries, err := os.ReadDir(profilesDir)
-	if os.IsNotExist(err) {
-		return []*Profile{}, nil
+// List returns all profiles in the profiles directory (including subdirectories),
+// sorted by name then by relative path for duplicates.
+func List(profilesDir string) ([]ProfileEntry, error) {
+	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+		return []ProfileEntry{}, nil
 	}
+
+	var entries []ProfileEntry
+	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip inaccessible entries
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+
+		p, err := LoadFromPath(path)
+		if err != nil {
+			return nil // skip invalid profiles
+		}
+
+		relPath, err := filepath.Rel(profilesDir, path)
+		if err != nil {
+			return nil
+		}
+
+		entries = append(entries, ProfileEntry{Profile: p, RelPath: relPath})
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var profiles []*Profile
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Name != entries[j].Name {
+			return entries[i].Name < entries[j].Name
 		}
-		if !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-
-		name := strings.TrimSuffix(entry.Name(), ".json")
-		p, err := Load(profilesDir, name)
-		if err != nil {
-			continue // Skip invalid profiles
-		}
-		profiles = append(profiles, p)
-	}
-
-	sort.Slice(profiles, func(i, j int) bool {
-		return profiles[i].Name < profiles[j].Name
+		return entries[i].RelPath < entries[j].RelPath
 	})
 
-	return profiles, nil
+	return entries, nil
 }
 
-// ProfileWithSource wraps a profile with its source location
+// ProfileWithSource wraps a profile with its source location and relative path
 type ProfileWithSource struct {
 	*Profile
-	Source string // "user" or "project"
+	Source  string // "user" or "project"
+	RelPath string // relative path within profiles dir (e.g. "backend/api.json")
+}
+
+// DisplayName returns the profile's display name for listing.
+// For root profiles, this is just the profile name.
+// For nested profiles, this is the relative path without the .json extension.
+func (p *ProfileWithSource) DisplayName() string {
+	return strings.TrimSuffix(p.RelPath, ".json")
 }
 
 // ListAll returns profiles from both user and project directories.
@@ -457,25 +477,36 @@ func ListAll(userProfilesDir, projectDir string) ([]*ProfileWithSource, error) {
 	projectProfilesDir := ProjectProfilesDir(projectDir)
 	projectProfiles, err := List(projectProfilesDir)
 	if err == nil {
-		for _, p := range projectProfiles {
-			all = append(all, &ProfileWithSource{Profile: p, Source: "project"})
-			seen[p.Name] = true
+		for _, entry := range projectProfiles {
+			all = append(all, &ProfileWithSource{
+				Profile: entry.Profile,
+				Source:  "project",
+				RelPath: entry.RelPath,
+			})
+			seen[entry.Name] = true
 		}
 	}
 
 	// List user profiles (skip if already in project)
 	userProfiles, err := List(userProfilesDir)
 	if err == nil {
-		for _, p := range userProfiles {
-			if !seen[p.Name] {
-				all = append(all, &ProfileWithSource{Profile: p, Source: "user"})
+		for _, entry := range userProfiles {
+			if !seen[entry.Name] {
+				all = append(all, &ProfileWithSource{
+					Profile: entry.Profile,
+					Source:  "user",
+					RelPath: entry.RelPath,
+				})
 			}
 		}
 	}
 
-	// Sort by name
+	// Sort by name, then by RelPath for duplicates
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].Name < all[j].Name
+		if all[i].Name != all[j].Name {
+			return all[i].Name < all[j].Name
+		}
+		return all[i].RelPath < all[j].RelPath
 	})
 
 	return all, nil

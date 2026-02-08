@@ -1719,15 +1719,21 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load all profiles
-	profiles, err := profile.List(profilesDir)
+	entries, err := profile.List(profilesDir)
 	if err != nil {
 		return fmt.Errorf("failed to list profiles: %w", err)
 	}
 
-	if len(profiles) == 0 {
+	if len(entries) == 0 {
 		fmt.Println("No profiles available.")
 		fmt.Println("Create one with: claudeup profile save <name>")
 		return nil
+	}
+
+	// Extract profile pointers for SuggestProfile
+	profiles := make([]*profile.Profile, len(entries))
+	for i, e := range entries {
+		profiles[i] = e.Profile
 	}
 
 	// Find matching profiles
@@ -1737,7 +1743,7 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 		fmt.Println("No profile matches the current directory.")
 		fmt.Println()
 		fmt.Println("Available profiles:")
-		for _, p := range profiles {
+		for _, p := range entries {
 			fmt.Printf("  - %s\n", p.Name)
 		}
 		return nil
@@ -1782,15 +1788,17 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 // getAllProfiles returns all available profiles (user + embedded), with user profiles taking precedence
 func getAllProfiles(profilesDir string) ([]*profile.Profile, error) {
 	// Load user profiles
-	userProfiles, err := profile.List(profilesDir)
+	userEntries, err := profile.List(profilesDir)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to list user profiles: %w", err)
 	}
 
-	// Track user profile names
+	// Extract profile pointers and track names
 	userNames := make(map[string]bool)
-	for _, p := range userProfiles {
-		userNames[p.Name] = true
+	userProfiles := make([]*profile.Profile, 0, len(userEntries))
+	for _, e := range userEntries {
+		userNames[e.Name] = true
+		userProfiles = append(userProfiles, e.Profile)
 	}
 
 	// Load embedded profiles (skip ones that exist on disk)
