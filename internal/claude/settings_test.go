@@ -806,6 +806,44 @@ func TestEnabledPluginsPrettyPrinted(t *testing.T) {
 	}
 }
 
+func TestSaveSettingsTrailingNewline(t *testing.T) {
+	// JSON files should end with a trailing newline (POSIX convention)
+	tempDir, err := os.MkdirTemp("", "claudeup-newline-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	originalSettings := `{
+  "enabledPlugins": {}
+}`
+	settingsPath := filepath.Join(tempDir, "settings.json")
+	if err := os.WriteFile(settingsPath, []byte(originalSettings), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	settings, err := LoadSettings(tempDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveSettings(tempDir, settings); err != nil {
+		t.Fatal(err)
+	}
+
+	savedData, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(savedData) == 0 {
+		t.Fatal("saved file is empty")
+	}
+	if savedData[len(savedData)-1] != '\n' {
+		t.Error("saved settings.json should end with a trailing newline")
+	}
+}
+
 func TestStatusLineKeyOrder(t *testing.T) {
 	// statusLine should preserve "type" before "command", not alphabetize
 	tempDir, err := os.MkdirTemp("", "claudeup-statusline-order-test-*")

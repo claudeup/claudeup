@@ -132,7 +132,12 @@ func marshalJSON(value any) ([]byte, error) {
 // Known keys appear in the order defined by canonicalKeyOrder, followed by
 // any unknown keys in alphabetical order. Nested objects are also ordered canonically.
 func marshalCanonical(data map[string]any) ([]byte, error) {
-	return marshalCanonicalWithIndent(data, "", canonicalKeyOrder)
+	b, err := marshalCanonicalWithIndent(data, "", canonicalKeyOrder)
+	if err != nil {
+		return nil, err
+	}
+	// Ensure trailing newline (POSIX text file convention)
+	return append(b, '\n'), nil
 }
 
 // marshalCanonicalWithIndent handles recursive canonical marshaling with proper indentation.
