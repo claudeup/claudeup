@@ -88,7 +88,8 @@ var pluginShowCmd = &cobra.Command{
 
 Without a file argument, shows the plugin directory tree.
 With a file argument, displays the file contents. Markdown files are
-rendered for the terminal; use --raw for unformatted output.
+rendered for the terminal; use --raw for unformatted output
+(useful for piping to other tools like glow or bat).
 
 File paths are relative to the plugin root. Extension inference is
 supported (e.g. "agents/test" resolves to "agents/test.md").
@@ -96,7 +97,8 @@ Skill directories resolve to their SKILL.md file.`,
 	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
   claudeup plugin show my-plugin@acme-marketplace agents/test
   claudeup plugin show my-plugin@acme-marketplace skills/awesome-skill
-  claudeup plugin show my-plugin@acme-marketplace agents/test --raw`,
+  claudeup plugin show my-plugin@acme-marketplace agents/test --raw
+  claudeup plugin show my-plugin@acme-marketplace agents/test --raw | glow`,
 	Args:              cobra.RangeArgs(1, 2),
 	RunE:              runPluginShow,
 	ValidArgsFunction: pluginShowCompletionFunc,

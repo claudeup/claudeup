@@ -82,11 +82,12 @@ var localViewCmd = &cobra.Command{
 	Long: `Display the contents of a local item from the library.
 
 Markdown files are rendered for the terminal. Use --raw for
-unformatted output suitable for piping.`,
+unformatted output (useful for piping to other tools like glow or bat).`,
 	Example: `  claudeup local view agents gsd-planner
   claudeup local view hooks format-on-save
   claudeup local view skills bash
-  claudeup local view agents gsd-planner --raw`,
+  claudeup local view agents gsd-planner --raw
+  claudeup local view agents gsd-planner --raw | glow`,
 	Args: cobra.ExactArgs(2),
 	RunE: runLocalView,
 }
