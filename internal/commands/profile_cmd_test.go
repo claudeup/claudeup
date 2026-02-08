@@ -3,6 +3,7 @@
 package commands
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -401,12 +402,23 @@ func TestResolveProfileArg_AmbiguousWithYesFlag(t *testing.T) {
 		t.Fatal("Expected ambiguity error with --yes flag, got nil")
 	}
 
-	if !strings.Contains(err.Error(), "ambiguous") {
-		t.Errorf("Expected error containing 'ambiguous', got %q", err.Error())
+	var ambigErr *profile.AmbiguousProfileError
+	if !errors.As(err, &ambigErr) {
+		t.Fatalf("Expected *AmbiguousProfileError, got %T: %v", err, err)
+	}
+	if ambigErr.Name != "api" {
+		t.Errorf("Expected Name 'api', got %q", ambigErr.Name)
 	}
 	// Should list the paths to help the user
-	if !strings.Contains(err.Error(), "backend/api") {
-		t.Errorf("Expected error to list paths including 'backend/api', got %q", err.Error())
+	found := false
+	for _, p := range ambigErr.Paths {
+		if p == "backend/api" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected paths to include 'backend/api', got %v", ambigErr.Paths)
 	}
 }
 

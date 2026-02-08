@@ -4,6 +4,7 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1180,10 +1181,16 @@ func TestLoad_AmbiguousNameReturnsError(t *testing.T) {
 		t.Fatal("Load should return an error for ambiguous profile name")
 	}
 
-	// Error message should mention ambiguity
-	errMsg := loadErr.Error()
-	if !strings.Contains(errMsg, "ambiguous") {
-		t.Errorf("Error should mention 'ambiguous', got: %q", errMsg)
+	// Error should be the typed AmbiguousProfileError
+	var ambigErr *AmbiguousProfileError
+	if !errors.As(loadErr, &ambigErr) {
+		t.Fatalf("Expected *AmbiguousProfileError, got %T: %v", loadErr, loadErr)
+	}
+	if ambigErr.Name != "api" {
+		t.Errorf("Expected Name 'api', got %q", ambigErr.Name)
+	}
+	if len(ambigErr.Paths) != 2 {
+		t.Errorf("Expected 2 paths, got %d: %v", len(ambigErr.Paths), ambigErr.Paths)
 	}
 }
 

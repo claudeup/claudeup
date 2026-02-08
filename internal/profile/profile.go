@@ -13,6 +13,18 @@ import (
 	"github.com/claudeup/claudeup/v4/internal/events"
 )
 
+// AmbiguousProfileError is returned when a profile name matches multiple files
+// in the profiles directory (e.g. both "profiles/api.json" and "profiles/backend/api.json").
+type AmbiguousProfileError struct {
+	Name  string   // the profile name that was searched for
+	Paths []string // relative paths of all matching profiles (forward-slash separated, without .json)
+}
+
+func (e *AmbiguousProfileError) Error() string {
+	return fmt.Sprintf("ambiguous profile name %q matches %d profiles: %s",
+		e.Name, len(e.Paths), strings.Join(e.Paths, ", "))
+}
+
 // Profile represents a Claude Code configuration profile
 type Profile struct {
 	Name           string         `json:"name"`
@@ -310,8 +322,8 @@ func Load(profilesDir, name string) (*Profile, error) {
 	case 1:
 		return LoadFromPath(paths[0])
 	default:
-		// Build relative paths for the error message
-		var relPaths []string
+		// Build relative paths for the error
+		relPaths := make([]string, 0, len(paths))
 		for _, p := range paths {
 			rel, err := filepath.Rel(profilesDir, p)
 			if err != nil {
@@ -319,8 +331,7 @@ func Load(profilesDir, name string) (*Profile, error) {
 			}
 			relPaths = append(relPaths, strings.TrimSuffix(filepath.ToSlash(rel), ".json"))
 		}
-		return nil, fmt.Errorf("ambiguous profile name %q matches %d profiles: %s",
-			name, len(paths), strings.Join(relPaths, ", "))
+		return nil, &AmbiguousProfileError{Name: name, Paths: relPaths}
 	}
 }
 
@@ -338,31 +349,31 @@ func (e ProfileEntry) DisplayName() string {
 	return strings.TrimSuffix(e.RelPath, ".json")
 }
 
-// FindProfilePaths walks profilesDir recursively and returns all absolute paths
+// FindProfilePaths walks profilesDir recursively and returns absolute paths
 // to .json files whose filename stem matches name.
 // If name contains a "/", it is treated as a relative path reference:
 // only profilesDir/name.json is checked (after validating the path stays within profilesDir).
 // Returns an empty slice (not an error) if profilesDir does not exist.
+// The profilesDir argument is resolved to an absolute path internally.
 func FindProfilePaths(profilesDir, name string) ([]string, error) {
+	// Ensure absolute profilesDir so WalkDir returns absolute paths
+	var err error
+	profilesDir, err = filepath.Abs(profilesDir)
+	if err != nil {
+		return nil, fmt.Errorf("invalid profiles directory: %w", err)
+	}
+
 	// Path reference mode: name contains "/"
 	if strings.Contains(name, "/") {
 		// Normalize to OS-specific separators for correct filepath operations
 		name = filepath.FromSlash(name)
-		target := filepath.Join(profilesDir, name+".json")
+		target := filepath.Clean(filepath.Join(profilesDir, name+".json"))
 		// Validate the resolved path stays within profilesDir to prevent traversal
-		absTarget, err := filepath.Abs(target)
-		if err != nil {
-			return nil, fmt.Errorf("invalid profile path: %w", err)
-		}
-		absDir, err := filepath.Abs(profilesDir)
-		if err != nil {
-			return nil, fmt.Errorf("invalid profiles directory: %w", err)
-		}
-		if absTarget != absDir && !strings.HasPrefix(absTarget, absDir+string(filepath.Separator)) {
+		if target != profilesDir && !strings.HasPrefix(target, profilesDir+string(filepath.Separator)) {
 			return nil, fmt.Errorf("invalid profile path %q: escapes profiles directory", name)
 		}
-		if _, err := os.Stat(absTarget); err == nil {
-			return []string{absTarget}, nil
+		if _, err := os.Stat(target); err == nil {
+			return []string{target}, nil
 		}
 		return []string{}, nil
 	}
@@ -373,7 +384,7 @@ func FindProfilePaths(profilesDir, name string) ([]string, error) {
 	}
 
 	matches := make([]string, 0, 8)
-	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
 				return filepath.SkipDir // skip unreadable subdirectories

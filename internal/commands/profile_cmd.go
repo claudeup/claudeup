@@ -4,6 +4,7 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -578,8 +579,7 @@ func resolveProfileArg(profilesDir, nameOrPath string) (string, error) {
 		}
 
 		if config.YesFlag {
-			return "", fmt.Errorf("ambiguous profile name %q matches multiple profiles:\n  %s\nUse a path to disambiguate (e.g., %s)",
-				nameOrPath, strings.Join(relPaths, "\n  "), relPaths[len(relPaths)-1])
+			return "", &profile.AmbiguousProfileError{Name: nameOrPath, Paths: relPaths}
 		}
 
 		// Interactive disambiguation
@@ -970,6 +970,11 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 			return fmt.Errorf("failed to load profile %q: %w", name, loadErr)
 		}
 	} else {
+		// Surface ambiguity and other non-not-found errors directly
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(resolveErr, &ambigErr) {
+			return resolveErr
+		}
 		// Not found on disk -- try embedded profiles
 		var embeddedErr error
 		p, embeddedErr = profile.GetEmbeddedProfile(name)
@@ -1688,6 +1693,11 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	// Check if there's a customized version on disk
 	resolvedPath, err := resolveProfileArg(profilesDir, name)
 	if err != nil {
+		// Surface ambiguity errors so the user can disambiguate
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(err, &ambigErr) {
+			return err
+		}
 		// No customized version found - no differences
 		fmt.Printf("Profile '%s' has not been customized.\n", name)
 		fmt.Println("No differences from the built-in version.")
@@ -1828,7 +1838,7 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println("Available profiles:")
 		for _, p := range entries {
-			fmt.Printf("  - %s\n", p.Name)
+			fmt.Printf("  - %s\n", p.DisplayName())
 		}
 		return nil
 	}
@@ -1867,7 +1877,8 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 	}
 
 	// Propagate ambiguity errors -- don't fall back to embedded
-	if strings.Contains(err.Error(), "ambiguous") {
+	var ambigErr *profile.AmbiguousProfileError
+	if errors.As(err, &ambigErr) {
 		return nil, err
 	}
 
@@ -2429,6 +2440,11 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 
 	// Check if it's a built-in profile
 	if profile.IsEmbeddedProfile(name) {
+		// Surface ambiguity errors so the user can disambiguate
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(resolveErr, &ambigErr) {
+			return resolveErr
+		}
 		if resolveErr == nil {
 			return fmt.Errorf("profile %q is a customized built-in profile. Use 'claudeup profile restore %s' instead", name, name)
 		}
@@ -2493,6 +2509,11 @@ func runProfileRestore(cmd *cobra.Command, args []string) error {
 	// Resolve the customization file on disk
 	profilePath, err := resolveProfileArg(profilesDir, name)
 	if err != nil {
+		// Surface ambiguity errors so the user can disambiguate
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(err, &ambigErr) {
+			return err
+		}
 		return fmt.Errorf("profile %q has no customizations to restore from", name)
 	}
 
@@ -2550,12 +2571,8 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 		if !config.YesFlag {
 			return fmt.Errorf("profile %q already exists. Use -y to overwrite", newName)
 		}
-		// Resolve and remove existing target profile
-		targetPath, resolveErr := resolveProfileArg(profilesDir, newName)
-		if resolveErr != nil {
-			return fmt.Errorf("failed to resolve existing profile: %w", resolveErr)
-		}
-		if err := os.Remove(targetPath); err != nil {
+		// Remove the existing target at the known root path (Save writes to root)
+		if err := os.Remove(newPath); err != nil {
 			return fmt.Errorf("failed to remove existing profile: %w", err)
 		}
 	}
