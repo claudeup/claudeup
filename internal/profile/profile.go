@@ -317,7 +317,7 @@ func Load(profilesDir, name string) (*Profile, error) {
 			if err != nil {
 				rel = p
 			}
-			relPaths = append(relPaths, strings.TrimSuffix(rel, ".json"))
+			relPaths = append(relPaths, strings.TrimSuffix(filepath.ToSlash(rel), ".json"))
 		}
 		return nil, fmt.Errorf("ambiguous profile name %q matches %d profiles: %s",
 			name, len(paths), strings.Join(relPaths, ", "))
@@ -341,14 +341,26 @@ func (e ProfileEntry) DisplayName() string {
 // FindProfilePaths walks profilesDir recursively and returns all absolute paths
 // to .json files whose filename stem matches name.
 // If name contains a "/", it is treated as a relative path reference:
-// only profilesDir/name.json is checked.
+// only profilesDir/name.json is checked (after validating the path stays within profilesDir).
 // Returns an empty slice (not an error) if profilesDir does not exist.
 func FindProfilePaths(profilesDir, name string) ([]string, error) {
 	// Path reference mode: name contains "/"
 	if strings.Contains(name, "/") {
 		target := filepath.Join(profilesDir, name+".json")
-		if _, err := os.Stat(target); err == nil {
-			return []string{target}, nil
+		// Validate the resolved path stays within profilesDir to prevent traversal
+		absTarget, err := filepath.Abs(target)
+		if err != nil {
+			return nil, fmt.Errorf("invalid profile path: %w", err)
+		}
+		absDir, err := filepath.Abs(profilesDir)
+		if err != nil {
+			return nil, fmt.Errorf("invalid profiles directory: %w", err)
+		}
+		if !strings.HasPrefix(absTarget, absDir+string(filepath.Separator)) {
+			return nil, fmt.Errorf("invalid profile path %q: escapes profiles directory", name)
+		}
+		if _, err := os.Stat(absTarget); err == nil {
+			return []string{absTarget}, nil
 		}
 		return []string{}, nil
 	}
@@ -361,7 +373,7 @@ func FindProfilePaths(profilesDir, name string) ([]string, error) {
 	var matches []string
 	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip inaccessible entries
+			return err
 		}
 		if d.IsDir() {
 			return nil
@@ -425,7 +437,7 @@ func List(profilesDir string) ([]ProfileEntry, error) {
 	var entries []ProfileEntry
 	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil // skip inaccessible entries
+			return err
 		}
 		if d.IsDir() {
 			return nil
@@ -434,17 +446,17 @@ func List(profilesDir string) ([]ProfileEntry, error) {
 			return nil
 		}
 
-		p, err := LoadFromPath(path)
-		if err != nil {
-			return nil // skip invalid profiles
+		p, loadErr := LoadFromPath(path)
+		if loadErr != nil {
+			return nil // skip invalid profiles (bad JSON, etc.)
 		}
 
-		relPath, err := filepath.Rel(profilesDir, path)
-		if err != nil {
-			return nil
+		relPath, relErr := filepath.Rel(profilesDir, path)
+		if relErr != nil {
+			return relErr
 		}
 
-		entries = append(entries, ProfileEntry{Profile: p, RelPath: relPath})
+		entries = append(entries, ProfileEntry{Profile: p, RelPath: filepath.ToSlash(relPath)})
 		return nil
 	})
 	if err != nil {

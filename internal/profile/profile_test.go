@@ -941,7 +941,10 @@ func TestList_ProfileEntryRelPath(t *testing.T) {
 	if err := os.MkdirAll(backendDir, 0755); err != nil {
 		t.Fatalf("Failed to create backend dir: %v", err)
 	}
-	data, _ := json.Marshal(&Profile{Name: "nested"})
+	data, err := json.Marshal(&Profile{Name: "nested"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(backendDir, "nested.json"), data, 0644); err != nil {
 		t.Fatalf("Failed to write: %v", err)
 	}
@@ -964,8 +967,8 @@ func TestList_ProfileEntryRelPath(t *testing.T) {
 	if relPaths["flat"] != "flat.json" {
 		t.Errorf("flat RelPath = %q, want %q", relPaths["flat"], "flat.json")
 	}
-	if relPaths["nested"] != filepath.Join("backend", "nested.json") {
-		t.Errorf("nested RelPath = %q, want %q", relPaths["nested"], filepath.Join("backend", "nested.json"))
+	if relPaths["nested"] != "backend/nested.json" {
+		t.Errorf("nested RelPath = %q, want %q", relPaths["nested"], "backend/nested.json")
 	}
 }
 
@@ -983,7 +986,10 @@ func TestList_DuplicateNamesBothReturned(t *testing.T) {
 	if err := os.MkdirAll(backendDir, 0755); err != nil {
 		t.Fatalf("Failed to create dir: %v", err)
 	}
-	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	data, err := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
 		t.Fatalf("Failed to write: %v", err)
 	}
@@ -1020,7 +1026,10 @@ func TestList_SortedByNameThenRelPath(t *testing.T) {
 	if err := os.MkdirAll(backendDir, 0755); err != nil {
 		t.Fatalf("Failed: %v", err)
 	}
-	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	data, err := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
 		t.Fatalf("Failed: %v", err)
 	}
@@ -1041,7 +1050,7 @@ func TestList_SortedByNameThenRelPath(t *testing.T) {
 	if listed[1].RelPath != "api.json" {
 		t.Errorf("listed[1].RelPath = %q, want 'api.json'", listed[1].RelPath)
 	}
-	if listed[2].RelPath != filepath.Join("backend", "api.json") {
+	if listed[2].RelPath != "backend/api.json" {
 		t.Errorf("listed[2].RelPath = %q, want 'backend/api.json'", listed[2].RelPath)
 	}
 }
@@ -1101,8 +1110,8 @@ func TestProfileEntry_DisplayName(t *testing.T) {
 		expected string
 	}{
 		{"mobile.json", "mobile"},
-		{filepath.Join("backend", "api.json"), filepath.Join("backend", "api")},
-		{filepath.Join("team", "backend", "worker.json"), filepath.Join("team", "backend", "worker")},
+		{"backend/api.json", "backend/api"},
+		{"team/backend/worker.json", "team/backend/worker"},
 	}
 	for _, tt := range tests {
 		e := ProfileEntry{Profile: &Profile{Name: "test"}, RelPath: tt.relPath}
@@ -1125,7 +1134,10 @@ func TestLoad_FindsNestedProfile(t *testing.T) {
 	if err := os.MkdirAll(backendDir, 0755); err != nil {
 		t.Fatalf("Failed to create dir: %v", err)
 	}
-	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	data, err := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
 		t.Fatalf("Failed to write: %v", err)
 	}
@@ -1155,18 +1167,21 @@ func TestLoad_AmbiguousNameReturnsError(t *testing.T) {
 	if err := os.MkdirAll(backendDir, 0755); err != nil {
 		t.Fatalf("Failed to create dir: %v", err)
 	}
-	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	data, err := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
 		t.Fatalf("Failed to write: %v", err)
 	}
 
-	_, err := Load(profilesDir, "api")
-	if err == nil {
+	_, loadErr := Load(profilesDir, "api")
+	if loadErr == nil {
 		t.Fatal("Load should return an error for ambiguous profile name")
 	}
 
 	// Error message should mention ambiguity
-	errMsg := err.Error()
+	errMsg := loadErr.Error()
 	if !strings.Contains(errMsg, "ambiguous") {
 		t.Errorf("Error should mention 'ambiguous', got: %q", errMsg)
 	}
@@ -1184,7 +1199,10 @@ func TestLoad_PathReferenceResolvesDirectly(t *testing.T) {
 	if err := os.MkdirAll(backendDir, 0755); err != nil {
 		t.Fatalf("Failed to create dir: %v", err)
 	}
-	data, _ := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	data, err := json.Marshal(&Profile{Name: "api", Description: "Backend API"})
+	if err != nil {
+		t.Fatalf("Failed to marshal: %v", err)
+	}
 	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
 		t.Fatalf("Failed to write: %v", err)
 	}
@@ -1479,6 +1497,31 @@ func TestFindProfilePaths_PathReference(t *testing.T) {
 	expected := filepath.Join(profilesDir, "backend", "api.json")
 	if paths[0] != expected {
 		t.Errorf("Expected path %q, got %q", expected, paths[0])
+	}
+}
+
+func TestFindProfilePaths_PathTraversalBlocked(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+
+	// Create a file outside profilesDir to ensure it can't be reached
+	outsidePath := filepath.Join(tmpDir, "secret.json")
+	if err := os.WriteFile(outsidePath, []byte(`{"name":"secret"}`), 0644); err != nil {
+		t.Fatalf("Failed to write outside file: %v", err)
+	}
+
+	// Attempt traversal with "../"
+	_, err := FindProfilePaths(profilesDir, "../secret")
+	if err == nil {
+		t.Fatal("Expected error for path traversal attempt, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "escapes profiles directory") {
+		t.Errorf("Expected 'escapes profiles directory' error, got: %q", err.Error())
 	}
 }
 
