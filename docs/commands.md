@@ -93,6 +93,15 @@ claudeup profile save my-work --description "My work setup"
 claudeup profile clone home --from work --description "Home setup"
 ```
 
+**`profile list` flags:**
+
+| Flag        | Description              |
+| ----------- | ------------------------ |
+| `--scope`   | Filter to specific scope |
+| `--user`    | Show only user scope     |
+| `--project` | Show only project scope  |
+| `--local`   | Show only local scope    |
+
 #### Project-Level Profiles
 
 Apply profiles at project scope for team sharing:
@@ -126,6 +135,7 @@ claudeup profile apply frontend --local
 | `-f, --force`      | Force reapply even with unsaved changes                         |
 | `--reinstall`      | Force reinstall all plugins and marketplaces                    |
 | `--no-progress`    | Disable progress display (for CI/scripting)                     |
+| `--dry-run`        | Show what would be changed without making modifications         |
 
 **Replace mode:**
 
@@ -261,9 +271,12 @@ Claude Code uses three scope levels (in precedence order):
 
 **`scope list` flags:**
 
-| Flag      | Description                              |
-| --------- | ---------------------------------------- |
-| `--scope` | Filter to scope: user, project, or local |
+| Flag        | Description                              |
+| ----------- | ---------------------------------------- |
+| `--scope`   | Filter to scope: user, project, or local |
+| `--user`    | Show only user scope                     |
+| `--project` | Show only project scope                  |
+| `--local`   | Show only local scope                    |
 
 **`scope clear` flags:**
 
@@ -312,9 +325,12 @@ Shows marketplaces, plugin counts, MCP servers, and any detected issues.
 
 **Flags:**
 
-| Flag      | Description                              |
-| --------- | ---------------------------------------- |
-| `--scope` | Filter to scope: user, project, or local |
+| Flag        | Description                              |
+| ----------- | ---------------------------------------- |
+| `--scope`   | Filter to scope: user, project, or local |
+| `--user`    | Show only user scope                     |
+| `--project` | Show only project scope                  |
+| `--local`   | Show only local scope                    |
 
 ### plugin
 
@@ -425,6 +441,119 @@ claudeup mcp list                              # List all MCP servers
 claudeup mcp disable <plugin>:<server>         # Disable specific server
 claudeup mcp enable <plugin>:<server>          # Re-enable server
 ```
+
+## Local Extensions
+
+### local
+
+Manage local Claude Code extensions (agents, commands, skills, hooks, rules, output-styles) from `~/.claude/.library`.
+
+```bash
+claudeup local list                          # List all items and enabled status
+claudeup local list agents                   # List items in a category
+claudeup local list --enabled                # Show only enabled items
+claudeup local list hooks --disabled         # Show only disabled hooks
+claudeup local enable <category> <items...>  # Enable items (supports wildcards)
+claudeup local disable <category> <items...> # Disable items (supports wildcards)
+claudeup local view <category> <item>        # View item contents
+claudeup local sync                          # Recreate symlinks from enabled.json
+claudeup local import <category> <items...>  # Move items from active dir to .library
+claudeup local import-all [patterns...]      # Import items from all categories
+claudeup local install <category> <path>     # Install items from an external path
+```
+
+**Categories:** `agents`, `commands`, `skills`, `hooks`, `rules`, `output-styles`
+
+**`local list` flags:**
+
+| Flag             | Description              |
+| ---------------- | ------------------------ |
+| `-e, --enabled`  | Show only enabled items  |
+| `-d, --disabled` | Show only disabled items |
+
+**Wildcard support (enable, disable, import):**
+
+| Pattern | Description                       |
+| ------- | --------------------------------- |
+| `gsd-*` | Items starting with "gsd-"        |
+| `gsd/*` | All items in the "gsd/" directory |
+| `*`     | All items in the category         |
+
+**Import commands:**
+
+`import` moves items from active directories (`~/.claude/<category>/`) to `.library` and creates symlinks back. Use when tools install directly to active directories instead of `.library`.
+
+`import-all` scans all categories at once. Without patterns, imports everything. With patterns, only matching items.
+
+`install` copies items from an external path (git repos, downloads) to `.library` and enables them.
+
+## Event Tracking
+
+### events
+
+View file operation history.
+
+```bash
+claudeup events                              # Show recent events (last 20)
+claudeup events --limit 50                   # Show last 50 events
+claudeup events --file ~/.claude/settings.json
+claudeup events --operation "profile apply"
+claudeup events --user                       # User scope only
+claudeup events --since 24h
+```
+
+**Flags:**
+
+| Flag          | Description                                    |
+| ------------- | ---------------------------------------------- |
+| `--file`      | Filter by file path                            |
+| `--operation` | Filter by operation name                       |
+| `--scope`     | Filter by scope (user/project/local)           |
+| `--user`      | Filter to user scope                           |
+| `--project`   | Filter to project scope                        |
+| `--local`     | Filter to local scope                          |
+| `--since`     | Show events since duration (e.g., `24h`, `7d`) |
+| `--limit`     | Maximum number of events to show (default: 20) |
+
+### events diff
+
+Show detailed changes for a file operation.
+
+```bash
+claudeup events diff --file ~/.claude/settings.json
+claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
+```
+
+**Flags:**
+
+| Flag     | Description                                     |
+| -------- | ----------------------------------------------- |
+| `--file` | File path to show diff for (required)           |
+| `--full` | Show complete nested objects without truncation |
+
+### events audit
+
+Generate comprehensive audit trail with summary statistics.
+
+```bash
+claudeup events audit                        # Last 7 days, all scopes
+claudeup events audit --user                 # User scope only
+claudeup events audit --since 30d            # Last 30 days
+claudeup events audit --since 2025-01-01     # Since specific date
+claudeup events audit --format markdown > report.md
+```
+
+**Flags:**
+
+| Flag          | Description                                                        |
+| ------------- | ------------------------------------------------------------------ |
+| `--scope`     | Filter by scope (user/project/local)                               |
+| `--user`      | Filter to user scope                                               |
+| `--project`   | Filter to project scope                                            |
+| `--local`     | Filter to local scope                                              |
+| `--operation` | Filter by operation name                                           |
+| `--since`     | Duration (e.g., `7d`, `30d`) or date (`YYYY-MM-DD`); default: `7d` |
+| `--format`    | Output format: `text` or `markdown` (default: `text`)              |
 
 ## Maintenance
 
