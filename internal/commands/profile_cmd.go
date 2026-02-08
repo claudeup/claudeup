@@ -536,11 +536,67 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// profileExists checks if a profile file exists on disk
+// profileExists checks if a profile file exists on disk, searching subdirectories
 func profileExists(profilesDir, name string) bool {
-	path := filepath.Join(profilesDir, name+".json")
-	_, err := os.Stat(path)
-	return err == nil
+	paths, err := profile.FindProfilePaths(profilesDir, name)
+	if err != nil {
+		return false
+	}
+	return len(paths) > 0
+}
+
+// resolveProfileArg resolves a profile name or path reference to an absolute file path.
+// If the name is ambiguous (multiple profiles share the same name), it prompts interactively
+// or returns an error in non-interactive (--yes) mode.
+func resolveProfileArg(profilesDir, nameOrPath string) (string, error) {
+	paths, err := profile.FindProfilePaths(profilesDir, nameOrPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to search profiles: %w", err)
+	}
+
+	switch len(paths) {
+	case 0:
+		return "", fmt.Errorf("profile %q not found", nameOrPath)
+	case 1:
+		return paths[0], nil
+	default:
+		// Multiple matches -- need disambiguation
+		relPaths := make([]string, len(paths))
+		for i, p := range paths {
+			rel, err := filepath.Rel(profilesDir, p)
+			if err != nil {
+				rel = p
+			}
+			relPaths[i] = strings.TrimSuffix(rel, ".json")
+		}
+
+		if config.YesFlag {
+			return "", fmt.Errorf("ambiguous profile name %q matches multiple profiles:\n  %s\nUse a path to disambiguate (e.g., %s)",
+				nameOrPath, strings.Join(relPaths, "\n  "), relPaths[len(relPaths)-1])
+		}
+
+		// Interactive disambiguation
+		fmt.Printf("\nMultiple profiles match %q:\n\n", nameOrPath)
+		for i, rp := range relPaths {
+			fmt.Printf("  %d) %s\n", i+1, rp)
+		}
+		fmt.Println()
+
+		fmt.Print("Enter number: ")
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("failed to read input: %w", err)
+		}
+		input = strings.TrimSpace(input)
+
+		num, err := strconv.Atoi(input)
+		if err != nil || num < 1 || num > len(paths) {
+			return "", fmt.Errorf("invalid selection: %s (must be 1-%d)", input, len(paths))
+		}
+
+		return paths[num-1], nil
+	}
 }
 
 func init() {
@@ -1180,8 +1236,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if profile already exists (only prompt if explicitly named, not when saving to active profile)
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	if profileExists(profilesDir, name) {
 		if !isActiveProfile && !config.YesFlag {
 			fmt.Printf("%s Profile %q already exists. ", ui.Warning(ui.SymbolWarning), name)
 			choice := promptChoice("Overwrite?", "n")
@@ -1602,16 +1657,19 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if there's a customized version on disk
-	customizedPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(customizedPath); os.IsNotExist(err) {
+	customizedPaths, err := profile.FindProfilePaths(profilesDir, name)
+	if err != nil {
+		return fmt.Errorf("failed to search for profile: %w", err)
+	}
+	if len(customizedPaths) == 0 {
 		// No customized version - no differences
 		fmt.Printf("Profile '%s' has not been customized.\n", name)
 		fmt.Println("No differences from the built-in version.")
 		return nil
 	}
 
-	// Load the customized version
-	customized, err := profile.Load(profilesDir, name)
+	// Load the customized version (use first match for embedded profile diff)
+	customized, err := profile.LoadFromPath(customizedPaths[0])
 	if err != nil {
 		return fmt.Errorf("failed to load customized profile: %w", err)
 	}
@@ -1877,8 +1935,7 @@ func validateNewProfileName(name, profilesDir string) error {
 	if err := profile.ValidateName(name); err != nil {
 		return err
 	}
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	if profileExists(profilesDir, name) {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 	return nil
@@ -1978,8 +2035,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if profile already exists
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	if profileExists(profilesDir, name) {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 
@@ -2099,8 +2155,7 @@ func runProfileClone(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if target profile already exists
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	if profileExists(profilesDir, name) {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 
@@ -2339,17 +2394,16 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	// Check if it's a built-in profile
 	if profile.IsEmbeddedProfile(name) {
 		// Check if it has customizations
-		profilePath := filepath.Join(profilesDir, name+".json")
-		if _, err := os.Stat(profilePath); err == nil {
+		if profileExists(profilesDir, name) {
 			return fmt.Errorf("profile %q is a customized built-in profile. Use 'claudeup profile restore %s' instead", name, name)
 		}
 		return fmt.Errorf("profile %q is a built-in profile and cannot be deleted", name)
 	}
 
-	// Check if profile file exists on disk
-	profilePath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
-		return fmt.Errorf("profile %q not found", name)
+	// Resolve the profile to an exact path (handles nested profiles and disambiguation)
+	profilePath, err := resolveProfileArg(profilesDir, name)
+	if err != nil {
+		return err
 	}
 
 	// Check if this is the currently active profile
@@ -2403,9 +2457,9 @@ func runProfileRestore(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q is not a built-in profile. Use 'claudeup profile delete %s' instead", name, name)
 	}
 
-	// Check if profile file exists on disk (customization)
-	profilePath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+	// Resolve the customization file on disk
+	profilePath, err := resolveProfileArg(profilesDir, name)
+	if err != nil {
 		return fmt.Errorf("profile %q has no customizations to restore from", name)
 	}
 
@@ -2451,26 +2505,30 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q is a built-in profile and cannot be renamed", oldName)
 	}
 
-	// Check if source profile exists on disk
-	oldPath := filepath.Join(profilesDir, oldName+".json")
-	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
-		return fmt.Errorf("profile %q not found", oldName)
+	// Resolve source profile to exact path (handles nested profiles)
+	oldPath, err := resolveProfileArg(profilesDir, oldName)
+	if err != nil {
+		return err
 	}
 
 	// Check if target profile already exists
 	newPath := filepath.Join(profilesDir, newName+".json")
-	if _, err := os.Stat(newPath); err == nil {
+	if profileExists(profilesDir, newName) {
 		if !config.YesFlag {
 			return fmt.Errorf("profile %q already exists. Use -y to overwrite", newName)
 		}
-		// Remove existing target profile
-		if err := os.Remove(newPath); err != nil {
+		// Resolve and remove existing target profile
+		targetPath, resolveErr := resolveProfileArg(profilesDir, newName)
+		if resolveErr != nil {
+			return fmt.Errorf("failed to resolve existing profile: %w", resolveErr)
+		}
+		if err := os.Remove(targetPath); err != nil {
 			return fmt.Errorf("failed to remove existing profile: %w", err)
 		}
 	}
 
-	// Load the profile
-	p, err := profile.Load(profilesDir, oldName)
+	// Load the profile from its resolved path
+	p, err := profile.LoadFromPath(oldPath)
 	if err != nil {
 		return fmt.Errorf("failed to load profile: %w", err)
 	}
@@ -2478,7 +2536,7 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	// Update the name
 	p.Name = newName
 
-	// Save with new name
+	// Save with new name (always writes to root profilesDir)
 	if err := profile.Save(profilesDir, p); err != nil {
 		return fmt.Errorf("failed to save renamed profile: %w", err)
 	}
