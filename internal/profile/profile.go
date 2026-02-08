@@ -346,6 +346,8 @@ func (e ProfileEntry) DisplayName() string {
 func FindProfilePaths(profilesDir, name string) ([]string, error) {
 	// Path reference mode: name contains "/"
 	if strings.Contains(name, "/") {
+		// Normalize to OS-specific separators for correct filepath operations
+		name = filepath.FromSlash(name)
 		target := filepath.Join(profilesDir, name+".json")
 		// Validate the resolved path stays within profilesDir to prevent traversal
 		absTarget, err := filepath.Abs(target)
@@ -356,7 +358,7 @@ func FindProfilePaths(profilesDir, name string) ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid profiles directory: %w", err)
 		}
-		if !strings.HasPrefix(absTarget, absDir+string(filepath.Separator)) {
+		if absTarget != absDir && !strings.HasPrefix(absTarget, absDir+string(filepath.Separator)) {
 			return nil, fmt.Errorf("invalid profile path %q: escapes profiles directory", name)
 		}
 		if _, err := os.Stat(absTarget); err == nil {
@@ -370,9 +372,12 @@ func FindProfilePaths(profilesDir, name string) ([]string, error) {
 		return []string{}, nil
 	}
 
-	var matches []string
+	matches := make([]string, 0, 8)
 	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir // skip unreadable subdirectories
+			}
 			return err
 		}
 		if d.IsDir() {
@@ -437,6 +442,9 @@ func List(profilesDir string) ([]ProfileEntry, error) {
 	var entries []ProfileEntry
 	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir // skip unreadable subdirectories
+			}
 			return err
 		}
 		if d.IsDir() {
