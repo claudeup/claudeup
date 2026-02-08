@@ -26,6 +26,7 @@ var (
 	pluginListByScope    bool
 	pluginBrowseFormat   string
 	pluginBrowseShow     string
+	pluginShowRaw        bool
 )
 
 var pluginCmd = &cobra.Command{
@@ -81,15 +82,24 @@ Accepts marketplace name, repo (user/repo), or URL as identifier.`,
 }
 
 var pluginShowCmd = &cobra.Command{
-	Use:   "show <plugin>@<marketplace>",
+	Use:   "show <plugin>@<marketplace> [file]",
 	Short: "Show plugin contents",
-	Long: `Display the directory structure of a plugin in a marketplace.
+	Long: `Display the directory structure or file contents of a plugin.
 
-Shows Claude Code plugin components: agents/, commands/, skills/, hooks/, scripts/,
-.claude-plugin/, .mcp.json, and README.md. Other files are filtered out.`,
+Without a file argument, shows the plugin directory tree.
+With a file argument, displays the file contents. Markdown files are
+rendered for the terminal; use --raw for unformatted output
+(useful for piping to other tools like glow or bat).
+
+File paths are relative to the plugin root. Extension inference is
+supported (e.g. "agents/test" resolves to "agents/test.md").
+Skill directories resolve to their SKILL.md file.`,
 	Example: `  claudeup plugin show observability-monitoring@claude-code-workflows
-  claudeup plugin show my-plugin@acme-marketplace`,
-	Args:              cobra.ExactArgs(1),
+  claudeup plugin show my-plugin@acme-marketplace agents/test
+  claudeup plugin show my-plugin@acme-marketplace skills/awesome-skill
+  claudeup plugin show my-plugin@acme-marketplace agents/test --raw
+  claudeup plugin show my-plugin@acme-marketplace agents/test --raw | glow`,
+	Args:              cobra.RangeArgs(1, 2),
 	RunE:              runPluginShow,
 	ValidArgsFunction: pluginShowCompletionFunc,
 }
@@ -109,6 +119,7 @@ func init() {
 	pluginListCmd.Flags().BoolVar(&pluginListByScope, "by-scope", false, "Group enabled plugins by scope")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseFormat, "format", "", "Output format (table)")
 	pluginBrowseCmd.Flags().StringVar(&pluginBrowseShow, "show", "", "Show contents of a specific plugin")
+	pluginShowCmd.Flags().BoolVar(&pluginShowRaw, "raw", false, "Output raw content without rendering")
 }
 
 func runPluginList(cmd *cobra.Command, args []string) error {
@@ -538,23 +549,38 @@ func runPluginShow(cmd *cobra.Command, args []string) error {
 	pluginName := parts[0]
 	marketplaceID := parts[1]
 
+	// If a file argument is provided, show file contents
+	if len(args) == 2 {
+		loc, err := resolvePluginPath(claudeDir, pluginName, marketplaceID)
+		if err != nil {
+			return err
+		}
+		return showPluginFile(loc.Path, args[1], pluginShowRaw)
+	}
+
 	return showPluginTree(pluginName, marketplaceID)
 }
 
-func showPluginTree(pluginName, marketplaceID string) error {
-	// Find the marketplace
-	meta, marketplaceName, err := claude.FindMarketplace(claudeDir, marketplaceID)
+// pluginLocation holds the resolved filesystem path and version of a plugin.
+type pluginLocation struct {
+	Path            string
+	Version         string
+	MarketplaceName string
+}
+
+// resolvePluginPath locates a plugin on disk given its name and marketplace identifier.
+// It checks bundled (monorepo) and cache (external) locations.
+func resolvePluginPath(claudeConfigDir, pluginName, marketplaceID string) (pluginLocation, error) {
+	meta, marketplaceName, err := claude.FindMarketplace(claudeConfigDir, marketplaceID)
 	if err != nil {
-		return fmt.Errorf("marketplace %q not found\n\nRun 'claudeup marketplace add %s' first", marketplaceID, marketplaceID)
+		return pluginLocation{}, fmt.Errorf("marketplace %q not found\n\nRun 'claudeup marketplace add %s' first", marketplaceID, marketplaceID)
 	}
 
-	// Load marketplace index to check if plugin exists in marketplace
 	index, err := claude.LoadMarketplaceIndex(meta.InstallLocation)
 	if err != nil {
-		return fmt.Errorf("failed to load marketplace index: %w", err)
+		return pluginLocation{}, fmt.Errorf("failed to load marketplace index: %w", err)
 	}
 
-	// Find plugin in index
 	var indexVersion string
 	var pluginFound bool
 	for _, p := range index.Plugins {
@@ -566,16 +592,13 @@ func showPluginTree(pluginName, marketplaceID string) error {
 	}
 
 	if !pluginFound {
-		return fmt.Errorf("plugin %q not found in marketplace %q\n\nRun 'claudeup plugin browse %s' to see available plugins", pluginName, marketplaceName, marketplaceName)
+		return pluginLocation{}, fmt.Errorf("plugin %q not found in marketplace %q\n\nRun 'claudeup plugin browse %s' to see available plugins", pluginName, marketplaceName, marketplaceName)
 	}
 
-	// Check for plugin in two possible locations:
-	// 1. Bundled in marketplace: <installLocation>/plugins/<plugin>/
-	// 2. External (in cache): ~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/
+	// Check bundled location first (monorepo marketplaces)
 	var pluginPath string
 	var installedVersion string
 
-	// Try bundled location first (monorepo marketplaces)
 	bundledPath := filepath.Join(meta.InstallLocation, "plugins", pluginName)
 	if info, err := os.Stat(bundledPath); err == nil && info.IsDir() {
 		pluginPath = bundledPath
@@ -584,9 +607,8 @@ func showPluginTree(pluginName, marketplaceID string) error {
 
 	// Try cache location (external source marketplaces)
 	if pluginPath == "" {
-		cacheDir := filepath.Join(claudeDir, "plugins", "cache", marketplaceName, pluginName)
+		cacheDir := filepath.Join(claudeConfigDir, "plugins", "cache", marketplaceName, pluginName)
 		if entries, err := os.ReadDir(cacheDir); err == nil && len(entries) > 0 {
-			// Use first version directory found (typically there's only one)
 			for _, entry := range entries {
 				if entry.IsDir() {
 					installedVersion = entry.Name()
@@ -598,22 +620,34 @@ func showPluginTree(pluginName, marketplaceID string) error {
 	}
 
 	if pluginPath == "" {
-		return fmt.Errorf("plugin %q is not cached locally\n\nThe marketplace index lists it, but it hasn't been downloaded.\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
+		return pluginLocation{}, fmt.Errorf("plugin %q is not cached locally\n\nThe marketplace index lists it, but it hasn't been downloaded.\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
 	}
 
-	// Use index version for display if available, otherwise use installed version
 	version := indexVersion
 	if version == "" {
 		version = installedVersion
 	}
 
+	return pluginLocation{
+		Path:            pluginPath,
+		Version:         version,
+		MarketplaceName: marketplaceName,
+	}, nil
+}
+
+func showPluginTree(pluginName, marketplaceID string) error {
+	loc, err := resolvePluginPath(claudeDir, pluginName, marketplaceID)
+	if err != nil {
+		return err
+	}
+
 	// Generate tree
-	tree, dirs, files := generateTree(pluginPath)
+	tree, dirs, files := generateTree(loc.Path)
 
 	// Print header
-	fullName := pluginName + "@" + marketplaceName
-	if version != "" {
-		fmt.Printf("%s (v%s)\n\n", ui.Bold(fullName), version)
+	fullName := pluginName + "@" + loc.MarketplaceName
+	if loc.Version != "" {
+		fmt.Printf("%s (v%s)\n\n", ui.Bold(fullName), loc.Version)
 	} else {
 		fmt.Printf("%s\n\n", ui.Bold(fullName))
 	}

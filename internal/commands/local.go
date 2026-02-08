@@ -12,9 +12,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// markdownCategories are categories where all items are markdown files.
+var markdownCategories = map[string]bool{
+	local.CategoryAgents: true,
+	local.CategorySkills: true,
+	local.CategoryRules:  true,
+}
+
 var (
 	localFilterEnabled  bool
 	localFilterDisabled bool
+	localViewRaw        bool
 )
 
 var localCmd = &cobra.Command{
@@ -71,10 +79,15 @@ Supports the same wildcards as enable.`,
 var localViewCmd = &cobra.Command{
 	Use:   "view <category> <item>",
 	Short: "View contents of a local item",
-	Long:  `Display the contents of a local item from the library.`,
+	Long: `Display the contents of a local item from the library.
+
+Markdown files are rendered for the terminal. Use --raw for
+unformatted output (useful for piping to other tools like glow or bat).`,
 	Example: `  claudeup local view agents gsd-planner
   claudeup local view hooks format-on-save
-  claudeup local view skills bash`,
+  claudeup local view skills bash
+  claudeup local view agents gsd-planner --raw
+  claudeup local view agents gsd-planner --raw | glow`,
 	Args: cobra.ExactArgs(2),
 	RunE: runLocalView,
 }
@@ -155,6 +168,7 @@ func init() {
 
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
+	localViewCmd.Flags().BoolVar(&localViewRaw, "raw", false, "Output raw content without rendering")
 }
 
 type itemStatus struct {
@@ -341,7 +355,19 @@ func runLocalView(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println(content)
+	isMarkdown := markdownCategories[category]
+	if !isMarkdown {
+		// For non-markdown categories, check the resolved filename
+		if resolved, err := manager.ResolveItemName(category, item); err == nil {
+			isMarkdown = strings.HasSuffix(resolved, ".md")
+		}
+	}
+
+	if isMarkdown {
+		fmt.Print(ui.RenderMarkdown(content, localViewRaw))
+	} else {
+		fmt.Println(content)
+	}
 	return nil
 }
 
