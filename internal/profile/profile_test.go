@@ -3,6 +3,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -880,5 +881,399 @@ func TestProfileWithLocalItems(t *testing.T) {
 	}
 	if hook.Command != "node ~/.claude/hooks/gsd-check-update.js" {
 		t.Errorf("Hook.Command = %q, want expected command", hook.Command)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// FindProfilePaths tests
+// ---------------------------------------------------------------------------
+
+func TestFindProfilePaths_FlatProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create a flat profile: profiles/mobile.json
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+	p := Profile{Name: "mobile", Description: "Mobile profile"}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "mobile.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "mobile")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 1 {
+		t.Fatalf("Expected 1 path, got %d: %v", len(paths), paths)
+	}
+
+	expected := filepath.Join(profilesDir, "mobile.json")
+	if paths[0] != expected {
+		t.Errorf("Expected path %q, got %q", expected, paths[0])
+	}
+}
+
+func TestFindProfilePaths_NestedProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create a nested profile: profiles/backend/api.json
+	nestedDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(nestedDir, 0755); err != nil {
+		t.Fatalf("Failed to create nested dir: %v", err)
+	}
+	p := Profile{Name: "api", Description: "Backend API profile"}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nestedDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "api")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 1 {
+		t.Fatalf("Expected 1 path, got %d: %v", len(paths), paths)
+	}
+
+	expected := filepath.Join(profilesDir, "backend", "api.json")
+	if paths[0] != expected {
+		t.Errorf("Expected path %q, got %q", expected, paths[0])
+	}
+}
+
+func TestFindProfilePaths_DeeplyNested(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create a deeply nested profile: profiles/team/backend/worker.json
+	deepDir := filepath.Join(profilesDir, "team", "backend")
+	if err := os.MkdirAll(deepDir, 0755); err != nil {
+		t.Fatalf("Failed to create deep dir: %v", err)
+	}
+	p := Profile{Name: "worker", Description: "Worker profile"}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(deepDir, "worker.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "worker")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 1 {
+		t.Fatalf("Expected 1 path, got %d: %v", len(paths), paths)
+	}
+
+	expected := filepath.Join(profilesDir, "team", "backend", "worker.json")
+	if paths[0] != expected {
+		t.Errorf("Expected path %q, got %q", expected, paths[0])
+	}
+}
+
+func TestFindProfilePaths_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create directory with a different profile
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+	p := Profile{Name: "other"}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "other.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "nonexistent")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 0 {
+		t.Errorf("Expected empty slice, got %v", paths)
+	}
+}
+
+func TestFindProfilePaths_MultipleMatches(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create api.json at root and in backend/ subdir
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create backend dir: %v", err)
+	}
+
+	rootProfile := Profile{Name: "api", Description: "Root API"}
+	data, err := json.Marshal(rootProfile)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write root profile: %v", err)
+	}
+
+	nestedProfile := Profile{Name: "api", Description: "Backend API"}
+	data, err = json.Marshal(nestedProfile)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "api")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 2 {
+		t.Fatalf("Expected 2 paths, got %d: %v", len(paths), paths)
+	}
+
+	// Verify both expected paths are present
+	expectedRoot := filepath.Join(profilesDir, "api.json")
+	expectedNested := filepath.Join(profilesDir, "backend", "api.json")
+	foundRoot, foundNested := false, false
+	for _, p := range paths {
+		if p == expectedRoot {
+			foundRoot = true
+		}
+		if p == expectedNested {
+			foundNested = true
+		}
+	}
+	if !foundRoot {
+		t.Errorf("Missing root path %q in results %v", expectedRoot, paths)
+	}
+	if !foundNested {
+		t.Errorf("Missing nested path %q in results %v", expectedNested, paths)
+	}
+}
+
+func TestFindProfilePaths_MissingDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "does-not-exist")
+
+	paths, err := FindProfilePaths(profilesDir, "anything")
+	if err != nil {
+		t.Fatalf("FindProfilePaths should not return error for missing dir, got: %v", err)
+	}
+
+	if len(paths) != 0 {
+		t.Errorf("Expected empty slice for missing dir, got %v", paths)
+	}
+}
+
+func TestFindProfilePaths_IgnoresNonJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+
+	// Create non-JSON files with the same stem
+	if err := os.WriteFile(filepath.Join(profilesDir, "api.txt"), []byte("not json"), 0644); err != nil {
+		t.Fatalf("Failed to write txt file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profilesDir, "api.yaml"), []byte("not json"), 0644); err != nil {
+		t.Fatalf("Failed to write yaml file: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "api")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 0 {
+		t.Errorf("Expected empty slice (non-JSON files should be ignored), got %v", paths)
+	}
+}
+
+func TestFindProfilePaths_PathReference(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create profiles/backend/api.json
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create backend dir: %v", err)
+	}
+	p := Profile{Name: "api", Description: "Backend API"}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(backendDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	// Use path reference: "backend/api" should resolve directly
+	paths, err := FindProfilePaths(profilesDir, "backend/api")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 1 {
+		t.Fatalf("Expected 1 path for path reference, got %d: %v", len(paths), paths)
+	}
+
+	expected := filepath.Join(profilesDir, "backend", "api.json")
+	if paths[0] != expected {
+		t.Errorf("Expected path %q, got %q", expected, paths[0])
+	}
+}
+
+func TestFindProfilePaths_PathReferenceNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	// Create the backend dir but not the target profile
+	backendDir := filepath.Join(profilesDir, "backend")
+	if err := os.MkdirAll(backendDir, 0755); err != nil {
+		t.Fatalf("Failed to create backend dir: %v", err)
+	}
+
+	paths, err := FindProfilePaths(profilesDir, "backend/missing")
+	if err != nil {
+		t.Fatalf("FindProfilePaths returned error: %v", err)
+	}
+
+	if len(paths) != 0 {
+		t.Errorf("Expected empty slice for missing path reference, got %v", paths)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LoadFromPath tests
+// ---------------------------------------------------------------------------
+
+func TestLoadFromPath_LoadsProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	p := Profile{
+		Name:        "myprofile",
+		Description: "A test profile",
+		Plugins:     []string{"plugin1@marketplace"},
+		MCPServers: []MCPServer{
+			{Name: "server1", Command: "cmd1", Args: []string{"arg1"}},
+		},
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("Failed to marshal profile: %v", err)
+	}
+
+	profilePath := filepath.Join(tmpDir, "myprofile.json")
+	if err := os.WriteFile(profilePath, data, 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	loaded, err := LoadFromPath(profilePath)
+	if err != nil {
+		t.Fatalf("LoadFromPath returned error: %v", err)
+	}
+
+	if loaded.Name != "myprofile" {
+		t.Errorf("Name = %q, want %q", loaded.Name, "myprofile")
+	}
+	if loaded.Description != "A test profile" {
+		t.Errorf("Description = %q, want %q", loaded.Description, "A test profile")
+	}
+	if len(loaded.Plugins) != 1 || loaded.Plugins[0] != "plugin1@marketplace" {
+		t.Errorf("Plugins = %v, want [plugin1@marketplace]", loaded.Plugins)
+	}
+	if len(loaded.MCPServers) != 1 || loaded.MCPServers[0].Name != "server1" {
+		t.Errorf("MCPServers = %v, want [{server1 ...}]", loaded.MCPServers)
+	}
+}
+
+func TestLoadFromPath_SetsNameFromFilename(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Profile JSON without a name field
+	profileJSON := `{
+		"description": "No name in JSON",
+		"plugins": ["plugin1@marketplace"]
+	}`
+	profilePath := filepath.Join(tmpDir, "derived-name.json")
+	if err := os.WriteFile(profilePath, []byte(profileJSON), 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	loaded, err := LoadFromPath(profilePath)
+	if err != nil {
+		t.Fatalf("LoadFromPath returned error: %v", err)
+	}
+
+	if loaded.Name != "derived-name" {
+		t.Errorf("Name should be derived from filename: got %q, want %q", loaded.Name, "derived-name")
+	}
+}
+
+func TestLoadFromPath_PreservesJSONName(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Profile JSON with an explicit name field that differs from filename
+	profileJSON := `{
+		"name": "explicit-name",
+		"description": "Name in JSON"
+	}`
+	profilePath := filepath.Join(tmpDir, "different-filename.json")
+	if err := os.WriteFile(profilePath, []byte(profileJSON), 0644); err != nil {
+		t.Fatalf("Failed to write profile: %v", err)
+	}
+
+	loaded, err := LoadFromPath(profilePath)
+	if err != nil {
+		t.Fatalf("LoadFromPath returned error: %v", err)
+	}
+
+	if loaded.Name != "explicit-name" {
+		t.Errorf("JSON name should be preserved: got %q, want %q", loaded.Name, "explicit-name")
+	}
+}
+
+func TestLoadFromPath_NonexistentPath(t *testing.T) {
+	_, err := LoadFromPath("/tmp/absolutely-does-not-exist-profile.json")
+	if err == nil {
+		t.Error("Expected error for nonexistent path, got nil")
+	}
+}
+
+func TestLoadFromPath_InvalidJSON(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	profilePath := filepath.Join(tmpDir, "broken.json")
+	if err := os.WriteFile(profilePath, []byte("{this is not valid json}"), 0644); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+
+	_, err := LoadFromPath(profilePath)
+	if err == nil {
+		t.Error("Expected error for invalid JSON, got nil")
 	}
 }

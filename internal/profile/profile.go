@@ -316,6 +316,86 @@ func Load(profilesDir, name string) (*Profile, error) {
 	return &p, nil
 }
 
+// ProfileEntry is a profile with its location relative to the profiles directory.
+// RelPath uses forward slashes (e.g. "backend/api.json" or "mobile.json").
+type ProfileEntry struct {
+	*Profile
+	RelPath string
+}
+
+// DisplayName returns the profile's display name for listing.
+// For root profiles, this is just the profile name.
+// For nested profiles, this is the relative path without the .json extension.
+func (e ProfileEntry) DisplayName() string {
+	return strings.TrimSuffix(e.RelPath, ".json")
+}
+
+// FindProfilePaths walks profilesDir recursively and returns all absolute paths
+// to .json files whose filename stem matches name.
+// If name contains a "/", it is treated as a relative path reference:
+// only profilesDir/name.json is checked.
+// Returns an empty slice (not an error) if profilesDir does not exist.
+func FindProfilePaths(profilesDir, name string) ([]string, error) {
+	// Path reference mode: name contains "/"
+	if strings.Contains(name, "/") {
+		target := filepath.Join(profilesDir, name+".json")
+		if _, err := os.Stat(target); err == nil {
+			return []string{target}, nil
+		}
+		return []string{}, nil
+	}
+
+	// Name-based search: walk recursively
+	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+		return []string{}, nil
+	}
+
+	var matches []string
+	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip inaccessible entries
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+		stem := strings.TrimSuffix(d.Name(), ".json")
+		if stem == name {
+			matches = append(matches, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(matches)
+	return matches, nil
+}
+
+// LoadFromPath loads a profile from an absolute file path.
+// If the JSON does not contain a name field, the name is derived from the filename.
+func LoadFromPath(path string) (*Profile, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var p Profile
+	if err := json.Unmarshal(data, &p); err != nil {
+		return nil, err
+	}
+
+	// Set name from filename if not present in JSON
+	if p.Name == "" {
+		p.Name = strings.TrimSuffix(filepath.Base(path), ".json")
+	}
+
+	return &p, nil
+}
+
 // ProjectProfilesDir returns the path to project-local profiles directory
 func ProjectProfilesDir(projectDir string) string {
 	return filepath.Join(projectDir, ".claudeup", "profiles")
