@@ -88,12 +88,11 @@ Update `Clone()` (line 524) -- deep copy Includes slice.
 
 Update `Equal()` (line 588) -- compare Includes with `strSlicesEqual()`.
 
-Update `PreserveFrom()` (line 267) -- preserve Includes:
+Update `PreserveFrom()` (line 267) -- preserve LocalItems only (Includes are not preserved since stacks are resolved at apply time, not stored in saved profiles):
 
 ```go
 func (p *Profile) PreserveFrom(existing *Profile) {
     p.LocalItems = existing.LocalItems
-    p.Includes = existing.Includes
 }
 ```
 

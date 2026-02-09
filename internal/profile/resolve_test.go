@@ -24,6 +24,15 @@ func (m *mockLoader) LoadProfile(name string) (*Profile, error) {
 	return p, nil
 }
 
+// errorLoader always returns the configured error for any profile load.
+type errorLoader struct {
+	err error
+}
+
+func (e *errorLoader) LoadProfile(string) (*Profile, error) {
+	return nil, e.err
+}
+
 func TestResolveIncludes_NoIncludes(t *testing.T) {
 	p := &Profile{
 		Name:    "simple",
@@ -967,11 +976,13 @@ func TestResolveIncludes_NestedStackWithConfigFields(t *testing.T) {
 	}
 }
 
-// Test that the resolved profile gets an AmbiguousProfileError when the loader returns one
+// Test that AmbiguousProfileError propagates through ResolveIncludes
 func TestResolveIncludes_AmbiguousInclude(t *testing.T) {
-	loader := &mockLoader{
-		profiles: map[string]*Profile{}, // empty -- will return not found
+	ambigErr := &AmbiguousProfileError{
+		Name:  "ambiguous",
+		Paths: []string{"team/ambiguous", "personal/ambiguous"},
 	}
+	loader := &errorLoader{err: ambigErr}
 
 	stack := &Profile{
 		Name:     "top",
@@ -980,15 +991,15 @@ func TestResolveIncludes_AmbiguousInclude(t *testing.T) {
 
 	_, err := ResolveIncludes(stack, loader)
 	if err == nil {
-		t.Fatal("expected error for missing include, got nil")
+		t.Fatal("expected AmbiguousProfileError to propagate, got nil")
 	}
 
-	// The error should propagate with the profile name context
-	var ambiguousErr *AmbiguousProfileError
-	// This test just ensures the error path works -- loader returns "not found" not ambiguous,
-	// but if a real loader returned AmbiguousProfileError it would propagate through
-	if errors.As(err, &ambiguousErr) {
-		// This is also fine -- proves errors.As works through the chain
+	var gotErr *AmbiguousProfileError
+	if !errors.As(err, &gotErr) {
+		t.Fatalf("expected AmbiguousProfileError, got: %v", err)
+	}
+	if gotErr.Name != "ambiguous" {
+		t.Errorf("error name: got %q, want %q", gotErr.Name, "ambiguous")
 	}
 }
 

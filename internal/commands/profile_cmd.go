@@ -1567,13 +1567,15 @@ func showLocalItems(items *profile.LocalItemSettings) {
 
 // showStackIncludes displays the include tree for a stack profile.
 // Nested stacks are expanded one level to show their sub-includes.
+// Uses DirLoader for consistent fallback semantics with ResolveIncludes.
 func showStackIncludes(p *profile.Profile, profilesDir string) {
+	loader := &profile.DirLoader{ProfilesDir: profilesDir}
 	fmt.Println("Includes:")
 	for _, name := range p.Includes {
 		// Try to load the included profile to check if it's also a stack
-		included, err := loadProfileWithFallback(profilesDir, name)
+		included, err := loader.LoadProfile(name)
 		if err != nil {
-			fmt.Printf("  %s %s\n", name, ui.Muted("(not found)"))
+			fmt.Printf("  %s %s\n", name, ui.Muted(fmt.Sprintf("(%v)", err)))
 			continue
 		}
 		if included.IsStack() {
@@ -1594,33 +1596,33 @@ func showResolvedSummary(p *profile.Profile) {
 		parts = append(parts, fmt.Sprintf("%d marketplaces", len(p.Marketplaces)))
 	}
 
+	var pluginTotal int
+	var scopeParts []string
+
+	if len(p.Plugins) > 0 {
+		pluginTotal += len(p.Plugins)
+		scopeParts = append(scopeParts, fmt.Sprintf("%d unscoped", len(p.Plugins)))
+	}
 	if p.PerScope != nil {
-		var userCount, projCount, localCount int
-		if p.PerScope.User != nil {
-			userCount = len(p.PerScope.User.Plugins)
+		if p.PerScope.User != nil && len(p.PerScope.User.Plugins) > 0 {
+			pluginTotal += len(p.PerScope.User.Plugins)
+			scopeParts = append(scopeParts, fmt.Sprintf("%d user", len(p.PerScope.User.Plugins)))
 		}
-		if p.PerScope.Project != nil {
-			projCount = len(p.PerScope.Project.Plugins)
+		if p.PerScope.Project != nil && len(p.PerScope.Project.Plugins) > 0 {
+			pluginTotal += len(p.PerScope.Project.Plugins)
+			scopeParts = append(scopeParts, fmt.Sprintf("%d project", len(p.PerScope.Project.Plugins)))
 		}
-		if p.PerScope.Local != nil {
-			localCount = len(p.PerScope.Local.Plugins)
+		if p.PerScope.Local != nil && len(p.PerScope.Local.Plugins) > 0 {
+			pluginTotal += len(p.PerScope.Local.Plugins)
+			scopeParts = append(scopeParts, fmt.Sprintf("%d local", len(p.PerScope.Local.Plugins)))
 		}
-		total := userCount + projCount + localCount
-		if total > 0 {
-			scopeParts := []string{}
-			if userCount > 0 {
-				scopeParts = append(scopeParts, fmt.Sprintf("%d user", userCount))
-			}
-			if projCount > 0 {
-				scopeParts = append(scopeParts, fmt.Sprintf("%d project", projCount))
-			}
-			if localCount > 0 {
-				scopeParts = append(scopeParts, fmt.Sprintf("%d local", localCount))
-			}
-			parts = append(parts, fmt.Sprintf("%d plugins (%s)", total, strings.Join(scopeParts, ", ")))
+	}
+	if pluginTotal > 0 {
+		if len(scopeParts) > 1 {
+			parts = append(parts, fmt.Sprintf("%d plugins (%s)", pluginTotal, strings.Join(scopeParts, ", ")))
+		} else {
+			parts = append(parts, fmt.Sprintf("%d plugins", pluginTotal))
 		}
-	} else if len(p.Plugins) > 0 {
-		parts = append(parts, fmt.Sprintf("%d plugins", len(p.Plugins)))
 	}
 
 	mcpCount := len(p.MCPServers)
