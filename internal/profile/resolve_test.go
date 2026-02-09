@@ -1035,6 +1035,77 @@ func TestDirLoader_PropagatesNonNotFoundErrors(t *testing.T) {
 	}
 }
 
+func TestResolveIncludes_DepthLimitExceeded(t *testing.T) {
+	// Build a chain deeper than MaxIncludeDepth: level-0 -> level-1 -> ... -> level-N
+	profiles := make(map[string]*Profile)
+	for i := 0; i <= MaxIncludeDepth; i++ {
+		name := fmt.Sprintf("level-%d", i)
+		if i == MaxIncludeDepth {
+			// Leaf profile at the bottom
+			profiles[name] = &Profile{
+				Name:    name,
+				Plugins: []string{"deep-plugin"},
+			}
+		} else {
+			// Stack that includes the next level
+			profiles[name] = &Profile{
+				Name:     name,
+				Includes: []string{fmt.Sprintf("level-%d", i+1)},
+			}
+		}
+	}
+	loader := &mockLoader{profiles: profiles}
+
+	stack := &Profile{
+		Name:     "deep-stack",
+		Includes: []string{"level-0"},
+	}
+
+	_, err := ResolveIncludes(stack, loader)
+	if err == nil {
+		t.Fatal("expected depth limit error, got nil")
+	}
+	if !strings.Contains(err.Error(), "depth limit exceeded") {
+		t.Errorf("expected depth limit error, got: %v", err)
+	}
+}
+
+func TestResolveIncludes_PathTraversalRejected(t *testing.T) {
+	// Verify that path traversal in include names is rejected by the DirLoader.
+	dir := t.TempDir()
+	profilesDir := filepath.Join(dir, "profiles")
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a secret file outside profilesDir
+	secretData := []byte(`{"name":"secret","plugins":["stolen-plugin"]}`)
+	if err := os.WriteFile(filepath.Join(dir, "secret.json"), secretData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a leaf profile for the stack to include
+	leafData := []byte(`{"name":"safe","plugins":["good-plugin"]}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "safe.json"), leafData, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	loader := &DirLoader{ProfilesDir: profilesDir}
+
+	stack := &Profile{
+		Name:     "evil-stack",
+		Includes: []string{"../secret"},
+	}
+
+	_, err := ResolveIncludes(stack, loader)
+	if err == nil {
+		t.Fatal("expected error for path traversal include, got nil")
+	}
+	if !strings.Contains(err.Error(), "escapes profiles directory") {
+		t.Errorf("expected 'escapes profiles directory' error, got: %v", err)
+	}
+}
+
 func TestDirLoader_FallsBackOnNotFound(t *testing.T) {
 	// DirLoader should fall back to embedded profiles when the profile is not found on disk.
 	dir := t.TempDir()

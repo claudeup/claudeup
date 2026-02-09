@@ -60,6 +60,10 @@ Included profiles merge left-to-right. Later includes take precedence on conflic
 | `Name`, `Description`      | Always from root stack profile                                 |
 | `Includes`                 | Cleared in resolved output                                     |
 
+**PostApply note:** When multiple included profiles define `PostApply` hooks, only the rightmost (last) include's hook is used. If your stack needs hooks from multiple profiles, combine them into a single hook script in the stack or in a dedicated leaf profile listed last.
+
+**Depth limit:** Include chains are limited to 50 levels deep (`MaxIncludeDepth`). This prevents resource exhaustion from pathological nesting.
+
 ## Files to Modify
 
 ### 1. `internal/profile/profile.go` -- Add Includes field and helpers

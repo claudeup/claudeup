@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+// MaxIncludeDepth limits how deeply nested include chains can be.
+// Prevents resource exhaustion from pathological deep nesting.
+const MaxIncludeDepth = 50
+
 // ProfileLoader loads a profile by name or path-qualified name.
 type ProfileLoader interface {
 	LoadProfile(name string) (*Profile, error)
@@ -68,6 +72,11 @@ func ResolveIncludes(p *Profile, loader ProfileLoader) (*Profile, error) {
 	collectLeaves := func(name string) {}
 	collectLeaves = func(name string) {
 		if collectErr != nil {
+			return
+		}
+
+		if len(visitingPath) >= MaxIncludeDepth {
+			collectErr = fmt.Errorf("include depth limit exceeded (%d levels)", MaxIncludeDepth)
 			return
 		}
 
