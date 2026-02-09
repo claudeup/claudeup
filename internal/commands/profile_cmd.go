@@ -988,8 +988,11 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		}
 	}
 
-	// Resolve stack profiles (composable includes)
-	if p.IsStack() {
+	// Resolve stack profiles (composable includes).
+	// Track whether the original profile was a stack so we always route through
+	// ApplyAllScopes, even if the resolved profile has only flat fields.
+	wasStack := p.IsStack()
+	if wasStack {
 		if explicitScope {
 			return fmt.Errorf("stack profiles define their own scopes; --scope is not supported with stacks")
 		}
@@ -1051,8 +1054,8 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
 
-	// Multi-scope profiles always need to apply (diff only checks one scope)
-	needsApply := p.IsMultiScope() || hasDiffChanges(diff) || shouldRunHook
+	// Multi-scope profiles and stacks always need to apply (diff only checks one scope)
+	needsApply := p.IsMultiScope() || wasStack || hasDiffChanges(diff) || shouldRunHook
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
@@ -1086,10 +1089,10 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	}
 
 	// Show diff and confirm if there are changes
-	if hasDiffChanges(diff) || p.IsMultiScope() {
+	if hasDiffChanges(diff) || p.IsMultiScope() || wasStack {
 		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 		fmt.Println()
-		if p.IsMultiScope() {
+		if p.IsMultiScope() || wasStack {
 			// Show per-scope summary for multi-scope profiles
 			showMultiScopeSummary(p)
 		} else {
@@ -1130,8 +1133,8 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	var result *profile.ApplyResult
 
-	// Use ApplyAllScopes for multi-scope profiles, ApplyWithOptions for legacy
-	if p.IsMultiScope() {
+	// Use ApplyAllScopes for multi-scope profiles and stacks, ApplyWithOptions for legacy
+	if p.IsMultiScope() || wasStack {
 		ui.PrintInfo("Applying profile (all scopes)...")
 		applyOpts := &profile.ApplyAllScopesOptions{
 			ReplaceUserScope: profileApplyReplace, // --replace flag controls user scope behavior

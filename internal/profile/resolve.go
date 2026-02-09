@@ -57,6 +57,10 @@ func ResolveIncludes(p *Profile, loader ProfileLoader) (*Profile, error) {
 		return p, nil
 	}
 
+	if loader == nil {
+		return nil, fmt.Errorf("cannot resolve includes for stack profile %q: loader is nil", p.Name)
+	}
+
 	if err := validatePureStack(p); err != nil {
 		return nil, err
 	}

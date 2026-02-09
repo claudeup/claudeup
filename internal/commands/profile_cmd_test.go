@@ -555,8 +555,12 @@ func setupStackApplyEnv(t *testing.T) string {
 	profilesDir := filepath.Join(claudeupHome, "profiles")
 	testClaudeDir := filepath.Join(tmpDir, "claude")
 
-	os.MkdirAll(profilesDir, 0755)
-	os.MkdirAll(testClaudeDir, 0755)
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+	if err := os.MkdirAll(testClaudeDir, 0755); err != nil {
+		t.Fatalf("Failed to create claude dir: %v", err)
+	}
 
 	// Set CLAUDEUP_HOME so getProfilesDir() returns our temp profiles dir
 	t.Setenv("CLAUDEUP_HOME", claudeupHome)
@@ -690,5 +694,52 @@ func TestApplyProfileWithScope_MultiScopeStackRoutesToApplyAllScopes(t *testing.
 
 	if _, found := enabledPlugins["test-plugin@test-market"]; !found {
 		t.Errorf("Expected 'test-plugin@test-market' in enabledPlugins, got: %v", enabledPlugins)
+	}
+}
+
+func TestApplyProfileWithScope_FlatStackRoutesToApplyAllScopes(t *testing.T) {
+	profilesDir := setupStackApplyEnv(t)
+
+	// Create a stack that includes a flat-only leaf (no perScope)
+	stackJSON := []byte(`{"name":"flat-stack","includes":["flat-leaf"]}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "flat-stack.json"), stackJSON, 0644); err != nil {
+		t.Fatalf("Failed to write stack profile: %v", err)
+	}
+
+	// Create a flat leaf profile with only legacy plugins (no perScope).
+	// After resolution, IsMultiScope() returns false -- wasStack flag ensures
+	// ApplyAllScopes is still used, routing flat plugins to user scope.
+	leafJSON := []byte(`{
+		"name": "flat-leaf",
+		"plugins": ["flat-plugin@test-market"]
+	}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "flat-leaf.json"), leafJSON, 0644); err != nil {
+		t.Fatalf("Failed to write flat leaf profile: %v", err)
+	}
+
+	err := applyProfileWithScope("flat-stack", profile.ScopeUser, false)
+	if err != nil {
+		t.Fatalf("Flat stack apply should succeed, got: %v", err)
+	}
+
+	// Verify settings.json was written (ApplyAllScopes path)
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("Expected settings.json to be created by ApplyAllScopes, got: %v", err)
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("Failed to parse settings.json: %v", err)
+	}
+
+	enabledPlugins, ok := settings["enabledPlugins"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected enabledPlugins map in settings.json, got: %v", settings)
+	}
+
+	if _, found := enabledPlugins["flat-plugin@test-market"]; !found {
+		t.Errorf("Expected 'flat-plugin@test-market' in user-scope settings, got: %v", enabledPlugins)
 	}
 }

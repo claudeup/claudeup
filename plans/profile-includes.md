@@ -208,7 +208,7 @@ Show the include tree (expanding nested stacks one level) and a summary of the r
 - `TestEqual` -- verify Includes comparison
 - `TestIsStack` -- true when Includes non-empty, false otherwise
 - `TestHasConfigFields` -- true/false for various field combinations
-- `TestPreserveFrom` -- verify Includes preserved
+- `TestPreserveFrom` -- verify Includes are not preserved
 - `TestGenerateDescription` -- verify stack description format
 - JSON round-trip test for profile with Includes
 

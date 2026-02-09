@@ -1003,6 +1003,21 @@ func TestResolveIncludes_AmbiguousInclude(t *testing.T) {
 	}
 }
 
+func TestResolveIncludes_NilLoaderReturnsError(t *testing.T) {
+	stack := &Profile{
+		Name:     "my-stack",
+		Includes: []string{"leaf"},
+	}
+
+	_, err := ResolveIncludes(stack, nil)
+	if err == nil {
+		t.Fatal("expected error for nil loader, got nil")
+	}
+	if !strings.Contains(err.Error(), "loader is nil") {
+		t.Errorf("expected 'loader is nil' error, got: %v", err)
+	}
+}
+
 func TestDirLoader_PropagatesNonNotFoundErrors(t *testing.T) {
 	// DirLoader should only fall back to embedded profiles for not-found errors.
 	// Other errors like AmbiguousProfileError should propagate.
