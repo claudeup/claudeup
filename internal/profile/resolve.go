@@ -1,0 +1,328 @@
+// ABOUTME: Resolution engine for profile includes (composable stacks)
+// ABOUTME: Flattens include trees into a single merged profile with cycle detection
+package profile
+
+import (
+	"fmt"
+)
+
+// ProfileLoader loads a profile by name or path-qualified name.
+type ProfileLoader interface {
+	LoadProfile(name string) (*Profile, error)
+}
+
+// DirLoader loads profiles from disk via Load() with embedded fallback.
+type DirLoader struct {
+	ProfilesDir string
+}
+
+// LoadProfile loads a profile by name, delegating to Load() which handles
+// both short names (recursive search) and path-qualified names (direct lookup).
+func (l *DirLoader) LoadProfile(name string) (*Profile, error) {
+	p, err := Load(l.ProfilesDir, name)
+	if err != nil {
+		// Fall back to embedded profiles
+		return GetEmbeddedProfile(name)
+	}
+	return p, nil
+}
+
+// ResolveIncludes recursively resolves includes and returns a merged profile.
+// Returns an error if:
+//   - p is nil
+//   - the profile has includes alongside config fields (stacks must be pure)
+//   - a cycle is detected
+//   - an included profile cannot be loaded
+//
+// If the profile has no includes, it is returned as-is.
+func ResolveIncludes(p *Profile, loader ProfileLoader) (*Profile, error) {
+	if p == nil {
+		return nil, fmt.Errorf("cannot resolve includes: profile is nil")
+	}
+
+	if !p.IsStack() {
+		return p, nil
+	}
+
+	if err := validatePureStack(p); err != nil {
+		return nil, err
+	}
+
+	// Collect all leaf profiles in include order
+	resolved := make(map[string]*Profile)
+	visiting := make(map[string]bool)
+
+	var leaves []*Profile
+	var collectErr error
+
+	collectLeaves := func(name string) {}
+	collectLeaves = func(name string) {
+		if collectErr != nil {
+			return
+		}
+
+		// Check for cached resolution (diamond support)
+		if _, ok := resolved[name]; ok {
+			return
+		}
+
+		if visiting[name] {
+			collectErr = fmt.Errorf("include cycle detected: %q is already being resolved", name)
+			return
+		}
+
+		visiting[name] = true
+		defer func() { delete(visiting, name) }()
+
+		included, err := loader.LoadProfile(name)
+		if err != nil {
+			collectErr = fmt.Errorf("failed to load included profile %q: %w", name, err)
+			return
+		}
+
+		if included.IsStack() {
+			if err := validatePureStack(included); err != nil {
+				collectErr = fmt.Errorf("included profile %q: %w", name, err)
+				return
+			}
+			for _, sub := range included.Includes {
+				collectLeaves(sub)
+				if collectErr != nil {
+					return
+				}
+			}
+		} else {
+			leaves = append(leaves, included)
+		}
+
+		resolved[name] = included
+	}
+
+	for _, name := range p.Includes {
+		collectLeaves(name)
+		if collectErr != nil {
+			return nil, collectErr
+		}
+	}
+
+	result := mergeProfiles(leaves)
+	result.Name = p.Name
+	result.Description = p.Description
+	result.Includes = nil
+
+	return result, nil
+}
+
+// validatePureStack checks that a stack profile has no config fields alongside includes.
+func validatePureStack(p *Profile) error {
+	if p.IsStack() && p.HasConfigFields() {
+		return fmt.Errorf("stack profiles must be pure: %q has config fields alongside includes", p.Name)
+	}
+	return nil
+}
+
+// mergeProfiles merges a flat list of profiles left-to-right into a single profile.
+func mergeProfiles(profiles []*Profile) *Profile {
+	result := &Profile{}
+	for _, p := range profiles {
+		mergeProfile(result, p)
+	}
+	return result
+}
+
+// mergeProfile merges src into dst, applying the merge strategy for each field.
+func mergeProfile(dst, src *Profile) {
+	mergeMarketplaces(dst, src)
+	mergePerScope(dst, src)
+	mergeFlatPlugins(dst, src)
+	mergeFlatMCPServers(dst, src)
+	mergeLocalItems(dst, src)
+	mergeSettingsHooks(dst, src)
+	mergeDetect(dst, src)
+
+	// SkipPluginDiff: OR semantics
+	if src.SkipPluginDiff {
+		dst.SkipPluginDiff = true
+	}
+
+	// PostApply: last-wins
+	if src.PostApply != nil {
+		dst.PostApply = src.PostApply
+	}
+}
+
+// mergeMarketplaces unions marketplaces, deduplicating by key.
+func mergeMarketplaces(dst, src *Profile) {
+	if len(src.Marketplaces) == 0 {
+		return
+	}
+
+	seen := make(map[string]bool)
+	for _, m := range dst.Marketplaces {
+		seen[marketplaceKey(m)] = true
+	}
+
+	for _, m := range src.Marketplaces {
+		key := marketplaceKey(m)
+		if !seen[key] {
+			dst.Marketplaces = append(dst.Marketplaces, m)
+			seen[key] = true
+		}
+	}
+}
+
+// mergePerScope merges per-scope settings from src into dst.
+func mergePerScope(dst, src *Profile) {
+	if src.PerScope == nil {
+		return
+	}
+
+	if dst.PerScope == nil {
+		dst.PerScope = &PerScopeSettings{}
+	}
+
+	if src.PerScope.User != nil {
+		if dst.PerScope.User == nil {
+			dst.PerScope.User = &ScopeSettings{}
+		}
+		mergeScopeSettings(dst.PerScope.User, src.PerScope.User)
+	}
+
+	if src.PerScope.Project != nil {
+		if dst.PerScope.Project == nil {
+			dst.PerScope.Project = &ScopeSettings{}
+		}
+		mergeScopeSettings(dst.PerScope.Project, src.PerScope.Project)
+	}
+
+	if src.PerScope.Local != nil {
+		if dst.PerScope.Local == nil {
+			dst.PerScope.Local = &ScopeSettings{}
+		}
+		mergeScopeSettings(dst.PerScope.Local, src.PerScope.Local)
+	}
+}
+
+// mergeScopeSettings merges plugins (union, dedup) and MCP servers (last-wins by name).
+func mergeScopeSettings(dst, src *ScopeSettings) {
+	dst.Plugins = mergeStringSlice(dst.Plugins, src.Plugins)
+
+	if len(src.MCPServers) > 0 {
+		serverMap := make(map[string]int) // name -> index in dst
+		for i, s := range dst.MCPServers {
+			serverMap[s.Name] = i
+		}
+		for _, s := range src.MCPServers {
+			if idx, ok := serverMap[s.Name]; ok {
+				dst.MCPServers[idx] = s // last-wins
+			} else {
+				serverMap[s.Name] = len(dst.MCPServers)
+				dst.MCPServers = append(dst.MCPServers, s)
+			}
+		}
+	}
+}
+
+// mergeFlatPlugins unions legacy flat plugins with dedup.
+func mergeFlatPlugins(dst, src *Profile) {
+	dst.Plugins = mergeStringSlice(dst.Plugins, src.Plugins)
+}
+
+// mergeFlatMCPServers unions legacy flat MCP servers with last-wins by name.
+func mergeFlatMCPServers(dst, src *Profile) {
+	if len(src.MCPServers) == 0 {
+		return
+	}
+
+	serverMap := make(map[string]int)
+	for i, s := range dst.MCPServers {
+		serverMap[s.Name] = i
+	}
+	for _, s := range src.MCPServers {
+		if idx, ok := serverMap[s.Name]; ok {
+			dst.MCPServers[idx] = s
+		} else {
+			serverMap[s.Name] = len(dst.MCPServers)
+			dst.MCPServers = append(dst.MCPServers, s)
+		}
+	}
+}
+
+// mergeLocalItems unions local items per category with dedup.
+func mergeLocalItems(dst, src *Profile) {
+	if src.LocalItems == nil {
+		return
+	}
+
+	if dst.LocalItems == nil {
+		dst.LocalItems = &LocalItemSettings{}
+	}
+
+	dst.LocalItems.Agents = mergeStringSlice(dst.LocalItems.Agents, src.LocalItems.Agents)
+	dst.LocalItems.Commands = mergeStringSlice(dst.LocalItems.Commands, src.LocalItems.Commands)
+	dst.LocalItems.Skills = mergeStringSlice(dst.LocalItems.Skills, src.LocalItems.Skills)
+	dst.LocalItems.Hooks = mergeStringSlice(dst.LocalItems.Hooks, src.LocalItems.Hooks)
+	dst.LocalItems.Rules = mergeStringSlice(dst.LocalItems.Rules, src.LocalItems.Rules)
+	dst.LocalItems.OutputStyles = mergeStringSlice(dst.LocalItems.OutputStyles, src.LocalItems.OutputStyles)
+}
+
+// mergeSettingsHooks unions hooks per event type, deduplicating by command.
+func mergeSettingsHooks(dst, src *Profile) {
+	if len(src.SettingsHooks) == 0 {
+		return
+	}
+
+	if dst.SettingsHooks == nil {
+		dst.SettingsHooks = make(map[string][]HookEntry)
+	}
+
+	for event, srcHooks := range src.SettingsHooks {
+		existing := dst.SettingsHooks[event]
+		seen := make(map[string]bool)
+		for _, h := range existing {
+			seen[h.Command] = true
+		}
+		for _, h := range srcHooks {
+			if !seen[h.Command] {
+				existing = append(existing, h)
+				seen[h.Command] = true
+			}
+		}
+		dst.SettingsHooks[event] = existing
+	}
+}
+
+// mergeDetect unions detect files and merges contains map (later wins).
+func mergeDetect(dst, src *Profile) {
+	dst.Detect.Files = mergeStringSlice(dst.Detect.Files, src.Detect.Files)
+
+	if len(src.Detect.Contains) > 0 {
+		if dst.Detect.Contains == nil {
+			dst.Detect.Contains = make(map[string]string)
+		}
+		for k, v := range src.Detect.Contains {
+			dst.Detect.Contains[k] = v
+		}
+	}
+}
+
+// mergeStringSlice returns a union of two string slices, preserving order and deduplicating.
+func mergeStringSlice(dst, src []string) []string {
+	if len(src) == 0 {
+		return dst
+	}
+
+	seen := make(map[string]bool, len(dst))
+	for _, s := range dst {
+		seen[s] = true
+	}
+
+	for _, s := range src {
+		if !seen[s] {
+			dst = append(dst, s)
+			seen[s] = true
+		}
+	}
+
+	return dst
+}

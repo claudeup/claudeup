@@ -29,6 +29,7 @@ func (e *AmbiguousProfileError) Error() string {
 type Profile struct {
 	Name           string         `json:"name"`
 	Description    string         `json:"description,omitempty"`
+	Includes       []string       `json:"includes,omitempty"`
 	MCPServers     []MCPServer    `json:"mcpServers,omitempty"`
 	Marketplaces   []Marketplace  `json:"marketplaces,omitempty"`
 	Plugins        []string       `json:"plugins,omitempty"`
@@ -68,6 +69,29 @@ func (p *Profile) IsMultiScope() bool {
 		return false
 	}
 	return p.PerScope != nil
+}
+
+// IsStack returns true if this profile composes other profiles via includes.
+func (p *Profile) IsStack() bool {
+	return p != nil && len(p.Includes) > 0
+}
+
+// HasConfigFields returns true if the profile has any configuration
+// fields beyond name, description, and includes.
+func (p *Profile) HasConfigFields() bool {
+	if p == nil {
+		return false
+	}
+	return len(p.Marketplaces) > 0 ||
+		len(p.Plugins) > 0 ||
+		len(p.MCPServers) > 0 ||
+		p.PerScope != nil ||
+		p.LocalItems != nil ||
+		len(p.SettingsHooks) > 0 ||
+		len(p.Detect.Files) > 0 ||
+		len(p.Detect.Contains) > 0 ||
+		p.PostApply != nil ||
+		p.SkipPluginDiff
 }
 
 // HasMCPServersWithSecrets returns true if any MCP server in the profile has secrets defined.
@@ -273,11 +297,12 @@ type HookEntry struct {
 	Command string `json:"command"`
 }
 
-// PreserveFrom copies localItems from an existing profile.
+// PreserveFrom copies localItems and includes from an existing profile.
 // When re-saving, this keeps only the local items the user originally saved,
 // preventing accumulation of items enabled by other tools.
 func (p *Profile) PreserveFrom(existing *Profile) {
 	p.LocalItems = existing.LocalItems
+	p.Includes = existing.Includes
 }
 
 // Save writes a profile to the profiles directory
@@ -558,6 +583,12 @@ func (p *Profile) Clone(newName string) *Profile {
 		Description: p.Description,
 	}
 
+	// Deep copy Includes
+	if len(p.Includes) > 0 {
+		clone.Includes = make([]string, len(p.Includes))
+		copy(clone.Includes, p.Includes)
+	}
+
 	// Deep copy MCPServers
 	if len(p.MCPServers) > 0 {
 		clone.MCPServers = make([]MCPServer, len(p.MCPServers))
@@ -623,6 +654,11 @@ func (p *Profile) Equal(other *Profile) bool {
 
 	// Compare description
 	if p.Description != other.Description {
+		return false
+	}
+
+	// Compare Includes
+	if !strSlicesEqual(p.Includes, other.Includes) {
 		return false
 	}
 
@@ -798,6 +834,14 @@ func postApplyHookPtrEqual(a, b *PostApplyHook) bool {
 
 // GenerateDescription creates a human-readable description of the profile contents
 func (p *Profile) GenerateDescription() string {
+	if p.IsStack() {
+		n := len(p.Includes)
+		if n == 1 {
+			return "stack: 1 include"
+		}
+		return fmt.Sprintf("stack: %d includes", n)
+	}
+
 	var parts []string
 
 	marketplaceCount := len(p.Marketplaces)

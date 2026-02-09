@@ -848,6 +848,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
+			if p.IsStack() {
+				desc += " " + ui.Muted("[stack]")
+			}
 			fmt.Printf("%s%-20s %s\n", marker, displayName, desc)
 		}
 		fmt.Println()
@@ -981,6 +984,19 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		if embeddedErr != nil {
 			return fmt.Errorf("profile %q not found: %w", name, resolveErr)
 		}
+	}
+
+	// Resolve stack profiles (composable includes)
+	if p.IsStack() {
+		if scope != "" {
+			return fmt.Errorf("stack profiles define their own scopes; --scope is not supported with stacks")
+		}
+		loader := &profile.DirLoader{ProfilesDir: profilesDir}
+		resolved, resolveIncludesErr := profile.ResolveIncludes(p, loader)
+		if resolveIncludesErr != nil {
+			return fmt.Errorf("failed to resolve includes: %w", resolveIncludesErr)
+		}
+		p = resolved
 	}
 
 	// In a declarative system, reapplying a profile should always be allowed
@@ -1388,6 +1404,26 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	if p.Description != "" {
 		fmt.Printf("Description: %s\n", p.Description)
 	}
+
+	// Stack profiles: show include tree and resolved summary
+	if p.IsStack() {
+		fmt.Printf("Type:     stack\n")
+		fmt.Println()
+		showStackIncludes(p, profilesDir)
+
+		// Resolve and show the merged profile details
+		loader := &profile.DirLoader{ProfilesDir: profilesDir}
+		resolved, resolveErr := profile.ResolveIncludes(p, loader)
+		if resolveErr != nil {
+			fmt.Printf("\n%s Failed to resolve includes: %v\n", ui.SymbolError, resolveErr)
+			return nil
+		}
+
+		showResolvedSummary(resolved)
+		fmt.Println()
+		p = resolved
+	}
+
 	fmt.Println()
 
 	if p.IsMultiScope() {
@@ -1525,6 +1561,85 @@ func showLocalItems(items *profile.LocalItemSettings) {
 		}
 	}
 	fmt.Println()
+}
+
+// showStackIncludes displays the include tree for a stack profile.
+// Nested stacks are expanded one level to show their sub-includes.
+func showStackIncludes(p *profile.Profile, profilesDir string) {
+	fmt.Println("Includes:")
+	for _, name := range p.Includes {
+		// Try to load the included profile to check if it's also a stack
+		included, err := loadProfileWithFallback(profilesDir, name)
+		if err != nil {
+			fmt.Printf("  %s %s\n", name, ui.Muted("(not found)"))
+			continue
+		}
+		if included.IsStack() {
+			subNames := make([]string, len(included.Includes))
+			copy(subNames, included.Includes)
+			fmt.Printf("  %s %s [%s]\n", name, ui.Muted("->"), strings.Join(subNames, ", "))
+		} else {
+			fmt.Printf("  %s\n", name)
+		}
+	}
+}
+
+// showResolvedSummary displays a summary of the resolved (merged) profile contents.
+func showResolvedSummary(p *profile.Profile) {
+	var parts []string
+
+	if len(p.Marketplaces) > 0 {
+		parts = append(parts, fmt.Sprintf("%d marketplaces", len(p.Marketplaces)))
+	}
+
+	if p.PerScope != nil {
+		var userCount, projCount, localCount int
+		if p.PerScope.User != nil {
+			userCount = len(p.PerScope.User.Plugins)
+		}
+		if p.PerScope.Project != nil {
+			projCount = len(p.PerScope.Project.Plugins)
+		}
+		if p.PerScope.Local != nil {
+			localCount = len(p.PerScope.Local.Plugins)
+		}
+		total := userCount + projCount + localCount
+		if total > 0 {
+			scopeParts := []string{}
+			if userCount > 0 {
+				scopeParts = append(scopeParts, fmt.Sprintf("%d user", userCount))
+			}
+			if projCount > 0 {
+				scopeParts = append(scopeParts, fmt.Sprintf("%d project", projCount))
+			}
+			if localCount > 0 {
+				scopeParts = append(scopeParts, fmt.Sprintf("%d local", localCount))
+			}
+			parts = append(parts, fmt.Sprintf("%d plugins (%s)", total, strings.Join(scopeParts, ", ")))
+		}
+	} else if len(p.Plugins) > 0 {
+		parts = append(parts, fmt.Sprintf("%d plugins", len(p.Plugins)))
+	}
+
+	mcpCount := len(p.MCPServers)
+	if p.PerScope != nil {
+		if p.PerScope.User != nil {
+			mcpCount += len(p.PerScope.User.MCPServers)
+		}
+		if p.PerScope.Project != nil {
+			mcpCount += len(p.PerScope.Project.MCPServers)
+		}
+		if p.PerScope.Local != nil {
+			mcpCount += len(p.PerScope.Local.MCPServers)
+		}
+	}
+	if mcpCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d MCP servers", mcpCount))
+	}
+
+	if len(parts) > 0 {
+		fmt.Printf("\nResolved: %s\n", strings.Join(parts, ", "))
+	}
 }
 
 func runProfileStatus(cmd *cobra.Command, args []string) error {
