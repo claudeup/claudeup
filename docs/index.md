@@ -32,7 +32,7 @@ claudeup profile apply <name>
 
 ## Features
 
-**Profiles** - Save your plugin and MCP server configurations, switch between them instantly. Profiles are for bootstrapping - apply once, then manage settings directly.
+**Profiles** - Save your plugin and MCP server configurations, switch between them instantly. Compose reusable profiles into stacks for multi-language or multi-tool setups. Profiles are for bootstrapping -- apply once, then manage settings directly.
 
 **Local Extensions** - Manage local agents, commands, skills, hooks, rules, and output-styles from `~/.claude/.library`. Import, install, enable, and disable with wildcard support.
 

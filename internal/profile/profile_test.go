@@ -1662,3 +1662,140 @@ func TestLoadFromPath_InvalidJSON(t *testing.T) {
 		t.Error("Expected error for invalid JSON, got nil")
 	}
 }
+
+func TestClone_IncludesDeepCopy(t *testing.T) {
+	original := &Profile{
+		Name:     "original",
+		Includes: []string{"a", "b", "c"},
+	}
+
+	clone := original.Clone("clone")
+
+	// Verify includes were copied
+	if len(clone.Includes) != 3 {
+		t.Fatalf("clone includes: got %d, want 3", len(clone.Includes))
+	}
+
+	// Modify original includes -- clone should not be affected
+	original.Includes[0] = "modified"
+	if clone.Includes[0] != "a" {
+		t.Errorf("clone includes[0] changed after modifying original: got %q, want %q", clone.Includes[0], "a")
+	}
+}
+
+func TestEqual_IncludesComparison(t *testing.T) {
+	a := &Profile{
+		Name:     "a",
+		Includes: []string{"x", "y"},
+	}
+	b := &Profile{
+		Name:     "b",
+		Includes: []string{"x", "y"},
+	}
+	if !a.Equal(b) {
+		t.Error("profiles with same includes should be equal")
+	}
+
+	c := &Profile{
+		Name:     "c",
+		Includes: []string{"x", "z"},
+	}
+	if a.Equal(c) {
+		t.Error("profiles with different includes should not be equal")
+	}
+
+	d := &Profile{
+		Name:     "d",
+		Includes: nil,
+	}
+	e := &Profile{
+		Name:     "e",
+		Includes: []string{},
+	}
+	if !d.Equal(e) {
+		t.Error("nil and empty includes should be equal")
+	}
+}
+
+func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
+	existing := &Profile{
+		Includes: []string{"saved-include"},
+		LocalItems: &LocalItemSettings{
+			Agents: []string{"saved-agent"},
+		},
+	}
+
+	p := &Profile{
+		Name:    "new-save",
+		Plugins: []string{"plugin-a"},
+	}
+
+	p.PreserveFrom(existing)
+
+	// Includes should NOT be preserved -- re-saving a snapshot over a stack
+	// would produce an invalid profile with both includes and config fields
+	if len(p.Includes) != 0 {
+		t.Errorf("includes should not be preserved: got %v", p.Includes)
+	}
+	if p.LocalItems == nil || len(p.LocalItems.Agents) != 1 {
+		t.Error("local items not preserved")
+	}
+}
+
+func TestGenerateDescription_Stack(t *testing.T) {
+	tests := []struct {
+		name     string
+		profile  *Profile
+		expected string
+	}{
+		{
+			"single include",
+			&Profile{Includes: []string{"a"}},
+			"stack: 1 include",
+		},
+		{
+			"multiple includes",
+			&Profile{Includes: []string{"a", "b", "c"}},
+			"stack: 3 includes",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.profile.GenerateDescription()
+			if got != tt.expected {
+				t.Errorf("GenerateDescription(): got %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestProfileRoundTrip_WithIncludes(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	p := &Profile{
+		Name:        "my-stack",
+		Description: "A composable stack",
+		Includes:    []string{"base", "languages/go", "testing"},
+	}
+
+	if err := Save(profilesDir, p); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	loaded, err := Load(profilesDir, "my-stack")
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if len(loaded.Includes) != 3 {
+		t.Fatalf("includes: got %d, want 3", len(loaded.Includes))
+	}
+	if loaded.Includes[0] != "base" || loaded.Includes[1] != "languages/go" || loaded.Includes[2] != "testing" {
+		t.Errorf("includes: got %v, want [base languages/go testing]", loaded.Includes)
+	}
+	if !loaded.IsStack() {
+		t.Error("loaded profile should be a stack")
+	}
+}

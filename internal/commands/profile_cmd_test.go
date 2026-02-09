@@ -1,8 +1,9 @@
 // ABOUTME: Tests for profile command functions
-// ABOUTME: Validates profile loading fallback behavior
+// ABOUTME: Validates profile loading fallback, stack apply, and scope routing
 package commands
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -539,5 +540,206 @@ func TestProfileDelete_ClearsActiveProfile(t *testing.T) {
 	}
 	if loaded.Name != "test-to-clear" {
 		t.Errorf("Expected profile name 'test-to-clear', got %q", loaded.Name)
+	}
+}
+
+// setupStackApplyEnv prepares an isolated environment for testing applyProfileWithScope.
+// Sets CLAUDEUP_HOME and claudeDir to temp directories, overrides global flags
+// for non-interactive operation, and returns the profiles directory path.
+// All globals and env vars are restored via t.Cleanup.
+func setupStackApplyEnv(t *testing.T) string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	claudeupHome := filepath.Join(tmpDir, "claudeup-home")
+	profilesDir := filepath.Join(claudeupHome, "profiles")
+	testClaudeDir := filepath.Join(tmpDir, "claude")
+
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatalf("Failed to create profiles dir: %v", err)
+	}
+	if err := os.MkdirAll(testClaudeDir, 0755); err != nil {
+		t.Fatalf("Failed to create claude dir: %v", err)
+	}
+
+	// Set CLAUDEUP_HOME so getProfilesDir() returns our temp profiles dir
+	t.Setenv("CLAUDEUP_HOME", claudeupHome)
+
+	// Save and restore globals
+	origClaudeDir := claudeDir
+	origForce := profileApplyForce
+	origNoInteractive := profileApplyNoInteractive
+	origScope := profileApplyScope
+	origDryRun := profileApplyDryRun
+	origReplace := profileApplyReplace
+	origReinstall := profileApplyReinstall
+	origNoProgress := profileApplyNoProgress
+	origSetup := profileApplySetup
+	origYesFlag := config.YesFlag
+
+	claudeDir = testClaudeDir
+	profileApplyForce = true
+	profileApplyNoInteractive = true
+	profileApplyScope = ""
+	profileApplyDryRun = false
+	profileApplyReplace = false
+	profileApplyReinstall = false
+	profileApplyNoProgress = true
+	profileApplySetup = false
+	config.YesFlag = true
+
+	t.Cleanup(func() {
+		claudeDir = origClaudeDir
+		profileApplyForce = origForce
+		profileApplyNoInteractive = origNoInteractive
+		profileApplyScope = origScope
+		profileApplyDryRun = origDryRun
+		profileApplyReplace = origReplace
+		profileApplyReinstall = origReinstall
+		profileApplyNoProgress = origNoProgress
+		profileApplySetup = origSetup
+		config.YesFlag = origYesFlag
+	})
+
+	return profilesDir
+}
+
+func TestApplyProfileWithScope_ExplicitScopeRejectsStacks(t *testing.T) {
+	profilesDir := setupStackApplyEnv(t)
+
+	// Create a stack profile (has includes, making it a stack)
+	stackJSON := []byte(`{"name":"my-stack","includes":["base","tools"]}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "my-stack.json"), stackJSON, 0644); err != nil {
+		t.Fatalf("Failed to write stack profile: %v", err)
+	}
+
+	err := applyProfileWithScope("my-stack", profile.ScopeUser, true)
+	if err == nil {
+		t.Fatal("Expected error when applying stack with explicit scope, got nil")
+	}
+
+	expected := "stack profiles define their own scopes"
+	if !strings.Contains(err.Error(), expected) {
+		t.Errorf("Expected error containing %q, got %q", expected, err.Error())
+	}
+}
+
+func TestApplyProfileWithScope_StackSucceedsWithAutoScope(t *testing.T) {
+	profilesDir := setupStackApplyEnv(t)
+
+	// Create a stack that includes a leaf profile
+	stackJSON := []byte(`{"name":"test-stack","includes":["base"]}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "test-stack.json"), stackJSON, 0644); err != nil {
+		t.Fatalf("Failed to write stack profile: %v", err)
+	}
+
+	// Create the leaf profile (no plugins/MCP -- resolves to empty config)
+	leafJSON := []byte(`{"name":"base","description":"Base configuration"}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "base.json"), leafJSON, 0644); err != nil {
+		t.Fatalf("Failed to write leaf profile: %v", err)
+	}
+
+	// With explicitScope=false, the stack should pass the scope check,
+	// resolve its includes, and return successfully (no changes needed)
+	err := applyProfileWithScope("test-stack", profile.ScopeUser, false)
+	if err != nil {
+		t.Fatalf("Stack apply with auto scope should succeed, got: %v", err)
+	}
+}
+
+func TestApplyProfileWithScope_MultiScopeStackRoutesToApplyAllScopes(t *testing.T) {
+	profilesDir := setupStackApplyEnv(t)
+
+	// Create a stack that includes a multi-scope leaf
+	stackJSON := []byte(`{"name":"scoped-stack","includes":["scoped-leaf"]}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "scoped-stack.json"), stackJSON, 0644); err != nil {
+		t.Fatalf("Failed to write stack profile: %v", err)
+	}
+
+	// Create a multi-scope leaf profile (has perScope, making resolved profile IsMultiScope)
+	leafJSON := []byte(`{
+		"name": "scoped-leaf",
+		"perScope": {
+			"user": {
+				"plugins": ["test-plugin@test-market"]
+			}
+		}
+	}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "scoped-leaf.json"), leafJSON, 0644); err != nil {
+		t.Fatalf("Failed to write scoped leaf profile: %v", err)
+	}
+
+	err := applyProfileWithScope("scoped-stack", profile.ScopeUser, false)
+	if err != nil {
+		t.Fatalf("Multi-scope stack apply failed: %v", err)
+	}
+
+	// Verify settings.json was written by ApplyAllScopes
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("Expected settings.json to be created by ApplyAllScopes, got: %v", err)
+	}
+
+	// Verify the plugin from perScope.user was written to settings
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("Failed to parse settings.json: %v", err)
+	}
+
+	enabledPlugins, ok := settings["enabledPlugins"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected enabledPlugins map in settings.json, got: %v", settings)
+	}
+
+	if _, found := enabledPlugins["test-plugin@test-market"]; !found {
+		t.Errorf("Expected 'test-plugin@test-market' in enabledPlugins, got: %v", enabledPlugins)
+	}
+}
+
+func TestApplyProfileWithScope_FlatStackRoutesToApplyAllScopes(t *testing.T) {
+	profilesDir := setupStackApplyEnv(t)
+
+	// Create a stack that includes a flat-only leaf (no perScope)
+	stackJSON := []byte(`{"name":"flat-stack","includes":["flat-leaf"]}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "flat-stack.json"), stackJSON, 0644); err != nil {
+		t.Fatalf("Failed to write stack profile: %v", err)
+	}
+
+	// Create a flat leaf profile with only legacy plugins (no perScope).
+	// After resolution, IsMultiScope() returns false -- wasStack flag ensures
+	// ApplyAllScopes is still used, routing flat plugins to user scope.
+	leafJSON := []byte(`{
+		"name": "flat-leaf",
+		"plugins": ["flat-plugin@test-market"]
+	}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "flat-leaf.json"), leafJSON, 0644); err != nil {
+		t.Fatalf("Failed to write flat leaf profile: %v", err)
+	}
+
+	err := applyProfileWithScope("flat-stack", profile.ScopeUser, false)
+	if err != nil {
+		t.Fatalf("Flat stack apply should succeed, got: %v", err)
+	}
+
+	// Verify settings.json was written (ApplyAllScopes path)
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("Expected settings.json to be created by ApplyAllScopes, got: %v", err)
+	}
+
+	var settings map[string]interface{}
+	if err := json.Unmarshal(data, &settings); err != nil {
+		t.Fatalf("Failed to parse settings.json: %v", err)
+	}
+
+	enabledPlugins, ok := settings["enabledPlugins"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("Expected enabledPlugins map in settings.json, got: %v", settings)
+	}
+
+	if _, found := enabledPlugins["flat-plugin@test-market"]; !found {
+		t.Errorf("Expected 'flat-plugin@test-market' in user-scope settings, got: %v", enabledPlugins)
 	}
 }

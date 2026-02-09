@@ -848,6 +848,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
+			if p.IsStack() {
+				desc += " " + ui.Muted("[stack]")
+			}
 			fmt.Printf("%s%-20s %s\n", marker, displayName, desc)
 		}
 		fmt.Println()
@@ -950,12 +953,14 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return applyProfileWithScope(name, scope)
+	explicitScope := profileApplyScope != ""
+	return applyProfileWithScope(name, scope, explicitScope)
 }
 
 // applyProfileWithScope applies a profile at the specified scope.
 // This is the core implementation shared by runProfileApply and runProfileCreate.
-func applyProfileWithScope(name string, scope profile.Scope) error {
+// explicitScope indicates whether the user explicitly passed a scope flag.
+func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
@@ -981,6 +986,22 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 		if embeddedErr != nil {
 			return fmt.Errorf("profile %q not found: %w", name, resolveErr)
 		}
+	}
+
+	// Resolve stack profiles (composable includes).
+	// Track whether the original profile was a stack so we always route through
+	// ApplyAllScopes, even if the resolved profile has only flat fields.
+	wasStack := p.IsStack()
+	if wasStack {
+		if explicitScope {
+			return fmt.Errorf("stack profiles define their own scopes; --scope is not supported with stacks")
+		}
+		loader := &profile.DirLoader{ProfilesDir: profilesDir}
+		resolved, resolveIncludesErr := profile.ResolveIncludes(p, loader)
+		if resolveIncludesErr != nil {
+			return fmt.Errorf("failed to resolve includes: %w", resolveIncludesErr)
+		}
+		p = resolved
 	}
 
 	// In a declarative system, reapplying a profile should always be allowed
@@ -1033,8 +1054,8 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 
 	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
 
-	// Multi-scope profiles always need to apply (diff only checks one scope)
-	needsApply := p.IsMultiScope() || hasDiffChanges(diff) || shouldRunHook
+	// Multi-scope profiles and stacks always need to apply (diff only checks one scope)
+	needsApply := p.IsMultiScope() || wasStack || hasDiffChanges(diff) || shouldRunHook
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
@@ -1068,10 +1089,10 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	}
 
 	// Show diff and confirm if there are changes
-	if hasDiffChanges(diff) || p.IsMultiScope() {
+	if hasDiffChanges(diff) || p.IsMultiScope() || wasStack {
 		fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
 		fmt.Println()
-		if p.IsMultiScope() {
+		if p.IsMultiScope() || wasStack {
 			// Show per-scope summary for multi-scope profiles
 			showMultiScopeSummary(p)
 		} else {
@@ -1112,8 +1133,8 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 
 	var result *profile.ApplyResult
 
-	// Use ApplyAllScopes for multi-scope profiles, ApplyWithOptions for legacy
-	if p.IsMultiScope() {
+	// Use ApplyAllScopes for multi-scope profiles and stacks, ApplyWithOptions for legacy
+	if p.IsMultiScope() || wasStack {
 		ui.PrintInfo("Applying profile (all scopes)...")
 		applyOpts := &profile.ApplyAllScopesOptions{
 			ReplaceUserScope: profileApplyReplace, // --replace flag controls user scope behavior
@@ -1388,6 +1409,26 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	if p.Description != "" {
 		fmt.Printf("Description: %s\n", p.Description)
 	}
+
+	// Stack profiles: show include tree and resolved summary
+	if p.IsStack() {
+		fmt.Printf("Type:     stack\n")
+		fmt.Println()
+		showStackIncludes(p, profilesDir)
+
+		// Resolve and show the merged profile details
+		loader := &profile.DirLoader{ProfilesDir: profilesDir}
+		resolved, resolveErr := profile.ResolveIncludes(p, loader)
+		if resolveErr != nil {
+			fmt.Printf("\n%s Failed to resolve includes: %v\n", ui.SymbolError, resolveErr)
+			return nil
+		}
+
+		showResolvedSummary(resolved)
+		fmt.Println()
+		p = resolved
+	}
+
 	fmt.Println()
 
 	if p.IsMultiScope() {
@@ -1525,6 +1566,87 @@ func showLocalItems(items *profile.LocalItemSettings) {
 		}
 	}
 	fmt.Println()
+}
+
+// showStackIncludes displays the include tree for a stack profile.
+// Nested stacks are expanded one level to show their sub-includes.
+// Uses DirLoader for consistent fallback semantics with ResolveIncludes.
+func showStackIncludes(p *profile.Profile, profilesDir string) {
+	loader := &profile.DirLoader{ProfilesDir: profilesDir}
+	fmt.Println("Includes:")
+	for _, name := range p.Includes {
+		// Try to load the included profile to check if it's also a stack
+		included, err := loader.LoadProfile(name)
+		if err != nil {
+			fmt.Printf("  %s %s\n", name, ui.Muted(fmt.Sprintf("(%v)", err)))
+			continue
+		}
+		if included.IsStack() {
+			subNames := make([]string, len(included.Includes))
+			copy(subNames, included.Includes)
+			fmt.Printf("  %s %s [%s]\n", name, ui.Muted("->"), strings.Join(subNames, ", "))
+		} else {
+			fmt.Printf("  %s\n", name)
+		}
+	}
+}
+
+// showResolvedSummary displays a summary of the resolved (merged) profile contents.
+func showResolvedSummary(p *profile.Profile) {
+	var parts []string
+
+	if len(p.Marketplaces) > 0 {
+		parts = append(parts, fmt.Sprintf("%d marketplaces", len(p.Marketplaces)))
+	}
+
+	var pluginTotal int
+	var scopeParts []string
+
+	if len(p.Plugins) > 0 {
+		pluginTotal += len(p.Plugins)
+		scopeParts = append(scopeParts, fmt.Sprintf("%d unscoped", len(p.Plugins)))
+	}
+	if p.PerScope != nil {
+		if p.PerScope.User != nil && len(p.PerScope.User.Plugins) > 0 {
+			pluginTotal += len(p.PerScope.User.Plugins)
+			scopeParts = append(scopeParts, fmt.Sprintf("%d user", len(p.PerScope.User.Plugins)))
+		}
+		if p.PerScope.Project != nil && len(p.PerScope.Project.Plugins) > 0 {
+			pluginTotal += len(p.PerScope.Project.Plugins)
+			scopeParts = append(scopeParts, fmt.Sprintf("%d project", len(p.PerScope.Project.Plugins)))
+		}
+		if p.PerScope.Local != nil && len(p.PerScope.Local.Plugins) > 0 {
+			pluginTotal += len(p.PerScope.Local.Plugins)
+			scopeParts = append(scopeParts, fmt.Sprintf("%d local", len(p.PerScope.Local.Plugins)))
+		}
+	}
+	if pluginTotal > 0 {
+		if len(scopeParts) > 1 {
+			parts = append(parts, fmt.Sprintf("%d plugins (%s)", pluginTotal, strings.Join(scopeParts, ", ")))
+		} else {
+			parts = append(parts, fmt.Sprintf("%d plugins", pluginTotal))
+		}
+	}
+
+	mcpCount := len(p.MCPServers)
+	if p.PerScope != nil {
+		if p.PerScope.User != nil {
+			mcpCount += len(p.PerScope.User.MCPServers)
+		}
+		if p.PerScope.Project != nil {
+			mcpCount += len(p.PerScope.Project.MCPServers)
+		}
+		if p.PerScope.Local != nil {
+			mcpCount += len(p.PerScope.Local.MCPServers)
+		}
+	}
+	if mcpCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d MCP servers", mcpCount))
+	}
+
+	if len(parts) > 0 {
+		fmt.Printf("\nResolved: %s\n", strings.Join(parts, ", "))
+	}
 }
 
 func runProfileStatus(cmd *cobra.Command, args []string) error {
@@ -2159,7 +2281,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		// Apply the profile at user scope (not project scope).
 		// This prevents accidentally overwriting existing project configs when
 		// the user just wants to create and try a new profile.
-		if err := applyProfileWithScope(name, profile.ScopeUser); err != nil {
+		if err := applyProfileWithScope(name, profile.ScopeUser, true); err != nil {
 			return err
 		}
 

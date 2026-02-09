@@ -264,6 +264,175 @@ cd team-project
 claudeup profile apply team-stack --project
 ```
 
+## Composable Stacks
+
+Stack profiles compose multiple profiles into one by listing them in an `includes` field. Instead of duplicating plugins across profiles, stacks let you build up configurations from reusable pieces.
+
+### Creating a Stack
+
+A stack profile contains only `includes` -- no plugins, MCP servers, or other config fields. This keeps composition clean and predictable.
+
+```json
+{
+  "name": "go-dev",
+  "description": "Go development stack",
+  "includes": ["go-tools", "testing", "code-review"]
+}
+```
+
+Each entry in `includes` refers to another profile by name. Included profiles can be:
+
+- User profiles in `~/.claudeup/profiles/`
+- Built-in profiles embedded in claudeup
+- Nested profiles referenced by path (e.g., `"languages/go"`)
+
+### How Resolution Works
+
+When you apply a stack, claudeup resolves the include tree into a single merged profile:
+
+```bash
+claudeup profile apply go-dev -y
+```
+
+1. Each include is loaded recursively (stacks can include other stacks)
+2. Leaf profiles (non-stacks with actual config) are collected in order
+3. Their fields are merged left-to-right into a single resolved profile
+4. The resolved profile is applied
+
+### Merge Strategies
+
+When included profiles have overlapping settings, these rules determine the result:
+
+| Field          | Strategy                                                 |
+| -------------- | -------------------------------------------------------- |
+| Plugins        | Union with deduplication (all plugins from all includes) |
+| MCP Servers    | Union; last-wins by name on conflicts                    |
+| Marketplaces   | Union with deduplication                                 |
+| Local Items    | Union per category with deduplication                    |
+| Settings Hooks | Union per event type, deduplicated by command            |
+| Detect         | Union files; merge contains map (later wins)             |
+| SkipPluginDiff | OR (any true results in true)                            |
+| PostApply      | Last-wins (only the rightmost include's hook is used)    |
+
+### Stack Rules
+
+**Stacks must be pure.** A stack profile can have `includes`, `name`, and `description` -- nothing else. Mixing includes with config fields (plugins, MCP servers, etc.) is an error. This prevents ambiguity about whether settings come from the stack itself or its includes.
+
+**No `--scope` flag.** Stack profiles define their own scopes through their included profiles' `perScope` settings. Use `perScope` in leaf profiles to control where plugins land:
+
+```json
+{
+  "name": "go-tools",
+  "perScope": {
+    "user": {
+      "plugins": ["superpowers@superpowers-marketplace"]
+    },
+    "project": {
+      "plugins": ["backend-development@claude-code-workflows"]
+    }
+  }
+}
+```
+
+Legacy flat `plugins` arrays in included profiles are applied to user scope.
+
+### Cycle Detection
+
+Circular includes are detected and rejected:
+
+```text
+Error: include cycle detected: go-dev -> backend -> go-dev
+```
+
+Diamond patterns (where two includes share a common dependency) are handled correctly -- the shared dependency is only included once.
+
+### Depth Limit
+
+Include chains are limited to 50 levels deep to prevent resource exhaustion from pathological nesting. In practice, 2-3 levels of nesting covers most use cases.
+
+### Viewing Stacks
+
+Use `profile show` to inspect a stack's include tree and resolved contents:
+
+```bash
+claudeup profile show go-dev
+```
+
+```text
+Profile: go-dev
+Description: Go development stack
+
+Includes:
+  go-tools
+  testing
+  code-review
+
+Resolved: 3 marketplaces, 8 plugins (3 user, 5 project)
+```
+
+In `profile list`, stacks are marked with `[stack]`:
+
+```text
+Your profiles (3)
+
+  go-tools             Go language tools
+  testing              Testing frameworks
+  go-dev               Go development stack [stack]
+```
+
+### Example: Multi-Language Project
+
+```bash
+# Create language-specific leaf profiles
+cat > ~/.claudeup/profiles/go-tools.json << 'EOF'
+{
+  "name": "go-tools",
+  "marketplaces": [{"source": "github", "repo": "anthropics/claude-code"}],
+  "perScope": {
+    "user": { "plugins": ["superpowers@superpowers-marketplace"] },
+    "project": { "plugins": ["backend-development@claude-code-workflows"] }
+  }
+}
+EOF
+
+cat > ~/.claudeup/profiles/typescript-tools.json << 'EOF'
+{
+  "name": "typescript-tools",
+  "perScope": {
+    "project": { "plugins": ["frontend-design@claude-code-plugins"] }
+  }
+}
+EOF
+
+# Create a stack that composes both
+cat > ~/.claudeup/profiles/fullstack.json << 'EOF'
+{
+  "name": "fullstack",
+  "description": "Full-stack Go + TypeScript",
+  "includes": ["go-tools", "typescript-tools"]
+}
+EOF
+
+# Apply the stack
+cd ~/my-fullstack-project
+claudeup profile apply fullstack -y
+```
+
+### Organizing Profiles in Subdirectories
+
+Leaf profiles can live in subdirectories for organization. Reference them with path-qualified names:
+
+```text
+~/.claudeup/profiles/
+  languages/
+    go.json
+    typescript.json
+  quality/
+    code-review.json
+    testing.json
+  fullstack.json       # includes: ["languages/go", "languages/typescript", "quality/code-review"]
+```
+
 ## Built-in Profiles
 
 claudeup ships with built-in profiles that are ready to use without any setup:
@@ -531,6 +700,20 @@ When you run `profile save`, all three scopes are captured automatically. When y
 **Marketplace filtering:** Only marketplaces referenced by at least one enabled plugin are included. Marketplaces installed by other tools (e.g., mpm) that have no corresponding plugins in the profile are excluded.
 
 **Local items:** Enabled local items (agents, commands, skills, hooks, rules, output styles) are captured from the active directory. When re-saving an existing profile, local items are preserved from the original to prevent accumulation of items enabled by other tools.
+
+### Stack Format
+
+Stack profiles use `includes` instead of config fields:
+
+```json
+{
+  "name": "fullstack",
+  "description": "Full-stack development stack",
+  "includes": ["go-tools", "typescript-tools", "quality/code-review"]
+}
+```
+
+Stack profiles cannot contain `plugins`, `mcpServers`, `marketplaces`, `perScope`, or other config fields. See [Composable Stacks](#composable-stacks) for details.
 
 ### Legacy Format (backward compatible)
 
