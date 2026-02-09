@@ -3,11 +3,13 @@
 package commands
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/claudeup/claudeup/v4/internal/config"
 	"github.com/claudeup/claudeup/v4/internal/profile"
 )
 
@@ -283,6 +285,234 @@ func TestProfileDelete_DetectsActiveProfile(t *testing.T) {
 	profilePath := filepath.Join(profilesDir, "test-active.json")
 	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
 		t.Error("Profile file should exist before deletion")
+	}
+}
+
+func TestResolveProfileArg_SingleMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	os.MkdirAll(profilesDir, 0755)
+
+	// Create a flat profile
+	testProfile := &profile.Profile{
+		Name:        "api",
+		Description: "API profile",
+	}
+	if err := profile.Save(profilesDir, testProfile); err != nil {
+		t.Fatalf("Failed to save profile: %v", err)
+	}
+
+	path, err := resolveProfileArg(profilesDir, "api")
+	if err != nil {
+		t.Fatalf("resolveProfileArg failed: %v", err)
+	}
+
+	expected := filepath.Join(profilesDir, "api.json")
+	if path != expected {
+		t.Errorf("Expected path %q, got %q", expected, path)
+	}
+}
+
+func TestResolveProfileArg_NestedSingleMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	nestedDir := filepath.Join(profilesDir, "backend")
+	os.MkdirAll(nestedDir, 0755)
+
+	// Create a nested profile
+	data := []byte(`{"name":"worker","description":"Worker service"}`)
+	if err := os.WriteFile(filepath.Join(nestedDir, "worker.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	path, err := resolveProfileArg(profilesDir, "worker")
+	if err != nil {
+		t.Fatalf("resolveProfileArg failed: %v", err)
+	}
+
+	expected := filepath.Join(nestedDir, "worker.json")
+	if path != expected {
+		t.Errorf("Expected path %q, got %q", expected, path)
+	}
+}
+
+func TestResolveProfileArg_PathReference(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	nestedDir := filepath.Join(profilesDir, "backend")
+	os.MkdirAll(nestedDir, 0755)
+
+	// Create nested profile
+	data := []byte(`{"name":"api","description":"Backend API"}`)
+	if err := os.WriteFile(filepath.Join(nestedDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	// Resolve with path reference
+	path, err := resolveProfileArg(profilesDir, "backend/api")
+	if err != nil {
+		t.Fatalf("resolveProfileArg failed: %v", err)
+	}
+
+	expected := filepath.Join(nestedDir, "api.json")
+	if path != expected {
+		t.Errorf("Expected path %q, got %q", expected, path)
+	}
+}
+
+func TestResolveProfileArg_NotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	os.MkdirAll(profilesDir, 0755)
+
+	_, err := resolveProfileArg(profilesDir, "nonexistent")
+	if err == nil {
+		t.Fatal("Expected error for nonexistent profile, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected error containing 'not found', got %q", err.Error())
+	}
+}
+
+func TestResolveProfileArg_AmbiguousWithYesFlag(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	nestedDir := filepath.Join(profilesDir, "backend")
+	os.MkdirAll(profilesDir, 0755)
+	os.MkdirAll(nestedDir, 0755)
+
+	// Create two profiles with the same name
+	data := []byte(`{"name":"api","description":"Root API"}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write root profile: %v", err)
+	}
+	data2 := []byte(`{"name":"api","description":"Backend API"}`)
+	if err := os.WriteFile(filepath.Join(nestedDir, "api.json"), data2, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	// Set --yes flag to simulate non-interactive mode
+	oldYesFlag := config.YesFlag
+	config.YesFlag = true
+	defer func() { config.YesFlag = oldYesFlag }()
+
+	_, err := resolveProfileArg(profilesDir, "api")
+	if err == nil {
+		t.Fatal("Expected ambiguity error with --yes flag, got nil")
+	}
+
+	var ambigErr *profile.AmbiguousProfileError
+	if !errors.As(err, &ambigErr) {
+		t.Fatalf("Expected *AmbiguousProfileError, got %T: %v", err, err)
+	}
+	if ambigErr.Name != "api" {
+		t.Errorf("Expected Name 'api', got %q", ambigErr.Name)
+	}
+	// Should list the paths to help the user
+	found := false
+	for _, p := range ambigErr.Paths {
+		if p == "backend/api" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Expected paths to include 'backend/api', got %v", ambigErr.Paths)
+	}
+}
+
+func TestResolveProfileArg_AmbiguousInteractive(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	nestedDir := filepath.Join(profilesDir, "backend")
+	os.MkdirAll(profilesDir, 0755)
+	os.MkdirAll(nestedDir, 0755)
+
+	// Create two profiles with the same name
+	data := []byte(`{"name":"api","description":"Root API"}`)
+	if err := os.WriteFile(filepath.Join(profilesDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write root profile: %v", err)
+	}
+	data2 := []byte(`{"name":"api","description":"Backend API"}`)
+	if err := os.WriteFile(filepath.Join(nestedDir, "api.json"), data2, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	// Ensure --yes flag is off for interactive mode
+	oldYesFlag := config.YesFlag
+	config.YesFlag = false
+	defer func() { config.YesFlag = oldYesFlag }()
+
+	// Simulate user selecting option 2 (backend/api)
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Failed to create pipe: %v", err)
+	}
+	w.WriteString("2\n")
+	w.Close()
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+	defer func() { os.Stdin = oldStdin }()
+
+	path, err := resolveProfileArg(profilesDir, "api")
+	if err != nil {
+		t.Fatalf("resolveProfileArg failed: %v", err)
+	}
+
+	expected := filepath.Join(nestedDir, "api.json")
+	if path != expected {
+		t.Errorf("Expected path %q, got %q", expected, path)
+	}
+}
+
+func TestResolveProfileArg_PathReferenceNotFound(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	os.MkdirAll(profilesDir, 0755)
+
+	_, err := resolveProfileArg(profilesDir, "backend/missing")
+	if err == nil {
+		t.Fatal("Expected error for missing path reference, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("Expected error containing 'not found', got %q", err.Error())
+	}
+}
+
+func TestProfileExists_FindsNestedProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	nestedDir := filepath.Join(profilesDir, "backend")
+	os.MkdirAll(nestedDir, 0755)
+
+	// Create a nested profile
+	data := []byte(`{"name":"api","description":"Backend API"}`)
+	if err := os.WriteFile(filepath.Join(nestedDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	if !profileExists(profilesDir, "api") {
+		t.Error("profileExists should find nested profile by name")
+	}
+}
+
+func TestProfileExists_FindsNestedByPathReference(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+	nestedDir := filepath.Join(profilesDir, "backend")
+	os.MkdirAll(nestedDir, 0755)
+
+	// Create a nested profile
+	data := []byte(`{"name":"api","description":"Backend API"}`)
+	if err := os.WriteFile(filepath.Join(nestedDir, "api.json"), data, 0644); err != nil {
+		t.Fatalf("Failed to write nested profile: %v", err)
+	}
+
+	if !profileExists(profilesDir, "backend/api") {
+		t.Error("profileExists should find nested profile by path reference")
 	}
 }
 

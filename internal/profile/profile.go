@@ -13,6 +13,18 @@ import (
 	"github.com/claudeup/claudeup/v4/internal/events"
 )
 
+// AmbiguousProfileError is returned when a profile name matches multiple files
+// in the profiles directory (e.g. both "profiles/api.json" and "profiles/backend/api.json").
+type AmbiguousProfileError struct {
+	Name  string   // the profile name that was searched for
+	Paths []string // relative paths of all matching profiles (forward-slash separated, without .json)
+}
+
+func (e *AmbiguousProfileError) Error() string {
+	return fmt.Sprintf("ambiguous profile name %q matches %d profiles: %s",
+		e.Name, len(e.Paths), strings.Join(e.Paths, ", "))
+}
+
 // Profile represents a Claude Code configuration profile
 type Profile struct {
 	Name           string         `json:"name"`
@@ -294,11 +306,115 @@ func Save(profilesDir string, p *Profile) error {
 	)
 }
 
-// Load reads a profile from the profiles directory
+// Load reads a profile from the profiles directory.
+// If name contains "/", it is treated as a relative path within profilesDir.
+// Otherwise, profilesDir is searched recursively for a matching .json file.
+// Returns an error if the name matches multiple profiles (ambiguous).
 func Load(profilesDir, name string) (*Profile, error) {
-	profilePath := filepath.Join(profilesDir, name+".json")
+	paths, err := FindProfilePaths(profilesDir, name)
+	if err != nil {
+		return nil, err
+	}
 
-	data, err := os.ReadFile(profilePath)
+	switch len(paths) {
+	case 0:
+		return nil, &os.PathError{Op: "open", Path: filepath.Join(profilesDir, name+".json"), Err: os.ErrNotExist}
+	case 1:
+		return LoadFromPath(paths[0])
+	default:
+		// Build relative paths for the error
+		relPaths := make([]string, 0, len(paths))
+		for _, p := range paths {
+			rel, err := filepath.Rel(profilesDir, p)
+			if err != nil {
+				rel = p
+			}
+			relPaths = append(relPaths, strings.TrimSuffix(filepath.ToSlash(rel), ".json"))
+		}
+		return nil, &AmbiguousProfileError{Name: name, Paths: relPaths}
+	}
+}
+
+// ProfileEntry is a profile with its location relative to the profiles directory.
+// RelPath uses forward slashes (e.g. "backend/api.json" or "mobile.json").
+type ProfileEntry struct {
+	*Profile
+	RelPath string
+}
+
+// DisplayName returns the profile's display name for listing.
+// For root profiles, this is just the profile name.
+// For nested profiles, this is the relative path without the .json extension.
+func (e ProfileEntry) DisplayName() string {
+	return strings.TrimSuffix(e.RelPath, ".json")
+}
+
+// FindProfilePaths walks profilesDir recursively and returns absolute paths
+// to .json files whose filename stem matches name.
+// If name contains a "/", it is treated as a relative path reference:
+// only profilesDir/name.json is checked (after validating the path stays within profilesDir).
+// Returns an empty slice (not an error) if profilesDir does not exist.
+// The profilesDir argument is resolved to an absolute path internally.
+func FindProfilePaths(profilesDir, name string) ([]string, error) {
+	// Ensure absolute profilesDir so WalkDir returns absolute paths
+	var err error
+	profilesDir, err = filepath.Abs(profilesDir)
+	if err != nil {
+		return nil, fmt.Errorf("invalid profiles directory: %w", err)
+	}
+
+	// Path reference mode: name contains "/"
+	if strings.Contains(name, "/") {
+		// Normalize to OS-specific separators for correct filepath operations
+		name = filepath.FromSlash(name)
+		target := filepath.Clean(filepath.Join(profilesDir, name+".json"))
+		// Validate the resolved path stays within profilesDir to prevent traversal
+		if target != profilesDir && !strings.HasPrefix(target, profilesDir+string(filepath.Separator)) {
+			return nil, fmt.Errorf("invalid profile path %q: escapes profiles directory", name)
+		}
+		if _, err := os.Stat(target); err == nil {
+			return []string{target}, nil
+		}
+		return []string{}, nil
+	}
+
+	// Name-based search: walk recursively
+	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+		return []string{}, nil
+	}
+
+	matches := make([]string, 0, 8)
+	err = filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir // skip unreadable subdirectories
+			}
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+		stem := strings.TrimSuffix(d.Name(), ".json")
+		if stem == name {
+			matches = append(matches, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(matches)
+	return matches, nil
+}
+
+// LoadFromPath loads a profile from an absolute file path.
+// If the JSON does not contain a name field, the name is derived from the filename.
+func LoadFromPath(path string) (*Profile, error) {
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +426,7 @@ func Load(profilesDir, name string) (*Profile, error) {
 
 	// Set name from filename if not present in JSON
 	if p.Name == "" {
-		p.Name = name
+		p.Name = strings.TrimSuffix(filepath.Base(path), ".json")
 	}
 
 	return &p, nil
@@ -327,44 +443,67 @@ func SaveToProject(projectDir string, p *Profile) error {
 	return Save(profilesDir, p)
 }
 
-// List returns all profiles in the profiles directory, sorted by name
-func List(profilesDir string) ([]*Profile, error) {
-	entries, err := os.ReadDir(profilesDir)
-	if os.IsNotExist(err) {
-		return []*Profile{}, nil
+// List returns all profiles in the profiles directory (including subdirectories),
+// sorted by name then by relative path for duplicates.
+func List(profilesDir string) ([]ProfileEntry, error) {
+	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+		return []ProfileEntry{}, nil
 	}
+
+	var entries []ProfileEntry
+	err := filepath.WalkDir(profilesDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			if d != nil && d.IsDir() {
+				return filepath.SkipDir // skip unreadable subdirectories
+			}
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".json") {
+			return nil
+		}
+
+		p, loadErr := LoadFromPath(path)
+		if loadErr != nil {
+			return nil // skip invalid profiles (bad JSON, etc.)
+		}
+
+		relPath, relErr := filepath.Rel(profilesDir, path)
+		if relErr != nil {
+			return relErr
+		}
+
+		entries = append(entries, ProfileEntry{Profile: p, RelPath: filepath.ToSlash(relPath)})
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var profiles []*Profile
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].Name != entries[j].Name {
+			return entries[i].Name < entries[j].Name
 		}
-		if !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-
-		name := strings.TrimSuffix(entry.Name(), ".json")
-		p, err := Load(profilesDir, name)
-		if err != nil {
-			continue // Skip invalid profiles
-		}
-		profiles = append(profiles, p)
-	}
-
-	sort.Slice(profiles, func(i, j int) bool {
-		return profiles[i].Name < profiles[j].Name
+		return entries[i].RelPath < entries[j].RelPath
 	})
 
-	return profiles, nil
+	return entries, nil
 }
 
-// ProfileWithSource wraps a profile with its source location
+// ProfileWithSource wraps a profile with its source location and relative path
 type ProfileWithSource struct {
 	*Profile
-	Source string // "user" or "project"
+	Source  string // "user" or "project"
+	RelPath string // relative path within profiles dir (e.g. "backend/api.json")
+}
+
+// DisplayName returns the profile's display name for listing.
+// For root profiles, this is just the profile name.
+// For nested profiles, this is the relative path without the .json extension.
+func (p *ProfileWithSource) DisplayName() string {
+	return strings.TrimSuffix(p.RelPath, ".json")
 }
 
 // ListAll returns profiles from both user and project directories.
@@ -377,25 +516,36 @@ func ListAll(userProfilesDir, projectDir string) ([]*ProfileWithSource, error) {
 	projectProfilesDir := ProjectProfilesDir(projectDir)
 	projectProfiles, err := List(projectProfilesDir)
 	if err == nil {
-		for _, p := range projectProfiles {
-			all = append(all, &ProfileWithSource{Profile: p, Source: "project"})
-			seen[p.Name] = true
+		for _, entry := range projectProfiles {
+			all = append(all, &ProfileWithSource{
+				Profile: entry.Profile,
+				Source:  "project",
+				RelPath: entry.RelPath,
+			})
+			seen[entry.Name] = true
 		}
 	}
 
 	// List user profiles (skip if already in project)
 	userProfiles, err := List(userProfilesDir)
 	if err == nil {
-		for _, p := range userProfiles {
-			if !seen[p.Name] {
-				all = append(all, &ProfileWithSource{Profile: p, Source: "user"})
+		for _, entry := range userProfiles {
+			if !seen[entry.Name] {
+				all = append(all, &ProfileWithSource{
+					Profile: entry.Profile,
+					Source:  "user",
+					RelPath: entry.RelPath,
+				})
 			}
 		}
 	}
 
-	// Sort by name
+	// Sort by name, then by RelPath for duplicates
 	sort.Slice(all, func(i, j int) bool {
-		return all[i].Name < all[j].Name
+		if all[i].Name != all[j].Name {
+			return all[i].Name < all[j].Name
+		}
+		return all[i].RelPath < all[j].RelPath
 	})
 
 	return all, nil

@@ -4,6 +4,7 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -536,11 +537,73 @@ func runProfileClean(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// profileExists checks if a profile file exists on disk
+// profileExists checks if a profile file exists on disk, searching subdirectories
 func profileExists(profilesDir, name string) bool {
-	path := filepath.Join(profilesDir, name+".json")
-	_, err := os.Stat(path)
+	paths, err := profile.FindProfilePaths(profilesDir, name)
+	if err != nil {
+		return false
+	}
+	return len(paths) > 0
+}
+
+// profileExistsAtRoot checks if a profile file exists at the root of profilesDir.
+// Use this instead of profileExists when the operation writes to root (Save always writes to root).
+func profileExistsAtRoot(profilesDir, name string) bool {
+	_, err := os.Stat(filepath.Join(profilesDir, name+".json"))
 	return err == nil
+}
+
+// resolveProfileArg resolves a profile name or path reference to an absolute file path.
+// If the name is ambiguous (multiple profiles share the same name), it prompts interactively
+// or returns an error in non-interactive (--yes) mode.
+func resolveProfileArg(profilesDir, nameOrPath string) (string, error) {
+	paths, err := profile.FindProfilePaths(profilesDir, nameOrPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to search profiles: %w", err)
+	}
+
+	switch len(paths) {
+	case 0:
+		return "", fmt.Errorf("profile %q not found", nameOrPath)
+	case 1:
+		return paths[0], nil
+	default:
+		// Multiple matches -- need disambiguation
+		relPaths := make([]string, len(paths))
+		for i, p := range paths {
+			rel, err := filepath.Rel(profilesDir, p)
+			if err != nil {
+				rel = p
+			}
+			relPaths[i] = strings.TrimSuffix(filepath.ToSlash(rel), ".json")
+		}
+
+		if config.YesFlag {
+			return "", &profile.AmbiguousProfileError{Name: nameOrPath, Paths: relPaths}
+		}
+
+		// Interactive disambiguation
+		fmt.Printf("\nMultiple profiles match %q:\n\n", nameOrPath)
+		for i, rp := range relPaths {
+			fmt.Printf("  %d) %s\n", i+1, rp)
+		}
+		fmt.Println()
+
+		fmt.Print("Enter number: ")
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return "", fmt.Errorf("failed to read input: %w", err)
+		}
+		input = strings.TrimSpace(input)
+
+		num, err := strconv.Atoi(input)
+		if err != nil || num < 1 || num > len(paths) {
+			return "", fmt.Errorf("invalid selection: %s (must be 1-%d)", input, len(paths))
+		}
+
+		return paths[num-1], nil
+	}
 }
 
 func init() {
@@ -674,17 +737,22 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	// The highest precedence active profile (project > local > user)
 	activeProfile, _ := getActiveProfile(cwd)
 
-	// Filter helper function
-	shouldShowProfile := func(profileName string) bool {
+	// Filter helper function.
+	// displayName is the path-based name for custom profiles (e.g., "backend/api")
+	// or just the flat name for embedded profiles.
+	shouldShowProfile := func(flatName, displayName string) bool {
 		switch profileListScope {
 		case "":
 			return true
 		case "user":
-			return activeProfileByScope["user"] == profileName
+			ap := activeProfileByScope["user"]
+			return ap == flatName || ap == displayName
 		case "project":
-			return activeProfileByScope["project"] == profileName
+			ap := activeProfileByScope["project"]
+			return ap == flatName || ap == displayName
 		case "local":
-			return activeProfileByScope["local"] == profileName
+			ap := activeProfileByScope["local"]
+			return ap == flatName || ap == displayName
 		default:
 			return true
 		}
@@ -693,7 +761,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	// Filter embedded profiles
 	var filteredEmbedded []*profile.Profile
 	for _, p := range embeddedProfiles {
-		if shouldShowProfile(p.Name) {
+		if shouldShowProfile(p.Name, p.Name) {
 			filteredEmbedded = append(filteredEmbedded, p)
 		}
 	}
@@ -701,7 +769,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	// Filter custom profiles (exclude those that shadow built-ins)
 	var customProfiles []*profile.ProfileWithSource
 	for _, p := range allProfiles {
-		if !profile.IsEmbeddedProfile(p.Name) && shouldShowProfile(p.Name) {
+		if !profile.IsEmbeddedProfile(p.Name) && shouldShowProfile(p.Name, p.DisplayName()) {
 			customProfiles = append(customProfiles, p)
 		}
 	}
@@ -717,10 +785,12 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Helper to get profile marker (active indicator)
-	getProfileMarker := func(profileName string) string {
+	// Helper to get profile marker (active indicator).
+	// Compares against both flat name and display name (path-based) since
+	// the active profile may be stored as either.
+	getProfileMarker := func(flatName, displayName string) string {
 		for _, ap := range allActiveProfiles {
-			if ap.Name == profileName {
+			if ap.Name == flatName || ap.Name == displayName {
 				if ap.Name == activeProfile {
 					return ui.Success("* ")
 				}
@@ -741,7 +811,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.Bold("Built-in profiles"))
 		fmt.Println()
 		for _, p := range filteredEmbedded {
-			marker := getProfileMarker(p.Name)
+			marker := getProfileMarker(p.Name, p.Name)
 			desc := p.Description
 
 			// If shadowed on disk, check if content actually differs
@@ -772,12 +842,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.Bold("Your profiles"))
 		fmt.Println()
 		for _, p := range customProfiles {
-			marker := getProfileMarker(p.Name)
+			marker := getProfileMarker(p.Name, p.DisplayName())
+			displayName := p.DisplayName()
 			desc := p.Description
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
-			fmt.Printf("%s%-20s %s\n", marker, p.Name, desc)
+			fmt.Printf("%s%-20s %s\n", marker, displayName, desc)
 		}
 		fmt.Println()
 	}
@@ -888,10 +959,28 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
-	// Load the profile (try disk first, then embedded)
-	p, err := loadProfileWithFallback(profilesDir, name)
-	if err != nil {
-		return fmt.Errorf("profile %q not found: %w", name, err)
+	// Resolve to exact path if ambiguous (handles nested profiles)
+	var p *profile.Profile
+	resolvedPath, resolveErr := resolveProfileArg(profilesDir, name)
+	if resolveErr == nil {
+		// Found on disk -- load from resolved path
+		var loadErr error
+		p, loadErr = profile.LoadFromPath(resolvedPath)
+		if loadErr != nil {
+			return fmt.Errorf("failed to load profile %q: %w", name, loadErr)
+		}
+	} else {
+		// Surface ambiguity and other non-not-found errors directly
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(resolveErr, &ambigErr) {
+			return resolveErr
+		}
+		// Not found on disk -- try embedded profiles
+		var embeddedErr error
+		p, embeddedErr = profile.GetEmbeddedProfile(name)
+		if embeddedErr != nil {
+			return fmt.Errorf("profile %q not found: %w", name, resolveErr)
+		}
 	}
 
 	// In a declarative system, reapplying a profile should always be allowed
@@ -1179,9 +1268,9 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		ui.PrintInfo(fmt.Sprintf("Saving to active profile: %s", name))
 	}
 
-	// Check if profile already exists (only prompt if explicitly named, not when saving to active profile)
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	// Check if profile already exists at root (only prompt if explicitly named, not when saving to active profile).
+	// Only checks root-level since Save() writes to root profiles directory.
+	if profileExistsAtRoot(profilesDir, name) {
 		if !isActiveProfile && !config.YesFlag {
 			fmt.Printf("%s Profile %q already exists. ", ui.Warning(ui.SymbolWarning), name)
 			choice := promptChoice("Overwrite?", "n")
@@ -1602,16 +1691,21 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check if there's a customized version on disk
-	customizedPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(customizedPath); os.IsNotExist(err) {
-		// No customized version - no differences
+	resolvedPath, err := resolveProfileArg(profilesDir, name)
+	if err != nil {
+		// Surface ambiguity errors so the user can disambiguate
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(err, &ambigErr) {
+			return err
+		}
+		// No customized version found - no differences
 		fmt.Printf("Profile '%s' has not been customized.\n", name)
 		fmt.Println("No differences from the built-in version.")
 		return nil
 	}
 
 	// Load the customized version
-	customized, err := profile.Load(profilesDir, name)
+	customized, err := profile.LoadFromPath(resolvedPath)
 	if err != nil {
 		return fmt.Errorf("failed to load customized profile: %w", err)
 	}
@@ -1719,15 +1813,21 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load all profiles
-	profiles, err := profile.List(profilesDir)
+	entries, err := profile.List(profilesDir)
 	if err != nil {
 		return fmt.Errorf("failed to list profiles: %w", err)
 	}
 
-	if len(profiles) == 0 {
+	if len(entries) == 0 {
 		fmt.Println("No profiles available.")
 		fmt.Println("Create one with: claudeup profile save <name>")
 		return nil
+	}
+
+	// Extract profile pointers for SuggestProfile
+	profiles := make([]*profile.Profile, len(entries))
+	for i, e := range entries {
+		profiles[i] = e.Profile
 	}
 
 	// Find matching profiles
@@ -1737,8 +1837,8 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 		fmt.Println("No profile matches the current directory.")
 		fmt.Println()
 		fmt.Println("Available profiles:")
-		for _, p := range profiles {
-			fmt.Printf("  - %s\n", p.Name)
+		for _, p := range entries {
+			fmt.Printf("  - %s\n", p.DisplayName())
 		}
 		return nil
 	}
@@ -1767,12 +1867,19 @@ func runProfileSuggest(cmd *cobra.Command, args []string) error {
 }
 
 // loadProfileWithFallback tries to load a profile from disk first,
-// falling back to embedded profiles if not found
+// falling back to embedded profiles if not found on disk.
+// Ambiguity errors (multiple profiles with the same name) are not swallowed.
 func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error) {
 	// Try disk first
 	p, err := profile.Load(profilesDir, name)
 	if err == nil {
 		return p, nil
+	}
+
+	// Propagate ambiguity errors -- don't fall back to embedded
+	var ambigErr *profile.AmbiguousProfileError
+	if errors.As(err, &ambigErr) {
+		return nil, err
 	}
 
 	// Fall back to embedded profiles
@@ -1782,15 +1889,17 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 // getAllProfiles returns all available profiles (user + embedded), with user profiles taking precedence
 func getAllProfiles(profilesDir string) ([]*profile.Profile, error) {
 	// Load user profiles
-	userProfiles, err := profile.List(profilesDir)
+	userEntries, err := profile.List(profilesDir)
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("failed to list user profiles: %w", err)
 	}
 
-	// Track user profile names
+	// Extract profile pointers and track names
 	userNames := make(map[string]bool)
-	for _, p := range userProfiles {
-		userNames[p.Name] = true
+	userProfiles := make([]*profile.Profile, 0, len(userEntries))
+	for _, e := range userEntries {
+		userNames[e.Name] = true
+		userProfiles = append(userProfiles, e.Profile)
 	}
 
 	// Load embedded profiles (skip ones that exist on disk)
@@ -1864,13 +1973,13 @@ func promptProfileSelection(profilesDir, newName string) (*profile.Profile, erro
 	return nil, fmt.Errorf("profile %q not found", input)
 }
 
-// validateNewProfileName validates a profile name and checks it doesn't already exist
+// validateNewProfileName validates a profile name and checks it doesn't already exist at root.
+// Only checks root-level since Save() always writes to the root profiles directory.
 func validateNewProfileName(name, profilesDir string) error {
 	if err := profile.ValidateName(name); err != nil {
 		return err
 	}
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	if profileExistsAtRoot(profilesDir, name) {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 	return nil
@@ -1969,9 +2078,8 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Check if profile already exists
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	// Check if profile already exists at root (Save writes to root)
+	if profileExistsAtRoot(profilesDir, name) {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 
@@ -2090,9 +2198,8 @@ func runProfileClone(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("'current' is a reserved name. Use a different profile name")
 	}
 
-	// Check if target profile already exists
-	existingPath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(existingPath); err == nil {
+	// Check if target profile already exists at root (Save writes to root)
+	if profileExistsAtRoot(profilesDir, name) {
 		return fmt.Errorf("profile %q already exists. Use 'claudeup profile save %s' to update it", name, name)
 	}
 
@@ -2328,20 +2435,24 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
+	// Resolve the profile to an exact path (single walk handles both existence and disambiguation)
+	profilePath, resolveErr := resolveProfileArg(profilesDir, name)
+
 	// Check if it's a built-in profile
 	if profile.IsEmbeddedProfile(name) {
-		// Check if it has customizations
-		profilePath := filepath.Join(profilesDir, name+".json")
-		if _, err := os.Stat(profilePath); err == nil {
+		// Surface ambiguity errors so the user can disambiguate
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(resolveErr, &ambigErr) {
+			return resolveErr
+		}
+		if resolveErr == nil {
 			return fmt.Errorf("profile %q is a customized built-in profile. Use 'claudeup profile restore %s' instead", name, name)
 		}
 		return fmt.Errorf("profile %q is a built-in profile and cannot be deleted", name)
 	}
 
-	// Check if profile file exists on disk
-	profilePath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
-		return fmt.Errorf("profile %q not found", name)
+	if resolveErr != nil {
+		return resolveErr
 	}
 
 	// Check if this is the currently active profile
@@ -2395,9 +2506,14 @@ func runProfileRestore(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q is not a built-in profile. Use 'claudeup profile delete %s' instead", name, name)
 	}
 
-	// Check if profile file exists on disk (customization)
-	profilePath := filepath.Join(profilesDir, name+".json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+	// Resolve the customization file on disk
+	profilePath, err := resolveProfileArg(profilesDir, name)
+	if err != nil {
+		// Surface ambiguity errors so the user can disambiguate
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(err, &ambigErr) {
+			return err
+		}
 		return fmt.Errorf("profile %q has no customizations to restore from", name)
 	}
 
@@ -2443,26 +2559,26 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("profile %q is a built-in profile and cannot be renamed", oldName)
 	}
 
-	// Check if source profile exists on disk
-	oldPath := filepath.Join(profilesDir, oldName+".json")
-	if _, err := os.Stat(oldPath); os.IsNotExist(err) {
-		return fmt.Errorf("profile %q not found", oldName)
+	// Resolve source profile to exact path (handles nested profiles)
+	oldPath, err := resolveProfileArg(profilesDir, oldName)
+	if err != nil {
+		return err
 	}
 
-	// Check if target profile already exists
+	// Check if target profile already exists at root (Save writes to root)
 	newPath := filepath.Join(profilesDir, newName+".json")
-	if _, err := os.Stat(newPath); err == nil {
+	if profileExistsAtRoot(profilesDir, newName) {
 		if !config.YesFlag {
 			return fmt.Errorf("profile %q already exists. Use -y to overwrite", newName)
 		}
-		// Remove existing target profile
+		// Remove the existing target at the known root path (Save writes to root)
 		if err := os.Remove(newPath); err != nil {
 			return fmt.Errorf("failed to remove existing profile: %w", err)
 		}
 	}
 
-	// Load the profile
-	p, err := profile.Load(profilesDir, oldName)
+	// Load the profile from its resolved path
+	p, err := profile.LoadFromPath(oldPath)
 	if err != nil {
 		return fmt.Errorf("failed to load profile: %w", err)
 	}
@@ -2470,7 +2586,7 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	// Update the name
 	p.Name = newName
 
-	// Save with new name
+	// Save with new name (always writes to root profilesDir)
 	if err := profile.Save(profilesDir, p); err != nil {
 		return fmt.Errorf("failed to save renamed profile: %w", err)
 	}
