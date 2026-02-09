@@ -953,12 +953,14 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return applyProfileWithScope(name, scope)
+	explicitScope := profileApplyScope != ""
+	return applyProfileWithScope(name, scope, explicitScope)
 }
 
 // applyProfileWithScope applies a profile at the specified scope.
 // This is the core implementation shared by runProfileApply and runProfileCreate.
-func applyProfileWithScope(name string, scope profile.Scope) error {
+// explicitScope indicates whether the user explicitly passed a scope flag.
+func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool) error {
 	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
@@ -988,7 +990,7 @@ func applyProfileWithScope(name string, scope profile.Scope) error {
 
 	// Resolve stack profiles (composable includes)
 	if p.IsStack() {
-		if scope != "" {
+		if explicitScope {
 			return fmt.Errorf("stack profiles define their own scopes; --scope is not supported with stacks")
 		}
 		loader := &profile.DirLoader{ProfilesDir: profilesDir}
@@ -2274,7 +2276,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		// Apply the profile at user scope (not project scope).
 		// This prevents accidentally overwriting existing project configs when
 		// the user just wants to create and try a new profile.
-		if err := applyProfileWithScope(name, profile.ScopeUser); err != nil {
+		if err := applyProfileWithScope(name, profile.ScopeUser, true); err != nil {
 			return err
 		}
 

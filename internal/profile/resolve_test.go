@@ -5,6 +5,8 @@ package profile
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -35,6 +37,27 @@ func TestResolveIncludes_NoIncludes(t *testing.T) {
 	}
 	if resolved.Name != "simple" {
 		t.Errorf("name: got %q, want %q", resolved.Name, "simple")
+	}
+	if len(resolved.Plugins) != 1 || resolved.Plugins[0] != "a" {
+		t.Errorf("plugins: got %v, want [a]", resolved.Plugins)
+	}
+}
+
+func TestResolveIncludes_EmptyIncludes(t *testing.T) {
+	p := &Profile{
+		Name:     "empty-stack",
+		Includes: []string{},
+		Plugins:  []string{"a"},
+	}
+	loader := &mockLoader{}
+
+	resolved, err := ResolveIncludes(p, loader)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Empty includes slice is not a stack -- returned as-is
+	if resolved.Name != "empty-stack" {
+		t.Errorf("name: got %q, want %q", resolved.Name, "empty-stack")
 	}
 	if len(resolved.Plugins) != 1 || resolved.Plugins[0] != "a" {
 		t.Errorf("plugins: got %v, want [a]", resolved.Plugins)
@@ -203,6 +226,10 @@ func TestResolveIncludes_CycleDetection(t *testing.T) {
 	if !strings.Contains(err.Error(), "cycle") {
 		t.Errorf("error should mention cycle: %v", err)
 	}
+	// Should show full cycle path
+	if !strings.Contains(err.Error(), "a -> b -> a") {
+		t.Errorf("error should show full cycle path, got: %v", err)
+	}
 }
 
 func TestResolveIncludes_SelfCycle(t *testing.T) {
@@ -240,6 +267,10 @@ func TestResolveIncludes_TransitiveCycle(t *testing.T) {
 	_, err := ResolveIncludes(stack, loader)
 	if err == nil {
 		t.Fatal("expected cycle detection error, got nil")
+	}
+	// Should show full transitive cycle path
+	if !strings.Contains(err.Error(), "a -> b -> c -> a") {
+		t.Errorf("error should show full cycle path, got: %v", err)
 	}
 }
 
@@ -958,5 +989,56 @@ func TestResolveIncludes_AmbiguousInclude(t *testing.T) {
 	// but if a real loader returned AmbiguousProfileError it would propagate through
 	if errors.As(err, &ambiguousErr) {
 		// This is also fine -- proves errors.As works through the chain
+	}
+}
+
+func TestDirLoader_PropagatesNonNotFoundErrors(t *testing.T) {
+	// DirLoader should only fall back to embedded profiles for not-found errors.
+	// Other errors like AmbiguousProfileError should propagate.
+	dir := t.TempDir()
+	profilesDir := filepath.Join(dir, "profiles")
+	if err := os.MkdirAll(filepath.Join(profilesDir, "sub1"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(profilesDir, "sub2"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create two profiles with the same name in different subdirectories
+	for _, sub := range []string{"sub1", "sub2"} {
+		data := []byte(`{"name": "dup"}`)
+		if err := os.WriteFile(filepath.Join(profilesDir, sub, "dup.json"), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	loader := &DirLoader{ProfilesDir: profilesDir}
+	_, err := loader.LoadProfile("dup")
+	if err == nil {
+		t.Fatal("expected AmbiguousProfileError to propagate, got nil")
+	}
+
+	var ambigErr *AmbiguousProfileError
+	if !errors.As(err, &ambigErr) {
+		t.Errorf("expected AmbiguousProfileError, got: %v", err)
+	}
+}
+
+func TestDirLoader_FallsBackOnNotFound(t *testing.T) {
+	// DirLoader should fall back to embedded profiles when the profile is not found on disk.
+	dir := t.TempDir()
+	profilesDir := filepath.Join(dir, "profiles")
+	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	loader := &DirLoader{ProfilesDir: profilesDir}
+	// "default" is an embedded profile that should be found via fallback
+	p, err := loader.LoadProfile("default")
+	if err != nil {
+		t.Fatalf("expected embedded fallback, got error: %v", err)
+	}
+	if p.Name != "default" {
+		t.Errorf("name: got %q, want %q", p.Name, "default")
 	}
 }

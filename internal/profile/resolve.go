@@ -4,6 +4,8 @@ package profile
 
 import (
 	"fmt"
+	"os"
+	"strings"
 )
 
 // ProfileLoader loads a profile by name or path-qualified name.
@@ -18,13 +20,20 @@ type DirLoader struct {
 
 // LoadProfile loads a profile by name, delegating to Load() which handles
 // both short names (recursive search) and path-qualified names (direct lookup).
+// Falls back to embedded profiles only when the profile is not found on disk.
+// Other errors (ambiguous names, invalid JSON) propagate without fallback.
 func (l *DirLoader) LoadProfile(name string) (*Profile, error) {
 	p, err := Load(l.ProfilesDir, name)
-	if err != nil {
-		// Fall back to embedded profiles
+	if err == nil {
+		return p, nil
+	}
+
+	// Only fall back to embedded when the profile is genuinely not found.
+	// Let AmbiguousProfileError, JSON parse errors, etc. propagate.
+	if os.IsNotExist(err) {
 		return GetEmbeddedProfile(name)
 	}
-	return p, nil
+	return nil, err
 }
 
 // ResolveIncludes recursively resolves includes and returns a merged profile.
@@ -50,7 +59,8 @@ func ResolveIncludes(p *Profile, loader ProfileLoader) (*Profile, error) {
 
 	// Collect all leaf profiles in include order
 	resolved := make(map[string]*Profile)
-	visiting := make(map[string]bool)
+	visitingSet := make(map[string]bool)
+	var visitingPath []string
 
 	var leaves []*Profile
 	var collectErr error
@@ -66,13 +76,25 @@ func ResolveIncludes(p *Profile, loader ProfileLoader) (*Profile, error) {
 			return
 		}
 
-		if visiting[name] {
-			collectErr = fmt.Errorf("include cycle detected: %q is already being resolved", name)
+		if visitingSet[name] {
+			// Build full cycle path: find where the cycle starts and append the duplicate
+			cyclePath := []string{name}
+			for i := len(visitingPath) - 1; i >= 0; i-- {
+				cyclePath = append([]string{visitingPath[i]}, cyclePath...)
+				if visitingPath[i] == name {
+					break
+				}
+			}
+			collectErr = fmt.Errorf("include cycle detected: %s", strings.Join(cyclePath, " -> "))
 			return
 		}
 
-		visiting[name] = true
-		defer func() { delete(visiting, name) }()
+		visitingSet[name] = true
+		visitingPath = append(visitingPath, name)
+		defer func() {
+			delete(visitingSet, name)
+			visitingPath = visitingPath[:len(visitingPath)-1]
+		}()
 
 		included, err := loader.LoadProfile(name)
 		if err != nil {

@@ -297,12 +297,11 @@ type HookEntry struct {
 	Command string `json:"command"`
 }
 
-// PreserveFrom copies localItems and includes from an existing profile.
+// PreserveFrom copies localItems from an existing profile.
 // When re-saving, this keeps only the local items the user originally saved,
 // preventing accumulation of items enabled by other tools.
 func (p *Profile) PreserveFrom(existing *Profile) {
 	p.LocalItems = existing.LocalItems
-	p.Includes = existing.Includes
 }
 
 // Save writes a profile to the profiles directory

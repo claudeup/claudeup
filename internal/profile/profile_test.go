@@ -1717,7 +1717,7 @@ func TestEqual_IncludesComparison(t *testing.T) {
 	}
 }
 
-func TestPreserveFrom_IncludesPreserved(t *testing.T) {
+func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
 	existing := &Profile{
 		Includes: []string{"saved-include"},
 		LocalItems: &LocalItemSettings{
@@ -1732,8 +1732,10 @@ func TestPreserveFrom_IncludesPreserved(t *testing.T) {
 
 	p.PreserveFrom(existing)
 
-	if len(p.Includes) != 1 || p.Includes[0] != "saved-include" {
-		t.Errorf("includes not preserved: got %v", p.Includes)
+	// Includes should NOT be preserved -- re-saving a snapshot over a stack
+	// would produce an invalid profile with both includes and config fields
+	if len(p.Includes) != 0 {
+		t.Errorf("includes should not be preserved: got %v", p.Includes)
 	}
 	if p.LocalItems == nil || len(p.LocalItems.Agents) != 1 {
 		t.Error("local items not preserved")
