@@ -654,13 +654,5 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("disabled-plugin@acme"))
 		})
 
-		It("produces identical output to scope list command", func() {
-			scopeResult := env.Run("scope", "list")
-			pluginResult := env.Run("plugin", "list", "--by-scope")
-
-			Expect(scopeResult.ExitCode).To(Equal(0))
-			Expect(pluginResult.ExitCode).To(Equal(0))
-			Expect(pluginResult.Stdout).To(Equal(scopeResult.Stdout))
-		})
 	})
 })

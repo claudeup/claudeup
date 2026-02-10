@@ -179,14 +179,13 @@ These files are created and managed exclusively by `claudeup`.
 **Read by:**
 
 - `internal/config/projects.go:LoadProjectsRegistry()`
-- Used by: status, scope operations
+- Used by: status, profile operations
 
 **Written by:**
 
 - `internal/config/projects.go:SaveProjectsRegistry()`
 - Triggered by:
   - `profile apply --local` - records which profile is active
-  - `scope restore` - updates when restoring local scope
 
 ---
 
@@ -220,14 +219,12 @@ These files are created and managed exclusively by `claudeup`.
 **Read by:**
 
 - `internal/backup/backup.go:RestoreScopeBackup()`
-- Used by: scope restore operations
 
 **Written by:**
 
 - `internal/backup/backup.go:SaveScopeBackup()`
 - Triggered by:
-  - `profile apply` - backs up current settings before replacing
-  - `scope save` - explicitly saves current scope
+  - `profile apply --replace` - backs up current settings before replacing
 
 ---
 
@@ -240,7 +237,6 @@ These files are created and managed exclusively by `claudeup`.
 **Read by:**
 
 - `internal/backup/backup.go:RestoreLocalScopeBackup()`
-- Used by: scope restore operations
 
 **Written by:**
 
@@ -311,7 +307,6 @@ These files are created and managed exclusively by `claudeup`.
 | `plugin install/uninstall` | Via claude CLI - may update registry                              | INDIRECT   |
 | `marketplace add/remove`   | Via claude CLI - updates `known_marketplaces.json`                | INDIRECT   |
 | `mcp add/remove`           | Via claude CLI - updates `~/.claude.json`                         | INDIRECT   |
-| `scope restore`            | Restores from `~/.claudeup/backups/`                              | READ+WRITE |
 | `setup`                    | `~/.claudeup/config.json` (initial config)                        | WRITE      |
 | `local enable`             | `~/.claudeup/enabled.json`, `~/.claude/<category>/<item>` symlink | WRITE      |
 | `local disable`            | `~/.claudeup/enabled.json`, removes `~/.claude/<category>/<item>` | WRITE      |

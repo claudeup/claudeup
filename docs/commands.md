@@ -150,7 +150,7 @@ claudeup profile apply backend-stack --replace -y
 ```
 
 A backup is created automatically when using `--replace` (unless `-y` is used).
-Use `claudeup scope restore user` to recover if needed.
+Backups are stored in `~/.claudeup/backups/`.
 
 **Files created by `--project`:**
 
@@ -243,71 +243,6 @@ Use this to see:
 | "What's in this profile?"                    | `profile status` |
 | "What did I change from the original?"       | `profile diff`   |
 | "Why does `profile list` show (customized)?" | `profile diff`   |
-
-## Scope Management
-
-### scope
-
-View and manage Claude Code settings across different scopes.
-
-```bash
-claudeup scope list           # Show all scopes
-claudeup scope list --user    # Show only user scope
-claudeup scope list --project # Show only project scope
-claudeup scope clear user              # Clear user scope (type 'yes' to confirm)
-claudeup scope clear user --backup     # Create backup before clearing
-claudeup scope clear project --force   # Clear project scope without confirmation
-claudeup scope clear local             # Clear local scope with confirmation
-claudeup scope restore user            # Restore from backup
-```
-
-Claude Code uses three scope levels (in precedence order):
-
-| Scope     | Location                        | Description                          |
-| --------- | ------------------------------- | ------------------------------------ |
-| `local`   | `./.claude/settings.local.json` | Machine-specific, highest precedence |
-| `project` | `./.claude/settings.json`       | Project-level, shared via git        |
-| `user`    | `~/.claude/settings.json`       | Global personal defaults             |
-
-**`scope list` flags:**
-
-| Flag        | Description                              |
-| ----------- | ---------------------------------------- |
-| `--scope`   | Filter to scope: user, project, or local |
-| `--user`    | Show only user scope                     |
-| `--project` | Show only project scope                  |
-| `--local`   | Show only local scope                    |
-
-**`scope clear` flags:**
-
-| Flag       | Description                   |
-| ---------- | ----------------------------- |
-| `--force`  | Skip confirmation prompts     |
-| `--backup` | Create backup before clearing |
-
-**`scope restore` flags:**
-
-| Flag      | Description               |
-| --------- | ------------------------- |
-| `--force` | Skip confirmation prompts |
-
-**Notes:**
-
-- User scope requires typing 'yes' to confirm (extra safety)
-- Backups are stored in `~/.claudeup/backups/`
-- Project scope cannot be restored (use `git checkout` instead)
-- Each backup overwrites the previous one (only the most recent backup is kept)
-- Local scope backups are project-specific (different projects have separate backups)
-
-**Troubleshooting backup/restore:**
-
-| Problem                            | Cause                                      | Solution                                                             |
-| ---------------------------------- | ------------------------------------------ | -------------------------------------------------------------------- |
-| "no backup found"                  | No backup exists for this scope            | Run `scope clear --backup` first to create one                       |
-| "no backup found" for local scope  | Backup was made from a different directory | Run restore from the same project directory where backup was created |
-| Restore contains old data          | Backups are overwritten on each save       | Only the most recent backup is available; older backups are lost     |
-| "homeDir must be an absolute path" | Internal error                             | Report as bug - this shouldn't happen in normal use                  |
-| "source is a symlink"              | Settings file is a symlink                 | Remove symlink and use a regular file                                |
 
 ## Status & Discovery
 

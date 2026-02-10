@@ -65,8 +65,8 @@ pause
 section "4. View Scope Contents"
 
 step "See what's configured at each scope"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" scope list || \
-    info "Scope list would show files and their contents"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" plugin list --by-scope || \
+    info "Plugin list would show plugins at each scope level"
 pause
 
 section "Summary"

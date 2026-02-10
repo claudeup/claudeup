@@ -60,7 +60,7 @@ var _ = Describe("claudeup profile apply --replace", func() {
 			Expect(result.Stdout).To(ContainSubstring("Cleared user scope"))
 
 			// Verify existing plugin is gone
-			result = env.Run("scope", "list", "--scope", "user")
+			result = env.Run("plugin", "list", "--by-scope")
 			Expect(result.Stdout).NotTo(ContainSubstring("existing-plugin@test"))
 		})
 
