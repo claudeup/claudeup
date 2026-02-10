@@ -1,5 +1,5 @@
 // ABOUTME: Symlink-based enable/disable for local items
-// ABOUTME: Creates relative symlinks from target dirs to .library
+// ABOUTME: Creates absolute symlinks from Claude's active dirs to the library
 package local
 
 import (
@@ -232,17 +232,11 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 			if err := os.MkdirAll(parentDir, 0755); err != nil {
 				return err
 			}
-			// Relative path needs extra .. for each nesting level
-			relSource := filepath.Join("..", "..", ".library", category, item)
-			if err := os.Symlink(relSource, target); err != nil {
-				return err
-			}
-		} else {
-			// Flat item: ../.library/{category}/{item}
-			relSource := filepath.Join("..", ".library", category, item)
-			if err := os.Symlink(relSource, target); err != nil {
-				return err
-			}
+		}
+
+		source := filepath.Join(m.libraryDir, category, item)
+		if err := os.Symlink(source, target); err != nil {
+			return err
 		}
 	}
 
@@ -329,16 +323,15 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 			}
 
 			target := filepath.Join(groupTargetDir, agent)
-			// Relative path: ../../.library/agents/{group}/{agent}
-			relSource := filepath.Join("..", "..", ".library", "agents", group, agent)
-			if err := os.Symlink(relSource, target); err != nil {
+			source := filepath.Join(m.libraryDir, "agents", group, agent)
+			if err := os.Symlink(source, target); err != nil {
 				return err
 			}
 		} else {
 			// Flat agent
 			target := filepath.Join(targetDir, item)
-			relSource := filepath.Join("..", ".library", "agents", item)
-			if err := os.Symlink(relSource, target); err != nil {
+			source := filepath.Join(m.libraryDir, "agents", item)
+			if err := os.Symlink(source, target); err != nil {
 				return err
 			}
 		}
@@ -363,10 +356,10 @@ func (m *Manager) Sync() error {
 	return nil
 }
 
-// Import moves items from active directory to .library and enables them.
+// Import moves items from active directory to the library and enables them.
 // This is useful when tools like GSD install directly to active directories.
 //
-// Reconciliation: If an item already exists in .library, the local copy in the
+// Reconciliation: If an item already exists in the library, the local copy in the
 // active directory is removed and a symlink to the library version is created.
 // This ensures the state is consistent (no duplicate items, symlinks point to library).
 //
@@ -416,7 +409,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 				continue
 			}
 
-			// Move to .library
+			// Move to library
 			if err := os.Rename(sourcePath, destPath); err != nil {
 				return nil, nil, nil, err
 			}

@@ -133,10 +133,14 @@ func TestLocalWithAgentGroups(t *testing.T) {
 		t.Error("Symlink was not created in group directory")
 	}
 
-	// Verify it's a symlink (target path correctness deferred to Task 5 absolute symlinks)
-	_, err = os.Readlink(symlinkPath)
+	// Verify symlink target is an absolute path to the library
+	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
+	}
+	expectedTarget := filepath.Join(claudeupHome, "local", "agents", "business-product", "analyst.md")
+	if target != expectedTarget {
+		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
 }
 
