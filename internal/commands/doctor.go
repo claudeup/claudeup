@@ -323,42 +323,37 @@ type BrokenSymlink struct {
 	Target string
 }
 
-// checkBrokenSymlinks scans category directories for symlinks with missing targets
+// checkBrokenSymlinks scans category directories recursively for symlinks with missing targets
 func checkBrokenSymlinks() []BrokenSymlink {
 	var broken []BrokenSymlink
 	for _, category := range local.AllCategories() {
 		catDir := filepath.Join(claudeDir, category)
-		entries, err := os.ReadDir(catDir)
-		if err != nil {
+		if _, err := os.Stat(catDir); err != nil {
 			continue
 		}
-		for _, entry := range entries {
-			path := filepath.Join(catDir, entry.Name())
-			info, err := os.Lstat(path)
+
+		filepath.WalkDir(catDir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
-				continue
+				return nil // skip entries we can't read
+			}
+
+			info, err := d.Info()
+			if err != nil {
+				return nil
 			}
 
 			if info.Mode()&os.ModeSymlink != 0 {
-				target, _ := os.Readlink(path)
+				target, err := os.Readlink(path)
+				if err != nil {
+					broken = append(broken, BrokenSymlink{Path: path, Target: "(unreadable)"})
+					return nil
+				}
 				if _, err := os.Stat(path); os.IsNotExist(err) {
 					broken = append(broken, BrokenSymlink{Path: path, Target: target})
 				}
-			} else if entry.IsDir() {
-				// Check inside group directories (e.g., agents/business-product/)
-				subEntries, _ := os.ReadDir(path)
-				for _, sub := range subEntries {
-					subPath := filepath.Join(path, sub.Name())
-					subInfo, _ := os.Lstat(subPath)
-					if subInfo != nil && subInfo.Mode()&os.ModeSymlink != 0 {
-						target, _ := os.Readlink(subPath)
-						if _, err := os.Stat(subPath); os.IsNotExist(err) {
-							broken = append(broken, BrokenSymlink{Path: subPath, Target: target})
-						}
-					}
-				}
 			}
-		}
+			return nil
+		})
 	}
 	return broken
 }

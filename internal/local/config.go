@@ -53,6 +53,9 @@ func (m *Manager) LoadConfig() (Config, error) {
 
 // SaveConfig writes the enabled.json config file
 func (m *Manager) SaveConfig(config Config) error {
+	if err := os.MkdirAll(filepath.Dir(m.configFile), 0755); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err

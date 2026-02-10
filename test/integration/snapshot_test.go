@@ -16,23 +16,28 @@ import (
 // Test environment helpers
 
 type snapshotTestEnv struct {
-	claudeDir  string
-	claudeJSON string
+	claudeDir    string
+	claudeupHome string
+	claudeJSON   string
 }
 
 func setupSnapshotTestEnv() *snapshotTestEnv {
 	tmpDir := GinkgoT().TempDir()
 
 	claudeDir := filepath.Join(tmpDir, ".claude")
+	claudeupHome := filepath.Join(tmpDir, ".claudeup")
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	err := os.MkdirAll(pluginsDir, 0755)
+	Expect(err).NotTo(HaveOccurred())
+	err = os.MkdirAll(claudeupHome, 0755)
 	Expect(err).NotTo(HaveOccurred())
 
 	claudeJSON := filepath.Join(tmpDir, ".claude.json")
 
 	return &snapshotTestEnv{
-		claudeDir:  claudeDir,
-		claudeJSON: claudeJSON,
+		claudeDir:    claudeDir,
+		claudeupHome: claudeupHome,
+		claudeJSON:   claudeJSON,
 	}
 }
 
@@ -98,7 +103,7 @@ var _ = Describe("SnapshotCapturesGitURLMarketplace", func() {
 	})
 
 	It("captures both github and git URL marketplaces", func() {
-		p, err := profile.Snapshot("test-snapshot", env.claudeDir, env.claudeJSON, env.claudeDir)
+		p, err := profile.Snapshot("test-snapshot", env.claudeDir, env.claudeJSON, env.claudeupHome)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(p.Marketplaces).To(HaveLen(2))
@@ -145,7 +150,7 @@ var _ = Describe("SnapshotSaveLoadRoundTrip", func() {
 	})
 
 	It("preserves git URL marketplace through save and load", func() {
-		p, err := profile.Snapshot("roundtrip-test", env.claudeDir, env.claudeJSON, env.claudeDir)
+		p, err := profile.Snapshot("roundtrip-test", env.claudeDir, env.claudeJSON, env.claudeupHome)
 		Expect(err).NotTo(HaveOccurred())
 
 		profilesDir := filepath.Join(env.claudeDir, "profiles")
