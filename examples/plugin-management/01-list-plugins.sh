@@ -37,11 +37,8 @@ pause
 
 section "3. Understanding Plugin Sources"
 
-info "Plugins come from marketplaces (plugin repositories):"
-echo
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" marketplace list
-
-info "Each marketplace provides different plugins."
+info "Plugins come from marketplaces (plugin repositories)."
+info "Use 'claudeup status' to see installed marketplaces."
 info "Use 'claude plugin install' to add new plugins."
 pause
 
@@ -52,7 +49,6 @@ echo
 info "Key commands:"
 info "  claudeup plugin list       List all plugins"
 info "  claudeup status            Full overview"
-info "  claudeup marketplace list  View plugin sources"
 echo
 
 prompt_cleanup
