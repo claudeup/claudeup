@@ -10,8 +10,7 @@ import (
 
 // GlobalConfig represents the global configuration file structure
 type GlobalConfig struct {
-	DisabledMCPServers []string    `json:"disabledMcpServers"`
-	Preferences        Preferences `json:"preferences"`
+	Preferences Preferences `json:"preferences"`
 }
 
 // Preferences represents user preferences
@@ -22,8 +21,7 @@ type Preferences struct {
 // DefaultConfig returns a new config with default values
 func DefaultConfig() *GlobalConfig {
 	return &GlobalConfig{
-		DisabledMCPServers: []string{},
-		Preferences:        Preferences{},
+		Preferences: Preferences{},
 	}
 }
 
@@ -76,34 +74,4 @@ func Save(cfg *GlobalConfig) error {
 	}
 
 	return os.WriteFile(cfgPath, data, 0644)
-}
-
-// IsMCPServerDisabled checks if an MCP server is in the disabled list
-func (c *GlobalConfig) IsMCPServerDisabled(serverRef string) bool {
-	for _, ref := range c.DisabledMCPServers {
-		if ref == serverRef {
-			return true
-		}
-	}
-	return false
-}
-
-// DisableMCPServer adds an MCP server to the disabled list
-func (c *GlobalConfig) DisableMCPServer(serverRef string) bool {
-	if c.IsMCPServerDisabled(serverRef) {
-		return false // Already disabled
-	}
-	c.DisabledMCPServers = append(c.DisabledMCPServers, serverRef)
-	return true
-}
-
-// EnableMCPServer removes an MCP server from the disabled list
-func (c *GlobalConfig) EnableMCPServer(serverRef string) bool {
-	for i, ref := range c.DisabledMCPServers {
-		if ref == serverRef {
-			c.DisabledMCPServers = append(c.DisabledMCPServers[:i], c.DisabledMCPServers[i+1:]...)
-			return true
-		}
-	}
-	return false // Wasn't disabled
 }

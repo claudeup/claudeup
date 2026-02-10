@@ -15,13 +15,12 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "claudeup",
-	Short: "Manage Claude Code plugins, marketplaces, and MCP servers",
-	Long: `claudeup is a comprehensive CLI tool for managing Claude Code installations.
+	Short: "Manage Claude Code profiles and configurations",
+	Long: `claudeup is a CLI tool for managing Claude Code installations.
 
 It provides visibility into and control over:
+  - Profile management and configuration
   - Installed plugins and their state
-  - Marketplace repositories
-  - MCP server configuration
   - Plugin updates and maintenance`,
 }
 

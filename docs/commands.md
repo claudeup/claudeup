@@ -359,16 +359,6 @@ claudeup plugin search api --format json
 - **Table** - Tabular view with plugin, type, component, and description columns
 - **JSON** - Machine-readable output for scripting
 
-### mcp
-
-Manage MCP servers.
-
-```bash
-claudeup mcp list                              # List all MCP servers
-claudeup mcp disable <plugin>:<server>         # Disable specific server
-claudeup mcp enable <plugin>:<server>          # Re-enable server
-```
-
 ## Local Extensions
 
 ### local
