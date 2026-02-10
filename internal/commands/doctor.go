@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/v4/internal/claude"
+	"github.com/claudeup/claudeup/v4/internal/local"
 	"github.com/claudeup/claudeup/v4/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -197,6 +198,20 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println(ui.Indent(ui.Muted("(use --fix-only or --remove-only for granular control)"), 2))
 		}
 	}
+	// Check for broken symlinks in local items
+	fmt.Println(ui.RenderSection("Checking Local Symlinks", -1))
+	brokenSymlinks := checkBrokenSymlinks()
+	if len(brokenSymlinks) == 0 {
+		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All local symlinks are valid", 1))
+	} else {
+		fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d broken symlink%s:", len(brokenSymlinks), pluralS(len(brokenSymlinks))), 1))
+		for _, bs := range brokenSymlinks {
+			fmt.Println(ui.Indent(ui.SymbolBullet+" "+bs.Path, 2))
+			fmt.Println(ui.Indent(ui.Muted("-> "+bs.Target), 3))
+		}
+		fmt.Println()
+		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("claudeup local sync")), 1))
+	}
 	fmt.Println()
 
 	// Summary
@@ -300,4 +315,50 @@ func getExpectedPath(currentPath string) string {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// BrokenSymlink represents a symlink whose target no longer exists
+type BrokenSymlink struct {
+	Path   string
+	Target string
+}
+
+// checkBrokenSymlinks scans category directories for symlinks with missing targets
+func checkBrokenSymlinks() []BrokenSymlink {
+	var broken []BrokenSymlink
+	for _, category := range local.AllCategories() {
+		catDir := filepath.Join(claudeDir, category)
+		entries, err := os.ReadDir(catDir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			path := filepath.Join(catDir, entry.Name())
+			info, err := os.Lstat(path)
+			if err != nil {
+				continue
+			}
+
+			if info.Mode()&os.ModeSymlink != 0 {
+				target, _ := os.Readlink(path)
+				if _, err := os.Stat(path); os.IsNotExist(err) {
+					broken = append(broken, BrokenSymlink{Path: path, Target: target})
+				}
+			} else if entry.IsDir() {
+				// Check inside group directories (e.g., agents/business-product/)
+				subEntries, _ := os.ReadDir(path)
+				for _, sub := range subEntries {
+					subPath := filepath.Join(path, sub.Name())
+					subInfo, _ := os.Lstat(subPath)
+					if subInfo != nil && subInfo.Mode()&os.ModeSymlink != 0 {
+						target, _ := os.Readlink(subPath)
+						if _, err := os.Stat(subPath); os.IsNotExist(err) {
+							broken = append(broken, BrokenSymlink{Path: subPath, Target: target})
+						}
+					}
+				}
+			}
+		}
+	}
+	return broken
 }
