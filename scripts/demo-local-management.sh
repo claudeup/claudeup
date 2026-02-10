@@ -314,14 +314,14 @@ print_header "Demo Complete!"
 
 CUSTOM_AGENTS=0
 if [ -d "$CLAUDE_CONFIG_DIR/.library/agents" ]; then
-    CUSTOM_AGENTS=$(find "$CLAUDE_CONFIG_DIR/.library/agents" -maxdepth 1 \( -name 'demo-agent*' -o -name 'my-agents' \) | wc -l | tr -d ' ')
+    CUSTOM_AGENTS=$(find "$CLAUDE_CONFIG_DIR/.library/agents" -name '*.md' \( -name 'demo-agent*' -o -path '*/my-agents/*' \) | wc -l | tr -d ' ')
 fi
 
 echo "Summary:"
 echo "  - GSD agents enabled: $GSD_AGENTS"
 echo "  - GSD commands enabled: $GSD_COMMANDS files"
 echo "  - GSD hooks enabled: $GSD_HOOKS"
-echo "  - Custom agents installed: $CUSTOM_AGENTS (demo-agent + my-agents group)"
+echo "  - Custom agents installed: $CUSTOM_AGENTS (demo-agent + 2 in my-agents group)"
 echo "  - Profile saved: gsd-demo"
 echo
 echo "Commands demonstrated:"
