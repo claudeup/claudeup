@@ -168,6 +168,30 @@ var _ = Describe("local list", func() {
 			})
 		})
 
+		Context("per-category counts", func() {
+			It("shows count after items in specific category listing", func() {
+				result := env.Run("local", "list", "rules")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`2 items \(1 enabled\)`))
+			})
+
+			It("shows count after items with --full flag", func() {
+				result := env.Run("local", "list", "--full")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`2 items \(1 enabled\)`))
+			})
+
+			It("does not show count in summary mode", func() {
+				result := env.Run("local", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Summary mode already shows counts inline, no duplicate
+				Expect(result.Stdout).NotTo(MatchRegexp(`\n\s+2 items \(1 enabled\)\n`))
+			})
+		})
+
 		Context("full listing", func() {
 			It("shows individual items with --full flag", func() {
 				result := env.Run("local", "list", "--full")
