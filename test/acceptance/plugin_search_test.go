@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/claudeup/claudeup/v4/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
@@ -248,6 +249,63 @@ Use this for TDD.
 
 				// May have 0 results but should not error
 				Expect(result.ExitCode).To(Equal(0))
+			})
+		})
+
+		Describe("deduplicates multiple cached versions", func() {
+			BeforeEach(func() {
+				// Add older versions of the same plugin to the cache
+				for _, ver := range []string{"0.9.0", "0.5.0"} {
+					vDir := filepath.Join(cacheDir, "test-marketplace", "tdd-plugin", ver)
+					Expect(os.MkdirAll(filepath.Join(vDir, ".claude-plugin"), 0755)).To(Succeed())
+					Expect(os.MkdirAll(filepath.Join(vDir, "skills", "tdd-skill"), 0755)).To(Succeed())
+
+					pluginJSON := map[string]interface{}{
+						"name":        "tdd-plugin",
+						"description": "Test-driven development tools",
+						"version":     ver,
+						"keywords":    []string{"testing", "tdd"},
+					}
+					pluginData, err := json.MarshalIndent(pluginJSON, "", "  ")
+					Expect(err).NotTo(HaveOccurred())
+					Expect(os.WriteFile(filepath.Join(vDir, ".claude-plugin", "plugin.json"), pluginData, 0644)).To(Succeed())
+
+					skillMD := `---
+name: tdd-skill
+description: Test-driven development workflow
+---
+
+# TDD Skill
+`
+					Expect(os.WriteFile(filepath.Join(vDir, "skills", "tdd-skill", "SKILL.md"), []byte(skillMD), 0644)).To(Succeed())
+				}
+			})
+
+			It("returns only one entry per plugin", func() {
+				result := env.Run("plugin", "search", "tdd")
+
+				Expect(result.ExitCode).To(Equal(0))
+				// Name appears twice: once in search results, once in tree header.
+				// Without dedup, 3 versions would produce 6 occurrences.
+				Expect(strings.Count(result.Stdout, "tdd-plugin@test-marketplace")).To(Equal(2))
+			})
+
+			It("keeps the latest version", func() {
+				result := env.Run("plugin", "search", "tdd", "--format", "json")
+
+				Expect(result.ExitCode).To(Equal(0))
+
+				var jsonOutput struct {
+					Results []struct {
+						Plugin  string `json:"plugin"`
+						Version string `json:"version"`
+					} `json:"results"`
+				}
+				err := json.Unmarshal([]byte(result.Stdout), &jsonOutput)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(jsonOutput.Results).To(HaveLen(1))
+				Expect(jsonOutput.Results[0].Version).To(Equal("1.0.0"))
 			})
 		})
 
