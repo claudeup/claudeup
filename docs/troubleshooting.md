@@ -48,6 +48,7 @@ claudeup events diff --file ~/.claude/settings.json --full
 - `./.mcp.json` - Project MCP server configurations
 - `~/.claudeup/profiles/{name}.json` - Profile definitions
 - `~/.claudeup/config.json` - claudeup global configuration
+- `~/.claudeup/enabled.json` - Local extension enabled/disabled state
 
 > 📖 **See also:** [File Operations Reference](file-operations.md) for a complete catalog of all files tracked by claudeup, including what operations modify each file.
 
