@@ -4,6 +4,7 @@ package commands
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -23,6 +24,7 @@ var (
 	localFilterEnabled  bool
 	localFilterDisabled bool
 	localListFull       bool
+	localListLong       bool
 	localViewRaw        bool
 )
 
@@ -50,7 +52,8 @@ var localListCmd = &cobra.Command{
 
 Without arguments, shows a summary with item counts per category.
 Use a category argument to see individual items, or --full to show all items.
-Use --enabled or --disabled to filter by status (implies full listing).`,
+Use --enabled or --disabled to filter by status (implies full listing).
+Use --long (-l) to show file type and path for each item.`,
 	Example: `  claudeup local list
   claudeup local list agents
   claudeup local list --full
@@ -198,6 +201,7 @@ func init() {
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
 	localListCmd.Flags().BoolVar(&localListFull, "full", false, "Show all items instead of summary counts")
+	localListCmd.Flags().BoolVarP(&localListLong, "long", "l", false, "Show file type and path for each item")
 	localViewCmd.Flags().BoolVar(&localViewRaw, "raw", false, "Output raw content without rendering")
 }
 
@@ -219,7 +223,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 
 	specificCategory := len(args) > 0
 	hasFilter := localFilterEnabled || localFilterDisabled
-	showSummary := !specificCategory && !hasFilter && !localListFull
+	showSummary := !specificCategory && !hasFilter && !localListFull && !localListLong
 
 	var categories []string
 	if specificCategory {
@@ -285,14 +289,20 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 
 		if category == local.CategoryAgents {
 			// Group agents by their group directory
-			printGroupedAgents(filtered)
+			printGroupedAgents(filtered, localListLong, category)
 		} else {
 			for _, item := range filtered {
 				status := ui.Muted("·")
 				if item.enabled {
 					status = ui.Success(ui.SymbolSuccess)
 				}
-				fmt.Printf("  %s %s\n", status, item.name)
+				if localListLong {
+					fileType := fileTypeLabel(item.name)
+					relPath := filepath.Join("local", category, item.name)
+					fmt.Printf("  %s %-30s [%s]  %s\n", status, item.name, fileType, relPath)
+				} else {
+					fmt.Printf("  %s %s\n", status, item.name)
+				}
 			}
 		}
 	}
@@ -310,7 +320,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func printGroupedAgents(items []itemStatus) {
+func printGroupedAgents(items []itemStatus, long bool, category string) {
 	// Group by directory
 	groups := make(map[string][]itemStatus)
 	var flatItems []itemStatus
@@ -334,7 +344,13 @@ func printGroupedAgents(items []itemStatus) {
 		if item.enabled {
 			status = ui.Success(ui.SymbolSuccess)
 		}
-		fmt.Printf("  %s %s\n", status, item.name)
+		if long {
+			fileType := fileTypeLabel(item.name)
+			relPath := filepath.Join("local", category, item.name)
+			fmt.Printf("  %s %-30s [%s]  %s\n", status, item.name, fileType, relPath)
+		} else {
+			fmt.Printf("  %s %s\n", status, item.name)
+		}
 	}
 
 	// Print grouped items
@@ -351,8 +367,38 @@ func printGroupedAgents(items []itemStatus) {
 			if item.enabled {
 				status = ui.Success(ui.SymbolSuccess)
 			}
-			fmt.Printf("    %s %s\n", status, strings.TrimSuffix(item.name, ".md"))
+			displayName := strings.TrimSuffix(item.name, ".md")
+			if long {
+				fullName := group + "/" + item.name
+				fileType := fileTypeLabel(item.name)
+				relPath := filepath.Join("local", category, fullName)
+				fmt.Printf("    %s %-28s [%s]  %s\n", status, displayName, fileType, relPath)
+			} else {
+				fmt.Printf("    %s %s\n", status, displayName)
+			}
 		}
+	}
+}
+
+// fileTypeLabel returns a short label for the file type based on extension.
+func fileTypeLabel(name string) string {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".sh", ".bash":
+		return "bash"
+	case ".py":
+		return "python"
+	case ".js":
+		return "javascript"
+	case ".ts":
+		return "typescript"
+	case ".md":
+		return "markdown"
+	default:
+		if ext != "" {
+			return ext[1:] // strip the dot
+		}
+		return "directory"
 	}
 }
 
