@@ -31,7 +31,12 @@ var localCmd = &cobra.Command{
 	Long: `Manage local Claude Code extensions from ~/.claudeup/local.
 
 These are local files (not marketplace plugins) that extend Claude Code
-with custom agents, commands, skills, hooks, rules, and output-styles.`,
+with custom agents, commands, skills, hooks, rules, and output-styles.
+
+Adding items to local storage:
+  install     Copy items from external paths (git repos, downloads)
+  import      Move items from active directories to local storage
+  import-all  Bulk import across all categories at once`,
 }
 
 var localListCmd = &cobra.Command{
