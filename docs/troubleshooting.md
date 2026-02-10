@@ -24,7 +24,11 @@ See what operations claudeup performed recently:
 claudeup events
 ```
 
-This shows a chronological log of all file operations (profile applies, plugin installs, etc.) with timestamps.
+This shows the last 20 file operations by default. Use `--limit` for more results:
+
+```bash
+claudeup events --limit 100
+```
 
 ### Compare File Versions
 
@@ -97,8 +101,8 @@ claudeup events diff --file ./.mcp.json --full
 **Something changed but you don't know when:**
 
 ```bash
-# Review recent operations
-claudeup events --since 7d
+# Review recent operations (increase --limit to avoid missing events)
+claudeup events --since 7d --limit 100
 
 # Filter to specific file
 claudeup events --file ~/.claude/settings.json

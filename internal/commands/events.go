@@ -35,7 +35,7 @@ Examples:
   claudeup events                          # Show recent events
   claudeup events --limit 20               # Show last 20 events
   claudeup events --file ~/.claude/settings.json
-  claudeup events --operation "profile apply"
+  claudeup events --operation "settings update"
   claudeup events --user                   # User scope only
   claudeup events --since 24h`,
 	Args: cobra.NoArgs,
