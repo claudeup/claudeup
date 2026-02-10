@@ -229,9 +229,10 @@ echo
 print_step "Verifying installation..."
 # Check that source file still exists (install copies, doesn't move)
 if [[ -f "$EXTERNAL_AGENTS/demo-agent.md" ]]; then
-    print_success "Source file still exists (install copies, not moves)"
+    print_success "Source file still exists (install copies, doesn't move)"
 else
     print_error "Source file was removed! (unexpected)"
+    exit 1
 fi
 
 # Check that file was copied to .library
@@ -239,6 +240,7 @@ if [[ -f "$CLAUDE_CONFIG_DIR/.library/agents/demo-agent.md" ]]; then
     print_success "File copied to .library/agents/"
 else
     print_error "File not found in .library!"
+    exit 1
 fi
 
 # Check that symlink was created
@@ -247,6 +249,7 @@ if [[ -L "$CLAUDE_CONFIG_DIR/agents/demo-agent.md" ]]; then
     ls -la "$CLAUDE_CONFIG_DIR/agents/demo-agent.md"
 else
     print_error "Symlink not created!"
+    exit 1
 fi
 echo
 
@@ -280,6 +283,16 @@ if [[ -d "$CLAUDE_CONFIG_DIR/.library/agents/my-agents" ]]; then
     ls -la "$CLAUDE_CONFIG_DIR/.library/agents/my-agents/"
 else
     print_error "Agent group not found in .library!"
+    exit 1
+fi
+
+# Check that symlink was created for agent group
+if [[ -L "$CLAUDE_CONFIG_DIR/agents/my-agents" ]]; then
+    print_success "Symlink created for agent group"
+    ls -la "$CLAUDE_CONFIG_DIR/agents/my-agents"
+else
+    print_error "Agent group symlink not created!"
+    exit 1
 fi
 echo
 
@@ -299,7 +312,10 @@ echo
 # Summary
 print_header "Demo Complete!"
 
-CUSTOM_AGENTS=$(ls "$CLAUDE_CONFIG_DIR/.library/agents/" 2>/dev/null | grep -E "demo-agent|my-agents" | wc -l | tr -d ' ')
+CUSTOM_AGENTS=0
+if [ -d "$CLAUDE_CONFIG_DIR/.library/agents" ]; then
+    CUSTOM_AGENTS=$(find "$CLAUDE_CONFIG_DIR/.library/agents" -maxdepth 1 \( -name 'demo-agent*' -o -name 'my-agents' \) | wc -l | tr -d ' ')
+fi
 
 echo "Summary:"
 echo "  - GSD agents enabled: $GSD_AGENTS"
