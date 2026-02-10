@@ -1,4 +1,4 @@
-// ABOUTME: View item contents from the library
+// ABOUTME: View item contents from local storage
 // ABOUTME: Handles files and skill directories
 package local
 

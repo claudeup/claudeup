@@ -13,7 +13,7 @@ func TestView(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
+	// Create local directory structure
 	localDir := filepath.Join(claudeupHome, "local")
 	hooksDir := filepath.Join(localDir, "hooks")
 	skillsDir := filepath.Join(localDir, "skills", "bash")
@@ -47,7 +47,7 @@ func TestViewAgent(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with grouped agent
+	// Create local directory structure with grouped agent
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")

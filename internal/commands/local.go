@@ -37,7 +37,7 @@ with custom agents, commands, skills, hooks, rules, and output-styles.`,
 var localListCmd = &cobra.Command{
 	Use:   "list [category]",
 	Short: "List local items and their enabled status",
-	Long: `List all local items in the library and their enabled status.
+	Long: `List all local items and their enabled status.
 
 Optionally filter by category. Use --enabled or --disabled to filter by status.`,
 	Example: `  claudeup local list
@@ -79,7 +79,7 @@ Supports the same wildcards as enable.`,
 var localViewCmd = &cobra.Command{
 	Use:   "view <category> <item>",
 	Short: "View contents of a local item",
-	Long: `Display the contents of a local item from the library.
+	Long: `Display the contents of a local item.
 
 Markdown files are rendered for the terminal. Use --raw for
 unformatted output (useful for piping to other tools like glow or bat).`,
@@ -102,13 +102,13 @@ var localSyncCmd = &cobra.Command{
 
 var localImportCmd = &cobra.Command{
 	Use:   "import <category> <items...>",
-	Short: "Import items from active directory to library",
+	Short: "Import items from active directory to local storage",
 	Long: `Import items that were installed directly to active directories (like GSD).
 
 This command moves files from ~/.claude/<category>/ to ~/.claudeup/local/<category>/
 and creates symlinks back, enabling management via claudeup.
 
-This is useful when tools install directly to active directories instead of the library.
+This is useful when tools install directly to active directories instead of local storage.
 Existing symlinks (already managed items) are skipped.
 
 Supports wildcards:
@@ -123,11 +123,11 @@ Supports wildcards:
 
 var localImportAllCmd = &cobra.Command{
 	Use:   "import-all [patterns...]",
-	Short: "Import items from all categories to library",
-	Long: `Import items from all active directories to the library.
+	Short: "Import items from all categories to local storage",
+	Long: `Import items from all active directories to local storage.
 
 Scans all category directories (agents, commands, skills, hooks, rules, output-styles)
-for items that are not already symlinks, moves them to the library, and enables them.
+for items that are not already symlinks, moves them to local storage, and enables them.
 
 If patterns are provided, only items matching the patterns are imported.
 Without patterns, all non-symlink items are imported.`,
@@ -138,10 +138,10 @@ Without patterns, all non-symlink items are imported.`,
 
 var localInstallCmd = &cobra.Command{
 	Use:   "install <category> <path>",
-	Short: "Install items from an external path to library",
-	Long: `Install items from an external path (file or directory) to the library.
+	Short: "Install items from an external path to local storage",
+	Long: `Install items from an external path (file or directory) to local storage.
 
-This copies files to the library and automatically enables them.
+This copies files to local storage and automatically enables them.
 Use this to install items from a git repo, downloads folder, or other location.
 
 For single files/directories: installed as-is.
@@ -398,7 +398,7 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, item := range skipped {
-		ui.PrintSuccess(fmt.Sprintf("Linked (already in library): %s/%s", category, item))
+		ui.PrintSuccess(fmt.Sprintf("Linked (already in local storage): %s/%s", category, item))
 	}
 
 	for _, pattern := range notFound {
@@ -434,7 +434,7 @@ func runLocalImportAll(cmd *cobra.Command, args []string) error {
 	}
 	for category, items := range linked {
 		for _, item := range items {
-			ui.PrintSuccess(fmt.Sprintf("Linked (already in library): %s/%s", category, item))
+			ui.PrintSuccess(fmt.Sprintf("Linked (already in local storage): %s/%s", category, item))
 			totalProcessed++
 		}
 	}
@@ -465,7 +465,7 @@ func runLocalInstall(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(installed) == 0 && len(skipped) > 0 {
-		fmt.Println("All items already exist in library")
+		fmt.Println("All items already exist in local storage")
 	}
 
 	return nil

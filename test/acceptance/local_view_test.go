@@ -18,7 +18,7 @@ var _ = Describe("local view", func() {
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 
-		// Create library structure with items in claudeupHome/local/
+		// Create local directory structure in claudeupHome/local/
 		localDir := filepath.Join(env.ClaudeupDir, "local")
 
 		agentsDir := filepath.Join(localDir, "agents")

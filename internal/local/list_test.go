@@ -1,4 +1,4 @@
-// ABOUTME: Tests for listing library items
+// ABOUTME: Tests for listing local storage items
 // ABOUTME: Verifies directory scanning and item discovery
 package local
 
@@ -13,7 +13,7 @@ func TestListItems(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
+	// Create local directory structure
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
@@ -43,7 +43,7 @@ func TestListItemsWithGroups(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with groups (for agents)
+	// Create local directory structure with groups (for agents)
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
@@ -99,7 +99,7 @@ func TestListItemsErrorPropagation(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
+	// Create local directory structure
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
@@ -121,7 +121,7 @@ func TestListItemsNestedCommands(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure for commands with subdirectories
+	// Create local directory structure for commands with subdirectories
 	localDir := filepath.Join(claudeupHome, "local")
 	commandsDir := filepath.Join(localDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
@@ -165,7 +165,7 @@ func TestListItemsSkillsWithSKILLMD(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure for skills (directories containing SKILL.md)
+	// Create local directory structure for skills (directories containing SKILL.md)
 	localDir := filepath.Join(claudeupHome, "local")
 	skillsDir := filepath.Join(localDir, "skills")
 	bashSkill := filepath.Join(skillsDir, "bash")

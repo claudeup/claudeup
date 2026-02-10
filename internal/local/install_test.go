@@ -1,4 +1,4 @@
-// ABOUTME: Tests for Install function that copies items from external paths to the library
+// ABOUTME: Tests for Install function that copies items from external paths to local storage
 // ABOUTME: Covers single file, directory, container detection, skip existing, and auto-enable
 package local
 
@@ -36,10 +36,10 @@ func TestInstall_SingleFile(t *testing.T) {
 		t.Errorf("expected no skipped, got %v", skipped)
 	}
 
-	// Assert: File exists in library
-	libraryFile := filepath.Join(claudeupHome, "local", "hooks", "my-hook.sh")
-	if _, err := os.Stat(libraryFile); err != nil {
-		t.Errorf("file not in library: %v", err)
+	// Assert: File exists in local storage
+	localFile := filepath.Join(claudeupHome, "local", "hooks", "my-hook.sh")
+	if _, err := os.Stat(localFile); err != nil {
+		t.Errorf("file not in local storage: %v", err)
 	}
 
 	// Assert: Item is enabled in config
@@ -89,10 +89,10 @@ func TestInstall_SingleDirectory(t *testing.T) {
 		t.Errorf("expected [my-skill], got %v", installed)
 	}
 
-	// Assert: Directory exists in library with contents
-	librarySkill := filepath.Join(claudeupHome, "local", "skills", "my-skill", "SKILL.md")
-	if _, err := os.Stat(librarySkill); err != nil {
-		t.Errorf("skill not in library: %v", err)
+	// Assert: Directory exists in local storage with contents
+	localSkill := filepath.Join(claudeupHome, "local", "skills", "my-skill", "SKILL.md")
+	if _, err := os.Stat(localSkill); err != nil {
+		t.Errorf("skill not in local storage: %v", err)
 	}
 }
 
@@ -126,11 +126,11 @@ func TestInstall_ContainerOfMultipleItems(t *testing.T) {
 		t.Errorf("expected 2 installed, got %d: %v", len(installed), installed)
 	}
 
-	// Assert: Each file exists in library
+	// Assert: Each file exists in local storage
 	for _, name := range []string{"cmd1.md", "cmd2.md"} {
 		path := filepath.Join(claudeupHome, "local", "commands", name)
 		if _, err := os.Stat(path); err != nil {
-			t.Errorf("command %s not in library: %v", name, err)
+			t.Errorf("command %s not in local storage: %v", name, err)
 		}
 	}
 }
@@ -142,7 +142,7 @@ func TestInstall_SkipsExisting(t *testing.T) {
 
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Pre-create existing item in library
+	// Pre-create existing item in local storage
 	localDir := filepath.Join(claudeupHome, "local", "hooks")
 	if err := os.MkdirAll(localDir, 0755); err != nil {
 		t.Fatal(err)
@@ -230,6 +230,6 @@ func TestInstall_AgentGroup(t *testing.T) {
 	// Assert: Group directory exists with agents inside
 	agentFile := filepath.Join(claudeupHome, "local", "agents", "my-agents", "agent1.md")
 	if _, err := os.Stat(agentFile); err != nil {
-		t.Errorf("agent not in library: %v", err)
+		t.Errorf("agent not in local storage: %v", err)
 	}
 }

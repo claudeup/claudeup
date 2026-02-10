@@ -457,7 +457,7 @@ claudeup local enable <category> <items...>  # Enable items (supports wildcards)
 claudeup local disable <category> <items...> # Disable items (supports wildcards)
 claudeup local view <category> <item>        # View item contents
 claudeup local sync                          # Recreate symlinks from enabled.json
-claudeup local import <category> <items...>  # Move items from active dir to library
+claudeup local import <category> <items...>  # Move items from active dir to local storage
 claudeup local import-all [patterns...]      # Import items from all categories
 claudeup local install <category> <path>     # Install items from an external path
 ```
@@ -481,11 +481,11 @@ claudeup local install <category> <path>     # Install items from an external pa
 
 **Import commands:**
 
-`import` moves items from active directories (`~/.claude/<category>/`) to the library (`~/.claudeup/local/<category>/`) and creates symlinks back. Use when tools install directly to active directories.
+`import` moves items from active directories (`~/.claude/<category>/`) to local storage (`~/.claudeup/local/<category>/`) and creates symlinks back. Use when tools install directly to active directories.
 
 `import-all` scans all categories at once. Without patterns, imports everything. With patterns, only matching items.
 
-`install` copies items from an external path (git repos, downloads) to the library and enables them.
+`install` copies items from an external path (git repos, downloads) to local storage and enables them.
 
 ## Event Tracking
 

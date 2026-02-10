@@ -1366,7 +1366,7 @@ func TestApplyWithLocalItems(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := tmpDir
 
-	// Create library structure (in claudeupHome/local/)
+	// Create local directory structure (in claudeupHome/local/)
 	localDir := filepath.Join(claudeDir, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)

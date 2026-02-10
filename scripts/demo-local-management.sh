@@ -110,11 +110,11 @@ npx get-shit-done-cc --claude --global --config-dir "$CLAUDE_CONFIG_DIR" --force
 echo
 print_success "GSD installed"
 
-# Step 4: Import GSD files to library using claudeup
-print_header "Step 4: Import GSD to Library"
+# Step 4: Import GSD files to local storage using claudeup
+print_header "Step 4: Import GSD to Local Storage"
 
 print_info "GSD installs directly to active directories."
-print_info "Using 'claudeup local import-all' to move to library and create symlinks..."
+print_info "Using 'claudeup local import-all' to move to local storage and create symlinks..."
 echo
 
 print_step "Importing all GSD items..."
@@ -196,8 +196,8 @@ echo
 print_header "Step 9: Install External Agent"
 
 print_info "Now demonstrating 'claudeup local install' (different from import)..."
-print_info "- import: moves files from active dirs to the library"
-print_info "- install: copies files from external sources to the library"
+print_info "- import: moves files from active dirs to local storage"
+print_info "- install: copies files from external sources to local storage"
 echo
 
 # Create a custom agent in a temporary external location
@@ -235,11 +235,11 @@ else
     exit 1
 fi
 
-# Check that file was copied to library
+# Check that file was copied to local storage
 if [[ -f "$CLAUDEUP_HOME/local/agents/demo-agent.md" ]]; then
-    print_success "File copied to library/agents/"
+    print_success "File copied to local/agents/"
 else
-    print_error "File not found in library!"
+    print_error "File not found in local storage!"
     exit 1
 fi
 
@@ -279,10 +279,10 @@ echo
 
 print_step "Verifying agent group installation..."
 if [[ -d "$CLAUDEUP_HOME/local/agents/my-agents" ]]; then
-    print_success "Agent group directory copied to library/"
+    print_success "Agent group directory copied to local/"
     ls -la "$CLAUDEUP_HOME/local/agents/my-agents/"
 else
-    print_error "Agent group not found in library!"
+    print_error "Agent group not found in local storage!"
     exit 1
 fi
 
@@ -325,8 +325,8 @@ echo "  - Custom agents installed: $CUSTOM_AGENTS (demo-agent + 2 in my-agents g
 echo "  - Profile saved: gsd-demo"
 echo
 echo "Commands demonstrated:"
-echo "  ✓ claudeup local import-all  - Move files from active dirs to library"
-echo "  ✓ claudeup local install     - Copy external files to library"
+echo "  ✓ claudeup local import-all  - Move files from active dirs to local storage"
+echo "  ✓ claudeup local install     - Copy external files to local storage"
 echo "  ✓ claudeup local list        - View enabled/disabled items"
 echo "  ✓ claudeup profile save      - Save configuration as profile"
 echo

@@ -14,7 +14,7 @@ func TestLocalIntegration(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create full library structure
+	// Create full local directory structure
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	commandsDir := filepath.Join(localDir, "commands", "gsd")
@@ -95,7 +95,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create library structure with agent groups
+	// Create local directory structure with agent groups
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
@@ -133,7 +133,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 		t.Error("Symlink was not created in group directory")
 	}
 
-	// Verify symlink target is an absolute path to the library
+	// Verify symlink target is an absolute path to local storage
 	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
@@ -148,7 +148,7 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create library structure for commands with directories
+	// Create local directory structure for commands with directories
 	localDir := filepath.Join(claudeupHome, "local")
 	commandsDir := filepath.Join(localDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
@@ -192,7 +192,7 @@ func TestLocalConfigPersistence(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create library structure
+	// Create local directory structure
 	localDir := filepath.Join(claudeupHome, "local")
 	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)

@@ -13,7 +13,7 @@ func TestResolveItemName(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
+	// Create local directory structure
 	localDir := filepath.Join(claudeupHome, "local")
 	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
@@ -53,7 +53,7 @@ func TestResolveAgentName(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with groups
+	// Create local directory structure with groups
 	localDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
