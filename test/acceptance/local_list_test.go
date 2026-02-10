@@ -38,10 +38,15 @@ var _ = Describe("local list", func() {
 
 	Context("with items in library", func() {
 		BeforeEach(func() {
-			// Create a rule item in the local storage
+			// Create rule items in local storage
 			rulesDir := filepath.Join(env.ClaudeupDir, "local", "rules")
 			Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
-			Expect(os.WriteFile(filepath.Join(rulesDir, "test-rule.md"), []byte("# Test"), 0644)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(rulesDir, "enabled-rule.md"), []byte("# Enabled"), 0644)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(rulesDir, "disabled-rule.md"), []byte("# Disabled"), 0644)).To(Succeed())
+
+			// Enable one rule via enabled.json
+			enabledJSON := `{"rules":{"enabled-rule.md":true,"disabled-rule.md":false}}`
+			Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), []byte(enabledJSON), 0644)).To(Succeed())
 		})
 
 		It("does not show the empty library message", func() {
@@ -49,12 +54,32 @@ var _ = Describe("local list", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
-			Expect(result.Stdout).To(ContainSubstring("test-rule.md"))
+		})
+
+		It("shows checkmark for enabled items", func() {
+			result := env.Run("local", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(MatchRegexp(`✓.*enabled-rule\.md`))
+		})
+
+		It("shows muted dot for disabled items", func() {
+			result := env.Run("local", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(MatchRegexp(`·.*disabled-rule\.md`))
+		})
+
+		It("does not use old * and x markers", func() {
+			result := env.Run("local", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Should not contain the old markers as status indicators
+			Expect(result.Stdout).NotTo(MatchRegexp(`\s+\*\s+\w`))
+			Expect(result.Stdout).NotTo(MatchRegexp(`\s+x\s+\w`))
 		})
 
 		It("does not show the empty library message when filters exclude all items", func() {
-			// All items are disabled by default; --enabled should show no items
-			// but should NOT show the "No local items found" message
 			result := env.Run("local", "list", "--enabled")
 
 			Expect(result.ExitCode).To(Equal(0))

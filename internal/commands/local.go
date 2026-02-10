@@ -240,9 +240,9 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 			printGroupedAgents(filtered)
 		} else {
 			for _, item := range filtered {
-				status := ui.Error("x")
+				status := ui.Muted("·")
 				if item.enabled {
-					status = ui.Success("*")
+					status = ui.Success(ui.SymbolSuccess)
 				}
 				fmt.Printf("  %s %s\n", status, item.name)
 			}
@@ -276,9 +276,9 @@ func printGroupedAgents(items []itemStatus) {
 
 	// Print flat items first
 	for _, item := range flatItems {
-		status := ui.Error("x")
+		status := ui.Muted("·")
 		if item.enabled {
-			status = ui.Success("*")
+			status = ui.Success(ui.SymbolSuccess)
 		}
 		fmt.Printf("  %s %s\n", status, item.name)
 	}
@@ -293,9 +293,9 @@ func printGroupedAgents(items []itemStatus) {
 	for _, group := range groupNames {
 		fmt.Printf("  %s/\n", group)
 		for _, item := range groups[group] {
-			status := ui.Error("x")
+			status := ui.Muted("·")
 			if item.enabled {
-				status = ui.Success("*")
+				status = ui.Success(ui.SymbolSuccess)
 			}
 			fmt.Printf("    %s %s\n", status, strings.TrimSuffix(item.name, ".md"))
 		}
