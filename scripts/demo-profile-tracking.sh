@@ -67,9 +67,9 @@ wait_for_enter
 section "2. Recent Profile Activity Timeline"
 
 demo "Show all profile operations in the last 24 hours" \
-     "$CLAUDEUP_BIN events audit --operation profile --since 24h"
+     "$CLAUDEUP_BIN events --operation \"profile apply\" --since 24h"
 
-$CLAUDEUP_BIN events audit --operation profile --since 24h | head -100
+$CLAUDEUP_BIN events --operation "profile apply" --since 24h | head -100
 
 cat <<EOF
 
@@ -87,9 +87,9 @@ wait_for_enter
 section "3. Finding Profile Apply Operations"
 
 demo "Show when profiles were applied (changes to Claude config)" \
-     "$CLAUDEUP_BIN events audit --operation profile --local --since 7d"
+     "$CLAUDEUP_BIN events --operation \"profile apply\" --local --since 7d"
 
-$CLAUDEUP_BIN events audit --operation profile --local --since 7d | head -80
+$CLAUDEUP_BIN events --operation "profile apply" --local --since 7d | head -80
 
 cat <<EOF
 
@@ -122,7 +122,7 @@ ${GREEN}Let's find a recent profile apply event and diff it...${NC}
 EOF
 
 # Get the most recent profile apply event ID
-RECENT_EVENT=$($CLAUDEUP_BIN events audit --operation profile --local --since 30d 2>/dev/null |
+RECENT_EVENT=$($CLAUDEUP_BIN events --operation "profile apply" --local --since 30d 2>/dev/null |
                grep -E '^\[' |
                head -1 |
                grep -oE 'Event [0-9]+' |
@@ -141,7 +141,7 @@ ${YELLOW}No recent profile apply events found in the last 30 days.${NC}
 
 To see this in action:
   1. Apply a profile:     $CLAUDEUP_BIN profile apply <name>
-  2. Check events:        $CLAUDEUP_BIN events audit --operation profile
+  2. Check events:        $CLAUDEUP_BIN events --operation "profile apply"
   3. Diff the change:     $CLAUDEUP_BIN events diff <event-id>
 
 EOF
@@ -183,24 +183,23 @@ cat <<EOF
 ${BOLD}Common workflows with event tracking:${NC}
 
 ${GREEN}1. "What did I change yesterday?"${NC}
-   $ $CLAUDEUP_BIN events audit --since 24h
+   $ $CLAUDEUP_BIN events --since 24h
 
 ${GREEN}2. "When did I last apply the frontend profile?"${NC}
-   $ $CLAUDEUP_BIN events audit --operation profile | grep frontend
+   $ $CLAUDEUP_BIN events --operation "profile apply" | grep frontend
 
 ${GREEN}3. "Show me all plugin changes this week"${NC}
-   $ $CLAUDEUP_BIN events audit --since 7d --operation profile
+   $ $CLAUDEUP_BIN events --since 7d --operation "profile apply"
 
-${GREEN}4. "What exactly changed when I applied base-tools?"${NC}
-   $ $CLAUDEUP_BIN events audit --operation profile | grep base-tools
-   $ $CLAUDEUP_BIN events diff <event-id>
+${GREEN}4. "What exactly changed when I applied a profile?"${NC}
+   $ $CLAUDEUP_BIN events diff --file ~/.claude/settings.json --full
 
-${GREEN}5. "Generate weekly report of profile changes"${NC}
-   $ $CLAUDEUP_BIN events audit --since 7d --format markdown > weekly-changes.md
+${GREEN}5. "What changed in my plugins?"${NC}
+   $ $CLAUDEUP_BIN events diff --file ~/.claude/plugins/installed_plugins.json
 
 ${GREEN}6. "Troubleshoot: why is my setup different?"${NC}
-   $ $CLAUDEUP_BIN events audit --since 30d
-   $ $CLAUDEUP_BIN events diff <suspect-event-id>
+   $ $CLAUDEUP_BIN events --since 30d
+   $ $CLAUDEUP_BIN events diff --file ~/.claude/settings.json --full
 
 EOF
 
@@ -220,7 +219,7 @@ ${BOLD}Event-based profile tracking gives you:${NC}
 
 ${YELLOW}Next steps:${NC}
   • Try applying a profile: $CLAUDEUP_BIN profile apply <name>
-  • Watch events capture it: $CLAUDEUP_BIN events audit --operation profile
+  • Watch events capture it: $CLAUDEUP_BIN events --operation "profile apply"
   • Diff the changes: $CLAUDEUP_BIN events diff <event-id>
 
 ${GREEN}The event system turns profile management from "set and forget"

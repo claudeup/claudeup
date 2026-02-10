@@ -458,30 +458,6 @@ claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
 | `--file` | File path to show diff for (required)           |
 | `--full` | Show complete nested objects without truncation |
 
-### events audit
-
-Generate comprehensive audit trail with summary statistics.
-
-```bash
-claudeup events audit                        # Last 7 days, all scopes
-claudeup events audit --user                 # User scope only
-claudeup events audit --since 30d            # Last 30 days
-claudeup events audit --since 2025-01-01     # Since specific date
-claudeup events audit --format markdown > report.md
-```
-
-**Flags:**
-
-| Flag          | Description                                                        |
-| ------------- | ------------------------------------------------------------------ |
-| `--scope`     | Filter by scope (user/project/local)                               |
-| `--user`      | Filter to user scope                                               |
-| `--project`   | Filter to project scope                                            |
-| `--local`     | Filter to local scope                                              |
-| `--operation` | Filter by operation name                                           |
-| `--since`     | Duration (e.g., `7d`, `30d`) or date (`YYYY-MM-DD`); default: `7d` |
-| `--format`    | Output format: `text` or `markdown` (default: `text`)              |
-
 ## Maintenance
 
 ### doctor
