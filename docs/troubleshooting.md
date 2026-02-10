@@ -157,10 +157,10 @@ Understanding plugin types helps with troubleshooting:
 - Path: `~/.claude/plugins/marketplaces/<marketplace>/plugins/<plugin>`
 - Affected by the path bug above
 
-Check your plugin types:
+Check your plugin status:
 
 ```bash
-claudeup plugin list --summary
+claudeup status
 ```
 
 ## Common Issues
@@ -174,14 +174,6 @@ claudeup cleanup
 ### MCP server not working after changes
 
 MCP server changes require restarting Claude Code to take effect.
-
-### Plugin disabled but still appears
-
-Re-enable with:
-
-```bash
-claudeup plugin enable <plugin-name>
-```
 
 ### Marketplace missing
 

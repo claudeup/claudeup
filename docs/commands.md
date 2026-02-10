@@ -269,14 +269,9 @@ Shows marketplaces, plugin counts, MCP servers, and any detected issues.
 
 ### plugin
 
-Manage plugins.
+Discover plugins.
 
 ```bash
-claudeup plugin list              # Full list with details
-claudeup plugin list --summary    # Summary statistics only
-claudeup plugin list --by-scope   # Group enabled plugins by scope
-claudeup plugin enable <name>     # Enable a disabled plugin
-claudeup plugin disable <name>    # Disable a plugin
 claudeup plugin browse <marketplace>                  # List available plugins
 claudeup plugin browse <marketplace> --format table  # Table format
 claudeup plugin browse <marketplace> --show <name>   # Show plugin contents
@@ -284,16 +279,6 @@ claudeup plugin show <plugin>@<marketplace>          # Show plugin contents
 claudeup plugin search <query>                        # Search installed plugins
 claudeup plugin search <query> --all                  # Search all cached plugins
 ```
-
-**`plugin list` flags:**
-
-| Flag         | Description                    |
-| ------------ | ------------------------------ |
-| `--summary`  | Show only summary statistics   |
-| `--enabled`  | Show only enabled plugins      |
-| `--disabled` | Show only disabled plugins     |
-| `--format`   | Output format (table)          |
-| `--by-scope` | Group enabled plugins by scope |
 
 **`plugin browse` flags:**
 

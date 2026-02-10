@@ -56,15 +56,15 @@ claudeup profile apply team-config --project
 
 Profiles capture settings from all scopes (user, project, local). Use `profile apply --project` to write settings to `.claude/settings.json` for team sharing. [Learn more →](docs/team-workflows.md)
 
-### Plugin & MCP Management
+### Plugin Discovery
 
-Fine-grained control over what's enabled:
+Find plugins by capability:
 
 ```bash
 claudeup status                       # Overview of your installation
 claudeup plugin search tdd            # Find plugins by capability
 claudeup plugin search api --all      # Search all cached plugins
-claudeup plugin disable name          # Disable a plugin
+claudeup plugin browse my-marketplace # Browse marketplace plugins
 ```
 
 [Full command reference →](docs/commands.md)

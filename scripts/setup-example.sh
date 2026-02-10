@@ -206,7 +206,7 @@ echo ""
 claudeup profile show my-project
 
 echo ""
-claudeup plugin list --enabled --format table
+claudeup status
 
 popd > /dev/null
 
