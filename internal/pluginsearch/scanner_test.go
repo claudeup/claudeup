@@ -89,6 +89,66 @@ func TestScanner_NonExistentCache(t *testing.T) {
 	}
 }
 
+func TestScanner_DeduplicatesVersions(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "cache-multi-version")
+
+	plugins, err := scanner.Scan(cacheDir)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	// Should return 2 plugins (test-plugin and no-version-plugin), not 5
+	if len(plugins) != 2 {
+		t.Fatalf("expected 2 plugins (deduplicated), got %d", len(plugins))
+	}
+
+	// Find the test-plugin entry
+	var testPlugin *PluginSearchIndex
+	for i := range plugins {
+		if plugins[i].Name == "test-plugin" {
+			testPlugin = &plugins[i]
+			break
+		}
+	}
+
+	if testPlugin == nil {
+		t.Fatal("expected to find test-plugin in results")
+	}
+
+	// Should keep the latest version (2.0.0)
+	if testPlugin.Version != "2.0.0" {
+		t.Errorf("expected latest version '2.0.0', got '%s'", testPlugin.Version)
+	}
+
+	expectedPath := filepath.Join(cacheDir, "test-marketplace", "test-plugin", "2.0.0")
+	if testPlugin.Path != expectedPath {
+		t.Errorf("expected path for latest version, got '%s'", testPlugin.Path)
+	}
+}
+
+func TestScanner_DeduplicatesNonSemverVersions(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "cache-multi-version")
+
+	plugins, err := scanner.Scan(cacheDir)
+	if err != nil {
+		t.Fatalf("Scan() returned error: %v", err)
+	}
+
+	// Find the no-version-plugin entry
+	var count int
+	for _, p := range plugins {
+		if p.Name == "no-version-plugin" {
+			count++
+		}
+	}
+
+	if count != 1 {
+		t.Errorf("expected 1 entry for no-version-plugin (deduplicated), got %d", count)
+	}
+}
+
 func TestScanner_ParsesSkills(t *testing.T) {
 	scanner := NewScanner()
 	cacheDir := filepath.Join(testdataDir(), "cache")

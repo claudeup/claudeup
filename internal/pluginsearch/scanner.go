@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // Scanner scans the plugin cache to build a search index.
@@ -28,10 +30,14 @@ type pluginJSON struct {
 }
 
 // Scan walks the cache directory and builds an index of all plugins.
+// Multiple cached versions of the same plugin are deduplicated, keeping only
+// the latest version per name@marketplace.
 func (s *Scanner) Scan(cacheDir string) ([]PluginSearchIndex, error) {
-	var plugins []PluginSearchIndex
+	// Collect all plugin entries, then deduplicate
+	type pluginKey struct{ name, marketplace string }
+	best := make(map[pluginKey]PluginSearchIndex)
+	bestVersion := make(map[pluginKey]*semver.Version)
 
-	// Walk marketplace directories
 	marketplaces, err := os.ReadDir(cacheDir)
 	if err != nil {
 		return nil, err
@@ -43,7 +49,6 @@ func (s *Scanner) Scan(cacheDir string) ([]PluginSearchIndex, error) {
 		}
 		marketplacePath := filepath.Join(cacheDir, marketplace.Name())
 
-		// Walk plugin directories within marketplace
 		pluginDirs, err := os.ReadDir(marketplacePath)
 		if err != nil {
 			continue
@@ -55,7 +60,6 @@ func (s *Scanner) Scan(cacheDir string) ([]PluginSearchIndex, error) {
 			}
 			pluginPath := filepath.Join(marketplacePath, pluginDir.Name())
 
-			// Walk version directories within plugin
 			versions, err := os.ReadDir(pluginPath)
 			if err != nil {
 				continue
@@ -67,21 +71,51 @@ func (s *Scanner) Scan(cacheDir string) ([]PluginSearchIndex, error) {
 				}
 				versionPath := filepath.Join(pluginPath, version.Name())
 
-				// Parse plugin.json
 				plugin, err := s.parsePlugin(versionPath, marketplace.Name())
 				if err != nil {
-					continue // Skip malformed plugins
+					continue
 				}
 
 				plugin.Skills = s.scanSkills(versionPath)
 				plugin.Commands = s.scanComponents(versionPath, "commands")
 				plugin.Agents = s.scanComponents(versionPath, "agents")
 
-				plugins = append(plugins, *plugin)
+				key := pluginKey{plugin.Name, plugin.Marketplace}
+				sv, svErr := semver.NewVersion(plugin.Version)
+
+				existing, seen := best[key]
+				if !seen {
+					best[key] = *plugin
+					if svErr == nil {
+						bestVersion[key] = sv
+					}
+					continue
+				}
+
+				// Both parseable as semver: keep higher version
+				if prev, ok := bestVersion[key]; ok && svErr == nil {
+					if sv.GreaterThan(prev) {
+						best[key] = *plugin
+						bestVersion[key] = sv
+					}
+					continue
+				}
+
+				// Fallback: lexicographic comparison of version strings
+				if plugin.Version > existing.Version {
+					best[key] = *plugin
+					if svErr == nil {
+						bestVersion[key] = sv
+					}
+				}
 			}
 		}
 	}
 
+	plugins := make([]PluginSearchIndex, 0, len(best))
+	for _, p := range best {
+		plugins = append(plugins, p)
+	}
 	return plugins, nil
 }
 
