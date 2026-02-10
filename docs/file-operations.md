@@ -179,14 +179,13 @@ These files are created and managed exclusively by `claudeup`.
 **Read by:**
 
 - `internal/config/projects.go:LoadProjectsRegistry()`
-- Used by: status, scope operations
+- Used by: status, profile operations
 
 **Written by:**
 
 - `internal/config/projects.go:SaveProjectsRegistry()`
 - Triggered by:
   - `profile apply --local` - records which profile is active
-  - `profile apply --replace` - updates when clearing local scope
 
 ---
 
