@@ -72,7 +72,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	// Derive claudeJSONPath: when using custom dir, .claude.json is inside it
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-	existing, err := profile.Snapshot("existing", claudeDir, claudeJSONPath)
+	existing, err := profile.Snapshot("existing", claudeDir, claudeJSONPath, claudeupHome)
 	hasExisting := err == nil && hasContent(existing)
 
 	if hasExisting {
@@ -180,7 +180,7 @@ func applyProfileForFreshInstall(p *profile.Profile, claudeJSONPath string) erro
 	ui.PrintInfo("Applying profile...")
 
 	chain := buildSecretChain()
-	result, err := profile.Apply(p, claudeDir, claudeJSONPath, chain)
+	result, err := profile.Apply(p, claudeDir, claudeJSONPath, claudeupHome, chain)
 	if err != nil {
 		return fmt.Errorf("failed to apply profile: %w", err)
 	}

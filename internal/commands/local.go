@@ -28,7 +28,7 @@ var (
 var localCmd = &cobra.Command{
 	Use:   "local",
 	Short: "Manage local extensions (agents, commands, skills, hooks, rules, output-styles)",
-	Long: `Manage local Claude Code extensions from ~/.claude/.library.
+	Long: `Manage local Claude Code extensions from ~/.claudeup/local.
 
 These are local files (not marketplace plugins) that extend Claude Code
 with custom agents, commands, skills, hooks, rules, and output-styles.`,
@@ -102,13 +102,13 @@ var localSyncCmd = &cobra.Command{
 
 var localImportCmd = &cobra.Command{
 	Use:   "import <category> <items...>",
-	Short: "Import items from active directory to .library",
+	Short: "Import items from active directory to library",
 	Long: `Import items that were installed directly to active directories (like GSD).
 
-This command moves files from ~/.claude/<category>/ to ~/.claude/.library/<category>/
+This command moves files from ~/.claude/<category>/ to ~/.claudeup/local/<category>/
 and creates symlinks back, enabling management via claudeup.
 
-This is useful when tools install directly to active directories instead of .library.
+This is useful when tools install directly to active directories instead of the library.
 Existing symlinks (already managed items) are skipped.
 
 Supports wildcards:
@@ -123,11 +123,11 @@ Supports wildcards:
 
 var localImportAllCmd = &cobra.Command{
 	Use:   "import-all [patterns...]",
-	Short: "Import items from all categories to .library",
-	Long: `Import items from all active directories to .library.
+	Short: "Import items from all categories to library",
+	Long: `Import items from all active directories to the library.
 
 Scans all category directories (agents, commands, skills, hooks, rules, output-styles)
-for items that are not already symlinks, moves them to .library, and enables them.
+for items that are not already symlinks, moves them to the library, and enables them.
 
 If patterns are provided, only items matching the patterns are imported.
 Without patterns, all non-symlink items are imported.`,
@@ -138,10 +138,10 @@ Without patterns, all non-symlink items are imported.`,
 
 var localInstallCmd = &cobra.Command{
 	Use:   "install <category> <path>",
-	Short: "Install items from an external path to .library",
-	Long: `Install items from an external path (file or directory) to .library.
+	Short: "Install items from an external path to library",
+	Long: `Install items from an external path (file or directory) to the library.
 
-This copies files to .library/<category>/ and automatically enables them.
+This copies files to the library and automatically enables them.
 Use this to install items from a git repo, downloads folder, or other location.
 
 For single files/directories: installed as-is.
@@ -181,7 +181,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--enabled and --disabled are mutually exclusive")
 	}
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -299,7 +299,7 @@ func runLocalEnable(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 	enabled, notFound, err := manager.Enable(category, patterns)
 	if err != nil {
 		return err
@@ -324,7 +324,7 @@ func runLocalDisable(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 	disabled, notFound, err := manager.Disable(category, patterns)
 	if err != nil {
 		return err
@@ -349,7 +349,7 @@ func runLocalView(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	item := args[1]
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 	content, err := manager.View(category, item)
 	if err != nil {
 		return err
@@ -372,7 +372,7 @@ func runLocalView(cmd *cobra.Command, args []string) error {
 }
 
 func runLocalSync(cmd *cobra.Command, args []string) error {
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	fmt.Println("Syncing local items from enabled.json...")
 	if err := manager.Sync(); err != nil {
@@ -387,7 +387,7 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 	imported, skipped, notFound, err := manager.Import(category, patterns)
 	if err != nil {
 		return err
@@ -413,7 +413,7 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 }
 
 func runLocalImportAll(cmd *cobra.Command, args []string) error {
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	var patterns []string
 	if len(args) > 0 {
@@ -450,7 +450,7 @@ func runLocalInstall(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	sourcePath := args[1]
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 	installed, skipped, err := manager.Install(category, sourcePath)
 	if err != nil {
 		return err

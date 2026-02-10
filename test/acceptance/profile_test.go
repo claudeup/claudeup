@@ -86,7 +86,7 @@ func TestProfileSaveAndLoad(t *testing.T) {
 	})
 
 	// Action: Take a snapshot and save as profile
-	snapshot, err := profile.Snapshot("my-dev-setup", env.ClaudeDir, env.ClaudeJSONPath)
+	snapshot, err := profile.Snapshot("my-dev-setup", env.ClaudeDir, env.ClaudeJSONPath, env.ClaudeDir)
 	if err != nil {
 		t.Fatalf("Failed to create snapshot: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestProfileCreate(t *testing.T) {
 	os.WriteFile(settingsPath, settingsJSON, 0644)
 
 	// Action: Create profile from current state
-	snapshot, err := profile.Snapshot("minimal-profile", env.ClaudeDir, env.ClaudeJSONPath)
+	snapshot, err := profile.Snapshot("minimal-profile", env.ClaudeDir, env.ClaudeJSONPath, env.ClaudeDir)
 	if err != nil {
 		t.Fatalf("Failed to create snapshot: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestProfileOverwrite(t *testing.T) {
 		},
 	})
 
-	snapshot, err := profile.Snapshot("test-profile", env.ClaudeDir, env.ClaudeJSONPath)
+	snapshot, err := profile.Snapshot("test-profile", env.ClaudeDir, env.ClaudeJSONPath, env.ClaudeDir)
 	if err != nil {
 		t.Fatalf("Failed to create snapshot: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestEmptyStateSnapshot(t *testing.T) {
 	// No setup - test with empty Claude installation
 
 	// Action: Create snapshot of empty state
-	snapshot, err := profile.Snapshot("empty-profile", env.ClaudeDir, env.ClaudeJSONPath)
+	snapshot, err := profile.Snapshot("empty-profile", env.ClaudeDir, env.ClaudeJSONPath, env.ClaudeDir)
 	if err != nil {
 		t.Fatalf("Failed to create snapshot of empty state: %v", err)
 	}

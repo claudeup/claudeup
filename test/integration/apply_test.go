@@ -174,7 +174,7 @@ var _ = Describe("ApplyInstallsPlugins", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(executor.HasCommand("plugin", "install", "plugin-a@marketplace")).To(BeTrue(), "Expected plugin install command. Commands: %v", executor.Commands)
@@ -209,7 +209,7 @@ var _ = Describe("ApplyRemovesPlugins", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Verify plugin was removed from result
@@ -247,7 +247,7 @@ var _ = Describe("ApplyAddsMCPServers", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(executor.HasCommand("mcp", "add", "test-mcp")).To(BeTrue(), "Expected mcp add command. Commands: %v", executor.Commands)
@@ -280,7 +280,7 @@ var _ = Describe("ApplyRemovesMCPServers", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(executor.HasCommand("mcp", "remove", "old-mcp")).To(BeTrue(), "Expected mcp remove command. Commands: %v", executor.Commands)
@@ -306,7 +306,7 @@ var _ = Describe("ApplyAddsMarketplaces", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(executor.HasCommand("plugin", "marketplace", "add")).To(BeTrue(), "Expected marketplace add command. Commands: %v", executor.Commands)
@@ -349,7 +349,7 @@ var _ = Describe("ApplyWithSecrets", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(result.MCPServersInstalled).To(HaveLen(1))
@@ -396,7 +396,7 @@ var _ = Describe("ApplyMissingSecretFails", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).To(HaveOccurred())
 	})
 })
@@ -424,7 +424,7 @@ var _ = Describe("ApplyCommandOrder", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		marketplaceIdx := -1
@@ -474,7 +474,7 @@ var _ = Describe("ApplyPluginAlreadyUninstalled", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Plugin is already disabled (not in settings.json), so nothing to remove
@@ -504,7 +504,7 @@ var _ = Describe("ApplyPluginAlreadyInstalled", func() {
 
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(result.PluginsAlreadyPresent).To(HaveLen(1))
@@ -532,7 +532,7 @@ var _ = Describe("ApplyAllProfilePluginsAttempted", func() {
 		executor := NewMockExecutor()
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(executor.HasCommand("plugin", "install", "plugin-a@marketplace")).To(BeTrue(), "Expected install attempt for plugin-a even though it's in JSON")
@@ -560,7 +560,7 @@ var _ = Describe("ApplyPluginInstallRealError", func() {
 
 		chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, chain, executor)
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeDir, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(result.Errors).To(HaveLen(1))

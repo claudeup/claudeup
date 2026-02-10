@@ -79,14 +79,14 @@ type DiffOptions struct {
 
 // ComputeDiff calculates what changes are needed to apply a profile.
 // This compares against user scope by default; use ComputeDiffWithScope for scope-aware comparison.
-func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath string) (*Diff, error) {
-	return ComputeDiffWithScope(profile, claudeDir, claudeJSONPath, DiffOptions{Scope: ScopeUser})
+func ComputeDiff(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string) (*Diff, error) {
+	return ComputeDiffWithScope(profile, claudeDir, claudeJSONPath, claudeupHome, DiffOptions{Scope: ScopeUser})
 }
 
 // ComputeDiffWithScope calculates what changes are needed to apply a profile at a specific scope.
 // For project/local scope, it compares only against that scope's current state (not user scope).
 // This prevents confusing "Remove" actions for user-scope items when applying at project scope.
-func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath string, opts DiffOptions) (*Diff, error) {
+func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, opts DiffOptions) (*Diff, error) {
 	var current *Profile
 	var err error
 
@@ -98,12 +98,12 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath string, op
 	// Snapshot the current state for the target scope only
 	switch scope {
 	case ScopeProject, ScopeLocal:
-		current, err = SnapshotWithScope("current", claudeDir, claudeJSONPath, SnapshotOptions{
+		current, err = SnapshotWithScope("current", claudeDir, claudeJSONPath, claudeupHome, SnapshotOptions{
 			Scope:      string(scope),
 			ProjectDir: opts.ProjectDir,
 		})
 	default:
-		current, err = Snapshot("current", claudeDir, claudeJSONPath)
+		current, err = Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 	}
 
 	if err != nil {
@@ -194,12 +194,12 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath string, op
 }
 
 // Apply executes the profile changes using the default executor
-func Apply(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain) (*ApplyResult, error) {
-	return ApplyWithExecutor(profile, claudeDir, claudeJSONPath, secretChain, &DefaultExecutor{ClaudeDir: claudeDir})
+func Apply(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain) (*ApplyResult, error) {
+	return ApplyWithExecutor(profile, claudeDir, claudeJSONPath, claudeupHome, secretChain, &DefaultExecutor{ClaudeDir: claudeDir})
 }
 
 // ApplyWithOptions applies a profile with the specified scope options
-func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions) (*ApplyResult, error) {
+func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions) (*ApplyResult, error) {
 	// Validate options
 	if opts.Scope == "" {
 		opts.Scope = ScopeUser
@@ -247,12 +247,12 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath string, secret
 	// Sequential apply (user scope for declarative behavior, or when progress disabled)
 	switch opts.Scope {
 	case ScopeProject:
-		return applyProjectScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
+		return applyProjectScope(profile, claudeDir, claudeJSONPath, claudeupHome, secretChain, opts, executor)
 	case ScopeLocal:
-		return applyLocalScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
+		return applyLocalScope(profile, claudeDir, claudeJSONPath, claudeupHome, secretChain, opts, executor)
 	default:
 		// User scope: declarative behavior (removes extras, adds missing)
-		return applyUserScope(profile, claudeDir, claudeJSONPath, secretChain, opts, executor)
+		return applyUserScope(profile, claudeDir, claudeJSONPath, claudeupHome, secretChain, opts, executor)
 	}
 }
 
@@ -326,7 +326,7 @@ func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) erro
 }
 
 // applyProjectScope applies a profile at project scope, creating .claude/settings.json and .mcp.json
-func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
+func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
 	// 1. Write .mcp.json for MCP servers (Claude native format)
@@ -391,7 +391,7 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 	}
 
 	// 6. Apply local items if present
-	if err := applyLocalItems(profile, claudeDir); err != nil {
+	if err := applyLocalItems(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -404,7 +404,7 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath string, secre
 }
 
 // applyLocalScope applies a profile at local scope (private to this machine)
-func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
+func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
 	// 1. Resolve secrets for MCP servers
@@ -511,7 +511,7 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 	}
 
 	// 7. Apply local items if present
-	if err := applyLocalItems(profile, claudeDir); err != nil {
+	if err := applyLocalItems(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -525,14 +525,14 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath string, secretC
 
 // ApplyWithExecutor executes the profile changes using the provided executor.
 // This is the legacy API for backward compatibility; use ApplyWithOptions for new code.
-func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, executor CommandExecutor) (*ApplyResult, error) {
-	return applyUserScope(profile, claudeDir, claudeJSONPath, secretChain, ApplyOptions{}, executor)
+func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, executor CommandExecutor) (*ApplyResult, error) {
+	return applyUserScope(profile, claudeDir, claudeJSONPath, claudeupHome, secretChain, ApplyOptions{}, executor)
 }
 
 // applyUserScope applies a profile at user scope with declarative behavior.
 // It computes a diff, removes extras, adds missing plugins/MCP servers.
-func applyUserScope(profile *Profile, claudeDir, claudeJSONPath string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
-	diff, err := ComputeDiff(profile, claudeDir, claudeJSONPath)
+func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
+	diff, err := ComputeDiff(profile, claudeDir, claudeJSONPath, claudeupHome)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute diff: %w", err)
 	}
@@ -703,7 +703,7 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath string, secretCh
 	}
 
 	// Apply local items if present
-	if err := applyLocalItems(profile, claudeDir); err != nil {
+	if err := applyLocalItems(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -807,7 +807,7 @@ type HookOptions struct {
 }
 
 // ShouldRunHook checks if the post-apply hook should run based on condition and current state
-func ShouldRunHook(profile *Profile, claudeDir, claudeJSONPath string, opts HookOptions) bool {
+func ShouldRunHook(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, opts HookOptions) bool {
 	if opts.NoInteractive {
 		return false
 	}
@@ -825,15 +825,15 @@ func ShouldRunHook(profile *Profile, claudeDir, claudeJSONPath string, opts Hook
 	case "always", "":
 		return true
 	case "first-run":
-		return isFirstRun(profile, claudeDir, claudeJSONPath)
+		return isFirstRun(profile, claudeDir, claudeJSONPath, claudeupHome)
 	default:
 		return false
 	}
 }
 
 // isFirstRun checks if any plugins from the profile's marketplaces are enabled
-func isFirstRun(profile *Profile, claudeDir, claudeJSONPath string) bool {
-	current, err := Snapshot("current", claudeDir, claudeJSONPath)
+func isFirstRun(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string) bool {
+	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 	if err != nil {
 		// Can't read current state - treat as first run
 		return true
@@ -917,16 +917,16 @@ type ResetResult struct {
 }
 
 // Reset removes everything a profile installed (plugins, MCP servers, marketplaces)
-func Reset(profile *Profile, claudeDir, claudeJSONPath string) (*ResetResult, error) {
-	return ResetWithExecutor(profile, claudeDir, claudeJSONPath, &DefaultExecutor{ClaudeDir: claudeDir})
+func Reset(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string) (*ResetResult, error) {
+	return ResetWithExecutor(profile, claudeDir, claudeJSONPath, claudeupHome, &DefaultExecutor{ClaudeDir: claudeDir})
 }
 
 // ResetWithExecutor removes everything a profile installed using the provided executor
-func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath string, executor CommandExecutor) (*ResetResult, error) {
+func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, executor CommandExecutor) (*ResetResult, error) {
 	result := &ResetResult{}
 
 	// Get current state to find installed plugins
-	current, err := Snapshot("current", claudeDir, claudeJSONPath)
+	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 	if err != nil {
 		// Can't read current state - nothing to remove
 		return result, nil
@@ -1077,7 +1077,7 @@ type ApplyAllScopesOptions struct {
 // For multi-scope profiles (with PerScope), it applies each scope independently.
 // For legacy profiles (flat format), it applies to user scope only.
 // The secretChain parameter is optional and used for MCP server secret resolution.
-func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir string, secretChain *secrets.Chain, opts *ApplyAllScopesOptions) (*ApplyResult, error) {
+func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, claudeupHome string, secretChain *secrets.Chain, opts *ApplyAllScopesOptions) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
 	if opts == nil {
@@ -1230,12 +1230,12 @@ func aggregateResults(target, source *ApplyResult) {
 }
 
 // applyLocalItems enables local items from the profile
-func applyLocalItems(profile *Profile, claudeDir string) error {
+func applyLocalItems(profile *Profile, claudeDir, claudeupHome string) error {
 	if profile.LocalItems == nil {
 		return nil
 	}
 
-	manager := local.NewManager(claudeDir, claudeDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	// Enable agents
 	if len(profile.LocalItems.Agents) > 0 {

@@ -98,7 +98,7 @@ var _ = Describe("SnapshotCapturesGitURLMarketplace", func() {
 	})
 
 	It("captures both github and git URL marketplaces", func() {
-		p, err := profile.Snapshot("test-snapshot", env.claudeDir, env.claudeJSON)
+		p, err := profile.Snapshot("test-snapshot", env.claudeDir, env.claudeJSON, env.claudeDir)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(p.Marketplaces).To(HaveLen(2))
@@ -145,7 +145,7 @@ var _ = Describe("SnapshotSaveLoadRoundTrip", func() {
 	})
 
 	It("preserves git URL marketplace through save and load", func() {
-		p, err := profile.Snapshot("roundtrip-test", env.claudeDir, env.claudeJSON)
+		p, err := profile.Snapshot("roundtrip-test", env.claudeDir, env.claudeJSON, env.claudeDir)
 		Expect(err).NotTo(HaveOccurred())
 
 		profilesDir := filepath.Join(env.claudeDir, "profiles")

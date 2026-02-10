@@ -81,7 +81,7 @@ func TestSnapshotAllScopes(t *testing.T) {
 	mustWriteJSON(t, filepath.Join(claudeDir, "plugins", "known_marketplaces.json"), marketplaces)
 
 	// Call SnapshotAllScopes
-	profile, err := SnapshotAllScopes("test-profile", claudeDir, claudeJSONPath, projectDir)
+	profile, err := SnapshotAllScopes("test-profile", claudeDir, claudeJSONPath, projectDir, claudeDir)
 	if err != nil {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestSnapshotAllScopesEmptyScopes(t *testing.T) {
 	// Empty marketplaces
 	mustWriteJSON(t, filepath.Join(claudeDir, "plugins", "known_marketplaces.json"), map[string]interface{}{})
 
-	profile, err := SnapshotAllScopes("empty-test", claudeDir, claudeJSONPath, projectDir)
+	profile, err := SnapshotAllScopes("empty-test", claudeDir, claudeJSONPath, projectDir, claudeDir)
 	if err != nil {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestSnapshotAllScopesNoProjectDir(t *testing.T) {
 	mustWriteJSON(t, filepath.Join(claudeDir, "plugins", "known_marketplaces.json"), map[string]interface{}{})
 
 	// Pass empty projectDir
-	profile, err := SnapshotAllScopes("user-only", claudeDir, claudeJSONPath, "")
+	profile, err := SnapshotAllScopes("user-only", claudeDir, claudeJSONPath, "", claudeDir)
 	if err != nil {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
