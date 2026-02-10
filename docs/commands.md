@@ -359,14 +359,6 @@ claudeup plugin search api --format json
 - **Table** - Tabular view with plugin, type, component, and description columns
 - **JSON** - Machine-readable output for scripting
 
-### marketplace
-
-Manage marketplace repositories.
-
-```bash
-claudeup marketplace list          # List installed marketplaces
-```
-
 ### mcp
 
 Manage MCP servers.
