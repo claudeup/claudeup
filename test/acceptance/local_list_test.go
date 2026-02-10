@@ -109,6 +109,13 @@ var _ = Describe("local list", func() {
 				// agents/ has no items, should not appear
 				Expect(result.Stdout).NotTo(ContainSubstring("agents/"))
 			})
+
+			It("shows a total summary line", func() {
+				result := env.Run("local", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`Total: 2 items across 1 categor`))
+			})
 		})
 
 		Context("full listing", func() {

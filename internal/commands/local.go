@@ -212,6 +212,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 	}
 
 	totalItems := 0
+	categoriesWithItems := 0
 	for _, category := range categories {
 		items, err := manager.ListItems(category)
 		if err != nil {
@@ -229,6 +230,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 			if len(items) == 0 {
 				continue
 			}
+			categoriesWithItems++
 			enabledCount := 0
 			for _, item := range items {
 				if catConfig[item] {
@@ -277,6 +279,12 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 
 	if totalItems == 0 && len(args) == 0 {
 		fmt.Println("No local items found. Use 'claudeup local install' or 'claudeup local import' to add items.")
+	} else if showSummary && categoriesWithItems > 0 {
+		categoryWord := "categories"
+		if categoriesWithItems == 1 {
+			categoryWord = "category"
+		}
+		fmt.Printf("\n  Total: %d items across %d %s\n", totalItems, categoriesWithItems, categoryWord)
 	}
 
 	return nil
