@@ -305,6 +305,15 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
+
+		// Per-category count line
+		enabledCount := 0
+		for _, item := range items {
+			if catConfig[item] {
+				enabledCount++
+			}
+		}
+		fmt.Printf("  %d items (%d enabled)\n", len(items), enabledCount)
 	}
 
 	if totalItems == 0 && len(args) == 0 {
