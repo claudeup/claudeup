@@ -192,14 +192,131 @@ cat "$CLAUDEUP_HOME/profiles/gsd-demo.json" | head -50
 echo "..."
 echo
 
+# Step 9: Demonstrate 'install' command with external source
+print_header "Step 9: Install External Agent"
+
+print_info "Now demonstrating 'claudeup local install' (different from import)..."
+print_info "- import: moves files from active dirs to .library"
+print_info "- install: copies files from external sources to .library"
+echo
+
+# Create a custom agent in a temporary external location
+EXTERNAL_AGENTS="$DEMO_DIR/my-custom-agents"
+mkdir -p "$EXTERNAL_AGENTS"
+
+print_step "Creating custom agent in external directory..."
+cat > "$EXTERNAL_AGENTS/demo-agent.md" << 'EOF'
+# Demo Agent
+
+This is a custom agent created to demonstrate the `claudeup local install` command.
+
+## Purpose
+Show how to install agents from external sources (git repos, downloads, etc.)
+
+## Usage
+This agent was installed using:
+```bash
+claudeup local install agents /path/to/my-custom-agents/demo-agent.md
+```
+EOF
+print_success "Created demo-agent.md in $EXTERNAL_AGENTS"
+echo
+
+print_step "Installing custom agent from external source..."
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local install agents "$EXTERNAL_AGENTS/demo-agent.md"
+echo
+
+print_step "Verifying installation..."
+# Check that source file still exists (install copies, doesn't move)
+if [[ -f "$EXTERNAL_AGENTS/demo-agent.md" ]]; then
+    print_success "Source file still exists (install copies, not moves)"
+else
+    print_error "Source file was removed! (unexpected)"
+fi
+
+# Check that file was copied to .library
+if [[ -f "$CLAUDE_CONFIG_DIR/.library/agents/demo-agent.md" ]]; then
+    print_success "File copied to .library/agents/"
+else
+    print_error "File not found in .library!"
+fi
+
+# Check that symlink was created
+if [[ -L "$CLAUDE_CONFIG_DIR/agents/demo-agent.md" ]]; then
+    print_success "Symlink created in agents/"
+    ls -la "$CLAUDE_CONFIG_DIR/agents/demo-agent.md"
+else
+    print_error "Symlink not created!"
+fi
+echo
+
+# Step 10: Demonstrate installing a directory (agent group)
+print_header "Step 10: Install Agent Group from Directory"
+
+print_step "Creating agent group in external directory..."
+AGENT_GROUP="$EXTERNAL_AGENTS/my-agents"
+mkdir -p "$AGENT_GROUP"
+
+cat > "$AGENT_GROUP/planner.md" << 'EOF'
+# Planner Agent
+Part of the custom agent group.
+EOF
+
+cat > "$AGENT_GROUP/executor.md" << 'EOF'
+# Executor Agent
+Part of the custom agent group.
+EOF
+
+print_success "Created agent group with 2 agents"
+echo
+
+print_step "Installing agent group directory..."
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local install agents "$AGENT_GROUP"
+echo
+
+print_step "Verifying agent group installation..."
+if [[ -d "$CLAUDE_CONFIG_DIR/.library/agents/my-agents" ]]; then
+    print_success "Agent group directory copied to .library/"
+    ls -la "$CLAUDE_CONFIG_DIR/.library/agents/my-agents/"
+else
+    print_error "Agent group not found in .library!"
+fi
+echo
+
+# Step 11: Show final state with all items
+print_header "Step 11: Final State"
+
+print_step "All enabled local items:"
+echo
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local list --enabled
+echo
+
+print_step "Updated enabled.json:"
+echo
+cat "$CLAUDE_CONFIG_DIR/enabled.json"
+echo
+
 # Summary
 print_header "Demo Complete!"
+
+CUSTOM_AGENTS=$(ls "$CLAUDE_CONFIG_DIR/.library/agents/" 2>/dev/null | grep -E "demo-agent|my-agents" | wc -l | tr -d ' ')
 
 echo "Summary:"
 echo "  - GSD agents enabled: $GSD_AGENTS"
 echo "  - GSD commands enabled: $GSD_COMMANDS files"
 echo "  - GSD hooks enabled: $GSD_HOOKS"
+echo "  - Custom agents installed: $CUSTOM_AGENTS (demo-agent + my-agents group)"
 echo "  - Profile saved: gsd-demo"
+echo
+echo "Commands demonstrated:"
+echo "  ✓ claudeup local import-all  - Move files from active dirs to .library"
+echo "  ✓ claudeup local install     - Copy external files to .library"
+echo "  ✓ claudeup local list        - View enabled/disabled items"
+echo "  ✓ claudeup profile save      - Save configuration as profile"
+echo
+echo "Key differences:"
+echo "  • import: MOVES files (from active dirs), removes source"
+echo "  • install: COPIES files (from anywhere), keeps source"
 echo
 echo "The demo environment uses:"
 echo "  CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
