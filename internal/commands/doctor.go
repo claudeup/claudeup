@@ -51,8 +51,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Get active profile for recommendations
-	activeProfile, _ := getActiveProfile(projectDir)
+	// Get active profile and scope for recommendations
+	activeProfile, activeScope := getActiveProfile(projectDir)
 
 	// Load plugins (gracefully handle fresh installs with no plugins)
 	plugins, err := claude.LoadPlugins(claudeDir)
@@ -180,12 +180,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println(ui.Indent(ui.Bold("Recommendations:"), 1))
 
-		// Get active profile for better recommendations
-		activeProfile, _ := getActiveProfile(projectDir)
-
 		if len(missingPlugins) > 0 {
 			if activeProfile != "" && activeProfile != "none" {
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold("claudeup profile apply"))), 1))
+				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s", activeProfile, activeScope)))), 1))
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or remove from settings: "+ui.Bold("claudeup profile clean <plugin-name>")), 1))
 			} else {
 				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install missing plugins: "+ui.Bold("claude plugin install <name>")), 1))
