@@ -9,11 +9,12 @@ import (
 )
 
 func TestListItems(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(libraryDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 
@@ -38,11 +39,12 @@ func TestListItems(t *testing.T) {
 }
 
 func TestListItemsWithGroups(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure with groups (for agents)
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(libraryDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
@@ -78,8 +80,9 @@ func TestListItemsWithGroups(t *testing.T) {
 }
 
 func TestListItemsEmptyCategory(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	items, err := manager.ListItems("agents")
 	if err != nil {
@@ -92,11 +95,12 @@ func TestListItemsEmptyCategory(t *testing.T) {
 }
 
 func TestListItemsErrorPropagation(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(libraryDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "test.md"), []byte("# Test"), 0644)
@@ -113,11 +117,12 @@ func TestListItemsErrorPropagation(t *testing.T) {
 }
 
 func TestListItemsNestedCommands(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure for commands with subdirectories
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	commandsDir := filepath.Join(libraryDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 	os.MkdirAll(gsdDir, 0755)
@@ -156,11 +161,12 @@ func TestListItemsNestedCommands(t *testing.T) {
 }
 
 func TestListItemsSkillsWithSKILLMD(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure for skills (directories containing SKILL.md)
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	skillsDir := filepath.Join(libraryDir, "skills")
 	bashSkill := filepath.Join(skillsDir, "bash")
 	webDesignSkill := filepath.Join(skillsDir, "web-design-guidelines")

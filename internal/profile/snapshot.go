@@ -196,7 +196,7 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 
 // readLocalItems reads enabled local items from enabled.json
 func readLocalItems(claudeDir string) (*LocalItemSettings, error) {
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return nil, err

@@ -9,8 +9,9 @@ import (
 )
 
 func TestLoadConfigNonexistent(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	config, err := manager.LoadConfig()
 	if err != nil {
@@ -27,8 +28,9 @@ func TestLoadConfigNonexistent(t *testing.T) {
 }
 
 func TestConfigRoundTrip(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create test config
 	config := Config{
@@ -46,10 +48,16 @@ func TestConfigRoundTrip(t *testing.T) {
 		t.Fatalf("SaveConfig() error = %v", err)
 	}
 
-	// Verify file exists
-	configPath := filepath.Join(tmpDir, "enabled.json")
+	// Verify file exists in claudeupHome, NOT claudeDir
+	configPath := filepath.Join(claudeupHome, "enabled.json")
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		t.Fatal("enabled.json was not created")
+		t.Fatal("enabled.json was not created in claudeupHome")
+	}
+
+	// Verify file does NOT exist in claudeDir
+	wrongPath := filepath.Join(claudeDir, "enabled.json")
+	if _, err := os.Stat(wrongPath); !os.IsNotExist(err) {
+		t.Fatal("enabled.json should NOT be in claudeDir")
 	}
 
 	// Load back

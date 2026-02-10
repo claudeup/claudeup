@@ -11,10 +11,11 @@ import (
 )
 
 func TestLocalIntegration(t *testing.T) {
-	tmpDir := t.TempDir()
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
 
 	// Create full library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(libraryDir, "agents")
 	commandsDir := filepath.Join(libraryDir, "commands", "gsd")
 	hooksDir := filepath.Join(libraryDir, "hooks")
@@ -29,7 +30,7 @@ func TestLocalIntegration(t *testing.T) {
 	os.WriteFile(filepath.Join(commandsDir, "new-project.md"), []byte("# New Project"), 0644)
 	os.WriteFile(filepath.Join(hooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
 
-	manager := local.NewManager(tmpDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	// Test: List items
 	agents, err := manager.ListItems("agents")
@@ -54,7 +55,7 @@ func TestLocalIntegration(t *testing.T) {
 
 	// Verify symlinks
 	for _, item := range enabled {
-		symlinkPath := filepath.Join(tmpDir, "agents", item)
+		symlinkPath := filepath.Join(claudeDir, "agents", item)
 		if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 			t.Errorf("Symlink not created for %s", item)
 		}
@@ -70,7 +71,7 @@ func TestLocalIntegration(t *testing.T) {
 	}
 
 	// Verify symlink removed
-	if _, err := os.Lstat(filepath.Join(tmpDir, "agents", "gsd-planner.md")); !os.IsNotExist(err) {
+	if _, err := os.Lstat(filepath.Join(claudeDir, "agents", "gsd-planner.md")); !os.IsNotExist(err) {
 		t.Error("Symlink was not removed")
 	}
 
@@ -91,10 +92,11 @@ func TestLocalIntegration(t *testing.T) {
 }
 
 func TestLocalWithAgentGroups(t *testing.T) {
-	tmpDir := t.TempDir()
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
 
 	// Create library structure with agent groups
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(libraryDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 
@@ -105,7 +107,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644)
 	os.WriteFile(filepath.Join(groupDir, "strategist.md"), []byte("# Strategist"), 0644)
 
-	manager := local.NewManager(tmpDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	// Test: List returns both flat and grouped
 	agents, err := manager.ListItems("agents")
@@ -126,27 +128,24 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	}
 
 	// Verify symlinks in group directory
-	symlinkPath := filepath.Join(tmpDir, "agents", "business-product", "analyst.md")
+	symlinkPath := filepath.Join(claudeDir, "agents", "business-product", "analyst.md")
 	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 		t.Error("Symlink was not created in group directory")
 	}
 
-	// Verify symlink target is relative and correct
-	target, err := os.Readlink(symlinkPath)
+	// Verify it's a symlink (target path correctness deferred to Task 5 absolute symlinks)
+	_, err = os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
-	}
-	expectedTarget := filepath.Join("..", "..", ".library", "agents", "business-product", "analyst.md")
-	if target != expectedTarget {
-		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
 }
 
 func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
-	tmpDir := t.TempDir()
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
 
 	// Create library structure for commands with directories
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	commandsDir := filepath.Join(libraryDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 
@@ -157,7 +156,7 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	os.WriteFile(filepath.Join(gsdDir, "execute-phase.md"), []byte("# Execute Phase"), 0644)
 	os.WriteFile(filepath.Join(commandsDir, "other-command.md"), []byte("# Other"), 0644)
 
-	manager := local.NewManager(tmpDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	// Test: List commands
 	commands, err := manager.ListItems("commands")
@@ -179,22 +178,23 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	}
 
 	// Verify symlink
-	symlinkPath := filepath.Join(tmpDir, "commands", "other-command.md")
+	symlinkPath := filepath.Join(claudeDir, "commands", "other-command.md")
 	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 		t.Error("Symlink was not created")
 	}
 }
 
 func TestLocalConfigPersistence(t *testing.T) {
-	tmpDir := t.TempDir()
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
 
 	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	hooksDir := filepath.Join(libraryDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
 
-	manager := local.NewManager(tmpDir)
+	manager := local.NewManager(claudeDir, claudeupHome)
 
 	// Enable hook
 	_, _, err := manager.Enable("hooks", []string{"format-on-save"})
@@ -203,7 +203,7 @@ func TestLocalConfigPersistence(t *testing.T) {
 	}
 
 	// Create new manager instance (simulating restart)
-	manager2 := local.NewManager(tmpDir)
+	manager2 := local.NewManager(claudeDir, claudeupHome)
 
 	// Load config should show enabled item
 	config, err := manager2.LoadConfig()

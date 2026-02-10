@@ -1235,7 +1235,7 @@ func applyLocalItems(profile *Profile, claudeDir string) error {
 		return nil
 	}
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 
 	// Enable agents
 	if len(profile.LocalItems.Agents) > 0 {

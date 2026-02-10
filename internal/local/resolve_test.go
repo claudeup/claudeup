@@ -9,11 +9,12 @@ import (
 )
 
 func TestResolveItemName(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	hooksDir := filepath.Join(libraryDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 
@@ -48,11 +49,12 @@ func TestResolveItemName(t *testing.T) {
 }
 
 func TestResolveAgentName(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure with groups
-	libraryDir := filepath.Join(tmpDir, ".library")
+	libraryDir := filepath.Join(claudeupHome, "local")
 	agentsDir := filepath.Join(libraryDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)

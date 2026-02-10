@@ -1,5 +1,5 @@
 // ABOUTME: Manages enabled.json configuration file for local items
-// ABOUTME: Provides load/save operations for tracking enabled state
+// ABOUTME: Provides load/save operations for tracking enabled state in CLAUDEUP_HOME
 package local
 
 import (
@@ -18,12 +18,14 @@ type Manager struct {
 	configFile string
 }
 
-// NewManager creates a new Manager for the given Claude directory
-func NewManager(claudeDir string) *Manager {
+// NewManager creates a new Manager for managing local items.
+// claudeDir is where Claude Code reads extensions (e.g., ~/.claude).
+// claudeupHome is where claudeup stores its data (e.g., ~/.claudeup).
+func NewManager(claudeDir, claudeupHome string) *Manager {
 	return &Manager{
 		claudeDir:  claudeDir,
-		libraryDir: filepath.Join(claudeDir, ".library"),
-		configFile: filepath.Join(claudeDir, "enabled.json"),
+		libraryDir: filepath.Join(claudeupHome, "local"),
+		configFile: filepath.Join(claudeupHome, "enabled.json"),
 	}
 }
 

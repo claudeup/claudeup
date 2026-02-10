@@ -181,7 +181,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--enabled and --disabled are mutually exclusive")
 	}
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -299,7 +299,7 @@ func runLocalEnable(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	enabled, notFound, err := manager.Enable(category, patterns)
 	if err != nil {
 		return err
@@ -324,7 +324,7 @@ func runLocalDisable(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	disabled, notFound, err := manager.Disable(category, patterns)
 	if err != nil {
 		return err
@@ -349,7 +349,7 @@ func runLocalView(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	item := args[1]
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	content, err := manager.View(category, item)
 	if err != nil {
 		return err
@@ -372,7 +372,7 @@ func runLocalView(cmd *cobra.Command, args []string) error {
 }
 
 func runLocalSync(cmd *cobra.Command, args []string) error {
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 
 	fmt.Println("Syncing local items from enabled.json...")
 	if err := manager.Sync(); err != nil {
@@ -387,7 +387,7 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	imported, skipped, notFound, err := manager.Import(category, patterns)
 	if err != nil {
 		return err
@@ -413,7 +413,7 @@ func runLocalImport(cmd *cobra.Command, args []string) error {
 }
 
 func runLocalImportAll(cmd *cobra.Command, args []string) error {
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 
 	var patterns []string
 	if len(args) > 0 {
@@ -450,7 +450,7 @@ func runLocalInstall(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	sourcePath := args[1]
 
-	manager := local.NewManager(claudeDir)
+	manager := local.NewManager(claudeDir, claudeDir)
 	installed, skipped, err := manager.Install(category, sourcePath)
 	if err != nil {
 		return err

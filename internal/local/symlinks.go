@@ -377,7 +377,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 	}
 
 	activeDir := filepath.Join(m.claudeDir, category)
-	libraryDir := filepath.Join(m.claudeDir, ".library", category)
+	libraryDir := filepath.Join(m.libraryDir, category)
 
 	// Ensure library directory exists
 	if err := os.MkdirAll(libraryDir, 0755); err != nil {
