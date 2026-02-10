@@ -1032,7 +1032,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Compute and show diff (scope-aware to avoid confusing Remove actions for user-scope items)
-	diff, err := profile.ComputeDiffWithScope(p, claudeDir, claudeJSONPath, profile.DiffOptions{
+	diff, err := profile.ComputeDiffWithScope(p, claudeDir, claudeJSONPath, claudeupHome, profile.DiffOptions{
 		Scope:      scope,
 		ProjectDir: cwd,
 	})
@@ -1052,7 +1052,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		ScriptDir:     scriptDir,
 	}
 
-	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, hookOpts)
+	shouldRunHook := profile.ShouldRunHook(p, claudeDir, claudeJSONPath, claudeupHome, hookOpts)
 
 	// Multi-scope profiles and stacks always need to apply (diff only checks one scope)
 	needsApply := p.IsMultiScope() || wasStack || hasDiffChanges(diff) || shouldRunHook
@@ -1139,7 +1139,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		applyOpts := &profile.ApplyAllScopesOptions{
 			ReplaceUserScope: profileApplyReplace, // --replace flag controls user scope behavior
 		}
-		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, chain, applyOpts)
+		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, claudeupHome, chain, applyOpts)
 		if err != nil {
 			return fmt.Errorf("failed to apply profile: %w", err)
 		}
@@ -1165,7 +1165,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			opts.Progress = ui.PluginProgress()
 		}
 
-		result, err = profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, chain, opts)
+		result, err = profile.ApplyWithOptions(p, claudeDir, claudeJSONPath, claudeupHome, chain, opts)
 		if err != nil {
 			return fmt.Errorf("failed to apply profile: %w", err)
 		}
@@ -1306,7 +1306,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Create snapshot capturing ALL scopes (user, project, local)
-	p, err := profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd)
+	p, err := profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
 	if err != nil {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
@@ -2290,7 +2290,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		ui.PrintInfo("Saving profile snapshot...")
 		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-		snapshot, err := profile.Snapshot(name, claudeDir, claudeJSONPath)
+		snapshot, err := profile.Snapshot(name, claudeDir, claudeJSONPath, claudeupHome)
 		if err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to save snapshot: %v", err))
 			return nil
@@ -2463,7 +2463,7 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	// Get current state to show what plugins will be removed
-	current, _ := profile.Snapshot("current", claudeDir, claudeJSONPath)
+	current, _ := profile.Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 
 	// Build lookup from repo to marketplace name
 	repoToName := profile.BuildRepoToNameLookup(claudeDir)
@@ -2514,7 +2514,7 @@ func runProfileReset(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println("Removing profile components...")
 
-	result, err := profile.Reset(p, claudeDir, claudeJSONPath)
+	result, err := profile.Reset(p, claudeDir, claudeJSONPath, claudeupHome)
 	if err != nil {
 		return fmt.Errorf("failed to reset profile: %w", err)
 	}

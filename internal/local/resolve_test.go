@@ -9,12 +9,13 @@ import (
 )
 
 func TestResolveItemName(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	hooksDir := filepath.Join(libraryDir, "hooks")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
@@ -48,12 +49,13 @@ func TestResolveItemName(t *testing.T) {
 }
 
 func TestResolveAgentName(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with groups
-	libraryDir := filepath.Join(tmpDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure with groups
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
 

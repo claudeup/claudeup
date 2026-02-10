@@ -77,7 +77,7 @@ func TestSnapshotFromState(t *testing.T) {
 	writeJSON(t, claudeJSONPath, claudeJSON)
 
 	// Create snapshot
-	p, err := Snapshot("test-snapshot", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-snapshot", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestSnapshotEmptyState(t *testing.T) {
 	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
 
 	// Don't create any files - test with empty state
-	p, err := Snapshot("empty", claudeDir, claudeJSONPath)
+	p, err := Snapshot("empty", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed on empty state: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestSnapshotWithGitSourceMarketplace(t *testing.T) {
 	writeJSON(t, claudeJSONPath, claudeJSON)
 
 	// Create snapshot
-	p, err := Snapshot("test-git-url", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-git-url", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
@@ -286,7 +286,7 @@ func TestSnapshotFiltersInvalidMarketplaces(t *testing.T) {
 	writeJSON(t, claudeJSONPath, claudeJSON)
 
 	// Create snapshot
-	p, err := Snapshot("test-invalid-filter", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-invalid-filter", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
@@ -383,7 +383,7 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 	})
 
 	// Create snapshot
-	p, err := Snapshot("test-local-items", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-local-items", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
@@ -459,7 +459,7 @@ func TestSnapshotExcludesStaleLocalItems(t *testing.T) {
 		"mcpServers": map[string]interface{}{},
 	})
 
-	p, err := Snapshot("test-stale", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-stale", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
@@ -507,7 +507,7 @@ func TestSnapshotAllScopesNoPluginsReturnsNoMarketplaces(t *testing.T) {
 		"mcpServers": map[string]interface{}{},
 	})
 
-	p, err := SnapshotAllScopes("no-plugins", claudeDir, claudeJSONPath, "")
+	p, err := SnapshotAllScopes("no-plugins", claudeDir, claudeJSONPath, "", claudeDir)
 	if err != nil {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
@@ -568,7 +568,7 @@ func TestSnapshotOnlyCapturesMarketplacesUsedByPlugins(t *testing.T) {
 	})
 
 	// SnapshotAllScopes filters marketplaces by plugin references
-	p, err := SnapshotAllScopes("test-filter", claudeDir, claudeJSONPath, "")
+	p, err := SnapshotAllScopes("test-filter", claudeDir, claudeJSONPath, "", claudeDir)
 	if err != nil {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
@@ -626,7 +626,7 @@ func TestSnapshotReturnsAllMarketplacesForDiff(t *testing.T) {
 		"mcpServers": map[string]interface{}{},
 	})
 
-	p, err := Snapshot("test-all", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-all", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
@@ -664,7 +664,7 @@ func TestSnapshotNoLocalItemsWhenConfigMissing(t *testing.T) {
 	})
 
 	// Create snapshot
-	p, err := Snapshot("test-no-local", claudeDir, claudeJSONPath)
+	p, err := Snapshot("test-no-local", claudeDir, claudeJSONPath, claudeDir)
 	if err != nil {
 		t.Fatalf("Snapshot failed: %v", err)
 	}

@@ -9,13 +9,14 @@ import (
 )
 
 func TestView(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	hooksDir := filepath.Join(libraryDir, "hooks")
-	skillsDir := filepath.Join(libraryDir, "skills", "bash")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	hooksDir := filepath.Join(localDir, "hooks")
+	skillsDir := filepath.Join(localDir, "skills", "bash")
 	os.MkdirAll(hooksDir, 0755)
 	os.MkdirAll(skillsDir, 0755)
 
@@ -42,12 +43,13 @@ func TestView(t *testing.T) {
 }
 
 func TestViewAgent(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with grouped agent
-	libraryDir := filepath.Join(tmpDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure with grouped agent
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
 

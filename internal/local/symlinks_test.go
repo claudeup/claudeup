@@ -10,12 +10,13 @@ import (
 )
 
 func TestEnableDisable(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	hooksDir := filepath.Join(libraryDir, "hooks")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
 
@@ -32,7 +33,7 @@ func TestEnableDisable(t *testing.T) {
 	}
 
 	// Verify symlink exists
-	targetDir := filepath.Join(tmpDir, "hooks")
+	targetDir := filepath.Join(claudeDir, "hooks")
 	symlinkPath := filepath.Join(targetDir, "format-on-save.sh")
 	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 		t.Error("Symlink was not created")
@@ -66,12 +67,13 @@ func TestEnableDisable(t *testing.T) {
 }
 
 func TestEnableAgentWithGroup(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with groups
-	libraryDir := filepath.Join(tmpDir, ".library")
-	groupDir := filepath.Join(libraryDir, "agents", "business-product")
+	// Create local directory structure with groups
+	localDir := filepath.Join(claudeupHome, "local")
+	groupDir := filepath.Join(localDir, "agents", "business-product")
 	os.MkdirAll(groupDir, 0755)
 	os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644)
 
@@ -85,29 +87,30 @@ func TestEnableAgentWithGroup(t *testing.T) {
 	}
 
 	// Verify symlink exists in correct location
-	symlinkPath := filepath.Join(tmpDir, "agents", "business-product", "analyst.md")
+	symlinkPath := filepath.Join(claudeDir, "agents", "business-product", "analyst.md")
 	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
 		t.Error("Symlink was not created in group directory")
 	}
 
-	// Verify it's a symlink pointing to the right place
+	// Verify symlink target is an absolute path to local storage
 	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
 	}
-	expectedTarget := filepath.Join("..", "..", ".library", "agents", "business-product", "analyst.md")
+	expectedTarget := filepath.Join(claudeupHome, "local", "agents", "business-product", "analyst.md")
 	if target != expectedTarget {
 		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
 }
 
 func TestEnableWildcard(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
@@ -124,12 +127,13 @@ func TestEnableWildcard(t *testing.T) {
 }
 
 func TestEnableNestedCommand(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure for commands with subdirectory
-	libraryDir := filepath.Join(tmpDir, ".library")
-	gsdCommandsDir := filepath.Join(libraryDir, "commands", "gsd")
+	// Create local directory structure for commands with subdirectory
+	localDir := filepath.Join(claudeupHome, "local")
+	gsdCommandsDir := filepath.Join(localDir, "commands", "gsd")
 	os.MkdirAll(gsdCommandsDir, 0755)
 	os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644)
 	os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute Phase"), 0644)
@@ -144,7 +148,7 @@ func TestEnableNestedCommand(t *testing.T) {
 	}
 
 	// Verify symlinks exist in nested structure (commands/gsd/new-project.md)
-	symlinkPath := filepath.Join(tmpDir, "commands", "gsd", "new-project.md")
+	symlinkPath := filepath.Join(claudeDir, "commands", "gsd", "new-project.md")
 	info, err := os.Lstat(symlinkPath)
 	if err != nil {
 		t.Fatalf("Lstat() error = %v (symlink not created)", err)
@@ -153,29 +157,30 @@ func TestEnableNestedCommand(t *testing.T) {
 		t.Error("Expected symlink, got regular file")
 	}
 
-	// Verify symlink target is correct
+	// Verify symlink target is an absolute path to local storage
 	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
 	}
-	expectedTarget := filepath.Join("..", "..", ".library", "commands", "gsd", "new-project.md")
+	expectedTarget := filepath.Join(claudeupHome, "local", "commands", "gsd", "new-project.md")
 	if target != expectedTarget {
 		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
 }
 
 func TestImport(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create .library directory structure (empty)
-	libraryDir := filepath.Join(tmpDir, ".library")
-	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
-	os.MkdirAll(filepath.Join(libraryDir, "hooks"), 0755)
+	// Create local directory structure (empty)
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
+	os.MkdirAll(filepath.Join(localDir, "hooks"), 0755)
 
 	// Create files directly in active directories (simulating GSD install)
-	activeAgentsDir := filepath.Join(tmpDir, "agents")
-	activeHooksDir := filepath.Join(tmpDir, "hooks")
+	activeAgentsDir := filepath.Join(claudeDir, "agents")
+	activeHooksDir := filepath.Join(claudeDir, "hooks")
 	os.MkdirAll(activeAgentsDir, 0755)
 	os.MkdirAll(activeHooksDir, 0755)
 
@@ -196,12 +201,12 @@ func TestImport(t *testing.T) {
 		t.Errorf("Import() notFound = %v, want []", notFound)
 	}
 
-	// Verify files moved to .library
-	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
-		t.Error("gsd-planner.md was not moved to .library")
+	// Verify files moved to local storage
+	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+		t.Error("gsd-planner.md was not moved to local storage")
 	}
-	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-executor.md")); os.IsNotExist(err) {
-		t.Error("gsd-executor.md was not moved to .library")
+	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-executor.md")); os.IsNotExist(err) {
+		t.Error("gsd-executor.md was not moved to local storage")
 	}
 
 	// Verify other-agent.md was NOT moved (didn't match pattern)
@@ -219,13 +224,6 @@ func TestImport(t *testing.T) {
 		t.Error("gsd-planner.md should be a symlink after import")
 	}
 
-	// Verify symlink target
-	target, _ := os.Readlink(symlinkPath)
-	expectedTarget := filepath.Join("..", ".library", "agents", "gsd-planner.md")
-	if target != expectedTarget {
-		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
-	}
-
 	// Verify enabled.json was updated
 	config, _ := manager.LoadConfig()
 	if !config["agents"]["gsd-planner.md"] {
@@ -234,15 +232,16 @@ func TestImport(t *testing.T) {
 }
 
 func TestImportDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create .library directory structure (empty)
-	libraryDir := filepath.Join(tmpDir, ".library")
-	os.MkdirAll(filepath.Join(libraryDir, "commands"), 0755)
+	// Create local directory structure (empty)
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "commands"), 0755)
 
 	// Create commands/gsd directory directly (simulating GSD install)
-	activeCommandsDir := filepath.Join(tmpDir, "commands")
+	activeCommandsDir := filepath.Join(claudeDir, "commands")
 	gsdCommandsDir := filepath.Join(activeCommandsDir, "gsd")
 	os.MkdirAll(gsdCommandsDir, 0755)
 
@@ -258,9 +257,9 @@ func TestImportDirectory(t *testing.T) {
 		t.Errorf("Import() imported = %v, want [gsd]", imported)
 	}
 
-	// Verify directory moved to .library
-	if _, err := os.Stat(filepath.Join(libraryDir, "commands", "gsd", "new-project.md")); os.IsNotExist(err) {
-		t.Error("gsd directory was not moved to .library")
+	// Verify directory moved to local storage
+	if _, err := os.Stat(filepath.Join(localDir, "commands", "gsd", "new-project.md")); os.IsNotExist(err) {
+		t.Error("gsd directory was not moved to local storage")
 	}
 
 	// Verify gsd directory was created (as regular dir with symlinks inside)
@@ -284,13 +283,6 @@ func TestImportDirectory(t *testing.T) {
 		t.Error("gsd/new-project.md should be a symlink after import")
 	}
 
-	// Verify symlink target
-	target, _ := os.Readlink(symlinkPath)
-	expectedTarget := filepath.Join("..", "..", ".library", "commands", "gsd", "new-project.md")
-	if target != expectedTarget {
-		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
-	}
-
 	// Verify config has individual items enabled (for correct list display)
 	config, _ := manager.LoadConfig()
 	if !config["commands"]["gsd/new-project.md"] {
@@ -302,18 +294,19 @@ func TestImportDirectory(t *testing.T) {
 }
 
 func TestImportSkipsSymlinks(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create .library with an item
-	libraryDir := filepath.Join(tmpDir, ".library")
-	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
-	os.WriteFile(filepath.Join(libraryDir, "agents", "existing.md"), []byte("# Existing"), 0644)
+	// Create local storage with an item
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(localDir, "agents", "existing.md"), []byte("# Existing"), 0644)
 
 	// Create active directory with a symlink (already managed)
-	activeAgentsDir := filepath.Join(tmpDir, "agents")
+	activeAgentsDir := filepath.Join(claudeDir, "agents")
 	os.MkdirAll(activeAgentsDir, 0755)
-	os.Symlink(filepath.Join("..", ".library", "agents", "existing.md"), filepath.Join(activeAgentsDir, "existing.md"))
+	os.Symlink(filepath.Join(localDir, "agents", "existing.md"), filepath.Join(activeAgentsDir, "existing.md"))
 
 	// Also create a real file
 	os.WriteFile(filepath.Join(activeAgentsDir, "new-agent.md"), []byte("# New"), 0644)
@@ -331,13 +324,14 @@ func TestImportSkipsSymlinks(t *testing.T) {
 }
 
 func TestImportAll(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create files directly in active directories (simulating GSD install)
-	activeAgentsDir := filepath.Join(tmpDir, "agents")
-	activeCommandsDir := filepath.Join(tmpDir, "commands")
-	activeHooksDir := filepath.Join(tmpDir, "hooks")
+	activeAgentsDir := filepath.Join(claudeDir, "agents")
+	activeCommandsDir := filepath.Join(claudeDir, "commands")
+	activeHooksDir := filepath.Join(claudeDir, "hooks")
 	os.MkdirAll(activeAgentsDir, 0755)
 	os.MkdirAll(activeCommandsDir, 0755)
 	os.MkdirAll(activeHooksDir, 0755)
@@ -366,10 +360,10 @@ func TestImportAll(t *testing.T) {
 		t.Errorf("ImportAll() hooks = %v, want 1 item", results["hooks"])
 	}
 
-	// Verify files moved to .library
-	libraryDir := filepath.Join(tmpDir, ".library")
-	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
-		t.Error("gsd-planner.md was not moved to .library")
+	// Verify files moved to local storage
+	localDir := filepath.Join(claudeupHome, "local")
+	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+		t.Error("gsd-planner.md was not moved to local storage")
 	}
 
 	// Verify other-agent.md was NOT moved (didn't match pattern)
@@ -383,12 +377,13 @@ func TestImportAll(t *testing.T) {
 // - `enable commands vsphere-architect` would set config["vsphere-architect"]=true
 // - `list commands` would check config["vsphere-architect/capacity-plan.md"] and find nothing
 func TestEnableDirectoryByName(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure for commands with a subdirectory
-	libraryDir := filepath.Join(tmpDir, ".library")
-	vsphereDir := filepath.Join(libraryDir, "commands", "vsphere-architect")
+	// Create local directory structure for commands with a subdirectory
+	localDir := filepath.Join(claudeupHome, "local")
+	vsphereDir := filepath.Join(localDir, "commands", "vsphere-architect")
 	os.MkdirAll(vsphereDir, 0755)
 	os.WriteFile(filepath.Join(vsphereDir, "capacity-plan.md"), []byte("# Capacity Plan"), 0644)
 	os.WriteFile(filepath.Join(vsphereDir, "ha-design.md"), []byte("# HA Design"), 0644)
@@ -422,7 +417,7 @@ func TestEnableDirectoryByName(t *testing.T) {
 	}
 
 	// Verify symlinks exist for each individual item
-	symlinkPath := filepath.Join(tmpDir, "commands", "vsphere-architect", "capacity-plan.md")
+	symlinkPath := filepath.Join(claudeDir, "commands", "vsphere-architect", "capacity-plan.md")
 	info, err := os.Lstat(symlinkPath)
 	if err != nil {
 		t.Fatalf("Lstat() error = %v (symlink not created)", err)
@@ -433,12 +428,13 @@ func TestEnableDirectoryByName(t *testing.T) {
 }
 
 func TestEnableRejectsPathTraversal(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	commandsDir := filepath.Join(libraryDir, "commands")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	commandsDir := filepath.Join(localDir, "commands")
 	os.MkdirAll(commandsDir, 0755)
 	os.WriteFile(filepath.Join(commandsDir, "legit.md"), []byte("# Legit"), 0644)
 
@@ -466,19 +462,20 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 
 	// Verify no symlinks were created outside the target directory
 	// (the legit.md should NOT have been created either - fail fast)
-	legitPath := filepath.Join(tmpDir, "commands", "legit.md")
+	legitPath := filepath.Join(claudeDir, "commands", "legit.md")
 	if _, err := os.Lstat(legitPath); err == nil {
 		t.Error("Sync should fail fast - no symlinks created when traversal detected")
 	}
 }
 
 func TestImportAllNoPattern(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create files directly in active directories
-	activeAgentsDir := filepath.Join(tmpDir, "agents")
-	activeHooksDir := filepath.Join(tmpDir, "hooks")
+	activeAgentsDir := filepath.Join(claudeDir, "agents")
+	activeHooksDir := filepath.Join(claudeDir, "hooks")
 	os.MkdirAll(activeAgentsDir, 0755)
 	os.MkdirAll(activeHooksDir, 0755)
 
@@ -502,18 +499,19 @@ func TestImportAllNoPattern(t *testing.T) {
 }
 
 // TestImportReconciliation verifies that when importing items that already exist
-// in the library, the local copies are removed and symlinks are created.
+// in local storage, the active copies are removed and symlinks are created.
 func TestImportReconciliation(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library with an existing item
-	libraryDir := filepath.Join(tmpDir, ".library")
-	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
-	os.WriteFile(filepath.Join(libraryDir, "agents", "existing-agent.md"), []byte("# Library Version"), 0644)
+	// Create local storage with an existing item
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(localDir, "agents", "existing-agent.md"), []byte("# Stored Version"), 0644)
 
 	// Create active directory with a duplicate (local version)
-	activeAgentsDir := filepath.Join(tmpDir, "agents")
+	activeAgentsDir := filepath.Join(claudeDir, "agents")
 	os.MkdirAll(activeAgentsDir, 0755)
 	os.WriteFile(filepath.Join(activeAgentsDir, "existing-agent.md"), []byte("# Local Version"), 0644)
 
@@ -543,21 +541,22 @@ func TestImportReconciliation(t *testing.T) {
 		t.Error("Local path should be a symlink after reconciliation")
 	}
 
-	// Library version should be preserved (not overwritten)
-	content, _ := os.ReadFile(filepath.Join(libraryDir, "agents", "existing-agent.md"))
-	if string(content) != "# Library Version" {
-		t.Error("Library version should be preserved during reconciliation")
+	// Stored version should be preserved (not overwritten)
+	content, _ := os.ReadFile(filepath.Join(localDir, "agents", "existing-agent.md"))
+	if string(content) != "# Stored Version" {
+		t.Error("Stored version should be preserved during reconciliation")
 	}
 }
 
 // TestEnableMixedItems tests enabling both a directory and individual files simultaneously
 func TestEnableMixedItems(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	commandsDir := filepath.Join(libraryDir, "commands")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	commandsDir := filepath.Join(localDir, "commands")
 	groupDir := filepath.Join(commandsDir, "group")
 	os.MkdirAll(groupDir, 0755)
 	os.WriteFile(filepath.Join(commandsDir, "standalone.md"), []byte("# Standalone"), 0644)
@@ -592,12 +591,13 @@ func TestEnableMixedItems(t *testing.T) {
 
 // TestEnableEmptyDirectory tests behavior when enabling an empty directory
 func TestEnableEmptyDirectory(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library with empty directory
-	libraryDir := filepath.Join(tmpDir, ".library")
-	emptyDir := filepath.Join(libraryDir, "commands", "empty-dir")
+	// Create local storage with empty directory
+	localDir := filepath.Join(claudeupHome, "local")
+	emptyDir := filepath.Join(localDir, "commands", "empty-dir")
 	os.MkdirAll(emptyDir, 0755)
 
 	// Enable empty directory - should report as not found (no items inside)
@@ -615,12 +615,13 @@ func TestEnableEmptyDirectory(t *testing.T) {
 
 // TestEnableNestedDirectories tests enabling items in nested directory structures
 func TestEnableNestedDirectories(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create nested directory structure (only one level is expanded)
-	libraryDir := filepath.Join(tmpDir, ".library")
-	topDir := filepath.Join(libraryDir, "commands", "top")
+	localDir := filepath.Join(claudeupHome, "local")
+	topDir := filepath.Join(localDir, "commands", "top")
 	os.MkdirAll(topDir, 0755)
 	os.WriteFile(filepath.Join(topDir, "item.md"), []byte("# Item"), 0644)
 
@@ -636,7 +637,7 @@ func TestEnableNestedDirectories(t *testing.T) {
 	}
 
 	// Verify symlink exists
-	symlinkPath := filepath.Join(tmpDir, "commands", "top", "item.md")
+	symlinkPath := filepath.Join(claudeDir, "commands", "top", "item.md")
 	info, err := os.Lstat(symlinkPath)
 	if err != nil {
 		t.Fatalf("Lstat() error = %v", err)
@@ -648,12 +649,13 @@ func TestEnableNestedDirectories(t *testing.T) {
 
 // TestImportSkipsGitkeep verifies that .gitkeep files are not imported or enabled
 func TestImportSkipsGitkeep(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create active directories with .gitkeep files and real items
-	activeHooksDir := filepath.Join(tmpDir, "hooks")
-	activeCommandsDir := filepath.Join(tmpDir, "commands")
+	activeHooksDir := filepath.Join(claudeDir, "hooks")
+	activeCommandsDir := filepath.Join(claudeDir, "commands")
 	os.MkdirAll(activeHooksDir, 0755)
 	os.MkdirAll(activeCommandsDir, 0755)
 

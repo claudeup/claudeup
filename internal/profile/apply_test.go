@@ -42,7 +42,7 @@ func TestComputeDiffPlugins(t *testing.T) {
 		Plugins: []string{"plugin-b@marketplace", "plugin-c@marketplace"},
 	}
 
-	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 	if err != nil {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestComputeDiffMCPServers(t *testing.T) {
 		},
 	}
 
-	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 	if err != nil {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestComputeDiffEmptyProfileRemovesEverything(t *testing.T) {
 	// Empty profile - should remove everything
 	profile := &Profile{Name: "empty"}
 
-	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 	if err != nil {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestComputeDiffFreshInstall(t *testing.T) {
 		},
 	}
 
-	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 	if err != nil {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestComputeDiffIdenticalStates(t *testing.T) {
 		},
 	}
 
-	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 	if err != nil {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestComputeDiffMarketplacesOnlyAdd(t *testing.T) {
 		},
 	}
 
-	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 	if err != nil {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestIsFirstRun(t *testing.T) {
 				Marketplaces: tc.profileMarkets,
 			}
 
-			result := isFirstRun(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"))
+			result := isFirstRun(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
 			if result != tc.expectedResult {
 				t.Errorf("isFirstRun() = %v, want %v", result, tc.expectedResult)
 			}
@@ -544,7 +544,7 @@ func TestShouldRunHook(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := ShouldRunHook(tc.profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), tc.opts)
+			result := ShouldRunHook(tc.profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, tc.opts)
 			if result != tc.expected {
 				t.Errorf("ShouldRunHook() = %v, want %v", result, tc.expected)
 			}
@@ -778,7 +778,7 @@ func TestResetRemovesPluginsFromMarketplace(t *testing.T) {
 	}
 
 	executor := &mockExecutor{}
-	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, executor)
 	if err != nil {
 		t.Fatalf("Reset failed: %v", err)
 	}
@@ -833,7 +833,7 @@ func TestResetRemovesMCPServers(t *testing.T) {
 	}
 
 	executor := &mockExecutor{}
-	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, executor)
 	if err != nil {
 		t.Fatalf("Reset failed: %v", err)
 	}
@@ -888,7 +888,7 @@ func TestResetUsesMarketplaceNameNotRepo(t *testing.T) {
 	}
 
 	executor := &mockExecutor{}
-	_, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	_, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, executor)
 	if err != nil {
 		t.Fatalf("Reset failed: %v", err)
 	}
@@ -954,7 +954,7 @@ func TestResetHandlesErrors(t *testing.T) {
 			"plugin uninstall test-plugin@test-marketplace": true,
 		},
 	}
-	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, executor)
 	if err != nil {
 		t.Fatalf("Reset should not return error, but collect errors: %v", err)
 	}
@@ -1027,7 +1027,7 @@ func TestApplyHandlesPluginNotFoundError(t *testing.T) {
 		},
 	}
 
-	result, err := ApplyWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), nil, executor)
+	result, err := ApplyWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, nil, executor)
 	if err != nil {
 		t.Fatalf("Apply failed: %v", err)
 	}
@@ -1093,7 +1093,7 @@ func TestComputeDiffWithScopeProjectNoRemovesForUserScope(t *testing.T) {
 	}
 
 	// Compute diff for PROJECT scope
-	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
 		Scope:      ScopeProject,
 		ProjectDir: projectDir,
 	})
@@ -1166,7 +1166,7 @@ func TestComputeDiffWithScopeUserStillRemoves(t *testing.T) {
 	}
 
 	// Compute diff for USER scope (default)
-	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
 		Scope: ScopeUser,
 	})
 	if err != nil {
@@ -1231,7 +1231,7 @@ func TestComputeDiffWithScopeProjectExistingState(t *testing.T) {
 	}
 
 	// Compute diff for PROJECT scope
-	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
 		Scope:      ScopeProject,
 		ProjectDir: projectDir,
 	})
@@ -1294,7 +1294,7 @@ func TestComputeDiffWithScopeLocalBehavesLikeProject(t *testing.T) {
 	}
 
 	// Compute diff for LOCAL scope
-	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), DiffOptions{
+	diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
 		Scope:      ScopeLocal,
 		ProjectDir: projectDir,
 	})
@@ -1351,7 +1351,7 @@ func TestResetHandlesPluginNotFoundError(t *testing.T) {
 		},
 	}
 
-	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), executor)
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, executor)
 	if err != nil {
 		t.Fatalf("Reset should not return error: %v", err)
 	}
@@ -1366,9 +1366,9 @@ func TestApplyWithLocalItems(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := tmpDir
 
-	// Create library structure
-	libraryDir := filepath.Join(claudeDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure (in claudeupHome/local/)
+	localDir := filepath.Join(claudeDir, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
@@ -1382,7 +1382,7 @@ func TestApplyWithLocalItems(t *testing.T) {
 	}
 
 	// Apply local items
-	err := applyLocalItems(p, claudeDir)
+	err := applyLocalItems(p, claudeDir, claudeDir)
 	if err != nil {
 		t.Fatalf("applyLocalItems() error = %v", err)
 	}
@@ -1443,7 +1443,7 @@ func TestApplyLocalItemsNilProfile(t *testing.T) {
 	}
 
 	// Should return nil with no error
-	err := applyLocalItems(p, tmpDir)
+	err := applyLocalItems(p, tmpDir, tmpDir)
 	if err != nil {
 		t.Fatalf("applyLocalItems() should return nil for nil LocalItems, got error = %v", err)
 	}

@@ -1,5 +1,5 @@
 // ABOUTME: Symlink-based enable/disable for local items
-// ABOUTME: Creates relative symlinks from target dirs to .library
+// ABOUTME: Creates absolute symlinks from Claude's active dirs to local storage
 package local
 
 import (
@@ -40,7 +40,7 @@ func (m *Manager) resolvePattern(category, pattern string, allItems []string) ([
 	}
 
 	// Check if resolved item is a directory (not a skill)
-	resolvedPath := filepath.Join(m.libraryDir, category, resolved)
+	resolvedPath := filepath.Join(m.localDir, category, resolved)
 	info, statErr := os.Stat(resolvedPath)
 	if statErr != nil || !info.IsDir() {
 		// Not a directory - return as single item
@@ -232,17 +232,11 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 			if err := os.MkdirAll(parentDir, 0755); err != nil {
 				return err
 			}
-			// Relative path needs extra .. for each nesting level
-			relSource := filepath.Join("..", "..", ".library", category, item)
-			if err := os.Symlink(relSource, target); err != nil {
-				return err
-			}
-		} else {
-			// Flat item: ../.library/{category}/{item}
-			relSource := filepath.Join("..", ".library", category, item)
-			if err := os.Symlink(relSource, target); err != nil {
-				return err
-			}
+		}
+
+		source := filepath.Join(m.localDir, category, item)
+		if err := os.Symlink(source, target); err != nil {
+			return err
 		}
 	}
 
@@ -329,16 +323,15 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 			}
 
 			target := filepath.Join(groupTargetDir, agent)
-			// Relative path: ../../.library/agents/{group}/{agent}
-			relSource := filepath.Join("..", "..", ".library", "agents", group, agent)
-			if err := os.Symlink(relSource, target); err != nil {
+			source := filepath.Join(m.localDir, "agents", group, agent)
+			if err := os.Symlink(source, target); err != nil {
 				return err
 			}
 		} else {
 			// Flat agent
 			target := filepath.Join(targetDir, item)
-			relSource := filepath.Join("..", ".library", "agents", item)
-			if err := os.Symlink(relSource, target); err != nil {
+			source := filepath.Join(m.localDir, "agents", item)
+			if err := os.Symlink(source, target); err != nil {
 				return err
 			}
 		}
@@ -363,12 +356,12 @@ func (m *Manager) Sync() error {
 	return nil
 }
 
-// Import moves items from active directory to .library and enables them.
+// Import moves items from active directory to local storage and enables them.
 // This is useful when tools like GSD install directly to active directories.
 //
-// Reconciliation: If an item already exists in .library, the local copy in the
-// active directory is removed and a symlink to the library version is created.
-// This ensures the state is consistent (no duplicate items, symlinks point to library).
+// Reconciliation: If an item already exists in local storage, the copy in the
+// active directory is removed and a symlink to the stored version is created.
+// This ensures the state is consistent (no duplicate items, symlinks point to local storage).
 //
 // Returns (imported items, skipped/reconciled items, not found patterns, error).
 func (m *Manager) Import(category string, patterns []string) ([]string, []string, []string, error) {
@@ -377,10 +370,10 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 	}
 
 	activeDir := filepath.Join(m.claudeDir, category)
-	libraryDir := filepath.Join(m.claudeDir, ".library", category)
+	localDir := filepath.Join(m.localDir, category)
 
-	// Ensure library directory exists
-	if err := os.MkdirAll(libraryDir, 0755); err != nil {
+	// Ensure local storage directory exists
+	if err := os.MkdirAll(localDir, 0755); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -403,12 +396,12 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 
 		for _, item := range matched {
 			sourcePath := filepath.Join(activeDir, item)
-			destPath := filepath.Join(libraryDir, item)
+			destPath := filepath.Join(localDir, item)
 
-			// Check if destination already exists in library
+			// Check if destination already exists in local storage
 			if _, err := os.Stat(destPath); err == nil {
-				// Library already has this item - remove source and enable the library version
-				// This reconciles the state (replaces local file with symlink to library)
+				// Local storage already has this item - remove source and enable the stored version
+				// This reconciles the state (replaces active copy with symlink to local storage)
 				if err := os.RemoveAll(sourcePath); err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to remove %s: %w", sourcePath, err)
 				}
@@ -416,7 +409,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 				continue
 			}
 
-			// Move to .library
+			// Move to local storage
 			if err := os.Rename(sourcePath, destPath); err != nil {
 				return nil, nil, nil, err
 			}
@@ -425,7 +418,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 		}
 	}
 
-	// Enable all items (creates symlinks) - both imported and skipped (already in library)
+	// Enable all items (creates symlinks) - both imported and skipped (already in local storage)
 	toEnable := append(imported, skipped...)
 	if len(toEnable) > 0 {
 		_, _, err := m.Enable(category, toEnable)

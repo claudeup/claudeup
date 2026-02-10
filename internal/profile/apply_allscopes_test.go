@@ -48,7 +48,7 @@ func TestApplyAllScopesMultiScope(t *testing.T) {
 	}
 
 	// Apply the profile (nil opts = additive user scope by default)
-	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
+	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, claudeDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestApplyAllScopesLegacyProfile(t *testing.T) {
 	}
 
 	// Apply the profile (nil opts = additive user scope by default)
-	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
+	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, claudeDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestApplyAllScopesPartialScopes(t *testing.T) {
 		},
 	}
 
-	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
+	result, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, claudeDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -238,7 +238,7 @@ func TestApplyAllScopesPreservesExistingSettings(t *testing.T) {
 	}
 
 	// Apply with default options (additive for user scope)
-	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, nil)
+	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, claudeDir, nil, nil)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestApplyAllScopesReplaceUserScope(t *testing.T) {
 	opts := &ApplyAllScopesOptions{
 		ReplaceUserScope: true,
 	}
-	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, nil, opts)
+	_, err := ApplyAllScopes(profile, claudeDir, claudeJSONPath, projectDir, claudeDir, nil, opts)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}

@@ -48,14 +48,14 @@ type SnapshotOptions struct {
 }
 
 // Snapshot creates a Profile from the current Claude Code state (user scope)
-func Snapshot(name, claudeDir, claudeJSONPath string) (*Profile, error) {
-	return SnapshotWithScope(name, claudeDir, claudeJSONPath, SnapshotOptions{
+func Snapshot(name, claudeDir, claudeJSONPath, claudeupHome string) (*Profile, error) {
+	return SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome, SnapshotOptions{
 		Scope: "user",
 	})
 }
 
 // SnapshotWithScope creates a Profile from a specific scope
-func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOptions) (*Profile, error) {
+func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opts SnapshotOptions) (*Profile, error) {
 	p := &Profile{
 		Name: name,
 	}
@@ -83,7 +83,7 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath string, opts SnapshotOpti
 	}
 
 	// Read local items from enabled.json
-	localItems, err := readLocalItems(claudeDir)
+	localItems, err := readLocalItems(claudeDir, claudeupHome)
 	if err == nil && localItems != nil {
 		p.LocalItems = localItems
 	}
@@ -195,8 +195,8 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 }
 
 // readLocalItems reads enabled local items from enabled.json
-func readLocalItems(claudeDir string) (*LocalItemSettings, error) {
-	manager := local.NewManager(claudeDir)
+func readLocalItems(claudeDir, claudeupHome string) (*LocalItemSettings, error) {
+	manager := local.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return nil, err
@@ -320,7 +320,7 @@ func readMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 // SnapshotAllScopes creates a Profile capturing settings from all three scopes
 // (user, project, local) and organizing them in the PerScope structure.
 // This is the preferred way to save profiles as it preserves scope information.
-func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Profile, error) {
+func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome string) (*Profile, error) {
 	p := &Profile{
 		Name:     name,
 		PerScope: &PerScopeSettings{},
@@ -374,7 +374,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir string) (*Pro
 	}
 
 	// Read local items from enabled.json
-	localItems, err := readLocalItems(claudeDir)
+	localItems, err := readLocalItems(claudeDir, claudeupHome)
 	if err == nil && localItems != nil {
 		p.LocalItems = localItems
 	}

@@ -1,5 +1,5 @@
 // ABOUTME: Manages enabled.json configuration file for local items
-// ABOUTME: Provides load/save operations for tracking enabled state
+// ABOUTME: Provides load/save operations for tracking enabled state in CLAUDEUP_HOME
 package local
 
 import (
@@ -14,16 +14,18 @@ type Config map[string]map[string]bool
 // Manager handles local item operations
 type Manager struct {
 	claudeDir  string
-	libraryDir string
+	localDir   string
 	configFile string
 }
 
-// NewManager creates a new Manager for the given Claude directory
-func NewManager(claudeDir string) *Manager {
+// NewManager creates a new Manager for managing local items.
+// claudeDir is where Claude Code reads extensions (e.g., ~/.claude).
+// claudeupHome is where claudeup stores its data (e.g., ~/.claudeup).
+func NewManager(claudeDir, claudeupHome string) *Manager {
 	return &Manager{
 		claudeDir:  claudeDir,
-		libraryDir: filepath.Join(claudeDir, ".library"),
-		configFile: filepath.Join(claudeDir, "enabled.json"),
+		localDir:   filepath.Join(claudeupHome, "local"),
+		configFile: filepath.Join(claudeupHome, "enabled.json"),
 	}
 }
 
@@ -51,6 +53,9 @@ func (m *Manager) LoadConfig() (Config, error) {
 
 // SaveConfig writes the enabled.json config file
 func (m *Manager) SaveConfig(config Config) error {
+	if err := os.MkdirAll(filepath.Dir(m.configFile), 0755); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return err

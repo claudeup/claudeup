@@ -1,4 +1,4 @@
-// ABOUTME: Tests for listing library items
+// ABOUTME: Tests for listing local storage items
 // ABOUTME: Verifies directory scanning and item discovery
 package local
 
@@ -9,12 +9,13 @@ import (
 )
 
 func TestListItems(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 
 	// Create some agent files
@@ -38,12 +39,13 @@ func TestListItems(t *testing.T) {
 }
 
 func TestListItemsWithGroups(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure with groups (for agents)
-	libraryDir := filepath.Join(tmpDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure with groups (for agents)
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
 
@@ -78,8 +80,9 @@ func TestListItemsWithGroups(t *testing.T) {
 }
 
 func TestListItemsEmptyCategory(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
 	items, err := manager.ListItems("agents")
 	if err != nil {
@@ -92,12 +95,13 @@ func TestListItemsEmptyCategory(t *testing.T) {
 }
 
 func TestListItemsErrorPropagation(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure
-	libraryDir := filepath.Join(tmpDir, ".library")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	// Create local directory structure
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "test.md"), []byte("# Test"), 0644)
 
@@ -113,12 +117,13 @@ func TestListItemsErrorPropagation(t *testing.T) {
 }
 
 func TestListItemsNestedCommands(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure for commands with subdirectories
-	libraryDir := filepath.Join(tmpDir, ".library")
-	commandsDir := filepath.Join(libraryDir, "commands")
+	// Create local directory structure for commands with subdirectories
+	localDir := filepath.Join(claudeupHome, "local")
+	commandsDir := filepath.Join(localDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 	os.MkdirAll(gsdDir, 0755)
 
@@ -156,12 +161,13 @@ func TestListItemsNestedCommands(t *testing.T) {
 }
 
 func TestListItemsSkillsWithSKILLMD(t *testing.T) {
-	tmpDir := t.TempDir()
-	manager := NewManager(tmpDir)
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create library structure for skills (directories containing SKILL.md)
-	libraryDir := filepath.Join(tmpDir, ".library")
-	skillsDir := filepath.Join(libraryDir, "skills")
+	// Create local directory structure for skills (directories containing SKILL.md)
+	localDir := filepath.Join(claudeupHome, "local")
+	skillsDir := filepath.Join(localDir, "skills")
 	bashSkill := filepath.Join(skillsDir, "bash")
 	webDesignSkill := filepath.Join(skillsDir, "web-design-guidelines")
 	os.MkdirAll(bashSkill, 0755)

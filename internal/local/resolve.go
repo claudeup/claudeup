@@ -25,7 +25,7 @@ func (m *Manager) ResolveItemName(category, item string) (string, error) {
 }
 
 func (m *Manager) resolveFlatItem(category, item string) (string, error) {
-	libPath := filepath.Join(m.libraryDir, category, item)
+	libPath := filepath.Join(m.localDir, category, item)
 
 	// Try exact match first
 	if _, err := os.Stat(libPath); err == nil {
@@ -36,7 +36,7 @@ func (m *Manager) resolveFlatItem(category, item string) (string, error) {
 	extensions := []string{".md", ".py", ".sh", ".js"}
 	for _, ext := range extensions {
 		fullName := item + ext
-		fullPath := filepath.Join(m.libraryDir, category, fullName)
+		fullPath := filepath.Join(m.localDir, category, fullName)
 		if _, err := os.Stat(fullPath); err == nil {
 			return fullName, nil
 		}
@@ -46,7 +46,7 @@ func (m *Manager) resolveFlatItem(category, item string) (string, error) {
 }
 
 func (m *Manager) resolveAgentName(item string) (string, error) {
-	agentsDir := filepath.Join(m.libraryDir, CategoryAgents)
+	agentsDir := filepath.Join(m.localDir, CategoryAgents)
 
 	// Handle 'group/agent' format
 	if strings.Contains(item, "/") {

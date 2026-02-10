@@ -281,7 +281,7 @@ type DetectRules struct {
 }
 
 // LocalItemSettings contains local item patterns to enable.
-// These are items from ~/.claude/.library that get symlinked to ~/.claude/
+// These are items from ~/.claudeup/local/ that get symlinked to ~/.claude/
 type LocalItemSettings struct {
 	Agents       []string `json:"agents,omitempty"`
 	Commands     []string `json:"commands,omitempty"`

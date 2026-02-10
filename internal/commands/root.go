@@ -9,7 +9,8 @@ import (
 )
 
 var (
-	claudeDir string
+	claudeDir    string
+	claudeupHome string
 )
 
 var rootCmd = &cobra.Command{
@@ -41,6 +42,7 @@ func init() {
 
 	// Global flags - respect CLAUDE_CONFIG_DIR if set
 	rootCmd.PersistentFlags().StringVar(&claudeDir, "claude-dir", config.MustClaudeDir(), "Claude installation directory")
+	rootCmd.PersistentFlags().StringVar(&claudeupHome, "claudeup-home", config.MustClaudeupHome(), "claudeup home directory")
 	rootCmd.PersistentFlags().BoolVarP(&config.YesFlag, "yes", "y", false, "Skip all prompts, use defaults")
 }
 

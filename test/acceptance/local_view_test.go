@@ -18,12 +18,12 @@ var _ = Describe("local view", func() {
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 
-		// Create library structure with items
-		libraryDir := filepath.Join(env.ClaudeDir, ".library")
+		// Create local directory structure in claudeupHome/local/
+		localDir := filepath.Join(env.ClaudeupDir, "local")
 
-		agentsDir := filepath.Join(libraryDir, "agents")
-		hooksDir := filepath.Join(libraryDir, "hooks")
-		skillsDir := filepath.Join(libraryDir, "skills", "test-skill")
+		agentsDir := filepath.Join(localDir, "agents")
+		hooksDir := filepath.Join(localDir, "hooks")
+		skillsDir := filepath.Join(localDir, "skills", "test-skill")
 		Expect(os.MkdirAll(agentsDir, 0755)).To(Succeed())
 		Expect(os.MkdirAll(hooksDir, 0755)).To(Succeed())
 		Expect(os.MkdirAll(skillsDir, 0755)).To(Succeed())
@@ -35,7 +35,7 @@ var _ = Describe("local view", func() {
 		Expect(os.WriteFile(filepath.Join(skillsDir, "SKILL.md"),
 			[]byte("# Test Skill\n\nA skill for **testing**."), 0644)).To(Succeed())
 
-		// Create enabled.json so items are discoverable
+		// Create enabled.json in claudeupHome so items are discoverable
 		enabledConfig := map[string]map[string]bool{
 			"agents": {"test-agent.md": true},
 			"hooks":  {"format-check.sh": true},
@@ -43,7 +43,7 @@ var _ = Describe("local view", func() {
 		}
 		enabledData, err := json.MarshalIndent(enabledConfig, "", "  ")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(os.WriteFile(filepath.Join(libraryDir, "enabled.json"), enabledData, 0644)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), enabledData, 0644)).To(Succeed())
 	})
 
 	Describe("markdown rendering for agents", func() {
