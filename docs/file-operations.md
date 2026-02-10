@@ -251,6 +251,51 @@ These files are created and managed exclusively by `claudeup`.
 
 ---
 
+### `~/.claudeup/enabled.json`
+
+**Owner:** claudeup
+**Format:** JSON
+**Purpose:** Tracks which local items are enabled per category
+
+**Read by:**
+
+- `internal/local/config.go:LoadConfig()`
+- Used by: all `local` subcommands, symlink reconciliation
+
+**Written by:**
+
+- `internal/local/config.go:SaveConfig()`
+- Triggered by:
+  - `local enable` - marks items as enabled
+  - `local disable` - marks items as disabled
+  - `local install` - enables newly installed items
+  - `local import` - enables imported items
+
+---
+
+### `~/.claudeup/local/<category>/`
+
+**Owner:** claudeup
+**Format:** Directory tree organized by category (agents, commands, hooks, output-styles, rules, skills)
+**Purpose:** Stores local extension files; symlinks in `~/.claude/<category>/` point here
+
+**Read by:**
+
+- `internal/local/list.go:ListItems()`
+- `internal/local/view.go:ViewItem()`
+- `internal/local/symlinks.go:ReconcileSymlinks()`
+- Used by: all `local` subcommands
+
+**Written by:**
+
+- `internal/local/install.go:Install()`
+- `internal/local/symlinks.go:Import()`
+- Triggered by:
+  - `local install` - copies items from external paths
+  - `local import` - moves items from active directory to local storage
+
+---
+
 ## Operation-to-File Matrix
 
 | Operation                  | Files Modified                                                    | Event Type |
@@ -268,6 +313,10 @@ These files are created and managed exclusively by `claudeup`.
 | `mcp add/remove`           | Via claude CLI - updates `~/.claude.json`                         | INDIRECT   |
 | `scope restore`            | Restores from `~/.claudeup/backups/`                              | READ+WRITE |
 | `setup`                    | `~/.claudeup/config.json` (initial config)                        | WRITE      |
+| `local enable`             | `~/.claudeup/enabled.json`, `~/.claude/<category>/<item>` symlink | WRITE      |
+| `local disable`            | `~/.claudeup/enabled.json`, removes `~/.claude/<category>/<item>` | WRITE      |
+| `local install`            | `~/.claudeup/local/<category>/`, `~/.claudeup/enabled.json`       | WRITE      |
+| `local import`             | `~/.claudeup/local/<category>/`, `~/.claudeup/enabled.json`       | WRITE      |
 
 ---
 

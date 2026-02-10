@@ -612,7 +612,16 @@ Configuration is stored in `~/.claudeup/`:
 ```text
 ~/.claudeup/
 ├── config.json       # Disabled plugins/servers, preferences
+├── enabled.json      # Tracks which local items are enabled per category
 ├── projects.json     # Local-scope project-to-profile mappings
+├── events/           # Operation event logs
+├── local/            # Local storage for extensions
+│   ├── agents/
+│   ├── commands/
+│   ├── hooks/
+│   ├── output-styles/
+│   ├── rules/
+│   └── skills/
 └── profiles/         # Saved profiles
 ```
 
