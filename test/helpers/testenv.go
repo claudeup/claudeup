@@ -300,27 +300,6 @@ func (e *TestEnv) IsPluginEnabled(pluginName string) bool {
 	return ok && enabled
 }
 
-// CreatePluginMCPServers creates a .mcp.json file in a plugin directory
-func (e *TestEnv) CreatePluginMCPServers(pluginPath string, servers map[string]interface{}) {
-	mcpFile := map[string]interface{}{
-		"mcpServers": servers,
-	}
-	jsonData, err := json.MarshalIndent(mcpFile, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(os.WriteFile(filepath.Join(pluginPath, ".mcp.json"), jsonData, 0644)).To(Succeed())
-}
-
-// SetDisabledMCPServers configures disabled MCP servers in claudeup config
-func (e *TestEnv) SetDisabledMCPServers(servers []string) {
-	config := map[string]interface{}{
-		"disabledMcpServers": servers,
-		"preferences":        map[string]interface{}{},
-	}
-	jsonData, err := json.MarshalIndent(config, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(os.WriteFile(e.ConfigFile, jsonData, 0644)).To(Succeed())
-}
-
 // ProjectDir creates and returns a project directory for testing scoped profiles
 func (e *TestEnv) ProjectDir(name string) string {
 	projectDir := filepath.Join(e.TempDir, "projects", name)

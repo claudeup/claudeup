@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for status command
-// ABOUTME: Tests display of marketplaces, plugins, MCP servers, and issues
+// ABOUTME: Tests display of marketplaces, plugins, and issues
 package acceptance
 
 import (
@@ -45,13 +45,6 @@ var _ = Describe("status", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Plugins"))
-			})
-
-			It("shows MCP servers section", func() {
-				result := env.Run("status")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("MCP Servers"))
 			})
 		})
 	})

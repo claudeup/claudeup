@@ -154,7 +154,7 @@ These files are created and managed exclusively by `claudeup`.
 
 **Owner:** claudeup
 **Format:** JSON
-**Purpose:** Global configuration (disabled MCP servers, preferences, active profile)
+**Purpose:** Global configuration (preferences, active profile)
 
 **Read by:**
 

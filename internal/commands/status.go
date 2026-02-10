@@ -1,5 +1,5 @@
 // ABOUTME: Status command implementation showing overview of Claude installation
-// ABOUTME: Displays marketplaces, plugins, MCP servers, and detected issues
+// ABOUTME: Displays marketplaces, plugins, and detected issues
 package commands
 
 import (
@@ -204,11 +204,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	if len(stalePlugins) > 0 {
 		fmt.Printf("  %s %d stale\n", ui.Warning(ui.SymbolWarning), len(stalePlugins))
 	}
-
-	// Print MCP servers placeholder
-	fmt.Println()
-	fmt.Println(ui.RenderSection("MCP Servers", -1))
-	fmt.Printf("  %s Run 'claudeup mcp list' for details\n", ui.Muted(ui.SymbolArrow))
 
 	// Print issues if any
 	hasIssues := len(stalePlugins) > 0 || len(missingPlugins) > 0

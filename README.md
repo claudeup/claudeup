@@ -65,7 +65,6 @@ claudeup status                       # Overview of your installation
 claudeup plugin search tdd            # Find plugins by capability
 claudeup plugin search api --all      # Search all cached plugins
 claudeup plugin disable name          # Disable a plugin
-claudeup mcp disable plugin:server    # Disable just an MCP server
 ```
 
 [Full command reference →](docs/commands.md)
