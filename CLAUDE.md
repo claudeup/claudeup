@@ -34,6 +34,46 @@ CLI tool for managing Claude Code profiles and configurations.
 - `test/integration/` - Integration tests (internal packages with fake fixtures)
 - `test/helpers/` - Shared test utilities
 
+## Directory Architecture
+
+claudeup operates across two distinct directory trees:
+
+**Claude's active directory** (`claudeDir`, defaults to `~/.claude/`):
+
+- Owned by Claude Code -- claudeup only writes symlinks here
+- `agents/`, `commands/`, `skills/`, `hooks/`, `rules/`, `output-styles/` contain symlinks to enabled items
+- `settings.json`, `installed_plugins.json` are read/modified during profile operations
+
+**claudeup's home directory** (`claudeupHome`, defaults to `~/.claudeup/`):
+
+- Owned by claudeup -- all claudeup-managed data lives here
+- `local/<category>/` stores the actual item files (agents, commands, skills, hooks, rules, output-styles)
+- `enabled.json` tracks which items are enabled per category
+- `profiles/` stores saved profiles
+- `events/` stores operation logs
+- `config.json` stores claudeup configuration
+
+**How symlinks work:**
+
+```
+~/.claude/agents/my-agent.md  -->  ~/.claudeup/local/agents/my-agent.md  (absolute symlink)
+~/.claude/hooks/my-hook.sh    -->  ~/.claudeup/local/hooks/my-hook.sh    (absolute symlink)
+```
+
+**In code**, the `local.Manager` constructor takes both paths explicitly:
+
+```go
+manager := local.NewManager(claudeDir, claudeupHome)
+```
+
+**In tests**, each path gets its own `t.TempDir()` to verify proper separation:
+
+```go
+claudeDir := t.TempDir()
+claudeupHome := t.TempDir()
+manager := NewManager(claudeDir, claudeupHome)
+```
+
 ## Plans and Documentation
 
 **Design documents and implementation plans go in a separate repository:**
