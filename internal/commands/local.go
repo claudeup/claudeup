@@ -22,6 +22,7 @@ var markdownCategories = map[string]bool{
 var (
 	localFilterEnabled  bool
 	localFilterDisabled bool
+	localListFull       bool
 	localViewRaw        bool
 )
 
@@ -44,9 +45,12 @@ var localListCmd = &cobra.Command{
 	Short: "List local items and their enabled status",
 	Long: `List all local items and their enabled status.
 
-Optionally filter by category. Use --enabled or --disabled to filter by status.`,
+Without arguments, shows a summary with item counts per category.
+Use a category argument to see individual items, or --full to show all items.
+Use --enabled or --disabled to filter by status (implies full listing).`,
 	Example: `  claudeup local list
   claudeup local list agents
+  claudeup local list --full
   claudeup local list --enabled
   claudeup local list hooks --disabled`,
 	Args: cobra.MaximumNArgs(1),
@@ -173,6 +177,7 @@ func init() {
 
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
+	localListCmd.Flags().BoolVar(&localListFull, "full", false, "Show all items instead of summary counts")
 	localViewCmd.Flags().BoolVar(&localViewRaw, "raw", false, "Output raw content without rendering")
 }
 
@@ -192,8 +197,12 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	specificCategory := len(args) > 0
+	hasFilter := localFilterEnabled || localFilterDisabled
+	showSummary := !specificCategory && !hasFilter && !localListFull
+
 	var categories []string
-	if len(args) > 0 {
+	if specificCategory {
 		if err := local.ValidateCategory(args[0]); err != nil {
 			return err
 		}
@@ -214,9 +223,24 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 			catConfig = make(map[string]bool)
 		}
 
-		// Filter items by status
-		var filtered []itemStatus
+		totalItems += len(items)
 
+		if showSummary {
+			if len(items) == 0 {
+				continue
+			}
+			enabledCount := 0
+			for _, item := range items {
+				if catConfig[item] {
+					enabledCount++
+				}
+			}
+			fmt.Printf("  %s/:  %d items (%d enabled)\n", category, len(items), enabledCount)
+			continue
+		}
+
+		// Full listing mode
+		var filtered []itemStatus
 		for _, item := range items {
 			enabled := catConfig[item]
 			if localFilterEnabled && !enabled {
@@ -228,11 +252,8 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 			filtered = append(filtered, itemStatus{item, enabled})
 		}
 
-		totalItems += len(items)
-
 		if len(filtered) == 0 {
-			if len(args) > 0 {
-				// User requested specific category
+			if specificCategory {
 				fmt.Printf("\n%s/: (empty)\n", category)
 			}
 			continue
