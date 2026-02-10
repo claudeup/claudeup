@@ -117,7 +117,7 @@ func clearScope(scope string, settingsPath string, claudeDir string) error {
 }
 
 // RenderPluginsByScope displays enabled plugins grouped by scope.
-// This is the shared implementation used by both 'scope list' and 'plugin list --by-scope'.
+// Used by 'plugin list --by-scope'.
 func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 	// Validate scope if specified
 	if filterScope != "" {

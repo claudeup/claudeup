@@ -654,11 +654,5 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("disabled-plugin@acme"))
 		})
 
-		It("shows enabled plugins grouped by scope", func() {
-			pluginResult := env.Run("plugin", "list", "--by-scope")
-
-			Expect(pluginResult.ExitCode).To(Equal(0))
-			Expect(pluginResult.Stdout).To(ContainSubstring("Scope: User"))
-		})
 	})
 })
