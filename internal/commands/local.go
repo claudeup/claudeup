@@ -250,7 +250,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 	}
 
 	if totalItems == 0 && len(args) == 0 {
-		fmt.Println("No items in library. Use 'claudeup local install' or 'claudeup local import' to add items.")
+		fmt.Println("No local items found. Use 'claudeup local install' or 'claudeup local import' to add items.")
 	}
 
 	return nil

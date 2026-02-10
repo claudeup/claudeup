@@ -23,7 +23,7 @@ var _ = Describe("local list", func() {
 			result := env.Run("local", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("No items in library"))
+			Expect(result.Stdout).To(ContainSubstring("No local items found"))
 			Expect(result.Stdout).To(ContainSubstring("claudeup local install"))
 		})
 
@@ -32,7 +32,7 @@ var _ = Describe("local list", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("(empty)"))
-			Expect(result.Stdout).NotTo(ContainSubstring("No items in library"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
 		})
 	})
 
@@ -48,17 +48,17 @@ var _ = Describe("local list", func() {
 			result := env.Run("local", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).NotTo(ContainSubstring("No items in library"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
 			Expect(result.Stdout).To(ContainSubstring("test-rule.md"))
 		})
 
 		It("does not show the empty library message when filters exclude all items", func() {
 			// All items are disabled by default; --enabled should show no items
-			// but should NOT show the "No items in library" message
+			// but should NOT show the "No local items found" message
 			result := env.Run("local", "list", "--enabled")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).NotTo(ContainSubstring("No items in library"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
 		})
 	})
 })
