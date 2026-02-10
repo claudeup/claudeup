@@ -49,6 +49,13 @@ var _ = Describe("local uninstall", func() {
 		Expect(os.IsNotExist(err)).To(BeTrue())
 	})
 
+	It("removes the symlink from the active directory", func() {
+		env.Run("local", "uninstall", "rules", "my-rule.md")
+
+		_, err := os.Lstat(filepath.Join(env.ClaudeDir, "rules", "my-rule.md"))
+		Expect(os.IsNotExist(err)).To(BeTrue())
+	})
+
 	It("does not affect other items", func() {
 		env.Run("local", "uninstall", "rules", "my-rule.md")
 

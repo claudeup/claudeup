@@ -17,7 +17,9 @@ func TestUninstall(t *testing.T) {
 	rulesDir := filepath.Join(claudeupHome, "local", "rules")
 	os.MkdirAll(rulesDir, 0755)
 	os.WriteFile(filepath.Join(rulesDir, "my-rule.md"), []byte("# Rule"), 0644)
-	manager.Enable("rules", []string{"my-rule.md"})
+	if _, _, err := manager.Enable("rules", []string{"my-rule.md"}); err != nil {
+		t.Fatalf("Setup failed: Enable() error = %v", err)
+	}
 
 	// Verify setup
 	symlinkPath := filepath.Join(claudeDir, "rules", "my-rule.md")
@@ -64,7 +66,9 @@ func TestUninstallWildcard(t *testing.T) {
 	os.WriteFile(filepath.Join(rulesDir, "gsd-one.md"), []byte("# One"), 0644)
 	os.WriteFile(filepath.Join(rulesDir, "gsd-two.md"), []byte("# Two"), 0644)
 	os.WriteFile(filepath.Join(rulesDir, "keep.md"), []byte("# Keep"), 0644)
-	manager.Enable("rules", []string{"gsd-one.md", "gsd-two.md", "keep.md"})
+	if _, _, err := manager.Enable("rules", []string{"gsd-one.md", "gsd-two.md", "keep.md"}); err != nil {
+		t.Fatalf("Setup failed: Enable() error = %v", err)
+	}
 
 	removed, _, err := manager.Uninstall("rules", []string{"gsd-*"})
 	if err != nil {

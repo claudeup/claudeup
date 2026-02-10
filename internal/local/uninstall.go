@@ -3,6 +3,7 @@
 package local
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -26,20 +27,37 @@ func (m *Manager) Uninstall(category string, patterns []string) ([]string, []str
 		return nil, nil, err
 	}
 
+	seen := make(map[string]bool)
 	var removed []string
 	var notFound []string
 
 	for _, pattern := range patterns {
-		matched, _, found := m.resolvePattern(category, pattern, allItems)
+		matched, dirToClear, found := m.resolvePattern(category, pattern, allItems)
 		if !found {
 			notFound = append(notFound, pattern)
 			continue
 		}
 
+		// Clean up directory-level config entry
+		if dirToClear != "" && config[category] != nil {
+			delete(config[category], dirToClear)
+		}
+
 		for _, item := range matched {
+			if seen[item] {
+				continue
+			}
+			seen[item] = true
+
+			if err := validateItemPath(item); err != nil {
+				return nil, nil, err
+			}
+
 			// Remove from local storage
 			itemPath := filepath.Join(m.localDir, category, item)
-			os.RemoveAll(itemPath)
+			if err := os.RemoveAll(itemPath); err != nil {
+				return nil, nil, fmt.Errorf("failed to remove %s: %w", item, err)
+			}
 
 			// Remove config entry
 			if config[category] != nil {
