@@ -223,7 +223,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 			filtered = append(filtered, itemStatus{item, enabled})
 		}
 
-		totalItems += len(filtered)
+		totalItems += len(items)
 
 		if len(filtered) == 0 {
 			if len(args) > 0 {
@@ -249,7 +249,7 @@ func runLocalList(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if totalItems == 0 {
+	if totalItems == 0 && len(args) == 0 {
 		fmt.Println("No items in library. Use 'claudeup local install' or 'claudeup local import' to add items.")
 	}
 
