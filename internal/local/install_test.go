@@ -1,4 +1,4 @@
-// ABOUTME: Tests for Install function that copies items from external paths to .library
+// ABOUTME: Tests for Install function that copies items from external paths to the library
 // ABOUTME: Covers single file, directory, container detection, skip existing, and auto-enable
 package local
 

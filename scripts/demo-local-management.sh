@@ -110,11 +110,11 @@ npx get-shit-done-cc --claude --global --config-dir "$CLAUDE_CONFIG_DIR" --force
 echo
 print_success "GSD installed"
 
-# Step 4: Import GSD files to .library using claudeup
-print_header "Step 4: Import GSD to .library"
+# Step 4: Import GSD files to library using claudeup
+print_header "Step 4: Import GSD to Library"
 
 print_info "GSD installs directly to active directories."
-print_info "Using 'claudeup local import-all' to move to .library and create symlinks..."
+print_info "Using 'claudeup local import-all' to move to library and create symlinks..."
 echo
 
 print_step "Importing all GSD items..."
@@ -122,9 +122,9 @@ print_step "Importing all GSD items..."
 echo
 
 # Count imported items
-GSD_AGENTS=$(ls "$CLAUDE_CONFIG_DIR/.library/agents/" 2>/dev/null | grep -c "gsd-" || echo "0")
-GSD_COMMANDS=$(ls "$CLAUDE_CONFIG_DIR/.library/commands/gsd/" 2>/dev/null | wc -l | tr -d ' ')
-GSD_HOOKS=$(ls "$CLAUDE_CONFIG_DIR/.library/hooks/" 2>/dev/null | grep -c "gsd-" || echo "0")
+GSD_AGENTS=$(ls "$CLAUDEUP_HOME/local/agents/" 2>/dev/null | grep -c "gsd-" || echo "0")
+GSD_COMMANDS=$(ls "$CLAUDEUP_HOME/local/commands/gsd/" 2>/dev/null | wc -l | tr -d ' ')
+GSD_HOOKS=$(ls "$CLAUDEUP_HOME/local/hooks/" 2>/dev/null | grep -c "gsd-" || echo "0")
 
 print_success "Imported $GSD_AGENTS GSD agents, $GSD_COMMANDS GSD commands, $GSD_HOOKS GSD hooks"
 
@@ -168,7 +168,7 @@ print_header "Step 6: Check enabled.json"
 
 print_step "Contents of enabled.json:"
 echo
-cat "$CLAUDE_CONFIG_DIR/enabled.json"
+cat "$CLAUDEUP_HOME/enabled.json"
 echo
 
 # Step 7: List only enabled items
@@ -196,8 +196,8 @@ echo
 print_header "Step 9: Install External Agent"
 
 print_info "Now demonstrating 'claudeup local install' (different from import)..."
-print_info "- import: moves files from active dirs to .library"
-print_info "- install: copies files from external sources to .library"
+print_info "- import: moves files from active dirs to the library"
+print_info "- install: copies files from external sources to the library"
 echo
 
 # Create a custom agent in a temporary external location
@@ -235,11 +235,11 @@ else
     exit 1
 fi
 
-# Check that file was copied to .library
-if [[ -f "$CLAUDE_CONFIG_DIR/.library/agents/demo-agent.md" ]]; then
-    print_success "File copied to .library/agents/"
+# Check that file was copied to library
+if [[ -f "$CLAUDEUP_HOME/local/agents/demo-agent.md" ]]; then
+    print_success "File copied to library/agents/"
 else
-    print_error "File not found in .library!"
+    print_error "File not found in library!"
     exit 1
 fi
 
@@ -278,11 +278,11 @@ print_step "Installing agent group directory..."
 echo
 
 print_step "Verifying agent group installation..."
-if [[ -d "$CLAUDE_CONFIG_DIR/.library/agents/my-agents" ]]; then
-    print_success "Agent group directory copied to .library/"
-    ls -la "$CLAUDE_CONFIG_DIR/.library/agents/my-agents/"
+if [[ -d "$CLAUDEUP_HOME/local/agents/my-agents" ]]; then
+    print_success "Agent group directory copied to library/"
+    ls -la "$CLAUDEUP_HOME/local/agents/my-agents/"
 else
-    print_error "Agent group not found in .library!"
+    print_error "Agent group not found in library!"
     exit 1
 fi
 
@@ -306,15 +306,15 @@ echo
 
 print_step "Updated enabled.json:"
 echo
-cat "$CLAUDE_CONFIG_DIR/enabled.json"
+cat "$CLAUDEUP_HOME/enabled.json"
 echo
 
 # Summary
 print_header "Demo Complete!"
 
 CUSTOM_AGENTS=0
-if [ -d "$CLAUDE_CONFIG_DIR/.library/agents" ]; then
-    CUSTOM_AGENTS=$(find "$CLAUDE_CONFIG_DIR/.library/agents" -name '*.md' \( -name 'demo-agent*' -o -path '*/my-agents/*' \) | wc -l | tr -d ' ')
+if [ -d "$CLAUDEUP_HOME/local/agents" ]; then
+    CUSTOM_AGENTS=$(find "$CLAUDEUP_HOME/local/agents" -name '*.md' \( -name 'demo-agent*' -o -path '*/my-agents/*' \) | wc -l | tr -d ' ')
 fi
 
 echo "Summary:"
@@ -325,8 +325,8 @@ echo "  - Custom agents installed: $CUSTOM_AGENTS (demo-agent + 2 in my-agents g
 echo "  - Profile saved: gsd-demo"
 echo
 echo "Commands demonstrated:"
-echo "  ✓ claudeup local import-all  - Move files from active dirs to .library"
-echo "  ✓ claudeup local install     - Copy external files to .library"
+echo "  ✓ claudeup local import-all  - Move files from active dirs to library"
+echo "  ✓ claudeup local install     - Copy external files to library"
 echo "  ✓ claudeup local list        - View enabled/disabled items"
 echo "  ✓ claudeup profile save      - Save configuration as profile"
 echo
