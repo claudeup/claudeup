@@ -118,6 +118,56 @@ var _ = Describe("local list", func() {
 			})
 		})
 
+		Context("long listing", func() {
+			BeforeEach(func() {
+				// Add hooks with different file types for long listing tests
+				hooksDir := filepath.Join(env.ClaudeupDir, "local", "hooks")
+				Expect(os.MkdirAll(hooksDir, 0755)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(hooksDir, "lint-check.py"), []byte("#!/usr/bin/env python3"), 0644)).To(Succeed())
+
+				enabledJSON := `{"rules":{"enabled-rule.md":true,"disabled-rule.md":false},"hooks":{"format-on-save.sh":true,"lint-check.py":true}}`
+				Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), []byte(enabledJSON), 0644)).To(Succeed())
+			})
+
+			It("shows file type in brackets with --long flag", func() {
+				result := env.Run("local", "list", "hooks", "--long")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`format-on-save\.sh\s+\[bash\]`))
+				Expect(result.Stdout).To(MatchRegexp(`lint-check\.py\s+\[python\]`))
+			})
+
+			It("shows markdown type for rule items", func() {
+				result := env.Run("local", "list", "rules", "--long")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`enabled-rule\.md\s+\[markdown\]`))
+			})
+
+			It("shows relative path from local storage", func() {
+				result := env.Run("local", "list", "hooks", "--long")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("local/hooks/format-on-save.sh"))
+			})
+
+			It("supports -l shorthand", func() {
+				result := env.Run("local", "list", "hooks", "-l")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`format-on-save\.sh\s+\[bash\]`))
+			})
+
+			It("does not show type or path without --long flag", func() {
+				result := env.Run("local", "list", "rules")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("[markdown]"))
+				Expect(result.Stdout).NotTo(ContainSubstring("local/rules/"))
+			})
+		})
+
 		Context("full listing", func() {
 			It("shows individual items with --full flag", func() {
 				result := env.Run("local", "list", "--full")
