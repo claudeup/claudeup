@@ -37,7 +37,10 @@ with custom agents, commands, skills, hooks, rules, and output-styles.
 Adding items to local storage:
   install     Copy items from external paths (git repos, downloads)
   import      Move items from active directories to local storage
-  import-all  Bulk import across all categories at once`,
+  import-all  Bulk import across all categories at once
+
+Removing items:
+  uninstall   Remove items from local storage and clean up symlinks`,
 }
 
 var localListCmd = &cobra.Command{
@@ -145,6 +148,22 @@ Without patterns, all non-symlink items are imported.`,
 	RunE: runLocalImportAll,
 }
 
+var localUninstallCmd = &cobra.Command{
+	Use:   "uninstall <category> <items...>",
+	Short: "Remove items from local storage",
+	Long: `Remove items from local storage and clean up symlinks.
+
+For each matched item: removes the symlink from the active directory,
+deletes the file from local storage, and removes the config entry.
+
+Supports the same wildcards as enable/disable.`,
+	Example: `  claudeup local uninstall rules my-rule.md
+  claudeup local uninstall agents gsd-*
+  claudeup local uninstall hooks format-on-save`,
+	Args: cobra.MinimumNArgs(2),
+	RunE: runLocalUninstall,
+}
+
 var localInstallCmd = &cobra.Command{
 	Use:   "install <category> <path>",
 	Short: "Install items from an external path to local storage",
@@ -174,6 +193,7 @@ func init() {
 	localCmd.AddCommand(localImportCmd)
 	localCmd.AddCommand(localImportAllCmd)
 	localCmd.AddCommand(localInstallCmd)
+	localCmd.AddCommand(localUninstallCmd)
 
 	localListCmd.Flags().BoolVarP(&localFilterEnabled, "enabled", "e", false, "Show only enabled items")
 	localListCmd.Flags().BoolVarP(&localFilterDisabled, "disabled", "d", false, "Show only disabled items")
@@ -507,6 +527,31 @@ func runLocalInstall(cmd *cobra.Command, args []string) error {
 
 	if len(installed) == 0 && len(skipped) > 0 {
 		fmt.Println("All items already exist in local storage")
+	}
+
+	return nil
+}
+
+func runLocalUninstall(cmd *cobra.Command, args []string) error {
+	category := args[0]
+	patterns := args[1:]
+
+	manager := local.NewManager(claudeDir, claudeupHome)
+	removed, notFound, err := manager.Uninstall(category, patterns)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range removed {
+		ui.PrintSuccess(fmt.Sprintf("Removed: %s/%s", category, item))
+	}
+
+	for _, pattern := range notFound {
+		ui.PrintWarning(fmt.Sprintf("Not found: %s/%s", category, pattern))
+	}
+
+	if len(notFound) > 0 && len(removed) == 0 {
+		return fmt.Errorf("no items found matching patterns")
 	}
 
 	return nil
