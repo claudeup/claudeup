@@ -137,15 +137,22 @@ func TestScanner_DeduplicatesNonSemverVersions(t *testing.T) {
 	}
 
 	// Find the no-version-plugin entry
+	var found *PluginSearchIndex
 	var count int
-	for _, p := range plugins {
-		if p.Name == "no-version-plugin" {
+	for i := range plugins {
+		if plugins[i].Name == "no-version-plugin" {
+			found = &plugins[i]
 			count++
 		}
 	}
 
 	if count != 1 {
-		t.Errorf("expected 1 entry for no-version-plugin (deduplicated), got %d", count)
+		t.Fatalf("expected 1 entry for no-version-plugin (deduplicated), got %d", count)
+	}
+
+	// Lexicographic fallback should keep "nightly-2" over "nightly-1"
+	if found.Version != "nightly-2" {
+		t.Errorf("expected version 'nightly-2' (lexicographic winner), got '%s'", found.Version)
 	}
 }
 

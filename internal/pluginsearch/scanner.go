@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
@@ -116,6 +117,12 @@ func (s *Scanner) Scan(cacheDir string) ([]PluginSearchIndex, error) {
 	for _, p := range best {
 		plugins = append(plugins, p)
 	}
+	sort.Slice(plugins, func(i, j int) bool {
+		if plugins[i].Marketplace != plugins[j].Marketplace {
+			return plugins[i].Marketplace < plugins[j].Marketplace
+		}
+		return plugins[i].Name < plugins[j].Name
+	})
 	return plugins, nil
 }
 

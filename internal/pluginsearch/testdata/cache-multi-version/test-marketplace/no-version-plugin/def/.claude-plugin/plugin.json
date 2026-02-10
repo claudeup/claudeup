@@ -1,6 +1,6 @@
 {
   "name": "no-version-plugin",
   "description": "Plugin without semver versions",
-  "version": "",
+  "version": "nightly-2",
   "keywords": ["testing"]
 }
