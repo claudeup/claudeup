@@ -17,7 +17,7 @@ func (m *Manager) ListItems(category string) ([]string, error) {
 		return nil, err
 	}
 
-	libPath := filepath.Join(m.libraryDir, category)
+	libPath := filepath.Join(m.localDir, category)
 	if _, err := os.Stat(libPath); os.IsNotExist(err) {
 		return []string{}, nil
 	}

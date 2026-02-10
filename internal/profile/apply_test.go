@@ -1367,8 +1367,8 @@ func TestApplyWithLocalItems(t *testing.T) {
 	claudeDir := tmpDir
 
 	// Create library structure (in claudeupHome/local/)
-	libraryDir := filepath.Join(claudeDir, "local")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	localDir := filepath.Join(claudeDir, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)

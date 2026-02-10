@@ -15,10 +15,10 @@ func TestLocalIntegration(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create full library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	agentsDir := filepath.Join(libraryDir, "agents")
-	commandsDir := filepath.Join(libraryDir, "commands", "gsd")
-	hooksDir := filepath.Join(libraryDir, "hooks")
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
+	commandsDir := filepath.Join(localDir, "commands", "gsd")
+	hooksDir := filepath.Join(localDir, "hooks")
 
 	os.MkdirAll(agentsDir, 0755)
 	os.MkdirAll(commandsDir, 0755)
@@ -96,8 +96,8 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create library structure with agent groups
-	libraryDir := filepath.Join(claudeupHome, "local")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 
 	os.MkdirAll(groupDir, 0755)
@@ -149,8 +149,8 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create library structure for commands with directories
-	libraryDir := filepath.Join(claudeupHome, "local")
-	commandsDir := filepath.Join(libraryDir, "commands")
+	localDir := filepath.Join(claudeupHome, "local")
+	commandsDir := filepath.Join(localDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 
 	os.MkdirAll(gsdDir, 0755)
@@ -193,8 +193,8 @@ func TestLocalConfigPersistence(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	hooksDir := filepath.Join(libraryDir, "hooks")
+	localDir := filepath.Join(claudeupHome, "local")
+	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
 

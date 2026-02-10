@@ -19,11 +19,11 @@ var _ = Describe("local view", func() {
 		env = helpers.NewTestEnv(binaryPath)
 
 		// Create library structure with items in claudeupHome/local/
-		libraryDir := filepath.Join(env.ClaudeupDir, "local")
+		localDir := filepath.Join(env.ClaudeupDir, "local")
 
-		agentsDir := filepath.Join(libraryDir, "agents")
-		hooksDir := filepath.Join(libraryDir, "hooks")
-		skillsDir := filepath.Join(libraryDir, "skills", "test-skill")
+		agentsDir := filepath.Join(localDir, "agents")
+		hooksDir := filepath.Join(localDir, "hooks")
+		skillsDir := filepath.Join(localDir, "skills", "test-skill")
 		Expect(os.MkdirAll(agentsDir, 0755)).To(Succeed())
 		Expect(os.MkdirAll(hooksDir, 0755)).To(Succeed())
 		Expect(os.MkdirAll(skillsDir, 0755)).To(Succeed())

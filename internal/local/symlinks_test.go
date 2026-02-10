@@ -15,8 +15,8 @@ func TestEnableDisable(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	hooksDir := filepath.Join(libraryDir, "hooks")
+	localDir := filepath.Join(claudeupHome, "local")
+	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
 
@@ -72,8 +72,8 @@ func TestEnableAgentWithGroup(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure with groups
-	libraryDir := filepath.Join(claudeupHome, "local")
-	groupDir := filepath.Join(libraryDir, "agents", "business-product")
+	localDir := filepath.Join(claudeupHome, "local")
+	groupDir := filepath.Join(localDir, "agents", "business-product")
 	os.MkdirAll(groupDir, 0755)
 	os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644)
 
@@ -109,8 +109,8 @@ func TestEnableWildcard(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
@@ -132,8 +132,8 @@ func TestEnableNestedCommand(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure for commands with subdirectory
-	libraryDir := filepath.Join(claudeupHome, "local")
-	gsdCommandsDir := filepath.Join(libraryDir, "commands", "gsd")
+	localDir := filepath.Join(claudeupHome, "local")
+	gsdCommandsDir := filepath.Join(localDir, "commands", "gsd")
 	os.MkdirAll(gsdCommandsDir, 0755)
 	os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644)
 	os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute Phase"), 0644)
@@ -174,9 +174,9 @@ func TestImport(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library directory structure (empty)
-	libraryDir := filepath.Join(claudeupHome, "local")
-	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
-	os.MkdirAll(filepath.Join(libraryDir, "hooks"), 0755)
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
+	os.MkdirAll(filepath.Join(localDir, "hooks"), 0755)
 
 	// Create files directly in active directories (simulating GSD install)
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
@@ -202,10 +202,10 @@ func TestImport(t *testing.T) {
 	}
 
 	// Verify files moved to library
-	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
 		t.Error("gsd-planner.md was not moved to library")
 	}
-	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-executor.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-executor.md")); os.IsNotExist(err) {
 		t.Error("gsd-executor.md was not moved to library")
 	}
 
@@ -237,8 +237,8 @@ func TestImportDirectory(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library directory structure (empty)
-	libraryDir := filepath.Join(claudeupHome, "local")
-	os.MkdirAll(filepath.Join(libraryDir, "commands"), 0755)
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "commands"), 0755)
 
 	// Create commands/gsd directory directly (simulating GSD install)
 	activeCommandsDir := filepath.Join(claudeDir, "commands")
@@ -258,7 +258,7 @@ func TestImportDirectory(t *testing.T) {
 	}
 
 	// Verify directory moved to library
-	if _, err := os.Stat(filepath.Join(libraryDir, "commands", "gsd", "new-project.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(localDir, "commands", "gsd", "new-project.md")); os.IsNotExist(err) {
 		t.Error("gsd directory was not moved to library")
 	}
 
@@ -299,14 +299,14 @@ func TestImportSkipsSymlinks(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library with an item
-	libraryDir := filepath.Join(claudeupHome, "local")
-	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
-	os.WriteFile(filepath.Join(libraryDir, "agents", "existing.md"), []byte("# Existing"), 0644)
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(localDir, "agents", "existing.md"), []byte("# Existing"), 0644)
 
 	// Create active directory with a symlink (already managed)
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
 	os.MkdirAll(activeAgentsDir, 0755)
-	os.Symlink(filepath.Join(libraryDir, "agents", "existing.md"), filepath.Join(activeAgentsDir, "existing.md"))
+	os.Symlink(filepath.Join(localDir, "agents", "existing.md"), filepath.Join(activeAgentsDir, "existing.md"))
 
 	// Also create a real file
 	os.WriteFile(filepath.Join(activeAgentsDir, "new-agent.md"), []byte("# New"), 0644)
@@ -361,8 +361,8 @@ func TestImportAll(t *testing.T) {
 	}
 
 	// Verify files moved to library
-	libraryDir := filepath.Join(claudeupHome, "local")
-	if _, err := os.Stat(filepath.Join(libraryDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+	localDir := filepath.Join(claudeupHome, "local")
+	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
 		t.Error("gsd-planner.md was not moved to library")
 	}
 
@@ -382,8 +382,8 @@ func TestEnableDirectoryByName(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure for commands with a subdirectory
-	libraryDir := filepath.Join(claudeupHome, "local")
-	vsphereDir := filepath.Join(libraryDir, "commands", "vsphere-architect")
+	localDir := filepath.Join(claudeupHome, "local")
+	vsphereDir := filepath.Join(localDir, "commands", "vsphere-architect")
 	os.MkdirAll(vsphereDir, 0755)
 	os.WriteFile(filepath.Join(vsphereDir, "capacity-plan.md"), []byte("# Capacity Plan"), 0644)
 	os.WriteFile(filepath.Join(vsphereDir, "ha-design.md"), []byte("# HA Design"), 0644)
@@ -433,8 +433,8 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	commandsDir := filepath.Join(libraryDir, "commands")
+	localDir := filepath.Join(claudeupHome, "local")
+	commandsDir := filepath.Join(localDir, "commands")
 	os.MkdirAll(commandsDir, 0755)
 	os.WriteFile(filepath.Join(commandsDir, "legit.md"), []byte("# Legit"), 0644)
 
@@ -506,9 +506,9 @@ func TestImportReconciliation(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library with an existing item
-	libraryDir := filepath.Join(claudeupHome, "local")
-	os.MkdirAll(filepath.Join(libraryDir, "agents"), 0755)
-	os.WriteFile(filepath.Join(libraryDir, "agents", "existing-agent.md"), []byte("# Library Version"), 0644)
+	localDir := filepath.Join(claudeupHome, "local")
+	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(localDir, "agents", "existing-agent.md"), []byte("# Library Version"), 0644)
 
 	// Create active directory with a duplicate (local version)
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
@@ -542,7 +542,7 @@ func TestImportReconciliation(t *testing.T) {
 	}
 
 	// Library version should be preserved (not overwritten)
-	content, _ := os.ReadFile(filepath.Join(libraryDir, "agents", "existing-agent.md"))
+	content, _ := os.ReadFile(filepath.Join(localDir, "agents", "existing-agent.md"))
 	if string(content) != "# Library Version" {
 		t.Error("Library version should be preserved during reconciliation")
 	}
@@ -555,8 +555,8 @@ func TestEnableMixedItems(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	commandsDir := filepath.Join(libraryDir, "commands")
+	localDir := filepath.Join(claudeupHome, "local")
+	commandsDir := filepath.Join(localDir, "commands")
 	groupDir := filepath.Join(commandsDir, "group")
 	os.MkdirAll(groupDir, 0755)
 	os.WriteFile(filepath.Join(commandsDir, "standalone.md"), []byte("# Standalone"), 0644)
@@ -596,8 +596,8 @@ func TestEnableEmptyDirectory(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library with empty directory
-	libraryDir := filepath.Join(claudeupHome, "local")
-	emptyDir := filepath.Join(libraryDir, "commands", "empty-dir")
+	localDir := filepath.Join(claudeupHome, "local")
+	emptyDir := filepath.Join(localDir, "commands", "empty-dir")
 	os.MkdirAll(emptyDir, 0755)
 
 	// Enable empty directory - should report as not found (no items inside)
@@ -620,8 +620,8 @@ func TestEnableNestedDirectories(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create nested directory structure (only one level is expanded)
-	libraryDir := filepath.Join(claudeupHome, "local")
-	topDir := filepath.Join(libraryDir, "commands", "top")
+	localDir := filepath.Join(claudeupHome, "local")
+	topDir := filepath.Join(localDir, "commands", "top")
 	os.MkdirAll(topDir, 0755)
 	os.WriteFile(filepath.Join(topDir, "item.md"), []byte("# Item"), 0644)
 

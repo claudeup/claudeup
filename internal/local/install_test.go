@@ -143,11 +143,11 @@ func TestInstall_SkipsExisting(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Pre-create existing item in library
-	libraryDir := filepath.Join(claudeupHome, "local", "hooks")
-	if err := os.MkdirAll(libraryDir, 0755); err != nil {
+	localDir := filepath.Join(claudeupHome, "local", "hooks")
+	if err := os.MkdirAll(localDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	existingFile := filepath.Join(libraryDir, "existing.sh")
+	existingFile := filepath.Join(localDir, "existing.sh")
 	if err := os.WriteFile(existingFile, []byte("original content"), 0755); err != nil {
 		t.Fatal(err)
 	}

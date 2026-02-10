@@ -29,8 +29,8 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 		return nil, nil, fmt.Errorf("source not found: %s", sourcePath)
 	}
 
-	libraryDir := filepath.Join(m.libraryDir, category)
-	if err := os.MkdirAll(libraryDir, 0755); err != nil {
+	localDir := filepath.Join(m.localDir, category)
+	if err := os.MkdirAll(localDir, 0755); err != nil {
 		return nil, nil, err
 	}
 
@@ -44,7 +44,7 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 		if isSingleItem {
 			// Copy the directory as a single item
 			itemName := filepath.Base(source)
-			destPath := filepath.Join(libraryDir, itemName)
+			destPath := filepath.Join(localDir, itemName)
 
 			if pathExists(destPath) {
 				skipped = append(skipped, itemName)
@@ -68,7 +68,7 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 
 				itemName := entry.Name()
 				srcPath := filepath.Join(source, itemName)
-				destPath := filepath.Join(libraryDir, itemName)
+				destPath := filepath.Join(localDir, itemName)
 
 				if pathExists(destPath) {
 					skipped = append(skipped, itemName)
@@ -90,7 +90,7 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 	} else {
 		// Single file
 		itemName := filepath.Base(source)
-		destPath := filepath.Join(libraryDir, itemName)
+		destPath := filepath.Join(localDir, itemName)
 
 		if pathExists(destPath) {
 			skipped = append(skipped, itemName)

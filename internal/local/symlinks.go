@@ -40,7 +40,7 @@ func (m *Manager) resolvePattern(category, pattern string, allItems []string) ([
 	}
 
 	// Check if resolved item is a directory (not a skill)
-	resolvedPath := filepath.Join(m.libraryDir, category, resolved)
+	resolvedPath := filepath.Join(m.localDir, category, resolved)
 	info, statErr := os.Stat(resolvedPath)
 	if statErr != nil || !info.IsDir() {
 		// Not a directory - return as single item
@@ -234,7 +234,7 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 			}
 		}
 
-		source := filepath.Join(m.libraryDir, category, item)
+		source := filepath.Join(m.localDir, category, item)
 		if err := os.Symlink(source, target); err != nil {
 			return err
 		}
@@ -323,14 +323,14 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 			}
 
 			target := filepath.Join(groupTargetDir, agent)
-			source := filepath.Join(m.libraryDir, "agents", group, agent)
+			source := filepath.Join(m.localDir, "agents", group, agent)
 			if err := os.Symlink(source, target); err != nil {
 				return err
 			}
 		} else {
 			// Flat agent
 			target := filepath.Join(targetDir, item)
-			source := filepath.Join(m.libraryDir, "agents", item)
+			source := filepath.Join(m.localDir, "agents", item)
 			if err := os.Symlink(source, target); err != nil {
 				return err
 			}
@@ -370,10 +370,10 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 	}
 
 	activeDir := filepath.Join(m.claudeDir, category)
-	libraryDir := filepath.Join(m.libraryDir, category)
+	localDir := filepath.Join(m.localDir, category)
 
 	// Ensure library directory exists
-	if err := os.MkdirAll(libraryDir, 0755); err != nil {
+	if err := os.MkdirAll(localDir, 0755); err != nil {
 		return nil, nil, nil, err
 	}
 
@@ -396,7 +396,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 
 		for _, item := range matched {
 			sourcePath := filepath.Join(activeDir, item)
-			destPath := filepath.Join(libraryDir, item)
+			destPath := filepath.Join(localDir, item)
 
 			// Check if destination already exists in library
 			if _, err := os.Stat(destPath); err == nil {

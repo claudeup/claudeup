@@ -14,8 +14,8 @@ func TestResolveItemName(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure
-	libraryDir := filepath.Join(claudeupHome, "local")
-	hooksDir := filepath.Join(libraryDir, "hooks")
+	localDir := filepath.Join(claudeupHome, "local")
+	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
@@ -54,8 +54,8 @@ func TestResolveAgentName(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create library structure with groups
-	libraryDir := filepath.Join(claudeupHome, "local")
-	agentsDir := filepath.Join(libraryDir, "agents")
+	localDir := filepath.Join(claudeupHome, "local")
+	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
 

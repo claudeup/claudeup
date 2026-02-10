@@ -14,7 +14,7 @@ type Config map[string]map[string]bool
 // Manager handles local item operations
 type Manager struct {
 	claudeDir  string
-	libraryDir string
+	localDir   string
 	configFile string
 }
 
@@ -24,7 +24,7 @@ type Manager struct {
 func NewManager(claudeDir, claudeupHome string) *Manager {
 	return &Manager{
 		claudeDir:  claudeDir,
-		libraryDir: filepath.Join(claudeupHome, "local"),
+		localDir:   filepath.Join(claudeupHome, "local"),
 		configFile: filepath.Join(claudeupHome, "enabled.json"),
 	}
 }
