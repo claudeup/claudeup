@@ -66,10 +66,10 @@ wait_for_enter
 # Demo 2: Timeline of recent profile operations
 section "2. Recent Profile Activity Timeline"
 
-demo "Show all profile operations in the last 24 hours" \
-     "$CLAUDEUP_BIN events audit --operation profile --since 24h"
+demo "Show all settings changes in the last 24 hours" \
+     "$CLAUDEUP_BIN events --operation \"settings update\" --since 24h"
 
-$CLAUDEUP_BIN events audit --operation profile --since 24h | head -100
+$CLAUDEUP_BIN events --operation "settings update" --since 24h | head -100
 
 cat <<EOF
 
@@ -86,16 +86,17 @@ wait_for_enter
 # Demo 3: Find profile apply events
 section "3. Finding Profile Apply Operations"
 
-demo "Show when profiles were applied (changes to Claude config)" \
-     "$CLAUDEUP_BIN events audit --operation profile --local --since 7d"
+demo "Show when settings were updated at user scope (changes to ~/.claude/)" \
+     "$CLAUDEUP_BIN events --operation \"settings update\" --user --since 7d"
 
-$CLAUDEUP_BIN events audit --operation profile --local --since 7d | head -80
+$CLAUDEUP_BIN events --operation "settings update" --user --since 7d | head -80
 
 cat <<EOF
 
 ${YELLOW}💡 Key insight:${NC}
-  - 'scope: local' = changes to ~/.claudeup/profiles/
-  - 'scope: global' = changes to ~/.claude/ (what we want!)
+  - 'scope: user' = changes to ~/.claude/ (user-level config)
+  - 'scope: project' = changes to .claude/ (project-level config)
+  - 'scope: local' = changes to .claude/settings.local.json
 
 EOF
 
@@ -107,45 +108,28 @@ section "4. See Exact Changes with Event Diff"
 cat <<EOF
 ${YELLOW}The power of event-based diffing:${NC}
 
-When you apply a profile, claudeup captures a snapshot of:
-  - ~/.claude/plugins/installed_plugins.json (before)
-  - ~/.claude/plugins/installed_plugins.json (after)
-
-This lets you see EXACTLY what changed, including:
-  - Which plugins were added
-  - Which plugins were removed
+When claudeup modifies a configuration file, it captures snapshots
+of the file before and after the change. This lets you see EXACTLY
+what changed, including:
+  - Which plugins were added or removed
   - Which settings changed
   - Plugin versions that changed
 
-${GREEN}Let's find a recent profile apply event and diff it...${NC}
+${GREEN}Let's diff some configuration files...${NC}
 
 EOF
 
-# Get the most recent profile apply event ID
-RECENT_EVENT=$($CLAUDEUP_BIN events audit --operation profile --local --since 30d 2>/dev/null |
-               grep -E '^\[' |
-               head -1 |
-               grep -oE 'Event [0-9]+' |
-               awk '{print $2}' || echo "")
+demo "Show most recent change to settings.json" \
+     "$CLAUDEUP_BIN events diff --file ~/.claude/settings.json"
 
-if [[ -n "$RECENT_EVENT" ]]; then
-    demo "Show detailed diff of event #$RECENT_EVENT" \
-         "$CLAUDEUP_BIN events diff $RECENT_EVENT"
+$CLAUDEUP_BIN events diff --file ~/.claude/settings.json 2>/dev/null || echo "No diff available for settings.json"
 
-    echo -e "${YELLOW}(Showing first 50 lines of diff)${NC}"
-    echo
-    $CLAUDEUP_BIN events diff "$RECENT_EVENT" 2>/dev/null | head -50 || echo "No diff available"
-else
-    cat <<EOF
-${YELLOW}No recent profile apply events found in the last 30 days.${NC}
+echo
 
-To see this in action:
-  1. Apply a profile:     $CLAUDEUP_BIN profile apply <name>
-  2. Check events:        $CLAUDEUP_BIN events audit --operation profile
-  3. Diff the change:     $CLAUDEUP_BIN events diff <event-id>
+demo "Show most recent change to plugins (with full nested diff)" \
+     "$CLAUDEUP_BIN events diff --file ~/.claude/plugins/installed_plugins.json --full"
 
-EOF
-fi
+$CLAUDEUP_BIN events diff --file ~/.claude/plugins/installed_plugins.json --full 2>/dev/null | head -50 || echo "No diff available for installed_plugins.json"
 
 wait_for_enter
 
@@ -183,24 +167,23 @@ cat <<EOF
 ${BOLD}Common workflows with event tracking:${NC}
 
 ${GREEN}1. "What did I change yesterday?"${NC}
-   $ $CLAUDEUP_BIN events audit --since 24h
+   $ $CLAUDEUP_BIN events --since 24h
 
-${GREEN}2. "When did I last apply the frontend profile?"${NC}
-   $ $CLAUDEUP_BIN events audit --operation profile | grep frontend
+${GREEN}2. "When did my settings last change?"${NC}
+   $ $CLAUDEUP_BIN events --operation "settings update"
 
 ${GREEN}3. "Show me all plugin changes this week"${NC}
-   $ $CLAUDEUP_BIN events audit --since 7d --operation profile
+   $ $CLAUDEUP_BIN events --since 7d --operation "plugin update"
 
-${GREEN}4. "What exactly changed when I applied base-tools?"${NC}
-   $ $CLAUDEUP_BIN events audit --operation profile | grep base-tools
-   $ $CLAUDEUP_BIN events diff <event-id>
+${GREEN}4. "What exactly changed when I applied a profile?"${NC}
+   $ $CLAUDEUP_BIN events diff --file ~/.claude/settings.json --full
 
-${GREEN}5. "Generate weekly report of profile changes"${NC}
-   $ $CLAUDEUP_BIN events audit --since 7d --format markdown > weekly-changes.md
+${GREEN}5. "What changed in my plugins?"${NC}
+   $ $CLAUDEUP_BIN events diff --file ~/.claude/plugins/installed_plugins.json
 
 ${GREEN}6. "Troubleshoot: why is my setup different?"${NC}
-   $ $CLAUDEUP_BIN events audit --since 30d
-   $ $CLAUDEUP_BIN events diff <suspect-event-id>
+   $ $CLAUDEUP_BIN events --since 30d
+   $ $CLAUDEUP_BIN events diff --file ~/.claude/settings.json --full
 
 EOF
 
@@ -220,8 +203,8 @@ ${BOLD}Event-based profile tracking gives you:${NC}
 
 ${YELLOW}Next steps:${NC}
   • Try applying a profile: $CLAUDEUP_BIN profile apply <name>
-  • Watch events capture it: $CLAUDEUP_BIN events audit --operation profile
-  • Diff the changes: $CLAUDEUP_BIN events diff <event-id>
+  • Watch events capture it: $CLAUDEUP_BIN events --operation "settings update"
+  • Diff the changes: $CLAUDEUP_BIN events diff --file ~/.claude/settings.json
 
 ${GREEN}The event system turns profile management from "set and forget"
 into "track, audit, and understand" - crucial for team environments!${NC}

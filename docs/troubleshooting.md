@@ -21,10 +21,14 @@ When something stops working or behaves unexpectedly, you can use event tracking
 See what operations claudeup performed recently:
 
 ```bash
-claudeup events audit
+claudeup events
 ```
 
-This shows a chronological log of all file operations (profile applies, plugin installs, etc.) with timestamps.
+This shows the last 20 file operations by default. Use `--limit` for more results:
+
+```bash
+claudeup events --limit 100
+```
 
 ### Compare File Versions
 
@@ -78,7 +82,7 @@ claudeup events diff --file ~/.claude/settings.json --full
 
 ```bash
 # Check recent plugin operations
-claudeup events audit | grep plugin
+claudeup events --operation "plugin update"
 
 # See if plugin configuration changed
 claudeup events diff --file ~/.claude/plugins/installed_plugins.json --full
@@ -97,11 +101,11 @@ claudeup events diff --file ./.mcp.json --full
 **Something changed but you don't know when:**
 
 ```bash
-# Review full audit trail
-claudeup events audit
+# Review recent operations (increase --limit to avoid missing events)
+claudeup events --since 7d --limit 100
 
-# Find specific file operations
-claudeup events audit | grep "settings.json"
+# Filter to specific file
+claudeup events --file ~/.claude/settings.json
 ```
 
 ### Privacy Note

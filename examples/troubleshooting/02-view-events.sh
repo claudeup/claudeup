@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ABOUTME: Example showing how to view file operation history
-# ABOUTME: Demonstrates events and events audit commands
+# ABOUTME: Demonstrates events and events diff commands
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
@@ -46,16 +46,13 @@ info "Filter by time:"
 echo -e "${YELLOW}\$ claudeup events --since 24h${NC}"
 pause
 
-section "3. Generate Audit Report"
+section "3. View Detailed Diffs"
 
-step "Get a comprehensive timeline"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" events audit --since 7d || \
-    info "Audit report would show grouped timeline"
-
-info "Audit reports group events by date and show:"
-info "  • Timeline of all operations"
-info "  • File size changes"
-info "  • Operation categories"
+step "See exactly what changed in a file"
+echo -e "${YELLOW}\$ claudeup events diff --file ~/.claude/settings.json${NC}"
+echo
+info "Diffs show before/after snapshots of configuration changes."
+info "Use --full for complete nested object comparison."
 pause
 
 section "Summary"
@@ -65,7 +62,7 @@ echo
 info "Key commands:"
 info "  claudeup events                Show recent events"
 info "  claudeup events --since 24h    Filter by time"
-info "  claudeup events audit          Comprehensive report"
+info "  claudeup events diff --file    Show what changed"
 echo
 
 prompt_cleanup
