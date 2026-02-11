@@ -2,6 +2,8 @@
 
 A CLI tool for managing Claude Code profiles and configurations.
 
+**[Documentation](https://claudeup.github.io/claudeup/)**
+
 ## Install
 
 ```bash
