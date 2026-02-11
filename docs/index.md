@@ -26,7 +26,7 @@ claudeup profile apply <name>
 
 - [Command Reference](commands.html) - Complete list of all commands and flags
 - [Profiles](profiles.html) - Save and switch between configurations
-- [File Operations](file-operations.html) - Manage CLAUDE.md and settings.json
+- [File Operations](file-operations.html) - Reference catalog of all files read and written by claudeup
 - [Team Workflows](team-workflows.html) - Share configurations across teams
 - [Troubleshooting](troubleshooting.html) - Common issues and solutions
 
@@ -38,6 +38,6 @@ claudeup profile apply <name>
 
 **Event Tracking** - Audit trail of all file operations. View recent changes, diff configurations, and generate reports.
 
-**File Operations** - Manage CLAUDE.md files and settings.json with merge, diff, and sync commands.
+**File Operations** - Reference catalog of all files claudeup reads, writes, and modifies, organized by ownership.
 
 **Team Sharing** - Share profile definitions via `.claudeup/profiles/` in your project repository.
