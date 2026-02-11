@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v4/internal/claude"
-	"github.com/claudeup/claudeup/v4/internal/mcp"
-	"github.com/claudeup/claudeup/v4/internal/profile"
+	"github.com/claudeup/claudeup/v5/internal/claude"
+	"github.com/claudeup/claudeup/v5/internal/mcp"
+	"github.com/claudeup/claudeup/v5/internal/profile"
 )
 
 func TestProfileSaveAndLoad(t *testing.T) {

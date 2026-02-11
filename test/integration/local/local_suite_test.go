@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v4/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/local"
 )
 
 func TestLocalIntegration(t *testing.T) {

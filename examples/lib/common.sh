@@ -92,7 +92,7 @@ run_cmd() {
 check_claudeup_installed() {
     if ! command -v "$EXAMPLE_CLAUDEUP_BIN" &>/dev/null; then
         error "claudeup not found in PATH"
-        error "Please install claudeup first: go install github.com/claudeup/claudeup/v4/cmd/claudeup@latest"
+        error "Please install claudeup first: go install github.com/claudeup/claudeup/v5/cmd/claudeup@latest"
         exit 1
     fi
     success "Found claudeup: $(command -v "$EXAMPLE_CLAUDEUP_BIN")"

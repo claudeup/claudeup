@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claudeup/claudeup/v4/internal/profile"
+	"github.com/claudeup/claudeup/v5/internal/profile"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

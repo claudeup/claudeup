@@ -9,8 +9,8 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/v4/internal/claude"
-	"github.com/claudeup/claudeup/v4/internal/mcp"
+	"github.com/claudeup/claudeup/v5/internal/claude"
+	"github.com/claudeup/claudeup/v5/internal/mcp"
 )
 
 // TestEnv represents a test environment with a fake Claude installation

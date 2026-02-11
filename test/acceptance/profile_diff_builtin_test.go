@@ -6,8 +6,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/v4/internal/profile"
-	"github.com/claudeup/claudeup/v4/test/helpers"
+	"github.com/claudeup/claudeup/v5/internal/profile"
+	"github.com/claudeup/claudeup/v5/test/helpers"
 )
 
 var _ = Describe("Profile diff builtin comparison", func() {

@@ -3,8 +3,8 @@
 package commands
 
 import (
-	"github.com/claudeup/claudeup/v4/internal/config"
-	"github.com/claudeup/claudeup/v4/internal/ui"
+	"github.com/claudeup/claudeup/v5/internal/config"
+	"github.com/claudeup/claudeup/v5/internal/ui"
 	"github.com/spf13/cobra"
 )
 

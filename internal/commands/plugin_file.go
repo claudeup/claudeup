@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claudeup/claudeup/v4/internal/ui"
+	"github.com/claudeup/claudeup/v5/internal/ui"
 )
 
 // resolvePluginFile resolves a relative file path within a plugin root directory.

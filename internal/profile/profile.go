@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/claudeup/claudeup/v4/internal/events"
+	"github.com/claudeup/claudeup/v5/internal/events"
 )
 
 // AmbiguousProfileError is returned when a profile name matches multiple files

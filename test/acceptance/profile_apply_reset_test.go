@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/claudeup/claudeup/v4/test/helpers"
+	"github.com/claudeup/claudeup/v5/test/helpers"
 )
 
 var _ = Describe("claudeup profile apply --replace", func() {
