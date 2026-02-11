@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/claudeup/claudeup/v4/internal/events"
+	"github.com/claudeup/claudeup/v5/internal/events"
 )
 
 // PluginRegistry represents the installed_plugins.json file structure

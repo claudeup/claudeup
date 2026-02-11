@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/claudeup/claudeup/v4/internal/claude"
-	"github.com/claudeup/claudeup/v4/internal/config"
-	"github.com/claudeup/claudeup/v4/internal/local"
-	"github.com/claudeup/claudeup/v4/internal/secrets"
+	"github.com/claudeup/claudeup/v5/internal/claude"
+	"github.com/claudeup/claudeup/v5/internal/config"
+	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/secrets"
 )
 
 // ApplyOptions controls how a profile is applied

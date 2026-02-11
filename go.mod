@@ -1,4 +1,4 @@
-module github.com/claudeup/claudeup/v4
+module github.com/claudeup/claudeup/v5
 
 go 1.25.1
 

@@ -7,8 +7,8 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/claudeup/claudeup/v4/internal/commands"
-	"github.com/claudeup/claudeup/v4/internal/ui"
+	"github.com/claudeup/claudeup/v5/internal/commands"
+	"github.com/claudeup/claudeup/v5/internal/ui"
 )
 
 var version = "dev" // Injected at build time via -ldflags

@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/claudeup/claudeup/v4/internal/local"
-	"github.com/claudeup/claudeup/v4/internal/ui"
+	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ui"
 	"github.com/spf13/cobra"
 )
 

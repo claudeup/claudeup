@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v4/internal/profile"
+	"github.com/claudeup/claudeup/v5/internal/profile"
 )
 
 // Section 1: Directory structure and resolution order

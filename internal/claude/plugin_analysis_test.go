@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v4/internal/claude"
+	"github.com/claudeup/claudeup/v5/internal/claude"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/claudeup/claudeup/v4/internal/config"
+	"github.com/claudeup/claudeup/v5/internal/config"
 )
 
 // ConfirmYesNo prompts for Y/n confirmation
