@@ -6,11 +6,11 @@ title: Command Reference
 
 ## Global Flags
 
-| Flag              | Description                                                   |
-| ----------------- | ------------------------------------------------------------- |
-| `--claude-dir`    | Override Claude installation directory (default: `~/.claude`) |
-| `--claudeup-home` | Override claudeup home directory (default: `~/.claudeup`)     |
-| `-y, --yes`       | Skip interactive prompts, use defaults                        |
+| Flag              | Description                                                                      |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `--claude-dir`    | Override Claude installation directory (default: `~/.claude`)                    |
+| `--claudeup-home` | Override claudeup home directory; must be absolute path (default: `~/.claudeup`) |
+| `-y, --yes`       | Skip interactive prompts, use defaults                                           |
 
 ## Setup & Profiles
 
@@ -355,15 +355,15 @@ claudeup plugin search api --format json
 
 **`plugin search` flags:**
 
-| Flag             | Description                                                  |
-| ---------------- | ------------------------------------------------------------ |
-| `--all`          | Search all cached plugins, not just installed                |
-| `--type`         | Filter by component type: skills, commands, agents           |
-| `--marketplace`  | Limit search to specific marketplace                         |
-| `--by-component` | Group results by component type instead of plugin            |
-| `--content`      | Also search SKILL.md body content                            |
-| `--regex`        | Treat query as regular expression                            |
-| `--format`       | Output format: json, table (default: styled text with trees) |
+| Flag             | Description                                                                |
+| ---------------- | -------------------------------------------------------------------------- |
+| `--all`          | Search all cached plugins, not just installed                              |
+| `--type`         | Filter by component type: skills, commands, agents                         |
+| `--marketplace`  | Limit search to specific marketplace                                       |
+| `--by-component` | Group results by component type instead of plugin                          |
+| `--content`      | Search SKILL.md body content (not yet implemented; falls back to metadata) |
+| `--regex`        | Treat query as regular expression                                          |
+| `--format`       | Output format: json, table (default: styled text with trees)               |
 
 **Output formats:**
 
