@@ -41,11 +41,19 @@ jobs:
         if: steps.version.outputs.skip != 'true'
         id: current
         run: |
-          # Extract current major version from go.mod module path
-          CURRENT_MAJOR=$(head -1 go.mod | grep -oE '/v[0-9]+$' | tr -d '/v')
-          if [ -z "$CURRENT_MAJOR" ]; then
-            echo "Could not extract current major version from go.mod"
+          # Extract module path from go.mod (grep for directive, not assuming line position)
+          MODULE_PATH=$(grep -E '^module ' go.mod | head -1 | awk '{print $2}')
+          if [ -z "$MODULE_PATH" ]; then
+            echo "Could not find module path in go.mod"
             exit 1
+          fi
+
+          # Extract major version from module path suffix
+          if echo "$MODULE_PATH" | grep -qE '/v[0-9]+$'; then
+            CURRENT_MAJOR=$(echo "$MODULE_PATH" | grep -oE '/v[0-9]+$' | tr -d '/v')
+          else
+            # No /vN suffix implies v0/v1 module path
+            CURRENT_MAJOR=1
           fi
 
           NEW_MAJOR="${{ steps.version.outputs.new_major }}"
@@ -63,14 +71,16 @@ jobs:
         if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
         uses: actions/setup-go@v5
         with:
-          go-version: "1.25.1"
+          go-version-file: go.mod
 
       - name: Create migration branch
         if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
         run: |
           OLD="${{ steps.current.outputs.old_major }}"
           NEW="${{ steps.version.outputs.new_major }}"
-          git checkout -b "release/v${NEW}-module-migration"
+          # Delete remote branch if it exists from a previous run
+          git push origin --delete "release/v${NEW}-module-migration" 2>/dev/null || true
+          git checkout -B "release/v${NEW}-module-migration"
 
       - name: Update go.mod module path
         if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
@@ -110,11 +120,21 @@ jobs:
           go build ./cmd/claudeup
           go vet ./...
 
-      - name: Run tests
+      - name: Run unit and integration tests
         if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
         run: |
           go test ./internal/...
           go test ./test/integration/...
+
+      - name: Install Claude CLI
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.claude/local/bin" >> "$GITHUB_PATH"
+
+      - name: Run acceptance tests
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: go test ./test/acceptance/...
 
       - name: Commit and push
         if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
@@ -125,7 +145,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
           git commit -m "chore: migrate module path from v${OLD} to v${NEW}"
-          git push origin "release/v${NEW}-module-migration"
+          git push --force origin "release/v${NEW}-module-migration"
 
       - name: Create pull request
         if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
@@ -154,7 +174,9 @@ jobs:
           - \`go mod tidy\` -- passed
           - \`go build ./cmd/claudeup\` -- passed
           - \`go vet ./...\` -- passed
-          - \`go test ./internal/... ./test/integration/...\` -- passed
+          - \`go test ./internal/...\` -- passed
+          - \`go test ./test/integration/...\` -- passed
+          - \`go test ./test/acceptance/...\` -- passed
 
           ## Post-merge steps
 
@@ -165,8 +187,13 @@ jobs:
           Triggered by closing milestone: ${VERSION}
           EOF
 
-          gh pr create \
+          PR_URL=$(gh pr create \
             --title "chore: migrate module path from v${OLD} to v${NEW} for major release" \
             --body-file /tmp/pr-body.md \
-            --milestone "$MILESTONE_NUMBER" \
-            --base main
+            --base main)
+
+          echo "Created PR: $PR_URL"
+
+          # Assign milestone (may fail if milestone is already closed)
+          PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          gh pr edit "$PR_NUMBER" --milestone "$VERSION" || echo "Could not assign milestone (may be closed)"
