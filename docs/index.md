@@ -29,6 +29,7 @@ claudeup profile apply <name>
 - [File Operations](file-operations.html) - Reference catalog of all files read and written by claudeup
 - [Team Workflows](team-workflows.html) - Share configurations across teams
 - [Troubleshooting](troubleshooting.html) - Common issues and solutions
+- [Community Profiles](https://github.com/claudeup/profiles) - Browse and share profiles
 
 ## Features
 
