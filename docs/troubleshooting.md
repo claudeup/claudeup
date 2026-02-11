@@ -157,10 +157,10 @@ Understanding plugin types helps with troubleshooting:
 - Path: `~/.claude/plugins/marketplaces/<marketplace>/plugins/<plugin>`
 - Affected by the path bug above
 
-Check your plugin status:
+View plugin details including type and path:
 
 ```bash
-claudeup status
+claudeup plugin list --format detail
 ```
 
 ## Common Issues
