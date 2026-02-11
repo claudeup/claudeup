@@ -242,7 +242,6 @@ These files are created and managed exclusively by `claudeup`.
 - `internal/backup/backup.go:SaveLocalScopeBackup()`
 - Triggered by:
   - `profile apply --local` - backs up before replacing
-  - `scope save --local` - explicitly saves
 
 ---
 
