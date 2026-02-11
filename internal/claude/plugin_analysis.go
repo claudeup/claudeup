@@ -79,15 +79,18 @@ func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext,
 func isProjectContext(claudeDir, projectDir string) bool {
 	projectClaudeDir := filepath.Join(projectDir, ".claude")
 
-	info, err := os.Stat(projectClaudeDir)
-	if err != nil || !info.IsDir() {
+	projectInfo, err := os.Stat(projectClaudeDir)
+	if err != nil || !projectInfo.IsDir() {
 		return false
 	}
 
-	// Detect path collision (happens when projectDir is the home directory)
-	absClaudeDir, err1 := filepath.Abs(claudeDir)
-	absProjectClaudeDir, err2 := filepath.Abs(projectClaudeDir)
-	if err1 == nil && err2 == nil && absClaudeDir == absProjectClaudeDir {
+	// Detect path collision (happens when projectDir is the home directory).
+	// Uses os.SameFile to handle symlinks, mount points, and case-insensitive filesystems.
+	claudeInfo, err := os.Stat(claudeDir)
+	if err != nil {
+		return false
+	}
+	if os.SameFile(claudeInfo, projectInfo) {
 		return false
 	}
 
@@ -115,7 +118,7 @@ func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 		// Determine active source based on precedence (local > project > user)
 		// Only set if plugin is enabled at least somewhere
 		if len(info.EnabledAt) > 0 {
-			info.ActiveSource = determineActiveSource(instances, info.EnabledAt, ctx.scopes)
+			info.ActiveSource = determineActiveSource(instances, ctx.scopes)
 		}
 
 		analysis[pluginName] = info
@@ -175,11 +178,7 @@ func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*Plugi
 // When not in a project directory (only "user" scope available):
 //   - Installed at project+user, enabled at user → uses user (project scope not available)
 //   - Installed at project only, enabled at user → no active source (no user installation)
-func determineActiveSource(installations []PluginMetadata, enabledScopes []string, availableScopes []string) string {
-	if len(enabledScopes) == 0 {
-		return ""
-	}
-
+func determineActiveSource(installations []PluginMetadata, availableScopes []string) string {
 	// Build set of available scopes for filtering
 	availableSet := make(map[string]bool)
 	for _, s := range availableScopes {
