@@ -1,0 +1,172 @@
+name: Major Release Migration
+
+on:
+  milestone:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  migrate-module-path:
+    name: Migrate Module Path
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract version from milestone
+        id: version
+        run: |
+          TITLE="${{ github.event.milestone.title }}"
+
+          # Only proceed for X.0.0 patterns (major releases)
+          if ! echo "$TITLE" | grep -qE '^[0-9]+\.0\.0$'; then
+            echo "Milestone '$TITLE' is not a major release (expected X.0.0), skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          NEW_MAJOR=$(echo "$TITLE" | cut -d. -f1)
+          echo "new_major=$NEW_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "new_version=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        if: steps.version.outputs.skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine current major version
+        if: steps.version.outputs.skip != 'true'
+        id: current
+        run: |
+          # Extract current major version from go.mod module path
+          CURRENT_MAJOR=$(head -1 go.mod | grep -oE '/v[0-9]+$' | tr -d '/v')
+          if [ -z "$CURRENT_MAJOR" ]; then
+            echo "Could not extract current major version from go.mod"
+            exit 1
+          fi
+
+          NEW_MAJOR="${{ steps.version.outputs.new_major }}"
+          if [ "$CURRENT_MAJOR" = "$NEW_MAJOR" ]; then
+            echo "Current major version ($CURRENT_MAJOR) matches new ($NEW_MAJOR), nothing to migrate"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "old_major=$CURRENT_MAJOR" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Migrating module path from v$CURRENT_MAJOR to v$NEW_MAJOR"
+
+      - name: Set up Go
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.1"
+
+      - name: Create migration branch
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          OLD="${{ steps.current.outputs.old_major }}"
+          NEW="${{ steps.version.outputs.new_major }}"
+          git checkout -b "release/v${NEW}-module-migration"
+
+      - name: Update go.mod module path
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          OLD="${{ steps.current.outputs.old_major }}"
+          NEW="${{ steps.version.outputs.new_major }}"
+          sed -i "s|claudeup/claudeup/v${OLD}|claudeup/claudeup/v${NEW}|" go.mod
+
+      - name: Update Go import paths
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          OLD="${{ steps.current.outputs.old_major }}"
+          NEW="${{ steps.version.outputs.new_major }}"
+          find . -name '*.go' -exec sed -i "s|claudeup/claudeup/v${OLD}|claudeup/claudeup/v${NEW}|g" {} +
+          GO_FILES_CHANGED=$(git diff --name-only -- '*.go' | wc -l)
+          echo "Updated import paths in $GO_FILES_CHANGED Go files"
+
+      - name: Update documentation and error messages
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          OLD="${{ steps.current.outputs.old_major }}"
+          NEW="${{ steps.version.outputs.new_major }}"
+
+          # README.md - go install command
+          sed -i "s|claudeup/claudeup/v${OLD}/cmd/claudeup|claudeup/claudeup/v${NEW}/cmd/claudeup|g" README.md
+
+          # internal/claude/errors.go - error message install command
+          sed -i "s|claudeup/claudeup/v${OLD}@latest|claudeup/claudeup/v${NEW}@latest|g" internal/claude/errors.go
+
+          # examples/lib/common.sh - install instruction (may be stale at older version)
+          sed -i "s|claudeup/claudeup/v[0-9]*/cmd/claudeup|claudeup/claudeup/v${NEW}/cmd/claudeup|g" examples/lib/common.sh
+
+      - name: Validate build
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          go mod tidy
+          go build ./cmd/claudeup
+          go vet ./...
+
+      - name: Run tests
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          go test ./internal/...
+          go test ./test/integration/...
+
+      - name: Commit and push
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        run: |
+          OLD="${{ steps.current.outputs.old_major }}"
+          NEW="${{ steps.version.outputs.new_major }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: migrate module path from v${OLD} to v${NEW}"
+          git push origin "release/v${NEW}-module-migration"
+
+      - name: Create pull request
+        if: steps.version.outputs.skip != 'true' && steps.current.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OLD="${{ steps.current.outputs.old_major }}"
+          NEW="${{ steps.version.outputs.new_major }}"
+          VERSION="${{ steps.version.outputs.new_version }}"
+          MILESTONE_NUMBER="${{ github.event.milestone.number }}"
+          GO_FILES=$(git diff HEAD~1 --name-only -- '*.go' | wc -l)
+
+          cat > /tmp/pr-body.md <<EOF
+          ## Summary
+
+          Automated module path migration for major release v${VERSION}.
+
+          - Updated \`go.mod\` module declaration from \`/v${OLD}\` to \`/v${NEW}\`
+          - Updated import paths in ${GO_FILES} Go files
+          - Updated \`README.md\` install command
+          - Updated \`internal/claude/errors.go\` install instruction
+          - Updated \`examples/lib/common.sh\` install instruction
+
+          ## Validation
+
+          - \`go mod tidy\` -- passed
+          - \`go build ./cmd/claudeup\` -- passed
+          - \`go vet ./...\` -- passed
+          - \`go test ./internal/... ./test/integration/...\` -- passed
+
+          ## Post-merge steps
+
+          1. \`git tag v${VERSION}\` on the merge commit
+          2. \`git push origin v${VERSION}\`
+          3. Existing \`release.yml\` triggers, builds binaries, creates GitHub release
+
+          Triggered by closing milestone: ${VERSION}
+          EOF
+
+          gh pr create \
+            --title "chore: migrate module path from v${OLD} to v${NEW} for major release" \
+            --body-file /tmp/pr-body.md \
+            --milestone "$MILESTONE_NUMBER" \
+            --base main
