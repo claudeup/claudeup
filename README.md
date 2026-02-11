@@ -40,7 +40,7 @@ claudeup profile save my-setup     # Save current config as a profile
 claudeup profile apply backend     # Switch to a different profile
 ```
 
-Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more →](docs/profiles.md)
+Profiles include plugins, MCP servers, marketplaces, and secrets. [Learn more →](docs/profiles.md) | [Community profiles →](https://github.com/claudeup/profiles)
 
 ### Team Configuration
 
