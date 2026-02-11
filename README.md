@@ -116,18 +116,7 @@ claudeup profile apply base-tools
 - [Team Workflows](docs/team-workflows.md) - Sharing configurations via git
 - [Commands](docs/commands.md) - Full command reference
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and fixes
-
-## Development
-
-```bash
-git clone https://github.com/claudeup/claudeup.git
-cd claudeup
-go build -o bin/claudeup ./cmd/claudeup
-cp bin/claudeup ~/.local/bin/claudeup
-go test ./...
-alias clup=claudeup
-clup profile current
-```
+- [Development](DEVELOPMENT.md) - Building, testing, and releasing
 
 ## License
 
