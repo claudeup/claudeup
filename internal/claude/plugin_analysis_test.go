@@ -254,6 +254,9 @@ var _ = Describe("AnalyzePluginScopes", func() {
 	// are at different scopes (not an exact match)
 	Context("fallback: installed at higher precedence than enabled", func() {
 		It("uses project installation when only enabled at user", func() {
+			// Set up project context (required for project/local scope analysis)
+			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
+
 			// Install at project scope only
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -290,6 +293,9 @@ var _ = Describe("AnalyzePluginScopes", func() {
 		})
 
 		It("uses local installation when only enabled at user", func() {
+			// Set up project context (required for project/local scope analysis)
+			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
+
 			// Install at local scope only
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -539,6 +545,132 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			// Only the enabled one should appear
 			Expect(result.EnabledNotInstalled).To(HaveLen(1))
 			Expect(result.EnabledNotInstalled).To(ContainElement("enabled-orphan@marketplace"))
+		})
+	})
+
+	Context("when not in a project directory", func() {
+		It("excludes project scope from EnabledAt even when user settings would collide", func() {
+			// Simulate running from home directory: projectDir/.claude == claudeDir
+			// This causes the project-scope settings path to resolve to the same file
+			// as user-scope settings, making user plugins appear project-enabled
+			homeDir := filepath.Dir(claudeDir) // parent of .claude = simulated home
+
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"my-plugin@marketplace": {
+						{
+							Scope:       "user",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: filepath.Join(claudeDir, "plugins", "cache", "my-plugin"),
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at user scope
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"my-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			// Use homeDir as projectDir (simulates running from ~)
+			result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, homeDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			info := result.Installed["my-plugin@marketplace"]
+			Expect(info).NotTo(BeNil())
+			// Should only be enabled at "user", NOT "user, project"
+			Expect(info.EnabledAt).To(Equal([]string{"user"}))
+			Expect(info.ActiveSource).To(Equal("user"))
+		})
+
+		It("does not report project as active source for project-scoped installations", func() {
+			// Plugin was installed at project scope in some other project,
+			// but we're running from a non-project directory
+			nonProjectDir := filepath.Join(tempDir, "not-a-project")
+			Expect(os.MkdirAll(nonProjectDir, 0755)).To(Succeed())
+
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"proj-plugin@marketplace": {
+						{
+							Scope:       "project",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: "/some/other/project/.claude/plugins/proj-plugin",
+						},
+						{
+							Scope:       "user",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-02",
+							InstallPath: filepath.Join(claudeDir, "plugins", "cache", "proj-plugin"),
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at user scope
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"proj-plugin@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			// Run from non-project directory
+			result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, nonProjectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			info := result.Installed["proj-plugin@marketplace"]
+			Expect(info).NotTo(BeNil())
+			Expect(info.EnabledAt).To(Equal([]string{"user"}))
+			// Should use "user" as active source, NOT "project"
+			Expect(info.ActiveSource).To(Equal("user"))
+		})
+
+		It("only reports user-scoped installations as active source", func() {
+			// Plugin installed at local scope only, but we're not in a project
+			nonProjectDir := filepath.Join(tempDir, "no-project-here")
+			Expect(os.MkdirAll(nonProjectDir, 0755)).To(Succeed())
+
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"local-only@marketplace": {
+						{
+							Scope:       "local",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: "/some/project/.claude-local/plugins/local-only",
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at user scope
+			settings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"local-only@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, settings)).To(Succeed())
+
+			result, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, nonProjectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			info := result.Installed["local-only@marketplace"]
+			Expect(info).NotTo(BeNil())
+			Expect(info.EnabledAt).To(Equal([]string{"user"}))
+			// No user-scope installation exists, so no active source
+			Expect(info.ActiveSource).To(Equal(""))
 		})
 	})
 })
