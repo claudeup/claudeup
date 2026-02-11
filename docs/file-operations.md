@@ -64,7 +64,6 @@ These files are part of Claude Code's native configuration. `claudeup` reads and
 - `internal/claude/settings.go:SaveSettingsForScope("user")`
 - Triggered by:
   - `profile apply` (user scope) - declarative replace of enabledPlugins
-  - `plugin enable/disable` commands
 
 ---
 

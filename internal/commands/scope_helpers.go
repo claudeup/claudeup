@@ -80,44 +80,7 @@ func formatScopeName(scope string) string {
 	}
 }
 
-// clearScope removes settings at the specified scope
-func clearScope(scope string, settingsPath string, claudeDir string) error {
-	switch scope {
-	case "user":
-		// Load existing settings and only clear enabledPlugins
-		settings, err := claude.LoadSettings(claudeDir)
-		if err != nil {
-			// If settings don't exist, create minimal settings
-			settings = &claude.Settings{
-				EnabledPlugins: make(map[string]bool),
-			}
-		} else {
-			// Clear only the enabledPlugins field, preserve everything else
-			settings.EnabledPlugins = make(map[string]bool)
-		}
-		return claude.SaveSettings(claudeDir, settings)
-
-	case "project":
-		// Remove project settings file
-		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-
-	case "local":
-		// Remove local settings file
-		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-		return nil
-
-	default:
-		return fmt.Errorf("invalid scope: %s", scope)
-	}
-}
-
 // RenderPluginsByScope displays enabled plugins grouped by scope.
-// Used by 'plugin list --by-scope'.
 func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 	// Validate scope if specified
 	if filterScope != "" {
@@ -212,4 +175,40 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 	}
 
 	return nil
+}
+
+// clearScope removes settings at the specified scope
+func clearScope(scope string, settingsPath string, claudeDir string) error {
+	switch scope {
+	case "user":
+		// Load existing settings and only clear enabledPlugins
+		settings, err := claude.LoadSettings(claudeDir)
+		if err != nil {
+			// If settings don't exist, create minimal settings
+			settings = &claude.Settings{
+				EnabledPlugins: make(map[string]bool),
+			}
+		} else {
+			// Clear only the enabledPlugins field, preserve everything else
+			settings.EnabledPlugins = make(map[string]bool)
+		}
+		return claude.SaveSettings(claudeDir, settings)
+
+	case "project":
+		// Remove project settings file
+		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+
+	case "local":
+		// Remove local settings file
+		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("invalid scope: %s", scope)
+	}
 }

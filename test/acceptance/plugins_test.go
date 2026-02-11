@@ -23,7 +23,7 @@ var _ = Describe("plugins", func() {
 			result := env.Run("plugins")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Installed Plugins"))
+			Expect(result.Stdout).To(ContainSubstring("NAME"))
 		})
 
 		It("shows summary with zero count", func() {
@@ -83,15 +83,15 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).To(ContainSubstring("enabled"))
 		})
 
-		It("shows plugin path", func() {
-			result := env.Run("plugins")
+		It("shows plugin path in detail format", func() {
+			result := env.Run("plugin", "list", "--format", "detail")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring(pluginPath))
 		})
 
-		It("shows plugin type as cached", func() {
-			result := env.Run("plugins")
+		It("shows plugin type as cached in detail format", func() {
+			result := env.Run("plugin", "list", "--format", "detail")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("cached"))
@@ -152,8 +152,8 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).To(ContainSubstring("stale"))
 		})
 
-		It("indicates path not found", func() {
-			result := env.Run("plugins")
+		It("indicates path not found in detail format", func() {
+			result := env.Run("plugin", "list", "--format", "detail")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("path not found"))
@@ -289,8 +289,8 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).To(ContainSubstring("stale"))
 		})
 
-		It("shows stale count in summary footer", func() {
-			result := env.Run("plugins")
+		It("shows stale count in detail format footer", func() {
+			result := env.Run("plugin", "list", "--format", "detail")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("1 stale"))
@@ -420,8 +420,8 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("disabled-plugin@acme"))
 		})
 
-		It("shows filtered count in footer", func() {
-			result := env.Run("plugin", "list", "--enabled")
+		It("shows filtered count in detail format footer", func() {
+			result := env.Run("plugin", "list", "--enabled", "--format", "detail")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Showing: 1 enabled"))
@@ -469,8 +469,8 @@ var _ = Describe("plugins", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("enabled-plugin@acme"))
 		})
 
-		It("shows filtered count in footer", func() {
-			result := env.Run("plugin", "list", "--disabled")
+		It("shows filtered count in detail format footer", func() {
+			result := env.Run("plugin", "list", "--disabled", "--format", "detail")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Showing: 1 disabled"))
@@ -515,7 +515,7 @@ var _ = Describe("plugins", func() {
 		})
 	})
 
-	Describe("--format table", func() {
+	Describe("default table format", func() {
 		var enabledPath, disabledPath string
 
 		BeforeEach(func() {
@@ -546,8 +546,8 @@ var _ = Describe("plugins", func() {
 			})
 		})
 
-		It("shows table header with column names", func() {
-			result := env.Run("plugin", "list", "--format", "table")
+		It("shows table header with column names by default", func() {
+			result := env.Run("plugin", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("NAME"))
@@ -558,7 +558,7 @@ var _ = Describe("plugins", func() {
 		})
 
 		It("shows plugin data in table rows", func() {
-			result := env.Run("plugin", "list", "--format", "table")
+			result := env.Run("plugin", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("enabled-plugin@acme"))
@@ -567,7 +567,7 @@ var _ = Describe("plugins", func() {
 		})
 
 		It("works with --enabled filter", func() {
-			result := env.Run("plugin", "list", "--format", "table", "--enabled")
+			result := env.Run("plugin", "list", "--enabled")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("enabled-plugin@acme"))
