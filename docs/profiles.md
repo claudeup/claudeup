@@ -433,6 +433,10 @@ Leaf profiles can live in subdirectories for organization. Reference them with p
   fullstack.json       # includes: ["languages/go", "languages/typescript", "quality/code-review"]
 ```
 
+## Community Profiles
+
+Browse and share profiles at [github.com/claudeup/profiles](https://github.com/claudeup/profiles).
+
 ## Built-in Profiles
 
 claudeup ships with built-in profiles that are ready to use without any setup:
