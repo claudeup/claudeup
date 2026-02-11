@@ -3,6 +3,8 @@
 package claude
 
 import (
+	"os"
+	"path/filepath"
 	"sort"
 )
 
@@ -27,7 +29,9 @@ type analysisContext struct {
 	scopes        []string
 }
 
-// loadAnalysisContext loads the registry and settings needed for plugin analysis
+// loadAnalysisContext loads the registry and settings needed for plugin analysis.
+// It detects whether projectDir represents a real project context by checking
+// for a .claude directory that is distinct from the user-scope claude directory.
 func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext, error) {
 	// Load plugin registry (shows all installations across all scopes)
 	registry, err := LoadPlugins(claudeDir)
@@ -35,8 +39,13 @@ func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext,
 		return nil, err
 	}
 
-	// Load settings from all scopes
-	scopes := []string{"user", "project", "local"}
+	// Determine which scopes are applicable based on project context
+	scopes := []string{"user"}
+	if isProjectContext(claudeDir, projectDir) {
+		scopes = append(scopes, "project", "local")
+	}
+
+	// Load settings for applicable scopes
 	scopeSettings := make(map[string]*Settings)
 
 	for _, scope := range scopes {
@@ -61,6 +70,30 @@ func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext,
 	}, nil
 }
 
+// isProjectContext checks whether projectDir represents a real project directory
+// with its own .claude configuration, distinct from the user-scope claude directory.
+//
+// Returns false when:
+//   - projectDir has no .claude directory (not a Claude Code project)
+//   - projectDir/.claude resolves to the same path as claudeDir (home directory collision)
+func isProjectContext(claudeDir, projectDir string) bool {
+	projectClaudeDir := filepath.Join(projectDir, ".claude")
+
+	info, err := os.Stat(projectClaudeDir)
+	if err != nil || !info.IsDir() {
+		return false
+	}
+
+	// Detect path collision (happens when projectDir is the home directory)
+	absClaudeDir, err1 := filepath.Abs(claudeDir)
+	absProjectClaudeDir, err2 := filepath.Abs(projectClaudeDir)
+	if err1 == nil && err2 == nil && absClaudeDir == absProjectClaudeDir {
+		return false
+	}
+
+	return true
+}
+
 // buildInstalledAnalysis creates the analysis map from loaded context
 func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 	analysis := make(map[string]*PluginScopeInfo)
@@ -82,7 +115,7 @@ func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 		// Determine active source based on precedence (local > project > user)
 		// Only set if plugin is enabled at least somewhere
 		if len(info.EnabledAt) > 0 {
-			info.ActiveSource = determineActiveSource(instances, info.EnabledAt)
+			info.ActiveSource = determineActiveSource(instances, info.EnabledAt, ctx.scopes)
 		}
 
 		analysis[pluginName] = info
@@ -128,24 +161,37 @@ func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*Plugi
 }
 
 // determineActiveSource finds which installation is active based on scope precedence.
+// Only installations whose scope is in availableScopes are considered.
 //
 // Claude Code's precedence model (from docs.claude.com/settings):
 //   - More specific scopes always take precedence: local > project > user
 //   - When a plugin is enabled at any scope, it uses the highest-precedence installation available
 //
-// Examples:
+// Examples (when in a project directory, all scopes available):
 //   - Installed at project, enabled at user → uses project (higher precedence installation)
 //   - Installed at user, enabled at local → uses user (only available installation)
 //   - Installed at local+user, enabled at project → uses local (highest precedence)
-func determineActiveSource(installations []PluginMetadata, enabledScopes []string) string {
+//
+// When not in a project directory (only "user" scope available):
+//   - Installed at project+user, enabled at user → uses user (project scope not available)
+//   - Installed at project only, enabled at user → no active source (no user installation)
+func determineActiveSource(installations []PluginMetadata, enabledScopes []string, availableScopes []string) string {
 	if len(enabledScopes) == 0 {
 		return ""
 	}
 
-	// Build map of available installations by scope
+	// Build set of available scopes for filtering
+	availableSet := make(map[string]bool)
+	for _, s := range availableScopes {
+		availableSet[s] = true
+	}
+
+	// Build map of installations, filtered to available scopes
 	installMap := make(map[string]bool)
 	for _, inst := range installations {
-		installMap[inst.Scope] = true
+		if availableSet[inst.Scope] {
+			installMap[inst.Scope] = true
+		}
 	}
 
 	// Return highest-precedence installation available
