@@ -19,16 +19,18 @@ jobs:
         run: |
           TITLE="${{ github.event.milestone.title }}"
 
-          # Only proceed for X.0.0 patterns (major releases)
-          if ! echo "$TITLE" | grep -qE '^[0-9]+\.0\.0$'; then
-            echo "Milestone '$TITLE' is not a major release (expected X.0.0), skipping"
+          # Only proceed for X.0.0 or vX.0.0 patterns (major releases)
+          if ! echo "$TITLE" | grep -qE '^v?[0-9]+\.0\.0$'; then
+            echo "Milestone '$TITLE' is not a major release (expected X.0.0 or vX.0.0), skipping"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          NEW_MAJOR=$(echo "$TITLE" | cut -d. -f1)
+          # Strip optional v prefix, then extract major version
+          VERSION=$(echo "$TITLE" | sed 's/^v//')
+          NEW_MAJOR=$(echo "$VERSION" | cut -d. -f1)
           echo "new_major=$NEW_MAJOR" >> "$GITHUB_OUTPUT"
-          echo "new_version=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "new_version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Checkout code
