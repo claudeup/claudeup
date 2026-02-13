@@ -195,7 +195,7 @@ func (r *PluginRegistry) PluginExistsAtAnyScope(pluginName string) bool {
 	return exists && len(instances) > 0
 }
 
-// SetPlugin sets or updates a plugin's metadata for the "user" scope
+// SetPlugin sets or updates a plugin's metadata, defaulting to user scope if metadata.Scope is empty
 func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 	// Ensure scope is set
 	if metadata.Scope == "" {
