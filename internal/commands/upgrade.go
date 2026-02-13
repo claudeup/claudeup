@@ -42,8 +42,26 @@ var upgradeCmd = &cobra.Command{
 	RunE: runUpgrade,
 }
 
+var upgradeAll bool
+
 func init() {
 	rootCmd.AddCommand(upgradeCmd)
+	upgradeCmd.Flags().BoolVar(&upgradeAll, "all", false, "Upgrade plugins across all scopes, not just the current context")
+}
+
+func availableScopes(allFlag bool) []string {
+	if allFlag {
+		return claude.ValidScopes
+	}
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return []string{"user"}
+	}
+	scopes := []string{"user"}
+	if claude.IsProjectContext(claudeDir, projectDir) {
+		scopes = append(scopes, "project", "local")
+	}
+	return scopes
 }
 
 // MarketplaceUpdate represents the update status of an installed marketplace.
@@ -59,6 +77,7 @@ type MarketplaceUpdate struct {
 // HasUpdate indicates whether the plugin's source marketplace has newer commits.
 type PluginUpdate struct {
 	Name          string
+	Scope         string
 	HasUpdate     bool
 	CurrentCommit string
 	LatestCommit  string
@@ -168,12 +187,15 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 	// Check plugin updates
 	fmt.Println()
-	fmt.Println(ui.RenderSection("Checking Plugins", len(plugins.GetAllPlugins())))
-	pluginUpdates := checkPluginUpdates(plugins, marketplaces)
+	scopes := availableScopes(upgradeAll)
+	scopedPlugins := plugins.GetPluginsAtScopes(scopes)
+	fmt.Println(ui.RenderSection("Checking Plugins", len(scopedPlugins)))
+	pluginUpdates := checkPluginUpdates(plugins, marketplaces, scopes)
 
-	var outdatedPlugins []string
+	var outdatedUpdates []PluginUpdate
 	for _, update := range pluginUpdates {
 		if update.HasUpdate {
+			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
 			// Filter by target if specified
 			if hasTargets {
 				if len(targetPlugins) > 0 {
@@ -185,21 +207,21 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 						}
 					}
 					if !found {
-						fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
+						fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning("Update available (skipped)"))
 						continue
 					}
 				} else {
 					// User specified marketplaces only, skip plugins
-					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
+					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning("Update available (skipped)"))
 					continue
 				}
 			}
-			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
-			outdatedPlugins = append(outdatedPlugins, update.Name)
+			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning("Update available"))
+			outdatedUpdates = append(outdatedUpdates, update)
 		}
 	}
 
-	if len(outdatedPlugins) == 0 {
+	if len(outdatedUpdates) == 0 {
 		fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 	}
 
@@ -215,7 +237,7 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 
 	// If nothing outdated, we're done
-	if len(outdatedMarketplaces) == 0 && len(outdatedPlugins) == 0 {
+	if len(outdatedMarketplaces) == 0 && len(outdatedUpdates) == 0 {
 		fmt.Println()
 		ui.PrintSuccess("Everything is up to date!")
 		return nil
@@ -235,14 +257,15 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 
 	// Apply plugin updates
-	if len(outdatedPlugins) > 0 {
+	if len(outdatedUpdates) > 0 {
 		fmt.Println()
-		fmt.Println(ui.RenderSection("Updating Plugins", len(outdatedPlugins)))
-		for _, name := range outdatedPlugins {
-			if err := updatePlugin(name, plugins); err != nil {
-				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
+		fmt.Println(ui.RenderSection("Updating Plugins", len(outdatedUpdates)))
+		for _, update := range outdatedUpdates {
+			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
+			if err := updatePlugin(update.Name, update.Scope, plugins); err != nil {
+				ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
 			} else {
-				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
+				ui.PrintSuccess(fmt.Sprintf("%s: Updated", displayName))
 			}
 		}
 
@@ -333,10 +356,13 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 	return updates
 }
 
-func checkPluginUpdates(plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry) []PluginUpdate {
+func checkPluginUpdates(plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry, scopes []string) []PluginUpdate {
 	var updates []PluginUpdate
 
-	for name, plugin := range plugins.GetAllPlugins() {
+	for _, sp := range plugins.GetPluginsAtScopes(scopes) {
+		name := sp.Name
+		plugin := sp.PluginMetadata
+
 		// Skip if plugin path doesn't exist
 		if !plugin.PathExists() {
 			continue
@@ -372,6 +398,7 @@ func checkPluginUpdates(plugins *claude.PluginRegistry, marketplaces claude.Mark
 		if plugin.GitCommitSha != currentCommit {
 			updates = append(updates, PluginUpdate{
 				Name:          name,
+				Scope:         plugin.Scope,
 				HasUpdate:     true,
 				CurrentCommit: truncateHash(plugin.GitCommitSha),
 				LatestCommit:  truncateHash(currentCommit),
@@ -391,10 +418,10 @@ func updateMarketplace(name, path string) error {
 	return nil
 }
 
-func updatePlugin(name string, plugins *claude.PluginRegistry) error {
-	plugin, exists := plugins.GetPlugin(name)
+func updatePlugin(name string, scope string, plugins *claude.PluginRegistry) error {
+	plugin, exists := plugins.GetPluginAtScope(name, scope)
 	if !exists {
-		return fmt.Errorf("plugin not found")
+		return fmt.Errorf("plugin not found at scope %s", scope)
 	}
 
 	// Find marketplace path from plugin install path

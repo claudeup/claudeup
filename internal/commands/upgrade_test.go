@@ -1,10 +1,11 @@
 // ABOUTME: Unit tests for upgrade command argument parsing
-// ABOUTME: Tests target detection (marketplace vs plugin)
+// ABOUTME: Tests target detection (marketplace vs plugin) and scope resolution
 package commands
 
 import (
 	"testing"
 
+	"github.com/claudeup/claudeup/v5/internal/claude"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -124,5 +125,17 @@ var _ = Describe("findUnmatchedTargets", func() {
 			pluginUpdates,
 		)
 		Expect(unmatched).To(BeEmpty())
+	})
+})
+
+var _ = Describe("availableScopes", func() {
+	It("returns all scopes when allFlag is true", func() {
+		scopes := availableScopes(true)
+		Expect(scopes).To(Equal(claude.ValidScopes))
+	})
+
+	It("always includes user scope when allFlag is false", func() {
+		scopes := availableScopes(false)
+		Expect(scopes).To(ContainElement("user"))
 	})
 })
