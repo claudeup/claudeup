@@ -26,8 +26,11 @@ This is a read-only command that only checks for updates without applying them.`
 	RunE: runOutdated,
 }
 
+var outdatedAll bool
+
 func init() {
 	rootCmd.AddCommand(outdatedCmd)
+	outdatedCmd.Flags().BoolVar(&outdatedAll, "all", false, "Check plugins across all scopes, not just the current context")
 }
 
 func runOutdated(cmd *cobra.Command, args []string) error {
@@ -78,11 +81,13 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 
 	// Check plugin updates
 	fmt.Println()
-	fmt.Println(ui.RenderSection("Plugins", len(plugins.GetAllPlugins())))
-	if len(plugins.GetAllPlugins()) == 0 {
+	scopes := availableScopes(outdatedAll)
+	scopedPlugins := plugins.GetPluginsAtScopes(scopes)
+	fmt.Println(ui.RenderSection("Plugins", len(scopedPlugins)))
+	if len(scopedPlugins) == 0 {
 		fmt.Printf("  %s\n", ui.Muted("No plugins installed"))
 	} else {
-		pluginUpdates := checkPluginUpdates(plugins, marketplaces)
+		pluginUpdates := checkPluginUpdates(plugins, marketplaces, scopes)
 		if len(pluginUpdates) == 0 {
 			fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 		} else {
@@ -90,7 +95,7 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 			for _, update := range pluginUpdates {
 				if update.HasUpdate {
 					hasOutdated = true
-					fmt.Printf("  %s %s %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
+					fmt.Printf("  %s %s (%s) %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.Scope, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
 				}
 			}
 			if !hasOutdated {
