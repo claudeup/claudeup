@@ -40,7 +40,9 @@ func DiscoverEnabledMCPServers(pluginRegistry *claude.PluginRegistry, settings *
 func discoverMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.Settings) ([]PluginMCPServers, error) {
 	var results []PluginMCPServers
 
-	for name, plugin := range pluginRegistry.GetAllPlugins() {
+	for _, sp := range pluginRegistry.GetPluginsAtScopes(claude.ValidScopes) {
+		name := sp.Name
+		plugin := sp.PluginMetadata
 		// If settings provided, skip disabled plugins
 		if settings != nil && !settings.IsPluginEnabled(name) {
 			continue
