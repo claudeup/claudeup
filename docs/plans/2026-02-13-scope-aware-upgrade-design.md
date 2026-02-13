@@ -24,6 +24,7 @@ Remove the user-biased `GetPlugin`/`GetAllPlugins` methods entirely. All callers
 - `GetPluginsAtScopes(scopes []string) []ScopedPlugin` -- all plugin instances across given scopes
 - `PluginExistsAtScope(name, scope string) bool` -- explicit scope check
 - `PluginExistsAtAnyScope(name string) bool` -- for callers that don't care about scope
+- `RemovePluginAtScope(name, scope string) bool` -- removes a single scope instance, cleans up entry if last
 
 ### Keep Unchanged
 
@@ -93,16 +94,23 @@ Checking Plugins (3)
 |------|-------|-------------|-------------|-----------|
 | `upgrade.go` | 171, 339, 395, 463 | `GetAllPlugins()`, `GetPlugin()`, `SetPlugin()` | `GetPluginsAtScopes(scopes)`, `GetPluginAtScope(name, scope)`, `SetPlugin()` (unchanged) | Primary target of this change |
 | `outdated.go` | 81-82 | `GetAllPlugins()` | `GetPluginsAtScopes(scopes)` | Same scope-awareness as upgrade |
-| `doctor.go` | 114, 242 | `GetAllPlugins()` | `GetPluginsAtScopes(ValidScopes)` | Doctor should check all scopes |
-| `status.go` | 137, 165, 178 | `GetAllPlugins()` | `GetPluginsAtScopes(scopes)` | Context-aware like upgrade |
+| `doctor.go` | 114, 242 | `GetAllPlugins()` | `GetPluginsAtScopes(ValidScopes)`, `PluginExistsAtAnyScope()` | Doctor checks all scopes; path issue output includes scope label |
+| `status.go` | 137, 165, 178 | `GetAllPlugins()` | `GetPluginsAtScopes(scopes)` + dedup by name | Context-aware like upgrade; dedup prevents over-counting enabled plugins |
 | `cleanup.go` | 92, 191, 193 | `GetAllPlugins()`, `GetPlugin()`, `SetPlugin()` | `GetPluginsAtScopes(ValidScopes)`, `GetPluginAtScope(name, scope)`, `SetPlugin()` | Cleanup checks everything; issue struct gains Scope field |
-| `profile_cmd.go` | 1244-1246 | `GetAllPlugins()`, `DisablePlugin()` | `GetPluginsAtScopes(ValidScopes)`, `DisablePlugin()` (unchanged) | Profile teardown nukes everything |
+| `profile_cmd.go` | 1244-1246 | `GetAllPlugins()`, `DisablePlugin()` | `GetPluginsAtScopes(ValidScopes)`, `RemovePluginAtScope(name, scope)` | Stale cleanup removes only the broken instance, preserving valid installations at other scopes |
 | `plugin.go` | 296, 358, 396 | `PluginExists()` | `PluginExistsAtAnyScope()` | Installed badge, scope doesn't matter |
 | `plugin_search.go` | 101 | `PluginExists()` | `PluginExistsAtAnyScope()` | Same as above |
-| `mcp/discovery.go` | 43 | `GetAllPlugins()` | `GetPluginsAtScopes(ValidScopes)` | Discover across all scopes |
+| `mcp/discovery.go` | 43 | `GetAllPlugins()` | `GetPluginsAtScopes(ValidScopes)` + dedup by name | Discover across all scopes; dedup prevents duplicate MCP server registration |
 | `plugin_analysis.go` | 147 | `PluginExists()` | `PluginExistsAtAnyScope()` | Orphan detection |
 | `profile/apply_concurrent.go` | 63 | `PluginExists()` | `PluginExistsAtScope(plugin, scope)` | Profile apply operates at a specific scope |
 | `plugins_test.go` | multiple | `GetPlugin()`, `PluginExists()`, etc. | New method names with explicit scopes | Test updates |
+
+## Multi-Scope Dedup
+
+`GetPluginsAtScopes` returns one entry per scope instance. When a plugin is installed at multiple scopes, callers that iterate by plugin name (not by instance) must deduplicate to avoid over-counting or duplicate registrations. Affected callers use a `seen` map to skip duplicate plugin names:
+
+- `status.go` -- prevents `enabledCount` over-counting and duplicate `stalePlugins` entries
+- `mcp/discovery.go` -- prevents duplicate `PluginMCPServers` entries
 
 ## What's Not Changing
 
