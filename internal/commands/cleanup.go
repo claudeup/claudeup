@@ -89,7 +89,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 	// Detect plugins enabled in settings but not installed
 	missingPlugins := []string{}
 	for name := range enabledInSettings {
-		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+		if !plugins.PluginExistsAtAnyScope(name) {
 			missingPlugins = append(missingPlugins, name)
 		}
 	}
@@ -188,7 +188,7 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 		}
 		if confirm {
 			for _, issue := range fixableIssues {
-				if plugin, exists := plugins.GetPlugin(issue.PluginName); exists {
+				if plugin, exists := plugins.GetPluginAtScope(issue.PluginName, issue.Scope); exists {
 					plugin.InstallPath = issue.ExpectedPath
 					plugins.SetPlugin(issue.PluginName, plugin)
 					fixed++
