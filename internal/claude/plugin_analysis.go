@@ -144,7 +144,7 @@ func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*Plugi
 	for _, scope := range ctx.scopes {
 		for pluginName, enabled := range ctx.scopeSettings[scope].EnabledPlugins {
 			// Only include if enabled (true) and not in registry
-			if enabled && !ctx.registry.PluginExists(pluginName) {
+			if enabled && !ctx.registry.PluginExistsAtAnyScope(pluginName) {
 				orphanSet[pluginName] = true
 			}
 		}
