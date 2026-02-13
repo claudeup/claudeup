@@ -36,6 +36,7 @@ func init() {
 
 type PathIssue struct {
 	PluginName   string
+	Scope        string
 	InstallPath  string
 	ExpectedPath string
 	IssueType    string
@@ -111,7 +112,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Detect plugins enabled in settings but not installed
 	missingPlugins := []string{}
 	for name := range enabledInSettings {
-		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+		if !plugins.PluginExistsAtAnyScope(name) {
 			missingPlugins = append(missingPlugins, name)
 		}
 	}
@@ -239,13 +240,16 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	var issues []PathIssue
 
-	for name, plugin := range plugins.GetAllPlugins() {
+	for _, sp := range plugins.GetPluginsAtScopes(claude.ValidScopes) {
+		name := sp.Name
+		plugin := sp.PluginMetadata
 		if !plugin.PathExists() {
 			// Check if this is a fixable path issue
 			expectedPath := getExpectedPath(plugin.InstallPath)
 			if expectedPath != "" && pathExists(expectedPath) {
 				issues = append(issues, PathIssue{
 					PluginName:   name,
+					Scope:        plugin.Scope,
 					InstallPath:  plugin.InstallPath,
 					ExpectedPath: expectedPath,
 					IssueType:    "missing_subdirectory",
@@ -254,6 +258,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 			} else {
 				issues = append(issues, PathIssue{
 					PluginName:  name,
+					Scope:       plugin.Scope,
 					InstallPath: plugin.InstallPath,
 					IssueType:   "not_found",
 					CanAutoFix:  false,
