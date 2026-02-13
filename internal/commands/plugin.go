@@ -293,7 +293,7 @@ func printBrowseDefault(plugins []claude.MarketplacePluginInfo, indexName, marke
 		// Check if installed
 		fullName := p.Name + "@" + marketplaceName
 		var status string
-		if installed != nil && installed.PluginExists(fullName) {
+		if installed != nil && installed.PluginExistsAtAnyScope(fullName) {
 			status = ui.Success(ui.SymbolSuccess)
 		}
 
@@ -355,7 +355,7 @@ func printBrowseTable(plugins []claude.MarketplacePluginInfo, indexName, marketp
 
 		// Check installed status
 		var statusCol string
-		if installed != nil && installed.PluginExists(fullName) {
+		if installed != nil && installed.PluginExistsAtAnyScope(fullName) {
 			statusCol = ui.Success("installed")
 		}
 
@@ -393,7 +393,7 @@ func printBrowseJSON(plugins []claude.MarketplacePluginInfo, indexName, marketpl
 			FullName:    fullName,
 			Description: p.Description,
 			Version:     p.Version,
-			Installed:   installed != nil && installed.PluginExists(fullName),
+			Installed:   installed != nil && installed.PluginExistsAtAnyScope(fullName),
 		}
 	}
 
