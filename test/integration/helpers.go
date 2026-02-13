@@ -119,10 +119,10 @@ func (e *TestEnv) LoadMarketplaceRegistry() claude.MarketplaceRegistry {
 	return registry
 }
 
-// PluginExists checks if a plugin exists in the registry
+// PluginExists checks if a plugin exists in the registry at any scope
 func (e *TestEnv) PluginExists(name string) bool {
 	registry := e.LoadPluginRegistry()
-	return registry.PluginExists(name)
+	return registry.PluginExistsAtAnyScope(name)
 }
 
 // PluginCount returns the number of installed plugins

@@ -44,8 +44,8 @@ var _ = Describe("DoctorDetectsStalePlugins", func() {
 		validCount := 0
 		staleCount := 0
 
-		for _, plugin := range registry.GetAllPlugins() {
-			if plugin.PathExists() {
+		for _, sp := range registry.GetPluginsAtScopes(claude.ValidScopes) {
+			if sp.PathExists() {
 				validCount++
 			} else {
 				staleCount++
@@ -84,7 +84,7 @@ var _ = Describe("FixPathsCorrectsPaths", func() {
 		})
 
 		registry := env.LoadPluginRegistry()
-		plugin, _ := registry.GetPlugin("test-plugin@claude-code-plugins")
+		plugin, _ := registry.GetPluginAtScope("test-plugin@claude-code-plugins", "user")
 		Expect(plugin.PathExists()).To(BeFalse(), "Plugin should not exist at wrong path")
 
 		Expect(wrongPath).To(ContainSubstring("claude-code-plugins"), "Wrong path should contain marketplace name")
@@ -98,7 +98,7 @@ var _ = Describe("FixPathsCorrectsPaths", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		registry = env.LoadPluginRegistry()
-		plugin, _ = registry.GetPlugin("test-plugin@claude-code-plugins")
+		plugin, _ = registry.GetPluginAtScope("test-plugin@claude-code-plugins", "user")
 
 		Expect(plugin.InstallPath).To(Equal(correctPath))
 		Expect(plugin.PathExists()).To(BeTrue(), "Plugin should exist at corrected path")
@@ -140,9 +140,9 @@ var _ = Describe("CleanupRemovesStalePlugins", func() {
 
 		registry := env.LoadPluginRegistry()
 
-		for name, plugin := range registry.GetAllPlugins() {
-			if !plugin.PathExists() {
-				registry.DisablePlugin(name)
+		for _, sp := range registry.GetPluginsAtScopes(claude.ValidScopes) {
+			if !sp.PathExists() {
+				registry.DisablePlugin(sp.Name)
 			}
 		}
 
@@ -195,15 +195,15 @@ var _ = Describe("FixPathsMultipleMarketplaces", func() {
 
 		registry := env.LoadPluginRegistry()
 
-		for _, plugin := range registry.GetAllPlugins() {
-			Expect(plugin.PathExists()).To(BeFalse(), "Plugins should not exist at wrong paths")
+		for _, sp := range registry.GetPluginsAtScopes(claude.ValidScopes) {
+			Expect(sp.PathExists()).To(BeFalse(), "Plugins should not exist at wrong paths")
 		}
 
-		plugin1, _ := registry.GetPlugin("plugin1@claude-code-plugins")
+		plugin1, _ := registry.GetPluginAtScope("plugin1@claude-code-plugins", "user")
 		plugin1.InstallPath = correctPath1
 		registry.SetPlugin("plugin1@claude-code-plugins", plugin1)
 
-		plugin2, _ := registry.GetPlugin("plugin2@every-marketplace")
+		plugin2, _ := registry.GetPluginAtScope("plugin2@every-marketplace", "user")
 		plugin2.InstallPath = correctPath2
 		registry.SetPlugin("plugin2@every-marketplace", plugin2)
 
@@ -212,11 +212,11 @@ var _ = Describe("FixPathsMultipleMarketplaces", func() {
 
 		registry = env.LoadPluginRegistry()
 
-		plugin1, _ = registry.GetPlugin("plugin1@claude-code-plugins")
+		plugin1, _ = registry.GetPluginAtScope("plugin1@claude-code-plugins", "user")
 		Expect(plugin1.InstallPath).To(Equal(correctPath1))
 		Expect(plugin1.PathExists()).To(BeTrue(), "Plugin1 should exist at corrected path")
 
-		plugin2, _ = registry.GetPlugin("plugin2@every-marketplace")
+		plugin2, _ = registry.GetPluginAtScope("plugin2@every-marketplace", "user")
 		Expect(plugin2.InstallPath).To(Equal(correctPath2))
 		Expect(plugin2.PathExists()).To(BeTrue(), "Plugin2 should exist at corrected path")
 	})
@@ -268,27 +268,27 @@ var _ = Describe("UnifiedCleanupFixesAndRemoves", func() {
 		fixed := 0
 		removed := 0
 
-		for name, plugin := range registry.GetAllPlugins() {
-			if !plugin.PathExists() {
+		for _, sp := range registry.GetPluginsAtScopes(claude.ValidScopes) {
+			if !sp.PathExists() {
 				var expectedPath string
-				if strings.Contains(plugin.InstallPath, "claude-code-plugins") {
-					base := filepath.Dir(plugin.InstallPath)
-					pluginName := filepath.Base(plugin.InstallPath)
+				if strings.Contains(sp.InstallPath, "claude-code-plugins") {
+					base := filepath.Dir(sp.InstallPath)
+					pluginName := filepath.Base(sp.InstallPath)
 					expectedPath = filepath.Join(base, "plugins", pluginName)
 				}
 
 				if expectedPath != "" {
-					updatedPlugin := plugin
+					updatedPlugin := sp.PluginMetadata
 					updatedPlugin.InstallPath = expectedPath
 					if updatedPlugin.PathExists() {
-						plugin.InstallPath = expectedPath
-						registry.SetPlugin(name, plugin)
+						sp.InstallPath = expectedPath
+						registry.SetPlugin(sp.Name, sp.PluginMetadata)
 						fixed++
 						continue
 					}
 				}
 
-				registry.DisablePlugin(name)
+				registry.DisablePlugin(sp.Name)
 				removed++
 			}
 		}
@@ -301,7 +301,7 @@ var _ = Describe("UnifiedCleanupFixesAndRemoves", func() {
 		Expect(env.PluginCount()).To(Equal(2))
 
 		registry = env.LoadPluginRegistry()
-		fixedPlugin, _ := registry.GetPlugin("fixable-plugin@claude-code-plugins")
+		fixedPlugin, _ := registry.GetPluginAtScope("fixable-plugin@claude-code-plugins", "user")
 		Expect(fixedPlugin.InstallPath).To(Equal(correctPath))
 		Expect(fixedPlugin.PathExists()).To(BeTrue(), "Fixed plugin should exist at corrected path")
 

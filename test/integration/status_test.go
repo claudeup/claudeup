@@ -110,11 +110,11 @@ var _ = Describe("PluginsListCommand", func() {
 
 		Expect(registry.Plugins).To(HaveLen(2))
 
-		plugin1, _ := registry.GetPlugin("plugin1@test-marketplace")
+		plugin1, _ := registry.GetPluginAtScope("plugin1@test-marketplace", "user")
 		Expect(plugin1.Version).To(Equal("1.0.0"))
 		Expect(plugin1.IsLocal).To(BeFalse())
 
-		plugin2, _ := registry.GetPlugin("plugin2@test-marketplace")
+		plugin2, _ := registry.GetPluginAtScope("plugin2@test-marketplace", "user")
 		Expect(plugin2.Version).To(Equal("2.0.0"))
 		Expect(plugin2.IsLocal).To(BeTrue())
 	})
