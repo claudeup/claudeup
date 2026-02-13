@@ -196,7 +196,8 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	for _, update := range pluginUpdates {
 		if update.HasUpdate {
 			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
-			// Filter by target if specified
+			// Filter by target if specified.
+			// Targeting a plugin by name upgrades it at all scopes where it's outdated.
 			if hasTargets {
 				if len(targetPlugins) > 0 {
 					found := false

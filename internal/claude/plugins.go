@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 
 	"github.com/claudeup/claudeup/v5/internal/events"
 )
@@ -180,6 +182,14 @@ func (r *PluginRegistry) GetPluginsAtScopes(scopes []string) []ScopedPlugin {
 			}
 		}
 	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Name != result[j].Name {
+			return result[i].Name < result[j].Name
+		}
+		return result[i].Scope < result[j].Scope
+	})
+
 	return result
 }
 
@@ -257,7 +267,7 @@ func (r *PluginRegistry) RemovePluginAtScope(pluginName, scope string) bool {
 
 	for i, inst := range instances {
 		if inst.Scope == scope {
-			remaining := append(instances[:i], instances[i+1:]...)
+			remaining := slices.Delete(slices.Clone(instances), i, i+1)
 			if len(remaining) == 0 {
 				delete(r.Plugins, pluginName)
 			} else {

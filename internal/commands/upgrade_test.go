@@ -143,18 +143,24 @@ var _ = Describe("availableScopes", func() {
 
 	Context("in a project directory", func() {
 		var tempDir string
+		var claudeHome string
 		var origClaudeDir string
+		var origWd string
 
 		BeforeEach(func() {
+			var err error
+			origWd, err = os.Getwd()
+			Expect(err).NotTo(HaveOccurred())
 			origClaudeDir = claudeDir
 
 			// Create a temp dir with a .claude subdirectory to simulate a project
 			tempDir, _ = os.MkdirTemp("", "scope-test-*")
-			err := os.MkdirAll(filepath.Join(tempDir, ".claude"), 0755)
+			err = os.MkdirAll(filepath.Join(tempDir, ".claude"), 0755)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Point claudeDir elsewhere so IsProjectContext detects a distinct project
-			claudeDir, _ = os.MkdirTemp("", "claude-home-*")
+			claudeHome, _ = os.MkdirTemp("", "claude-home-*")
+			claudeDir = claudeHome
 
 			// Change to the project directory
 			err = os.Chdir(tempDir)
@@ -162,8 +168,10 @@ var _ = Describe("availableScopes", func() {
 		})
 
 		AfterEach(func() {
+			os.Chdir(origWd)
 			claudeDir = origClaudeDir
 			os.RemoveAll(tempDir)
+			os.RemoveAll(claudeHome)
 		})
 
 		It("includes project and local scopes when allFlag is false", func() {
@@ -181,22 +189,30 @@ var _ = Describe("availableScopes", func() {
 
 	Context("outside a project directory", func() {
 		var tempDir string
+		var claudeHome string
 		var origClaudeDir string
+		var origWd string
 
 		BeforeEach(func() {
+			var err error
+			origWd, err = os.Getwd()
+			Expect(err).NotTo(HaveOccurred())
 			origClaudeDir = claudeDir
 
 			// Create a temp dir WITHOUT .claude to simulate non-project context
 			tempDir, _ = os.MkdirTemp("", "scope-test-*")
-			claudeDir, _ = os.MkdirTemp("", "claude-home-*")
+			claudeHome, _ = os.MkdirTemp("", "claude-home-*")
+			claudeDir = claudeHome
 
-			err := os.Chdir(tempDir)
+			err = os.Chdir(tempDir)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		AfterEach(func() {
+			os.Chdir(origWd)
 			claudeDir = origClaudeDir
 			os.RemoveAll(tempDir)
+			os.RemoveAll(claudeHome)
 		})
 
 		It("returns only user scope when allFlag is false", func() {
