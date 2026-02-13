@@ -154,12 +154,14 @@ var _ = Describe("availableScopes", func() {
 			origClaudeDir = claudeDir
 
 			// Create a temp dir with a .claude subdirectory to simulate a project
-			tempDir, _ = os.MkdirTemp("", "scope-test-*")
+			tempDir, err = os.MkdirTemp("", "scope-test-*")
+			Expect(err).NotTo(HaveOccurred())
 			err = os.MkdirAll(filepath.Join(tempDir, ".claude"), 0755)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Point claudeDir elsewhere so IsProjectContext detects a distinct project
-			claudeHome, _ = os.MkdirTemp("", "claude-home-*")
+			claudeHome, err = os.MkdirTemp("", "claude-home-*")
+			Expect(err).NotTo(HaveOccurred())
 			claudeDir = claudeHome
 
 			// Change to the project directory
@@ -200,8 +202,10 @@ var _ = Describe("availableScopes", func() {
 			origClaudeDir = claudeDir
 
 			// Create a temp dir WITHOUT .claude to simulate non-project context
-			tempDir, _ = os.MkdirTemp("", "scope-test-*")
-			claudeHome, _ = os.MkdirTemp("", "claude-home-*")
+			tempDir, err = os.MkdirTemp("", "scope-test-*")
+			Expect(err).NotTo(HaveOccurred())
+			claudeHome, err = os.MkdirTemp("", "claude-home-*")
+			Expect(err).NotTo(HaveOccurred())
 			claudeDir = claudeHome
 
 			err = os.Chdir(tempDir)

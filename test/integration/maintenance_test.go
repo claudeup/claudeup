@@ -281,8 +281,7 @@ var _ = Describe("UnifiedCleanupFixesAndRemoves", func() {
 					updatedPlugin := sp.PluginMetadata
 					updatedPlugin.InstallPath = expectedPath
 					if updatedPlugin.PathExists() {
-						sp.InstallPath = expectedPath
-						registry.SetPlugin(sp.Name, sp.PluginMetadata)
+						registry.SetPlugin(sp.Name, updatedPlugin)
 						fixed++
 						continue
 					}
