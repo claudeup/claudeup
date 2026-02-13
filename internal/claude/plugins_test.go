@@ -442,3 +442,48 @@ func TestPluginExistsAtAnyScope(t *testing.T) {
 		t.Error("should not find non-existent plugin")
 	}
 }
+
+func TestRemovePluginAtScope(t *testing.T) {
+	registry := &PluginRegistry{
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"multi-scope": {
+				{Scope: "user", Version: "1.0.0"},
+				{Scope: "project", Version: "2.0.0"},
+			},
+			"single-scope": {
+				{Scope: "user", Version: "1.0.0"},
+			},
+		},
+	}
+
+	// Removing one scope preserves the other
+	if !registry.RemovePluginAtScope("multi-scope", "user") {
+		t.Error("should return true when removing existing scope")
+	}
+	instances := registry.GetPluginInstances("multi-scope")
+	if len(instances) != 1 {
+		t.Fatalf("expected 1 instance remaining, got %d", len(instances))
+	}
+	if instances[0].Scope != "project" {
+		t.Errorf("expected project scope to remain, got %s", instances[0].Scope)
+	}
+
+	// Removing last instance removes the plugin entirely
+	if !registry.RemovePluginAtScope("single-scope", "user") {
+		t.Error("should return true when removing last instance")
+	}
+	if registry.PluginExistsAtAnyScope("single-scope") {
+		t.Error("plugin should be fully removed after last instance deleted")
+	}
+
+	// Removing non-existent scope returns false
+	if registry.RemovePluginAtScope("multi-scope", "local") {
+		t.Error("should return false for non-existent scope")
+	}
+
+	// Removing non-existent plugin returns false
+	if registry.RemovePluginAtScope("missing", "user") {
+		t.Error("should return false for non-existent plugin")
+	}
+}

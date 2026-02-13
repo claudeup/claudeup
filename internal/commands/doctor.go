@@ -159,7 +159,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		if fixable, ok := byType["missing_subdirectory"]; ok {
 			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d plugins with fixable path issues:", len(fixable)), 1))
 			for _, issue := range fixable {
-				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName+ui.Muted(" ("+issue.Scope+")"), 2))
 				fmt.Println(ui.Indent(ui.RenderDetail("Current", issue.InstallPath), 3))
 				fmt.Println(ui.Indent(ui.RenderDetail("Expected", issue.ExpectedPath), 3))
 			}
@@ -172,7 +172,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugins with missing directories:", len(missing)), 1))
 			for _, issue := range missing {
-				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName+ui.Muted(" ("+issue.Scope+")"), 2))
 				fmt.Println(ui.Indent(ui.RenderDetail("Path", issue.InstallPath), 3))
 			}
 		}

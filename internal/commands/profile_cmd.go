@@ -1243,7 +1243,7 @@ func cleanupStalePlugins(claudeDir string) {
 	removed := 0
 	for _, sp := range plugins.GetPluginsAtScopes(claude.ValidScopes) {
 		if !sp.PathExists() {
-			if plugins.DisablePlugin(sp.Name) {
+			if plugins.RemovePluginAtScope(sp.Name, sp.Scope) {
 				removed++
 			}
 		}

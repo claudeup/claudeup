@@ -20,7 +20,7 @@ type PluginRegistry struct {
 
 // PluginMetadata represents metadata for an installed plugin
 type PluginMetadata struct {
-	Scope        string `json:"scope"` // "user" or "project"
+	Scope        string `json:"scope"` // "user", "project", or "local"
 	Version      string `json:"version"`
 	InstalledAt  string `json:"installedAt"`
 	LastUpdated  string `json:"lastUpdated"`
@@ -244,4 +244,27 @@ func (r *PluginRegistry) RemovePlugin(pluginName string) bool {
 	}
 	delete(r.Plugins, pluginName)
 	return true
+}
+
+// RemovePluginAtScope removes a specific scope instance of a plugin.
+// If this was the last instance, the plugin entry is removed entirely.
+// Returns true if an instance was removed.
+func (r *PluginRegistry) RemovePluginAtScope(pluginName, scope string) bool {
+	instances, exists := r.Plugins[pluginName]
+	if !exists {
+		return false
+	}
+
+	for i, inst := range instances {
+		if inst.Scope == scope {
+			remaining := append(instances[:i], instances[i+1:]...)
+			if len(remaining) == 0 {
+				delete(r.Plugins, pluginName)
+			} else {
+				r.Plugins[pluginName] = remaining
+			}
+			return true
+		}
+	}
+	return false
 }

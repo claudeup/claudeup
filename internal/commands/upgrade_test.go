@@ -3,6 +3,8 @@
 package commands
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
@@ -137,5 +139,69 @@ var _ = Describe("availableScopes", func() {
 	It("always includes user scope when allFlag is false", func() {
 		scopes := availableScopes(false)
 		Expect(scopes).To(ContainElement("user"))
+	})
+
+	Context("in a project directory", func() {
+		var tempDir string
+		var origClaudeDir string
+
+		BeforeEach(func() {
+			origClaudeDir = claudeDir
+
+			// Create a temp dir with a .claude subdirectory to simulate a project
+			tempDir, _ = os.MkdirTemp("", "scope-test-*")
+			err := os.MkdirAll(filepath.Join(tempDir, ".claude"), 0755)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Point claudeDir elsewhere so IsProjectContext detects a distinct project
+			claudeDir, _ = os.MkdirTemp("", "claude-home-*")
+
+			// Change to the project directory
+			err = os.Chdir(tempDir)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			claudeDir = origClaudeDir
+			os.RemoveAll(tempDir)
+		})
+
+		It("includes project and local scopes when allFlag is false", func() {
+			scopes := availableScopes(false)
+			Expect(scopes).To(ContainElement("user"))
+			Expect(scopes).To(ContainElement("project"))
+			Expect(scopes).To(ContainElement("local"))
+		})
+
+		It("returns all valid scopes when allFlag is true regardless of context", func() {
+			scopes := availableScopes(true)
+			Expect(scopes).To(Equal(claude.ValidScopes))
+		})
+	})
+
+	Context("outside a project directory", func() {
+		var tempDir string
+		var origClaudeDir string
+
+		BeforeEach(func() {
+			origClaudeDir = claudeDir
+
+			// Create a temp dir WITHOUT .claude to simulate non-project context
+			tempDir, _ = os.MkdirTemp("", "scope-test-*")
+			claudeDir, _ = os.MkdirTemp("", "claude-home-*")
+
+			err := os.Chdir(tempDir)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			claudeDir = origClaudeDir
+			os.RemoveAll(tempDir)
+		})
+
+		It("returns only user scope when allFlag is false", func() {
+			scopes := availableScopes(false)
+			Expect(scopes).To(Equal([]string{"user"}))
+		})
 	})
 })

@@ -162,9 +162,15 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check installed plugins for issues
+	// Check installed plugins for issues (deduplicate by name to avoid
+	// over-counting when a plugin is installed at multiple scopes)
+	seen := make(map[string]bool)
 	for _, sp := range plugins.GetPluginsAtScopes(scopes) {
 		name := sp.Name
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
 		plugin := sp.PluginMetadata
 		// Check if plugin is enabled in any scope
 		if _, enabled := pluginScopes[name]; enabled {

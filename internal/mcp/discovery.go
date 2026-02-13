@@ -40,8 +40,15 @@ func DiscoverEnabledMCPServers(pluginRegistry *claude.PluginRegistry, settings *
 func discoverMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.Settings) ([]PluginMCPServers, error) {
 	var results []PluginMCPServers
 
+	// Deduplicate by plugin name to avoid registering the same MCP servers
+	// twice when a plugin is installed at multiple scopes
+	seen := make(map[string]bool)
 	for _, sp := range pluginRegistry.GetPluginsAtScopes(claude.ValidScopes) {
 		name := sp.Name
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
 		plugin := sp.PluginMetadata
 		// If settings provided, skip disabled plugins
 		if settings != nil && !settings.IsPluginEnabled(name) {
