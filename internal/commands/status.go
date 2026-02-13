@@ -134,7 +134,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Build map of plugin -> scope (highest precedence wins)
 	pluginScopes := make(map[string]string)
-	for name := range plugins.GetAllPlugins() {
+	for _, sp := range plugins.GetPluginsAtScopes(scopes) {
+		name := sp.Name
 		// Check scopes in precedence order (local > project > user)
 		for _, scope := range scopes {
 			if scopeSettings[scope] != nil && scopeSettings[scope].IsPluginEnabled(name) {
@@ -162,7 +163,9 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Check installed plugins for issues
-	for name, plugin := range plugins.GetAllPlugins() {
+	for _, sp := range plugins.GetPluginsAtScopes(scopes) {
+		name := sp.Name
+		plugin := sp.PluginMetadata
 		// Check if plugin is enabled in any scope
 		if _, enabled := pluginScopes[name]; enabled {
 			enabledCount++
@@ -175,7 +178,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Find plugins enabled in settings but not installed
 	for name := range enabledInSettings {
-		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+		if !plugins.PluginExistsAtAnyScope(name) {
 			missingPlugins = append(missingPlugins, name)
 		}
 	}
