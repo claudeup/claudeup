@@ -233,3 +233,73 @@ func TestDiscoverEnabledMCPServersFromMCPJSON(t *testing.T) {
 		t.Errorf("Expected command with variable, got '%s'", server.Command)
 	}
 }
+
+func TestDiscoverMCPServersUsesHighestPrecedenceScope(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Plugin installed at user scope with one MCP server config
+	userPath := filepath.Join(tempDir, "user-install")
+	if err := os.MkdirAll(filepath.Join(userPath, ".claude-plugin"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	userPluginJSON := PluginJSON{
+		Name:    "test-plugin",
+		Version: "1.0.0",
+		MCPServers: map[string]ServerDefinition{
+			"server": {Command: "user-cmd"},
+		},
+	}
+	data, _ := json.Marshal(userPluginJSON)
+	os.WriteFile(filepath.Join(userPath, ".claude-plugin", "plugin.json"), data, 0644)
+
+	// Same plugin installed at local scope with different MCP server config
+	localPath := filepath.Join(tempDir, "local-install")
+	if err := os.MkdirAll(filepath.Join(localPath, ".claude-plugin"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	localPluginJSON := PluginJSON{
+		Name:    "test-plugin",
+		Version: "2.0.0",
+		MCPServers: map[string]ServerDefinition{
+			"server": {Command: "local-cmd"},
+		},
+	}
+	data, _ = json.Marshal(localPluginJSON)
+	os.WriteFile(filepath.Join(localPath, ".claude-plugin", "plugin.json"), data, 0644)
+
+	// Registry has plugin at both scopes
+	registry := &claude.PluginRegistry{
+		Version: 2,
+		Plugins: map[string][]claude.PluginMetadata{
+			"plugin@marketplace": {
+				{Scope: "user", InstallPath: userPath},
+				{Scope: "local", InstallPath: localPath},
+			},
+		},
+	}
+
+	settings := &claude.Settings{
+		EnabledPlugins: map[string]bool{
+			"plugin@marketplace": true,
+		},
+	}
+
+	servers, err := DiscoverEnabledMCPServers(registry, settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(servers) != 1 {
+		t.Fatalf("expected 1 plugin, got %d", len(servers))
+	}
+
+	// Should use local-scope install (highest precedence), not user-scope
+	server := servers[0].Servers["server"]
+	if server.Command != "local-cmd" {
+		t.Errorf("expected local-scope command 'local-cmd', got '%s' (dedup used wrong scope)", server.Command)
+	}
+}

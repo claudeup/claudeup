@@ -344,3 +344,121 @@ func TestMatcher_EmptyPluginList(t *testing.T) {
 		t.Errorf("expected 0 results for empty plugin list, got %d", len(results))
 	}
 }
+
+func TestMatcher_ContentSearch(t *testing.T) {
+	plugins := []PluginSearchIndex{
+		{
+			Name:        "test-plugin",
+			Description: "A plugin",
+			Marketplace: "test-market",
+			Skills: []ComponentInfo{
+				{
+					Name:        "my-skill",
+					Description: "A skill",
+					Content:     "This skill helps with debugging and profiling Go code",
+				},
+			},
+		},
+		{
+			Name:        "other-plugin",
+			Description: "Another plugin",
+			Marketplace: "test-market",
+			Skills: []ComponentInfo{
+				{
+					Name:        "other-skill",
+					Description: "Another skill",
+					Content:     "This skill handles frontend React components",
+				},
+			},
+		},
+	}
+
+	m := NewMatcher()
+
+	// Without --content, "profiling" should not match (not in name or description)
+	results := m.Search(plugins, "profiling", SearchOptions{})
+	if len(results) != 0 {
+		t.Errorf("expected 0 results without content search, got %d", len(results))
+	}
+
+	// With --content, "profiling" should match the skill body
+	results = m.Search(plugins, "profiling", SearchOptions{SearchContent: true})
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result with content search, got %d", len(results))
+	}
+	if results[0].Plugin.Name != "test-plugin" {
+		t.Errorf("expected test-plugin, got %s", results[0].Plugin.Name)
+	}
+
+	// Verify match type is "content"
+	foundContentMatch := false
+	for _, match := range results[0].Matches {
+		if match.Type == "content" {
+			foundContentMatch = true
+			if match.Name != "my-skill" {
+				t.Errorf("expected content match for 'my-skill', got '%s'", match.Name)
+			}
+			break
+		}
+	}
+	if !foundContentMatch {
+		t.Error("expected a match with Type='content'")
+	}
+}
+
+func TestMatcher_ContentSearchWithTypeFilter(t *testing.T) {
+	plugins := []PluginSearchIndex{
+		{
+			Name:        "test-plugin",
+			Description: "A plugin",
+			Marketplace: "test-market",
+			Skills: []ComponentInfo{
+				{
+					Name:    "my-skill",
+					Content: "Contains unique-search-term in body",
+				},
+			},
+		},
+	}
+
+	m := NewMatcher()
+
+	// Content search with type filter for skills should still match
+	results := m.Search(plugins, "unique-search-term", SearchOptions{
+		SearchContent: true,
+		FilterType:    "skills",
+	})
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result with content+type filter, got %d", len(results))
+	}
+
+	// Content search with type filter for commands should NOT match
+	results = m.Search(plugins, "unique-search-term", SearchOptions{
+		SearchContent: true,
+		FilterType:    "commands",
+	})
+	if len(results) != 0 {
+		t.Errorf("expected 0 results with wrong type filter, got %d", len(results))
+	}
+}
+
+func TestMatcher_ContentNotSearchedByDefault(t *testing.T) {
+	plugins := []PluginSearchIndex{
+		{
+			Name:        "test-plugin",
+			Marketplace: "test-market",
+			Skills: []ComponentInfo{
+				{
+					Name:    "test-skill",
+					Content: "unique-body-term-xyz",
+				},
+			},
+		},
+	}
+
+	m := NewMatcher()
+	results := m.Search(plugins, "unique-body-term-xyz", SearchOptions{})
+	if len(results) != 0 {
+		t.Error("SearchContent=false should not match body content")
+	}
+}

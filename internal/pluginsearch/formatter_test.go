@@ -335,6 +335,61 @@ func TestFormatter_MultipleMatchTypes(t *testing.T) {
 	}
 }
 
+func TestFormatter_ByComponentShowsContentMatches(t *testing.T) {
+	results := []SearchResult{
+		{
+			Plugin: PluginSearchIndex{
+				Name:        "test-plugin",
+				Marketplace: "test-market",
+				Version:     "1.0.0",
+			},
+			Matches: []Match{
+				{Type: "content", Name: "my-skill", Description: "A skill", Context: "body text"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	f := NewFormatter(&buf)
+	f.Render(results, "body", FormatOptions{Format: "default", ByComponent: true})
+
+	output := buf.String()
+
+	// Content matches should appear under Skills section
+	if !strings.Contains(output, "Skills") {
+		t.Errorf("expected content matches to appear under Skills section, got:\n%s", output)
+	}
+	if !strings.Contains(output, "my-skill") {
+		t.Errorf("expected content match skill name in output, got:\n%s", output)
+	}
+}
+
+func TestFormatter_DefaultShowsContentMatches(t *testing.T) {
+	results := []SearchResult{
+		{
+			Plugin: PluginSearchIndex{
+				Name:        "test-plugin",
+				Marketplace: "test-market",
+				Version:     "1.0.0",
+			},
+			Matches: []Match{
+				{Type: "content", Name: "my-skill", Description: "A skill"},
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	f := NewFormatter(&buf)
+	f.Render(results, "test", FormatOptions{})
+
+	output := buf.String()
+
+	// Content matches should appear under Skills in default view
+	if !strings.Contains(output, "Skills:") {
+		t.Errorf("expected content matches to show under Skills in default view, got:\n%s", output)
+	}
+}
+
 func TestFormatter_JSONNoResults(t *testing.T) {
 	var buf bytes.Buffer
 	f := NewFormatter(&buf)

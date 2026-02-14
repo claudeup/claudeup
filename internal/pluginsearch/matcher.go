@@ -13,7 +13,7 @@ type SearchOptions struct {
 	UseRegex      bool
 	FilterType    string // "skills", "commands", "agents", or "" for all
 	FilterMarket  string // Filter to specific marketplace
-	SearchContent bool   // Also search SKILL.md body content (future feature)
+	SearchContent bool   // Also search SKILL.md body content
 }
 
 // Match represents a single match within a plugin.
@@ -118,6 +118,14 @@ func (m *Matcher) matchPlugin(plugin PluginSearchIndex, matchFunc func(string) b
 					Name:        skill.Name,
 					Description: skill.Description,
 					Context:     skill.Name,
+					Path:        skill.Path,
+				})
+			} else if opts.SearchContent && skill.Content != "" && matchFunc(skill.Content) {
+				matches = append(matches, Match{
+					Type:        "content",
+					Name:        skill.Name,
+					Description: skill.Description,
+					Context:     skill.Content,
 					Path:        skill.Path,
 				})
 			}

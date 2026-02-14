@@ -6,6 +6,7 @@ package pluginsearch
 import (
 	"bufio"
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 )
+
+// maxContentBytes limits how much SKILL.md body content is indexed for search.
+// Prevents excessive memory usage when scanning large files.
+const maxContentBytes = 64 * 1024 // 64KB
 
 // Scanner scans the plugin cache to build a search index.
 type Scanner struct{}
@@ -177,18 +182,28 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 
 	fileScanner := bufio.NewScanner(file)
 	inFrontmatter := false
+	firstLine := true
 	name := dirName
 	description := ""
+	var bodyLines []string
+	bodyBytes := 0
+	truncated := false
 
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
-		if line == "---" {
-			if inFrontmatter {
-				break // End of frontmatter
-			}
+
+		// Frontmatter must start on the very first line
+		if line == "---" && firstLine {
 			inFrontmatter = true
+			firstLine = false
 			continue
 		}
+		if line == "---" && inFrontmatter {
+			inFrontmatter = false
+			continue
+		}
+		firstLine = false
+
 		if inFrontmatter {
 			if strings.HasPrefix(line, "name:") {
 				name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
@@ -196,6 +211,15 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 			} else if strings.HasPrefix(line, "description:") {
 				description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
 				description = strings.Trim(description, "\"'")
+			}
+		} else if !truncated {
+			lineLen := len(line) + 1 // +1 for newline
+			if bodyBytes+lineLen > maxContentBytes {
+				truncated = true
+				log.Printf("Warning: skill content truncated at %d bytes: %s", maxContentBytes, skillFile)
+			} else {
+				bodyLines = append(bodyLines, line)
+				bodyBytes += lineLen
 			}
 		}
 	}
@@ -208,6 +232,8 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 		Name:        name,
 		Description: description,
 		Path:        skillPath,
+		Content:     strings.TrimSpace(strings.Join(bodyLines, "\n")),
+		Truncated:   truncated,
 	}
 }
 
