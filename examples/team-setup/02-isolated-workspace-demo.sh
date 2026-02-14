@@ -22,10 +22,8 @@ check_claude_config_dir_override
 EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXXXXXXX")
 trap_preserve_on_error
 
-PROJECT_DIR="$EXAMPLE_TEMP_DIR/project"
-
 # ---------------------------------------------------------------------------
-# Helper: switch active team member
+# Helper: switch active team member and cd to their project directory
 # ---------------------------------------------------------------------------
 switch_member() {
     local name="$1"
@@ -38,14 +36,15 @@ switch_member() {
 # Banner
 # ---------------------------------------------------------------------------
 cat <<'EOF'
-╔════════════════════════════════════════════════════════════════╗
-║        Team Setup: Isolated Workspace Demo                     ║
-╚════════════════════════════════════════════════════════════════╝
++================================================================+
+|        Team Setup: Isolated Workspace Demo                     |
++================================================================+
 
 Three engineers -- Alice, Bob, and Charlie -- collaborate on a Go
-backend project. Each has an isolated CLAUDE_CONFIG_DIR so their
-personal plugins never collide, while the shared project directory
-gives everyone the same team configuration.
+backend project. Each has their own machine (simulated with
+isolated directories) with a separate CLAUDE_CONFIG_DIR. Team
+configuration travels through the project repository (git), while
+personal plugins remain independent.
 
 EOF
 pause
@@ -54,37 +53,35 @@ pause
 section "1. Setting Up the Team"
 # ===================================================================
 
-step "Create the shared project directory"
-mkdir -p "$PROJECT_DIR"
-success "Created $PROJECT_DIR"
-echo
-
 step "Create isolated directories for each team member"
 
 for member in alice bob charlie; do
+    mkdir -p "$EXAMPLE_TEMP_DIR/$member/project"
     mkdir -p "$EXAMPLE_TEMP_DIR/$member/claude-config/plugins"
     mkdir -p "$EXAMPLE_TEMP_DIR/$member/claudeup-home/profiles"
 done
 success "Created alice/, bob/, charlie/ under $EXAMPLE_TEMP_DIR"
 echo
 
-info "Directory layout:"
+info "Directory layout (simulating separate machines):"
 info "  $EXAMPLE_TEMP_DIR/"
-info "  ├── project/              # Shared project (git repo)"
 info "  ├── alice/"
+info "  │   ├── project/          # Alice's working copy"
 info "  │   ├── claude-config/    # CLAUDE_CONFIG_DIR"
 info "  │   └── claudeup-home/    # CLAUDEUP_HOME"
 info "  ├── bob/"
+info "  │   ├── project/          # Bob's clone"
 info "  │   ├── claude-config/"
 info "  │   └── claudeup-home/"
 info "  └── charlie/"
+info "      ├── project/          # Charlie's clone"
 info "      ├── claude-config/"
 info "      └── claudeup-home/"
 echo
 
 step "Create fixture profiles"
 
-# -- Team profile (shared by everyone) --
+# -- Team profile (shared by everyone via onboarding docs / wiki) --
 cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/go-backend-team.json" <<'PROFILE'
 {
   "name": "go-backend-team",
@@ -180,19 +177,19 @@ section "2. Alice Sets Up the Team Project"
 # ===================================================================
 
 switch_member alice
-cd "$PROJECT_DIR" || exit 1
+cd "$EXAMPLE_TEMP_DIR/alice/project" || exit 1
 echo
 
 step "Apply the team profile at project scope"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply go-backend-team --project --yes
 echo
 
-step "Check project-scoped files"
+step "Check project-scoped files created by the team profile"
 info "Rules directory:"
-ls -la "$PROJECT_DIR/.claude/rules/" 2>/dev/null || info "  (no rules directory yet)"
+ls -la "$EXAMPLE_TEMP_DIR/alice/project/.claude/rules/" 2>/dev/null || info "  (no rules directory yet)"
 echo
 info "Agents directory:"
-ls -la "$PROJECT_DIR/.claude/agents/" 2>/dev/null || info "  (no agents directory yet)"
+ls -la "$EXAMPLE_TEMP_DIR/alice/project/.claude/agents/" 2>/dev/null || info "  (no agents directory yet)"
 echo
 
 step "Apply Alice's personal profile at user scope"
@@ -201,24 +198,50 @@ echo
 
 step "View Alice's profile list"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
+echo
+
+info "Alice's project is ready. In a real workflow, she would commit"
+info "the .claude/ directory to git so teammates get the team config."
 pause
 
 # ===================================================================
-section "3. Bob Joins the Team"
+section "3. Bob Clones the Project"
 # ===================================================================
 
-switch_member bob
-cd "$PROJECT_DIR" || exit 1
+info "Bob clones the project repository. The project-scoped settings"
+info "and local items (.claude/) travel with git -- no re-application needed."
 echo
 
-step "Copy team profile from Alice (simulating team sharing)"
+step "Simulate git clone (copy Alice's project to Bob's machine)"
+cp -R "$EXAMPLE_TEMP_DIR/alice/project/." "$EXAMPLE_TEMP_DIR/bob/project/"
+success "Copied project to Bob's directory (simulating git clone)"
+echo
+
+step "Verify Bob's clone has the team configuration"
+info "Project settings.json:"
+if [[ -f "$EXAMPLE_TEMP_DIR/bob/project/.claude/settings.json" ]]; then
+    cat "$EXAMPLE_TEMP_DIR/bob/project/.claude/settings.json"
+else
+    info "  (no project settings.json)"
+fi
+echo
+info "Project rules:"
+ls "$EXAMPLE_TEMP_DIR/bob/project/.claude/rules/" 2>/dev/null || info "  (no rules)"
+info "Project agents:"
+ls "$EXAMPLE_TEMP_DIR/bob/project/.claude/agents/" 2>/dev/null || info "  (no agents)"
+echo
+
+switch_member bob
+cd "$EXAMPLE_TEMP_DIR/bob/project" || exit 1
+echo
+
+step "Copy team profile to Bob's profiles (from onboarding wiki)"
 cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/go-backend-team.json" \
    "$EXAMPLE_TEMP_DIR/bob/claudeup-home/profiles/"
 success "Copied go-backend-team.json to Bob's profiles"
 echo
 
-# Bob also needs the local items that the team profile references
-step "Copy team local items to Bob (simulating shared tooling)"
+step "Copy team local items to Bob (from shared team tooling)"
 mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/rules"
 mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/agents"
 cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" \
@@ -228,91 +251,83 @@ cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents/reviewer.md" \
 success "Copied local items to Bob"
 echo
 
-step "Apply team profile for Bob"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply go-backend-team --project --yes
+info "Bob does NOT need to re-apply the team profile at project scope."
+info "The .claude/ directory from Alice's commit already has everything."
 echo
 
-step "Apply Bob's personal profile"
+step "Apply Bob's personal profile (user scope only)"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply bob-tools --yes
 echo
 
 step "View Bob's profile list"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
-echo
-
-step "Verify project rules are still present (shared across members)"
-info "Contents of project golang rule:"
-cat "$PROJECT_DIR/.claude/rules/golang.md" 2>/dev/null || info "  (not found)"
 pause
 
 # ===================================================================
-section "4. Charlie Joins with Minimal Setup"
+section "4. Charlie Clones with Minimal Setup"
 # ===================================================================
 
+info "Charlie clones the project but has no personal profile."
+info "He can start working immediately with the team configuration."
+echo
+
+step "Simulate git clone (copy Alice's project to Charlie's machine)"
+cp -R "$EXAMPLE_TEMP_DIR/alice/project/." "$EXAMPLE_TEMP_DIR/charlie/project/"
+success "Copied project to Charlie's directory (simulating git clone)"
+echo
+
 switch_member charlie
-cd "$PROJECT_DIR" || exit 1
+cd "$EXAMPLE_TEMP_DIR/charlie/project" || exit 1
 echo
 
 step "Charlie has no personal profile -- just list what's available"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list || info "No profiles configured yet"
 echo
 
-info "Charlie can still work in the project. The project-scoped files"
-info "that Alice and Bob applied (in .claude/) are regular files on disk."
-info "Claude Code reads them regardless of who created them."
-echo
-
-step "Verify Charlie sees the project configuration"
-if [[ -f "$PROJECT_DIR/.claude/settings.json" ]]; then
+step "Verify Charlie sees the project configuration from git"
+if [[ -f "$EXAMPLE_TEMP_DIR/charlie/project/.claude/settings.json" ]]; then
     info "Project settings.json exists:"
-    head -20 "$PROJECT_DIR/.claude/settings.json"
+    cat "$EXAMPLE_TEMP_DIR/charlie/project/.claude/settings.json"
 else
     info "No project settings.json (team plugins would appear here)"
 fi
+echo
+
+info "Project rules from git:"
+cat "$EXAMPLE_TEMP_DIR/charlie/project/.claude/rules/golang.md" 2>/dev/null || info "  (not found)"
 pause
 
 # ===================================================================
 section "5. Compare Team Members"
 # ===================================================================
 
-info "All three members share the same project directory, but each has"
-info "different personal (user-scope) settings."
+info "All three members have their own project clone with identical"
+info "team configuration, but different personal (user-scope) settings."
 echo
 
-step "Project-scoped settings (shared by everyone)"
-if [[ -f "$PROJECT_DIR/.claude/settings.json" ]]; then
-    info "Contents of $PROJECT_DIR/.claude/settings.json:"
-    head -20 "$PROJECT_DIR/.claude/settings.json"
-else
-    info "(no project settings.json)"
-fi
-echo
+step "Project-scoped settings (identical across all clones)"
+for member in alice bob charlie; do
+    local_settings="$EXAMPLE_TEMP_DIR/$member/project/.claude/settings.json"
+    if [[ -f "$local_settings" ]]; then
+        info "$member's project settings.json:"
+        cat "$local_settings"
+    else
+        info "$member: (no project settings.json)"
+    fi
+    echo
+done
 
-step "Alice's user-scoped settings"
-if [[ -f "$EXAMPLE_TEMP_DIR/alice/claude-config/settings.json" ]]; then
-    info "Contents of alice/claude-config/settings.json:"
-    head -20 "$EXAMPLE_TEMP_DIR/alice/claude-config/settings.json"
-else
-    info "(no user settings for Alice)"
-fi
-echo
-
-step "Bob's user-scoped settings"
-if [[ -f "$EXAMPLE_TEMP_DIR/bob/claude-config/settings.json" ]]; then
-    info "Contents of bob/claude-config/settings.json:"
-    head -20 "$EXAMPLE_TEMP_DIR/bob/claude-config/settings.json"
-else
-    info "(no user settings for Bob)"
-fi
-echo
-
-step "Charlie's user-scoped settings"
-if [[ -f "$EXAMPLE_TEMP_DIR/charlie/claude-config/settings.json" ]]; then
-    info "Contents of charlie/claude-config/settings.json:"
-    head -20 "$EXAMPLE_TEMP_DIR/charlie/claude-config/settings.json"
-else
-    info "(no user settings for Charlie -- minimal setup)"
-fi
+step "User-scoped settings (personal to each member)"
+for member in alice bob charlie; do
+    local_settings="$EXAMPLE_TEMP_DIR/$member/claude-config/settings.json"
+    if [[ -f "$local_settings" ]]; then
+        info "$member's user settings.json:"
+        cat "$local_settings"
+    else
+        info "$member: (no user settings -- minimal setup)"
+    fi
+    echo
+done
 pause
 
 # ===================================================================
@@ -329,15 +344,15 @@ info ""
 info "  CLAUDEUP_HOME isolates each member's profiles and local items"
 info "    Profiles and rules are stored per-member, not globally"
 info ""
-info "  --project scope writes to the shared project/.claude/ directory"
+info "  Project settings travel through git, not re-application"
+info "    Alice applies once, commits .claude/ -- teammates clone it"
+info ""
+info "  --project scope writes to the project's .claude/ directory"
 info "    These files are regular files, not symlinks -- git-committable"
 info ""
 info "  User-scope profiles are personal and independent"
 info "    Alice has superpowers, Bob has style and review tools,"
 info "    Charlie has nothing -- all without conflict"
-info ""
-info "  Project-scoped items are visible to everyone"
-info "    Rules and agents in .claude/ work for any team member"
 echo
 
 prompt_cleanup
