@@ -182,10 +182,19 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Find plugins enabled in settings but not installed
+	// Find plugins enabled in settings but not installed,
+	// tracking which scope each one is enabled in
+	missingPluginScope := make(map[string]string)
 	for name := range enabledInSettings {
 		if !plugins.PluginExistsAtAnyScope(name) {
 			missingPlugins = append(missingPlugins, name)
+			// Determine which scope this plugin is enabled in (highest precedence first)
+			for _, scope := range scopes {
+				if scopeSettings[scope] != nil && scopeSettings[scope].IsPluginEnabled(name) {
+					missingPluginScope[name] = scope
+					break
+				}
+			}
 		}
 	}
 
@@ -221,40 +230,18 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.RenderSection("Issues", -1))
 
 		if len(missingPlugins) > 0 {
-			// Check which missing plugins are in the saved profile
-			pluginsInProfile := make(map[string]bool)
-			if activeProfile != "" && activeProfile != "none" {
-				profilesDir := getProfilesDir()
-				savedProfile, err := loadProfileWithFallback(profilesDir, activeProfile)
-				if err == nil {
-					for _, p := range savedProfile.Plugins {
-						pluginsInProfile[p] = true
-					}
-				}
-			}
-
 			fmt.Println()
 			fmt.Printf("  %s %d plugin%s enabled but not installed:\n",
 				ui.Warning(ui.SymbolWarning), len(missingPlugins), pluralS(len(missingPlugins)))
 			for _, name := range missingPlugins {
-				suffix := ""
-				if pluginsInProfile[name] {
-					suffix = ui.Muted(" (in profile)")
-				}
-				fmt.Printf("    - %s%s\n", name, suffix)
+				scope := missingPluginScope[name]
+				fmt.Printf("    - %s %s\n", name, ui.Muted("("+scope+")"))
 			}
 			fmt.Println()
-			if activeProfile != "" && activeProfile != "none" {
-				fmt.Printf("  %s Reinstall from profile: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
-				fmt.Printf("  %s Or remove from settings: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean <plugin-name>"))
-			} else {
-				fmt.Printf("  %s Install manually: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin install <name>"))
-				fmt.Printf("  %s Or remove from settings: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claudeup profile clean <plugin-name>"))
-			}
+			fmt.Printf("  %s Install the plugin:\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("      %s\n", ui.Bold("claude plugin install <plugin-name>"))
+			fmt.Printf("  %s Remove the stale settings entry:\n", ui.Muted(ui.SymbolArrow))
+			fmt.Printf("      %s\n", ui.Bold("claudeup profile clean --<scope> <plugin-name>"))
 		}
 
 		if len(stalePlugins) > 0 {
