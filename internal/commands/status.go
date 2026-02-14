@@ -239,7 +239,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Println()
 			fmt.Printf("  %s Install the plugin:\n", ui.Muted(ui.SymbolArrow))
-			fmt.Printf("      %s\n", ui.Bold("claude plugin install <plugin-name>"))
+			fmt.Printf("      %s\n", ui.Bold("claude plugin install --scope <scope> <plugin-name>"))
 			fmt.Printf("  %s Remove the stale settings entry:\n", ui.Muted(ui.SymbolArrow))
 			fmt.Printf("      %s\n", ui.Bold("claudeup profile clean --<scope> <plugin-name>"))
 		}

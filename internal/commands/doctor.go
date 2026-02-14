@@ -173,7 +173,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 		if len(missingPlugins) > 0 {
 			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install the plugin:"), 1))
-			fmt.Println(ui.Indent(ui.Bold("claude plugin install <plugin-name>"), 2))
+			fmt.Println(ui.Indent(ui.Bold("claude plugin install --scope <scope> <plugin-name>"), 2))
 			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Remove the stale settings entry:"), 1))
 			fmt.Println(ui.Indent(ui.Bold("claudeup profile clean --<scope> <plugin-name>"), 2))
 		}
