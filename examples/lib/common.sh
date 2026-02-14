@@ -165,8 +165,7 @@ warn_real_mode() {
 # Temp Environment Setup
 # =============================================================================
 
-setup_temp_claude_dir() {
-    # Resolve claudeup path to absolute before cd (in case it's relative)
+resolve_claudeup_bin() {
     if [[ "$EXAMPLE_CLAUDEUP_BIN" != /* ]]; then
         if [[ -f "$EXAMPLE_CLAUDEUP_BIN" ]]; then
             # Relative path to a file - resolve to absolute
@@ -176,6 +175,10 @@ setup_temp_claude_dir() {
             EXAMPLE_CLAUDEUP_BIN=$(command -v "$EXAMPLE_CLAUDEUP_BIN")
         fi
     fi
+}
+
+setup_temp_claude_dir() {
+    resolve_claudeup_bin
 
     EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXXXXXXX")
 
