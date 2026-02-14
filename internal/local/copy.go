@@ -27,6 +27,7 @@ func CopyToProject(localDir, category string, patterns []string, projectDir stri
 	var copied []string
 	var notFound []string
 
+	destBase := filepath.Clean(filepath.Join(projectDir, ".claude", category))
 	for _, pattern := range patterns {
 		matched := MatchWildcard(pattern, allItems)
 		if len(matched) == 0 {
@@ -34,14 +35,12 @@ func CopyToProject(localDir, category string, patterns []string, projectDir stri
 			continue
 		}
 
-		destBase := filepath.Clean(filepath.Join(projectDir, ".claude", category))
 		for _, item := range matched {
 			srcPath := filepath.Join(sourceDir, item)
 			destPath := filepath.Clean(filepath.Join(destBase, item))
 
-			// Validate dest stays within the target directory (path traversal defense)
-			if !strings.HasPrefix(destPath, destBase+string(filepath.Separator)) {
-				return nil, nil, fmt.Errorf("item %q resolves outside target directory %s", item, destBase)
+			if err := validateDestPath(destPath, destBase); err != nil {
+				return nil, nil, fmt.Errorf("item %q: %w", item, err)
 			}
 
 			if err := copyItemToProject(srcPath, destPath); err != nil {
@@ -52,6 +51,16 @@ func CopyToProject(localDir, category string, patterns []string, projectDir stri
 	}
 
 	return copied, notFound, nil
+}
+
+// validateDestPath checks that destPath stays within baseDir.
+// OS filesystems reject "/" in filenames, so listLocalItems cannot return
+// traversal sequences. This is a safety net against externally-crafted item names.
+func validateDestPath(destPath, baseDir string) error {
+	if !strings.HasPrefix(destPath, baseDir+string(filepath.Separator)) {
+		return fmt.Errorf("resolves outside target directory %s", baseDir)
+	}
+	return nil
 }
 
 // listLocalItems enumerates items in a local storage directory.

@@ -5,7 +5,6 @@ package local
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -226,17 +225,16 @@ func TestProjectScopeCategories(t *testing.T) {
 	}
 }
 
-func TestPathTraversalValidation(t *testing.T) {
-	// Defense-in-depth: filesystem entries can't contain "/" or ".." as names,
-	// so traversal through listLocalItems is impossible. This validates the
-	// prefix check catches traversal if item names were ever crafted externally.
-	projectDir := "/project"
-	destBase := filepath.Clean(filepath.Join(projectDir, ".claude", "rules"))
+func TestValidateDestPath(t *testing.T) {
+	// Defense-in-depth: OS filesystems reject "/" in filenames, so
+	// listLocalItems cannot return traversal sequences. This tests the
+	// validateDestPath safety net against externally-crafted item names.
+	baseDir := filepath.Clean("/project/.claude/rules")
 
 	tests := []struct {
-		name    string
-		item    string
-		escapes bool
+		name      string
+		item      string
+		wantError bool
 	}{
 		{"normal item", "golang.md", false},
 		{"nested item", "team/reviewer.md", false},
@@ -247,10 +245,10 @@ func TestPathTraversalValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			destPath := filepath.Clean(filepath.Join(destBase, tt.item))
-			escaped := !strings.HasPrefix(destPath, destBase+string(filepath.Separator))
-			if escaped != tt.escapes {
-				t.Errorf("item %q: expected escapes=%v, got %v (resolved to %s)", tt.item, tt.escapes, escaped, destPath)
+			destPath := filepath.Clean(filepath.Join(baseDir, tt.item))
+			err := validateDestPath(destPath, baseDir)
+			if (err != nil) != tt.wantError {
+				t.Errorf("validateDestPath(%q, %q): got err=%v, wantError=%v", destPath, baseDir, err, tt.wantError)
 			}
 		})
 	}
