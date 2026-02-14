@@ -93,6 +93,9 @@ pause
 section "1. Create Fixture Profiles"
 # ===================================================================
 
+# claudeup-lab applies all profiles at user scope inside the container,
+# so both team and personal profiles target "user" here (unlike demo 02
+# which uses project scope for team config).
 step "Create team profile: go-backend-team"
 cat > "$CLAUDEUP_HOME/profiles/go-backend-team.json" <<'PROFILE'
 {
