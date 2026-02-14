@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
 )
@@ -47,8 +48,16 @@ func discoverMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.
 		}
 	}
 
+	// Sort plugin names for deterministic output order
+	pluginNames := make([]string, 0, len(best))
+	for name := range best {
+		pluginNames = append(pluginNames, name)
+	}
+	sort.Strings(pluginNames)
+
 	var results []PluginMCPServers
-	for _, sp := range best {
+	for _, pn := range pluginNames {
+		sp := best[pn]
 		name := sp.Name
 		plugin := sp.PluginMetadata
 

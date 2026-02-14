@@ -441,3 +441,24 @@ func TestMatcher_ContentSearchWithTypeFilter(t *testing.T) {
 		t.Errorf("expected 0 results with wrong type filter, got %d", len(results))
 	}
 }
+
+func TestMatcher_ContentNotSearchedByDefault(t *testing.T) {
+	plugins := []PluginSearchIndex{
+		{
+			Name:        "test-plugin",
+			Marketplace: "test-market",
+			Skills: []ComponentInfo{
+				{
+					Name:    "test-skill",
+					Content: "unique-body-term-xyz",
+				},
+			},
+		},
+	}
+
+	m := NewMatcher()
+	results := m.Search(plugins, "unique-body-term-xyz", SearchOptions{})
+	if len(results) != 0 {
+		t.Error("SearchContent=false should not match body content")
+	}
+}

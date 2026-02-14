@@ -173,16 +173,53 @@ func TestScanner_ParsesSkills(t *testing.T) {
 	if len(p.Skills) == 0 {
 		t.Fatal("expected plugin to have skills")
 	}
-	if len(p.Skills) != 1 {
-		t.Fatalf("expected 1 skill, got %d", len(p.Skills))
+	if len(p.Skills) != 2 {
+		t.Fatalf("expected 2 skills, got %d", len(p.Skills))
 	}
 
-	skill := p.Skills[0]
-	if skill.Name != "my-skill" {
-		t.Errorf("expected skill name 'my-skill', got '%s'", skill.Name)
+	// Find my-skill (has frontmatter)
+	var mySkill *ComponentInfo
+	for i := range p.Skills {
+		if p.Skills[i].Name == "my-skill" {
+			mySkill = &p.Skills[i]
+		}
 	}
-	if skill.Description != "A skill for testing purposes" {
-		t.Errorf("expected skill description 'A skill for testing purposes', got '%s'", skill.Description)
+	if mySkill == nil {
+		t.Fatal("expected to find skill 'my-skill'")
+	}
+	if mySkill.Description != "A skill for testing purposes" {
+		t.Errorf("expected skill description 'A skill for testing purposes', got '%s'", mySkill.Description)
+	}
+}
+
+func TestScanner_ParsesSkillWithoutFrontmatter(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "cache")
+
+	plugins, err := scanner.Scan(cacheDir)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	p := plugins[0]
+	var skill *ComponentInfo
+	for i := range p.Skills {
+		if p.Skills[i].Name == "no-frontmatter-skill" {
+			skill = &p.Skills[i]
+		}
+	}
+	if skill == nil {
+		t.Fatal("expected to find skill 'no-frontmatter-skill'")
+	}
+	// Without frontmatter, entire file should be treated as body content
+	if skill.Content == "" {
+		t.Fatal("expected Content to be populated even without frontmatter")
+	}
+	if !strings.Contains(skill.Content, "No Frontmatter Skill") {
+		t.Errorf("expected Content to contain file body, got: %q", skill.Content)
+	}
+	if !strings.Contains(skill.Content, "searchable by content") {
+		t.Errorf("expected Content to contain body text, got: %q", skill.Content)
 	}
 }
 

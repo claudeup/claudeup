@@ -70,8 +70,8 @@ func (f *Formatter) renderPluginResult(result SearchResult) {
 		ui.Bold(fullName),
 		ui.Muted(fmt.Sprintf("(v%s)", result.Plugin.Version)))
 
-	// Group matches by type for display
-	skills := f.filterMatchesByType(result.Matches, "skill")
+	// Group matches by type for display (content matches are skill-level)
+	skills := f.filterMatchesByTypes(result.Matches, "skill", "content")
 	commands := f.filterMatchesByType(result.Matches, "command")
 	agents := f.filterMatchesByType(result.Matches, "agent")
 
@@ -136,7 +136,7 @@ func (f *Formatter) renderByComponent(results []SearchResult, query string) {
 				marketplace: result.Plugin.Marketplace,
 			}
 			switch match.Type {
-			case "skill":
+			case "skill", "content":
 				skills = append(skills, entry)
 			case "command":
 				commands = append(commands, entry)
@@ -303,6 +303,20 @@ func (f *Formatter) filterMatchesByType(matches []Match, matchType string) []Mat
 	var filtered []Match
 	for _, m := range matches {
 		if m.Type == matchType {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered
+}
+
+func (f *Formatter) filterMatchesByTypes(matches []Match, matchTypes ...string) []Match {
+	typeSet := make(map[string]bool, len(matchTypes))
+	for _, t := range matchTypes {
+		typeSet[t] = true
+	}
+	var filtered []Match
+	for _, m := range matches {
+		if typeSet[m.Type] {
 			filtered = append(filtered, m)
 		}
 	}

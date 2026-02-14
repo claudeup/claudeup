@@ -13,7 +13,7 @@ type SearchOptions struct {
 	UseRegex      bool
 	FilterType    string // "skills", "commands", "agents", or "" for all
 	FilterMarket  string // Filter to specific marketplace
-	SearchContent bool   // Also search SKILL.md body content (future feature)
+	SearchContent bool   // Also search SKILL.md body content
 }
 
 // Match represents a single match within a plugin.

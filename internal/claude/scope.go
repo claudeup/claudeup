@@ -15,13 +15,18 @@ const (
 // ValidScopes is the ordered list of scopes (lowest to highest precedence)
 var ValidScopes = []string{ScopeUser, ScopeProject, ScopeLocal}
 
+// scopePrecedenceMap provides O(1) lookup for scope precedence.
+var scopePrecedenceMap = map[string]int{
+	ScopeUser:    0,
+	ScopeProject: 1,
+	ScopeLocal:   2,
+}
+
 // ScopePrecedence returns the precedence of a scope (higher = takes priority).
 // Returns -1 for unknown scopes.
 func ScopePrecedence(scope string) int {
-	for i, s := range ValidScopes {
-		if s == scope {
-			return i
-		}
+	if p, ok := scopePrecedenceMap[scope]; ok {
+		return p
 	}
 	return -1
 }
