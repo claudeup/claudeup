@@ -105,16 +105,19 @@ var _ = Describe("profile use concurrent apply", func() {
 				Plugins: []string{"plugin@test"},
 			})
 
-			// Simulate that the plugin is already installed
+			// Simulate that the plugin is already installed at project scope
 			installedPlugins := map[string]interface{}{
 				"version": 2,
 				"plugins": map[string]interface{}{
-					"plugin@test": map[string]interface{}{
-						"source":       "marketplace",
-						"path":         "/path/to/plugin",
-						"installedAt":  "2025-01-01T00:00:00Z",
-						"pathExists":   true,
-						"pluginVersion": map[string]interface{}{},
+					"plugin@test": []interface{}{
+						map[string]interface{}{
+							"scope":        "project",
+							"source":       "marketplace",
+							"installPath":  "/path/to/plugin",
+							"installedAt":  "2025-01-01T00:00:00Z",
+							"version":      "1.0.0",
+							"gitCommitSha": "abc123",
+						},
 					},
 				},
 			}

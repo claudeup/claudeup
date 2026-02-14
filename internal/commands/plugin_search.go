@@ -98,7 +98,7 @@ func runPluginSearch(cmd *cobra.Command, args []string) error {
 		var installedPlugins []pluginsearch.PluginSearchIndex
 		for _, plugin := range plugins {
 			fullName := plugin.Name + "@" + plugin.Marketplace
-			if installed.PluginExists(fullName) {
+			if installed.PluginExistsAtAnyScope(fullName) {
 				installedPlugins = append(installedPlugins, plugin)
 			}
 		}

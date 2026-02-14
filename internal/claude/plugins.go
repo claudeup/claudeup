@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 
 	"github.com/claudeup/claudeup/v5/internal/events"
 )
@@ -20,13 +22,21 @@ type PluginRegistry struct {
 
 // PluginMetadata represents metadata for an installed plugin
 type PluginMetadata struct {
-	Scope        string `json:"scope"`        // "user" or "project"
+	Scope        string `json:"scope"` // "user", "project", or "local"
 	Version      string `json:"version"`
 	InstalledAt  string `json:"installedAt"`
 	LastUpdated  string `json:"lastUpdated"`
 	InstallPath  string `json:"installPath"`
 	GitCommitSha string `json:"gitCommitSha"`
 	IsLocal      bool   `json:"isLocal"`
+	ProjectPath  string `json:"projectPath,omitempty"`
+}
+
+// ScopedPlugin pairs a plugin name with its scope-specific metadata.
+// Used by GetPluginsAtScopes to flatten the registry into a single slice.
+type ScopedPlugin struct {
+	Name string
+	PluginMetadata
 }
 
 // LoadPlugins reads and parses the installed_plugins.json file
@@ -136,23 +146,101 @@ func (p *PluginMetadata) PathExists() bool {
 	return err == nil
 }
 
-// GetPlugin retrieves a plugin by name, defaulting to "user" scope
-// Returns (metadata, exists) where exists is false if plugin not found
-func (r *PluginRegistry) GetPlugin(pluginName string) (PluginMetadata, bool) {
+// GetPluginAtScope retrieves a plugin's metadata for a specific scope.
+// Returns (metadata, true) if found, (zero, false) if not.
+func (r *PluginRegistry) GetPluginAtScope(pluginName, scope string) (PluginMetadata, bool) {
 	instances, exists := r.Plugins[pluginName]
-	if !exists || len(instances) == 0 {
+	if !exists {
 		return PluginMetadata{}, false
 	}
-	// Return first instance with "user" scope, or first instance if no user scope
 	for _, inst := range instances {
-		if inst.Scope == "user" || inst.Scope == "" {
+		if inst.Scope == scope {
 			return inst, true
 		}
 	}
-	return instances[0], true
+	return PluginMetadata{}, false
 }
 
-// SetPlugin sets or updates a plugin's metadata for the "user" scope
+// GetPluginInstances returns all scope instances for a plugin.
+// Returns nil if the plugin is not in the registry.
+func (r *PluginRegistry) GetPluginInstances(pluginName string) []PluginMetadata {
+	return r.Plugins[pluginName]
+}
+
+// GetPluginsAtScopes returns all plugin instances installed at the given scopes.
+// Each instance is paired with its plugin name.
+func (r *PluginRegistry) GetPluginsAtScopes(scopes []string) []ScopedPlugin {
+	scopeSet := make(map[string]bool, len(scopes))
+	for _, s := range scopes {
+		scopeSet[s] = true
+	}
+
+	var result []ScopedPlugin
+	for name, instances := range r.Plugins {
+		for _, inst := range instances {
+			if scopeSet[inst.Scope] {
+				result = append(result, ScopedPlugin{Name: name, PluginMetadata: inst})
+			}
+		}
+	}
+
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Name != result[j].Name {
+			return result[i].Name < result[j].Name
+		}
+		return result[i].Scope < result[j].Scope
+	})
+
+	return result
+}
+
+// GetPluginsForContext returns plugins relevant to a specific project context.
+// User-scope plugins are always included. Project and local scope plugins are
+// included only if their ProjectPath matches projectDir.
+// When projectDir is empty, all plugins at the given scopes are returned.
+func (r *PluginRegistry) GetPluginsForContext(scopes []string, projectDir string) []ScopedPlugin {
+	all := r.GetPluginsAtScopes(scopes)
+	if projectDir == "" {
+		return all
+	}
+
+	// Resolve symlinks for reliable comparison (e.g., /var → /private/var on macOS)
+	resolvedDir, err := filepath.EvalSymlinks(projectDir)
+	if err != nil {
+		resolvedDir = filepath.Clean(projectDir)
+	}
+	var result []ScopedPlugin
+	for _, sp := range all {
+		if sp.Scope == ScopeUser {
+			result = append(result, sp)
+			continue
+		}
+		pluginDir := sp.ProjectPath
+		if resolved, err := filepath.EvalSymlinks(pluginDir); err == nil {
+			pluginDir = resolved
+		} else {
+			pluginDir = filepath.Clean(pluginDir)
+		}
+		if pluginDir == resolvedDir {
+			result = append(result, sp)
+		}
+	}
+	return result
+}
+
+// PluginExistsAtScope checks if a plugin is installed at a specific scope
+func (r *PluginRegistry) PluginExistsAtScope(pluginName, scope string) bool {
+	_, exists := r.GetPluginAtScope(pluginName, scope)
+	return exists
+}
+
+// PluginExistsAtAnyScope checks if a plugin is installed at any scope
+func (r *PluginRegistry) PluginExistsAtAnyScope(pluginName string) bool {
+	instances, exists := r.Plugins[pluginName]
+	return exists && len(instances) > 0
+}
+
+// SetPlugin sets or updates a plugin's metadata, defaulting to user scope if metadata.Scope is empty
 func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 	// Ensure scope is set
 	if metadata.Scope == "" {
@@ -179,18 +267,6 @@ func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 	r.Plugins[pluginName] = append(instances, metadata)
 }
 
-// GetAllPlugins returns a map of plugin names to their user-scoped metadata
-// This simplifies iteration for code that doesn't care about scopes
-func (r *PluginRegistry) GetAllPlugins() map[string]PluginMetadata {
-	result := make(map[string]PluginMetadata)
-	for name := range r.Plugins {
-		if meta, exists := r.GetPlugin(name); exists {
-			result[name] = meta
-		}
-	}
-	return result
-}
-
 // DisablePlugin removes a plugin from the registry
 func (r *PluginRegistry) DisablePlugin(pluginName string) bool {
 	if _, exists := r.Plugins[pluginName]; !exists {
@@ -206,17 +282,6 @@ func (r *PluginRegistry) EnablePlugin(pluginName string, metadata PluginMetadata
 	r.SetPlugin(pluginName, metadata)
 }
 
-// PluginExists checks if a plugin is in the registry
-func (r *PluginRegistry) PluginExists(pluginName string) bool {
-	_, exists := r.GetPlugin(pluginName)
-	return exists
-}
-
-// IsPluginInstalled checks if a plugin is installed (alias for PluginExists)
-func (r *PluginRegistry) IsPluginInstalled(pluginName string) bool {
-	return r.PluginExists(pluginName)
-}
-
 // RemovePlugin removes a plugin from the registry entirely
 func (r *PluginRegistry) RemovePlugin(pluginName string) bool {
 	if _, exists := r.Plugins[pluginName]; !exists {
@@ -224,4 +289,27 @@ func (r *PluginRegistry) RemovePlugin(pluginName string) bool {
 	}
 	delete(r.Plugins, pluginName)
 	return true
+}
+
+// RemovePluginAtScope removes a specific scope instance of a plugin.
+// If this was the last instance, the plugin entry is removed entirely.
+// Returns true if an instance was removed.
+func (r *PluginRegistry) RemovePluginAtScope(pluginName, scope string) bool {
+	instances, exists := r.Plugins[pluginName]
+	if !exists {
+		return false
+	}
+
+	for i, inst := range instances {
+		if inst.Scope == scope {
+			remaining := slices.Delete(slices.Clone(instances), i, i+1)
+			if len(remaining) == 0 {
+				delete(r.Plugins, pluginName)
+			} else {
+				r.Plugins[pluginName] = remaining
+			}
+			return true
+		}
+	}
+	return false
 }

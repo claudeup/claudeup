@@ -36,6 +36,7 @@ func init() {
 
 type PathIssue struct {
 	PluginName   string
+	Scope        string
 	InstallPath  string
 	ExpectedPath string
 	IssueType    string
@@ -50,9 +51,6 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
-
-	// Get active profile and scope for recommendations
-	activeProfile, activeScope := getActiveProfile(projectDir)
 
 	// Load plugins (gracefully handle fresh installs with no plugins)
 	plugins, err := claude.LoadPlugins(claudeDir)
@@ -108,11 +106,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Detect plugins enabled in settings but not installed
+	// Detect plugins enabled in settings but not installed,
+	// tracking which scope each one is enabled in
 	missingPlugins := []string{}
+	missingPluginScope := make(map[string]string)
 	for name := range enabledInSettings {
-		if _, installed := plugins.GetAllPlugins()[name]; !installed {
+		if !plugins.PluginExistsAtAnyScope(name) {
 			missingPlugins = append(missingPlugins, name)
+			for _, scope := range scopes {
+				if scopeSettings[scope] != nil && scopeSettings[scope].IsPluginEnabled(name) {
+					missingPluginScope[name] = scope
+					break
+				}
+			}
 		}
 	}
 	sort.Strings(missingPlugins)
@@ -126,25 +132,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	} else {
 		// Show plugins enabled but not installed
 		if len(missingPlugins) > 0 {
-			// Check which missing plugins are in the saved profile
-			pluginsInProfile := make(map[string]bool)
-			if activeProfile != "" && activeProfile != "none" {
-				profilesDir := getProfilesDir()
-				savedProfile, err := loadProfileWithFallback(profilesDir, activeProfile)
-				if err == nil {
-					for _, p := range savedProfile.Plugins {
-						pluginsInProfile[p] = true
-					}
-				}
-			}
-
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugin%s enabled but not installed:", len(missingPlugins), pluralS(len(missingPlugins))), 1))
 			for _, name := range missingPlugins {
-				suffix := ""
-				if pluginsInProfile[name] {
-					suffix = ui.Muted(" (in profile)")
-				}
-				fmt.Println(ui.Indent(ui.SymbolBullet+" "+name+suffix, 2))
+				scope := missingPluginScope[name]
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+name+" "+ui.Muted("("+scope+")"), 2))
 			}
 		}
 
@@ -158,7 +149,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		if fixable, ok := byType["missing_subdirectory"]; ok {
 			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d plugins with fixable path issues:", len(fixable)), 1))
 			for _, issue := range fixable {
-				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName+ui.Muted(" ("+issue.Scope+")"), 2))
 				fmt.Println(ui.Indent(ui.RenderDetail("Current", issue.InstallPath), 3))
 				fmt.Println(ui.Indent(ui.RenderDetail("Expected", issue.ExpectedPath), 3))
 			}
@@ -171,7 +162,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d plugins with missing directories:", len(missing)), 1))
 			for _, issue := range missing {
-				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName, 2))
+				fmt.Println(ui.Indent(ui.SymbolBullet+" "+issue.PluginName+ui.Muted(" ("+issue.Scope+")"), 2))
 				fmt.Println(ui.Indent(ui.RenderDetail("Path", issue.InstallPath), 3))
 			}
 		}
@@ -181,13 +172,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.Indent(ui.Bold("Recommendations:"), 1))
 
 		if len(missingPlugins) > 0 {
-			if activeProfile != "" && activeProfile != "none" {
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+fmt.Sprintf(" Reinstall missing plugins from profile: %s", ui.Bold(fmt.Sprintf("claudeup profile apply %s --scope %s", activeProfile, activeScope)))), 1))
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or remove from settings: "+ui.Bold("claudeup profile clean <plugin-name>")), 1))
-			} else {
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install missing plugins: "+ui.Bold("claude plugin install <name>")), 1))
-				fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Or remove from settings: "+ui.Bold("claudeup profile clean <plugin-name>")), 1))
-			}
+			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Install the plugin:"), 1))
+			fmt.Println(ui.Indent(ui.Bold("claude plugin install --scope <scope> <plugin-name>"), 2))
+			fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Remove the stale settings entry:"), 1))
+			fmt.Println(ui.Indent(ui.Bold("claudeup profile clean --<scope> <plugin-name>"), 2))
 		}
 
 		if len(pathIssues) > 0 {
@@ -239,13 +227,16 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	var issues []PathIssue
 
-	for name, plugin := range plugins.GetAllPlugins() {
+	for _, sp := range plugins.GetPluginsAtScopes(claude.ValidScopes) {
+		name := sp.Name
+		plugin := sp.PluginMetadata
 		if !plugin.PathExists() {
 			// Check if this is a fixable path issue
 			expectedPath := getExpectedPath(plugin.InstallPath)
 			if expectedPath != "" && pathExists(expectedPath) {
 				issues = append(issues, PathIssue{
 					PluginName:   name,
+					Scope:        plugin.Scope,
 					InstallPath:  plugin.InstallPath,
 					ExpectedPath: expectedPath,
 					IssueType:    "missing_subdirectory",
@@ -254,6 +245,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 			} else {
 				issues = append(issues, PathIssue{
 					PluginName:  name,
+					Scope:       plugin.Scope,
 					InstallPath: plugin.InstallPath,
 					IssueType:   "not_found",
 					CanAutoFix:  false,

@@ -13,11 +13,11 @@ import (
 
 // ConcurrentApplyOptions configures concurrent apply behavior
 type ConcurrentApplyOptions struct {
-	ClaudeDir   string
-	Scope       string // "user", "project", "local"
-	Reinstall   bool   // Force reinstall even if already installed
-	Output      io.Writer
-	Executor    CommandExecutor
+	ClaudeDir string
+	Scope     string // "user", "project", "local"
+	Reinstall bool   // Force reinstall even if already installed
+	Output    io.Writer
+	Executor  CommandExecutor
 }
 
 // ConcurrentApplyResult contains results from concurrent apply
@@ -60,7 +60,7 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	// Filter plugins - skip already installed unless reinstall
 	var pluginsToInstall []string
 	for _, plugin := range profile.Plugins {
-		if opts.Reinstall || currentPlugins == nil || !currentPlugins.PluginExists(plugin) {
+		if opts.Reinstall || currentPlugins == nil || !currentPlugins.PluginExistsAtScope(plugin, opts.Scope) {
 			pluginsToInstall = append(pluginsToInstall, plugin)
 		} else {
 			result.PluginsSkipped = append(result.PluginsSkipped, plugin)

@@ -1,10 +1,13 @@
 // ABOUTME: Unit tests for upgrade command argument parsing
-// ABOUTME: Tests target detection (marketplace vs plugin)
+// ABOUTME: Tests target detection (marketplace vs plugin) and scope resolution
 package commands
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/claudeup/claudeup/v5/internal/claude"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -124,5 +127,86 @@ var _ = Describe("findUnmatchedTargets", func() {
 			pluginUpdates,
 		)
 		Expect(unmatched).To(BeEmpty())
+	})
+})
+
+var _ = Describe("availableScopes", func() {
+	It("returns all scopes when allFlag is true", func() {
+		scopes := availableScopes(true, "")
+		Expect(scopes).To(Equal(claude.ValidScopes))
+	})
+
+	It("always includes user scope when allFlag is false", func() {
+		scopes := availableScopes(false, "")
+		Expect(scopes).To(ContainElement("user"))
+	})
+
+	Context("in a project directory", func() {
+		var tempDir string
+		var claudeHome string
+		var origClaudeDir string
+
+		BeforeEach(func() {
+			var err error
+			origClaudeDir = claudeDir
+
+			// Create a temp dir with a .claude subdirectory to simulate a project
+			tempDir, err = os.MkdirTemp("", "scope-test-*")
+			Expect(err).NotTo(HaveOccurred())
+			err = os.MkdirAll(filepath.Join(tempDir, ".claude"), 0755)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Point claudeDir elsewhere so IsProjectContext detects a distinct project
+			claudeHome, err = os.MkdirTemp("", "claude-home-*")
+			Expect(err).NotTo(HaveOccurred())
+			claudeDir = claudeHome
+		})
+
+		AfterEach(func() {
+			claudeDir = origClaudeDir
+			os.RemoveAll(tempDir)
+			os.RemoveAll(claudeHome)
+		})
+
+		It("includes project and local scopes when allFlag is false", func() {
+			scopes := availableScopes(false, tempDir)
+			Expect(scopes).To(ContainElement("user"))
+			Expect(scopes).To(ContainElement("project"))
+			Expect(scopes).To(ContainElement("local"))
+		})
+
+		It("returns all valid scopes when allFlag is true regardless of context", func() {
+			scopes := availableScopes(true, tempDir)
+			Expect(scopes).To(Equal(claude.ValidScopes))
+		})
+	})
+
+	Context("outside a project directory", func() {
+		var tempDir string
+		var claudeHome string
+		var origClaudeDir string
+
+		BeforeEach(func() {
+			var err error
+			origClaudeDir = claudeDir
+
+			// Create a temp dir WITHOUT .claude to simulate non-project context
+			tempDir, err = os.MkdirTemp("", "scope-test-*")
+			Expect(err).NotTo(HaveOccurred())
+			claudeHome, err = os.MkdirTemp("", "claude-home-*")
+			Expect(err).NotTo(HaveOccurred())
+			claudeDir = claudeHome
+		})
+
+		AfterEach(func() {
+			claudeDir = origClaudeDir
+			os.RemoveAll(tempDir)
+			os.RemoveAll(claudeHome)
+		})
+
+		It("returns only user scope when allFlag is false", func() {
+			scopes := availableScopes(false, tempDir)
+			Expect(scopes).To(Equal([]string{"user"}))
+		})
 	})
 })

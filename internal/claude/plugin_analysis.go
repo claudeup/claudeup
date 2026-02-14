@@ -41,7 +41,7 @@ func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext,
 
 	// Determine which scopes are applicable based on project context
 	scopes := []string{"user"}
-	if isProjectContext(claudeDir, projectDir) {
+	if IsProjectContext(claudeDir, projectDir) {
 		scopes = append(scopes, "project", "local")
 	}
 
@@ -70,13 +70,13 @@ func loadAnalysisContext(claudeDir string, projectDir string) (*analysisContext,
 	}, nil
 }
 
-// isProjectContext checks whether projectDir represents a real project directory
+// IsProjectContext checks whether projectDir represents a real project directory
 // with its own .claude configuration, distinct from the user-scope claude directory.
 //
 // Returns false when:
 //   - projectDir has no .claude directory (not a Claude Code project)
 //   - projectDir/.claude resolves to the same path as claudeDir (home directory collision)
-func isProjectContext(claudeDir, projectDir string) bool {
+func IsProjectContext(claudeDir, projectDir string) bool {
 	projectClaudeDir := filepath.Join(projectDir, ".claude")
 
 	projectInfo, err := os.Stat(projectClaudeDir)
@@ -144,7 +144,7 @@ func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*Plugi
 	for _, scope := range ctx.scopes {
 		for pluginName, enabled := range ctx.scopeSettings[scope].EnabledPlugins {
 			// Only include if enabled (true) and not in registry
-			if enabled && !ctx.registry.PluginExists(pluginName) {
+			if enabled && !ctx.registry.PluginExistsAtAnyScope(pluginName) {
 				orphanSet[pluginName] = true
 			}
 		}

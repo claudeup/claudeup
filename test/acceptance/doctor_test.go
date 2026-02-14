@@ -1,9 +1,8 @@
 // ABOUTME: Acceptance tests for doctor command
-// ABOUTME: Tests diagnostic output including scope-aware recommendations
+// ABOUTME: Tests diagnostic output including missing plugin detection and recommendations
 package acceptance
 
 import (
-	"github.com/claudeup/claudeup/v5/internal/profile"
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -18,47 +17,23 @@ var _ = Describe("doctor", func() {
 
 	Describe("missing plugin recommendations", func() {
 		BeforeEach(func() {
-			// Create empty plugin registry first (this also creates settings)
+			// Create empty plugin registry (no plugins installed)
 			env.CreateInstalledPlugins(map[string]interface{}{})
-			// Then enable a plugin in settings that is NOT installed
+			// Enable a plugin in settings that is NOT installed
 			env.CreateSettings(map[string]bool{
 				"missing-plugin@test-marketplace": true,
 			})
-
-			// Create a profile that lists this plugin
-			env.CreateProfile(&profile.Profile{
-				Name:    "my-profile",
-				Plugins: []string{"missing-plugin@test-marketplace"},
-			})
 		})
 
-		Context("with user-scope active profile", func() {
-			BeforeEach(func() {
-				env.SetActiveProfile("my-profile")
-			})
+		It("reports missing plugin with scope and install recommendation", func() {
+			result := env.Run("doctor")
 
-			It("includes profile name and --scope user in recommendation", func() {
-				result := env.Run("doctor")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("claudeup profile apply my-profile --scope user"))
-			})
-		})
-
-		Context("with local-scope active profile", func() {
-			var projectDir string
-
-			BeforeEach(func() {
-				projectDir = env.ProjectDir("test-project")
-				env.RegisterProject(projectDir, "my-profile")
-			})
-
-			It("includes profile name and --scope local in recommendation", func() {
-				result := env.RunInDir(projectDir, "doctor")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("claudeup profile apply my-profile --scope local"))
-			})
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("1 plugin enabled but not installed"))
+			Expect(result.Stdout).To(ContainSubstring("missing-plugin@test-marketplace"))
+			Expect(result.Stdout).To(ContainSubstring("(user)"))
+			Expect(result.Stdout).To(ContainSubstring("claude plugin install --scope <scope> <plugin-name>"))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile clean --<scope> <plugin-name>"))
 		})
 	})
 })

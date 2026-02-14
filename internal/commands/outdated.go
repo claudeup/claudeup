@@ -4,6 +4,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/selfupdate"
@@ -26,8 +27,11 @@ This is a read-only command that only checks for updates without applying them.`
 	RunE: runOutdated,
 }
 
+var outdatedAll bool
+
 func init() {
 	rootCmd.AddCommand(outdatedCmd)
+	outdatedCmd.Flags().BoolVar(&outdatedAll, "all", false, "Check plugins across all scopes, not just the current context")
 }
 
 func runOutdated(cmd *cobra.Command, args []string) error {
@@ -66,23 +70,32 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 	if len(marketplaces) == 0 {
 		fmt.Printf("  %s\n", ui.Muted("No marketplaces installed"))
 	} else {
-		marketplaceUpdates := checkMarketplaceUpdates(marketplaces)
-		for _, update := range marketplaceUpdates {
+		checkMarketplaceUpdates(marketplaces, func(update MarketplaceUpdate) {
 			if update.HasUpdate {
 				fmt.Printf("  %s %s %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
+			} else if update.CheckFailed {
+				fmt.Printf("  %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Muted("(unable to check)"))
 			} else {
 				fmt.Printf("  %s %s %s\n", ui.Success(ui.SymbolSuccess), update.Name, ui.Muted("(up to date)"))
 			}
-		}
+		})
 	}
 
 	// Check plugin updates
 	fmt.Println()
-	fmt.Println(ui.RenderSection("Plugins", len(plugins.GetAllPlugins())))
-	if len(plugins.GetAllPlugins()) == 0 {
+	projectDir := ""
+	if !outdatedAll {
+		if dir, err := os.Getwd(); err == nil {
+			projectDir = dir
+		}
+	}
+	scopes := availableScopes(outdatedAll, projectDir)
+	scopedPlugins := plugins.GetPluginsForContext(scopes, projectDir)
+	fmt.Println(ui.RenderSection("Plugins", len(scopedPlugins)))
+	if len(scopedPlugins) == 0 {
 		fmt.Printf("  %s\n", ui.Muted("No plugins installed"))
 	} else {
-		pluginUpdates := checkPluginUpdates(plugins, marketplaces)
+		pluginUpdates := checkPluginUpdates(scopedPlugins, marketplaces)
 		if len(pluginUpdates) == 0 {
 			fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 		} else {
@@ -90,7 +103,7 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 			for _, update := range pluginUpdates {
 				if update.HasUpdate {
 					hasOutdated = true
-					fmt.Printf("  %s %s %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
+					fmt.Printf("  %s %s (%s) %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.Scope, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
 				}
 			}
 			if !hasOutdated {
