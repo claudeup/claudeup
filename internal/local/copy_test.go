@@ -5,6 +5,7 @@ package local
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -222,6 +223,36 @@ func TestProjectScopeCategories(t *testing.T) {
 		if ProjectScopeCategories[cat] {
 			t.Errorf("expected %s to NOT be a valid project-scope category", cat)
 		}
+	}
+}
+
+func TestPathTraversalValidation(t *testing.T) {
+	// Defense-in-depth: filesystem entries can't contain "/" or ".." as names,
+	// so traversal through listLocalItems is impossible. This validates the
+	// prefix check catches traversal if item names were ever crafted externally.
+	projectDir := "/project"
+	destBase := filepath.Clean(filepath.Join(projectDir, ".claude", "rules"))
+
+	tests := []struct {
+		name    string
+		item    string
+		escapes bool
+	}{
+		{"normal item", "golang.md", false},
+		{"nested item", "team/reviewer.md", false},
+		{"traversal escapes category", "../agents/evil.md", true},
+		{"traversal escapes .claude", "../../etc/evil.md", true},
+		{"dot-dot only", "..", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			destPath := filepath.Clean(filepath.Join(destBase, tt.item))
+			escaped := !strings.HasPrefix(destPath, destBase+string(filepath.Separator))
+			if escaped != tt.escapes {
+				t.Errorf("item %q: expected escapes=%v, got %v (resolved to %s)", tt.item, tt.escapes, escaped, destPath)
+			}
+		})
 	}
 }
 

@@ -34,12 +34,18 @@ func CopyToProject(localDir, category string, patterns []string, projectDir stri
 			continue
 		}
 
+		destBase := filepath.Clean(filepath.Join(projectDir, ".claude", category))
 		for _, item := range matched {
 			srcPath := filepath.Join(sourceDir, item)
-			destPath := filepath.Join(projectDir, ".claude", category, item)
+			destPath := filepath.Clean(filepath.Join(destBase, item))
+
+			// Validate dest stays within the target directory (path traversal defense)
+			if !strings.HasPrefix(destPath, destBase+string(filepath.Separator)) {
+				return nil, nil, fmt.Errorf("item %q resolves outside target directory %s", item, destBase)
+			}
 
 			if err := copyItemToProject(srcPath, destPath); err != nil {
-				return nil, nil, fmt.Errorf("copy %s/%s: %w", category, item, err)
+				return nil, nil, fmt.Errorf("copy %s/%s from %s to %s: %w", category, item, srcPath, destPath, err)
 			}
 			copied = append(copied, item)
 		}

@@ -120,7 +120,7 @@ func TestReadProjectLocalItemsSkipsHiddenAndCLAUDE(t *testing.T) {
 	}
 }
 
-func TestSnapshotAllScopesCapuresProjectLocalItems(t *testing.T) {
+func TestSnapshotAllScopesCapturesProjectLocalItems(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
