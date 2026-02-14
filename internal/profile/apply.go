@@ -1096,6 +1096,12 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			return nil, fmt.Errorf("failed to apply user scope: %w", err)
 		}
 		aggregateResults(result, userResult)
+
+		if profile.PerScope.User.LocalItems != nil {
+			if err := applyLocalItemsScoped(profile, profile.PerScope.User.LocalItems, ScopeUser, claudeDir, claudeupHome, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("user-scope local items: %w", err))
+			}
+		}
 	}
 
 	if profile.PerScope.Project != nil && projectDir != "" {
@@ -1104,6 +1110,12 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			return nil, fmt.Errorf("failed to apply project scope: %w", err)
 		}
 		aggregateResults(result, projectResult)
+
+		if profile.PerScope.Project.LocalItems != nil {
+			if err := applyLocalItemsScoped(profile, profile.PerScope.Project.LocalItems, ScopeProject, claudeDir, claudeupHome, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("project-scope local items: %w", err))
+			}
+		}
 	}
 
 	if profile.PerScope.Local != nil && projectDir != "" {
@@ -1112,6 +1124,12 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			return nil, fmt.Errorf("failed to apply local scope: %w", err)
 		}
 		aggregateResults(result, localResult)
+
+		if profile.PerScope.Local.LocalItems != nil {
+			if err := applyLocalItemsScoped(profile, profile.PerScope.Local.LocalItems, ScopeLocal, claudeDir, claudeupHome, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("local-scope local items: %w", err))
+			}
+		}
 	}
 
 	return result, nil
@@ -1229,53 +1247,88 @@ func aggregateResults(target, source *ApplyResult) {
 	target.Errors = append(target.Errors, source.Errors...)
 }
 
-// applyLocalItems enables local items from the profile
+// applyLocalItems enables local items from the profile at user scope (backward compat).
 func applyLocalItems(profile *Profile, claudeDir, claudeupHome string) error {
 	if profile.LocalItems == nil {
 		return nil
 	}
+	return applyLocalItemsScoped(profile, profile.LocalItems, ScopeUser, claudeDir, claudeupHome, "")
+}
 
+// applyLocalItemsScoped enables local items at the specified scope.
+// User scope: creates symlinks from claudeDir to claudeupHome/local (existing behavior).
+// Project/local scope: copies files from claudeupHome/local into projectDir/.claude/.
+func applyLocalItemsScoped(_ *Profile, items *LocalItemSettings, scope Scope, claudeDir, claudeupHome, projectDir string) error {
+	if items == nil {
+		return nil
+	}
+
+	if scope == ScopeProject || scope == ScopeLocal {
+		return applyLocalItemsCopy(items, claudeupHome, projectDir)
+	}
+
+	return applyLocalItemsSymlink(items, claudeDir, claudeupHome)
+}
+
+// applyLocalItemsSymlink enables local items via symlinks (user scope).
+func applyLocalItemsSymlink(items *LocalItemSettings, claudeDir, claudeupHome string) error {
 	manager := local.NewManager(claudeDir, claudeupHome)
 
-	// Enable agents
-	if len(profile.LocalItems.Agents) > 0 {
-		if _, _, err := manager.Enable(local.CategoryAgents, profile.LocalItems.Agents); err != nil {
-			return fmt.Errorf("failed to enable agents: %w", err)
+	type categoryItems struct {
+		category string
+		patterns []string
+	}
+
+	categories := []categoryItems{
+		{local.CategoryAgents, items.Agents},
+		{local.CategoryCommands, items.Commands},
+		{local.CategorySkills, items.Skills},
+		{local.CategoryHooks, items.Hooks},
+		{local.CategoryRules, items.Rules},
+		{local.CategoryOutputStyles, items.OutputStyles},
+	}
+
+	for _, ci := range categories {
+		if len(ci.patterns) > 0 {
+			if _, _, err := manager.Enable(ci.category, ci.patterns); err != nil {
+				return fmt.Errorf("failed to enable %s: %w", ci.category, err)
+			}
 		}
 	}
 
-	// Enable commands
-	if len(profile.LocalItems.Commands) > 0 {
-		if _, _, err := manager.Enable(local.CategoryCommands, profile.LocalItems.Commands); err != nil {
-			return fmt.Errorf("failed to enable commands: %w", err)
-		}
+	return nil
+}
+
+// applyLocalItemsCopy copies local items into the project's .claude/ directory.
+// Only categories that Claude Code reads from project scope are allowed.
+func applyLocalItemsCopy(items *LocalItemSettings, claudeupHome, projectDir string) error {
+	localDir := filepath.Join(claudeupHome, "local")
+
+	type categoryItems struct {
+		category string
+		patterns []string
 	}
 
-	// Enable skills
-	if len(profile.LocalItems.Skills) > 0 {
-		if _, _, err := manager.Enable(local.CategorySkills, profile.LocalItems.Skills); err != nil {
-			return fmt.Errorf("failed to enable skills: %w", err)
-		}
+	categories := []categoryItems{
+		{local.CategoryAgents, items.Agents},
+		{local.CategoryCommands, items.Commands},
+		{local.CategorySkills, items.Skills},
+		{local.CategoryHooks, items.Hooks},
+		{local.CategoryRules, items.Rules},
+		{local.CategoryOutputStyles, items.OutputStyles},
 	}
 
-	// Enable hooks
-	if len(profile.LocalItems.Hooks) > 0 {
-		if _, _, err := manager.Enable(local.CategoryHooks, profile.LocalItems.Hooks); err != nil {
-			return fmt.Errorf("failed to enable hooks: %w", err)
+	for _, ci := range categories {
+		if len(ci.patterns) == 0 {
+			continue
 		}
-	}
 
-	// Enable rules
-	if len(profile.LocalItems.Rules) > 0 {
-		if _, _, err := manager.Enable(local.CategoryRules, profile.LocalItems.Rules); err != nil {
-			return fmt.Errorf("failed to enable rules: %w", err)
+		if err := local.ValidateProjectScope(ci.category); err != nil {
+			return fmt.Errorf("cannot copy %s to project scope: %w", ci.category, err)
 		}
-	}
 
-	// Enable output-styles
-	if len(profile.LocalItems.OutputStyles) > 0 {
-		if _, _, err := manager.Enable(local.CategoryOutputStyles, profile.LocalItems.OutputStyles); err != nil {
-			return fmt.Errorf("failed to enable output-styles: %w", err)
+		if _, _, err := local.CopyToProject(localDir, ci.category, ci.patterns, projectDir); err != nil {
+			return fmt.Errorf("failed to copy %s to project: %w", ci.category, err)
 		}
 	}
 

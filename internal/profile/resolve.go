@@ -238,7 +238,8 @@ func mergePerScope(dst, src *Profile) {
 	}
 }
 
-// mergeScopeSettings merges plugins (union, dedup) and MCP servers (last-wins by name).
+// mergeScopeSettings merges plugins (union, dedup), MCP servers (last-wins by name),
+// and LocalItems (union, dedup per category).
 func mergeScopeSettings(dst, src *ScopeSettings) {
 	dst.Plugins = mergeStringSlice(dst.Plugins, src.Plugins)
 
@@ -255,6 +256,18 @@ func mergeScopeSettings(dst, src *ScopeSettings) {
 				dst.MCPServers = append(dst.MCPServers, s)
 			}
 		}
+	}
+
+	if src.LocalItems != nil {
+		if dst.LocalItems == nil {
+			dst.LocalItems = &LocalItemSettings{}
+		}
+		dst.LocalItems.Agents = mergeStringSlice(dst.LocalItems.Agents, src.LocalItems.Agents)
+		dst.LocalItems.Commands = mergeStringSlice(dst.LocalItems.Commands, src.LocalItems.Commands)
+		dst.LocalItems.Skills = mergeStringSlice(dst.LocalItems.Skills, src.LocalItems.Skills)
+		dst.LocalItems.Hooks = mergeStringSlice(dst.LocalItems.Hooks, src.LocalItems.Hooks)
+		dst.LocalItems.Rules = mergeStringSlice(dst.LocalItems.Rules, src.LocalItems.Rules)
+		dst.LocalItems.OutputStyles = mergeStringSlice(dst.LocalItems.OutputStyles, src.LocalItems.OutputStyles)
 	}
 }
 

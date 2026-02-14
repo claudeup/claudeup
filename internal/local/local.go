@@ -37,6 +37,20 @@ func ValidateCategory(category string) error {
 	return nil
 }
 
+// ProjectScopeCategories defines which categories Claude Code reads from project .claude/ directories
+var ProjectScopeCategories = map[string]bool{
+	CategoryAgents: true,
+	CategoryRules:  true,
+}
+
+// ValidateProjectScope checks if a category is valid for project scope
+func ValidateProjectScope(category string) error {
+	if !ProjectScopeCategories[category] {
+		return fmt.Errorf("category %q is not supported at project scope (only agents, rules)", category)
+	}
+	return nil
+}
+
 // AllCategories returns all valid category names sorted alphabetically
 func AllCategories() []string {
 	cats := make([]string, 0, len(validCategories))
