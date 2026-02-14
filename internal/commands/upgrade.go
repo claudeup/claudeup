@@ -153,10 +153,8 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	// Check marketplace updates
 	fmt.Println()
 	fmt.Println(ui.RenderSection("Checking Marketplaces", len(marketplaces)))
-	marketplaceUpdates := checkMarketplaceUpdates(marketplaces)
-
 	var outdatedMarketplaces []string
-	for _, update := range marketplaceUpdates {
+	marketplaceUpdates := checkMarketplaceUpdates(marketplaces, func(update MarketplaceUpdate) {
 		if update.HasUpdate {
 			// Filter by target if specified
 			if hasTargets {
@@ -170,12 +168,12 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 					}
 					if !found {
 						fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
-						continue
+						return
 					}
 				} else {
 					// User specified plugins only, skip marketplaces
 					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available (skipped)"))
-					continue
+					return
 				}
 			}
 			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
@@ -183,7 +181,7 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Printf("  %s %s: %s\n", ui.Success(ui.SymbolSuccess), update.Name, ui.Muted("Up to date"))
 		}
-	}
+	})
 
 	// Check plugin updates
 	fmt.Println()
@@ -282,18 +280,24 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []MarketplaceUpdate {
+func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry, onResult func(MarketplaceUpdate)) []MarketplaceUpdate {
 	var updates []MarketplaceUpdate
 
 	for name, marketplace := range marketplaces {
+		var update MarketplaceUpdate
+
 		// Fetch latest from remote
 		gitDir := filepath.Join(marketplace.InstallLocation, ".git")
 		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
 			// Not a git repo, skip
-			updates = append(updates, MarketplaceUpdate{
+			update = MarketplaceUpdate{
 				Name:      name,
 				HasUpdate: false,
-			})
+			}
+			updates = append(updates, update)
+			if onResult != nil {
+				onResult(update)
+			}
 			continue
 		}
 
@@ -301,10 +305,14 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 		currentCmd := exec.Command("git", "-C", marketplace.InstallLocation, "rev-parse", "HEAD")
 		currentOutput, err := currentCmd.Output()
 		if err != nil {
-			updates = append(updates, MarketplaceUpdate{
+			update = MarketplaceUpdate{
 				Name:      name,
 				HasUpdate: false,
-			})
+			}
+			updates = append(updates, update)
+			if onResult != nil {
+				onResult(update)
+			}
 			continue
 		}
 		currentCommit := strings.TrimSpace(string(currentOutput))
@@ -317,10 +325,14 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 		if fetchErr != nil {
 			// Fetch failed - warn user and mark as unable to check
 			fmt.Fprintf(os.Stderr, "  %s %s: %s (git fetch failed)\n", ui.Warning(ui.SymbolWarning), name, ui.Muted("Unable to check for updates"))
-			updates = append(updates, MarketplaceUpdate{
+			update = MarketplaceUpdate{
 				Name:      name,
 				HasUpdate: false,
-			})
+			}
+			updates = append(updates, update)
+			if onResult != nil {
+				onResult(update)
+			}
 			continue
 		}
 
@@ -336,22 +348,30 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry) []Marketpl
 				remoteCmd = exec.Command("git", "-C", marketplace.InstallLocation, "rev-parse", "origin/master")
 				remoteOutput, err = remoteCmd.Output()
 				if err != nil {
-					updates = append(updates, MarketplaceUpdate{
+					update = MarketplaceUpdate{
 						Name:      name,
 						HasUpdate: false,
-					})
+					}
+					updates = append(updates, update)
+					if onResult != nil {
+						onResult(update)
+					}
 					continue
 				}
 			}
 		}
 		remoteCommit := strings.TrimSpace(string(remoteOutput))
 
-		updates = append(updates, MarketplaceUpdate{
+		update = MarketplaceUpdate{
 			Name:          name,
 			HasUpdate:     currentCommit != remoteCommit,
 			CurrentCommit: truncateHash(currentCommit),
 			LatestCommit:  truncateHash(remoteCommit),
-		})
+		}
+		updates = append(updates, update)
+		if onResult != nil {
+			onResult(update)
+		}
 	}
 
 	return updates
