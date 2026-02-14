@@ -12,18 +12,20 @@ Team leads and developers who want to:
 
 ## Scripts
 
-| Script                   | What it does                                                                                                                                          |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `01-scoped-profiles.sh`  | Explains the three configuration scopes (user, project, local), their precedence, and how to apply profiles to each scope                             |
-| `04-profile-layering.sh` | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
+| Script                          | What it does                                                                                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `01-scoped-profiles.sh`         | Explains the three configuration scopes (user, project, local), their precedence, and how to apply profiles to each scope                             |
+| `02-isolated-workspace-demo.sh` | End-to-end demo simulating three team members (Alice, Bob, Charlie) with isolated environments, project-scoped local items, and git-based sharing     |
+| `04-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
 
-> **Note:** Script numbering has gaps (no `02-*` or `03-*`). This is a known issue
+> **Note:** Script numbering has a gap (no `03-*`). This is a known issue
 > and does not affect functionality.
 
 ## Suggested order
 
-Read `01-scoped-profiles.sh` first to understand scopes, then `04-profile-layering.sh`
-for the practical team workflow.
+Read `01-scoped-profiles.sh` first to understand scopes, then `02-isolated-workspace-demo.sh`
+to see a realistic team workflow in action, then `04-profile-layering.sh` for profile
+layering details.
 
 ## What you'll learn
 
@@ -36,19 +38,20 @@ for the practical team workflow.
 
 ## Recommended team workflow
 
-The `04-profile-layering.sh` script demonstrates this pattern:
+The `02-isolated-workspace-demo.sh` script demonstrates this pattern:
 
-1. **Each developer** saves personal tools as a user-scope profile
-2. **Team lead** creates and applies a project-scope profile, commits `.claude/settings.json`
-3. **After cloning**, each developer runs `claudeup profile apply` to get team config
-4. **Personal overrides** go in local scope (git-ignored)
+1. **Team lead** creates and applies a project-scope profile (plugins, rules, agents)
+2. **Team lead** commits `.claude/` to git so settings and local items travel with the repo
+3. **After cloning**, teammates get the team config automatically -- no re-application needed
+4. **Each developer** applies their own user-scope profile for personal tools
 
 ## Important details
 
-- These scripts are mostly informational -- they explain concepts with example
-  output rather than making changes. They work well in temp mode for learning.
-- `04-profile-layering.sh` shows example JSON and simulated output to illustrate
-  the layering concept without requiring real plugins.
+- `01-scoped-profiles.sh` and `04-profile-layering.sh` are mostly informational --
+  they explain concepts with example output rather than making changes.
+- `02-isolated-workspace-demo.sh` runs real `claudeup` commands against isolated
+  temp directories. It demonstrates project-scoped local items (rules and agents
+  copied into `.claude/`) and how project configuration travels through git.
 
 ## Next steps
 
