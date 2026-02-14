@@ -6,6 +6,7 @@ package pluginsearch
 import (
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -182,5 +183,28 @@ func TestScanner_ParsesSkills(t *testing.T) {
 	}
 	if skill.Description != "A skill for testing purposes" {
 		t.Errorf("expected skill description 'A skill for testing purposes', got '%s'", skill.Description)
+	}
+}
+
+func TestScanner_ParsesSkillContent(t *testing.T) {
+	scanner := NewScanner()
+	cacheDir := filepath.Join(testdataDir(), "cache")
+
+	plugins, err := scanner.Scan(cacheDir)
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	skill := plugins[0].Skills[0]
+	// SKILL.md has body content: "# My Skill\n\nThis is the skill content."
+	if skill.Content == "" {
+		t.Fatal("expected skill Content to be populated from SKILL.md body")
+	}
+	if !strings.Contains(skill.Content, "This is the skill content") {
+		t.Errorf("expected Content to contain body text, got: %q", skill.Content)
+	}
+	// Content should NOT include frontmatter
+	if strings.Contains(skill.Content, "name:") {
+		t.Error("Content should not include frontmatter")
 	}
 }

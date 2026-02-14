@@ -177,14 +177,18 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 
 	fileScanner := bufio.NewScanner(file)
 	inFrontmatter := false
+	pastFrontmatter := false
 	name := dirName
 	description := ""
+	var bodyLines []string
 
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
 		if line == "---" {
 			if inFrontmatter {
-				break // End of frontmatter
+				inFrontmatter = false
+				pastFrontmatter = true
+				continue
 			}
 			inFrontmatter = true
 			continue
@@ -197,6 +201,8 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 				description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
 				description = strings.Trim(description, "\"'")
 			}
+		} else if pastFrontmatter {
+			bodyLines = append(bodyLines, line)
 		}
 	}
 	// Check for scanner errors (per Go best practice)
@@ -208,6 +214,7 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 		Name:        name,
 		Description: description,
 		Path:        skillPath,
+		Content:     strings.TrimSpace(strings.Join(bodyLines, "\n")),
 	}
 }
 

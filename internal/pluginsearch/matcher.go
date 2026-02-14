@@ -120,6 +120,14 @@ func (m *Matcher) matchPlugin(plugin PluginSearchIndex, matchFunc func(string) b
 					Context:     skill.Name,
 					Path:        skill.Path,
 				})
+			} else if opts.SearchContent && skill.Content != "" && matchFunc(skill.Content) {
+				matches = append(matches, Match{
+					Type:        "content",
+					Name:        skill.Name,
+					Description: skill.Description,
+					Context:     skill.Content,
+					Path:        skill.Path,
+				})
 			}
 		}
 	}

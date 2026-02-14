@@ -8,6 +8,7 @@ type ComponentInfo struct {
 	Name        string
 	Description string
 	Path        string
+	Content     string // SKILL.md body content (after frontmatter)
 }
 
 // PluginSearchIndex holds searchable metadata for a single plugin.
