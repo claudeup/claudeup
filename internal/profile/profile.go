@@ -59,8 +59,9 @@ type PerScopeSettings struct {
 
 // ScopeSettings contains settings for a single scope level.
 type ScopeSettings struct {
-	Plugins    []string    `json:"plugins,omitempty"`
-	MCPServers []MCPServer `json:"mcpServers,omitempty"`
+	Plugins    []string           `json:"plugins,omitempty"`
+	MCPServers []MCPServer        `json:"mcpServers,omitempty"`
+	LocalItems *LocalItemSettings `json:"localItems,omitempty"`
 }
 
 // IsMultiScope returns true if this profile uses per-scope settings.
@@ -172,6 +173,21 @@ func (p *Profile) CombinedScopes() *Profile {
 		result.MCPServers = append(result.MCPServers, server)
 	}
 
+	// Aggregate local items from all scopes (union with dedup)
+	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
+		if scope != nil && scope.LocalItems != nil {
+			if result.LocalItems == nil {
+				result.LocalItems = &LocalItemSettings{}
+			}
+			result.LocalItems.Agents = mergeStringSlice(result.LocalItems.Agents, scope.LocalItems.Agents)
+			result.LocalItems.Commands = mergeStringSlice(result.LocalItems.Commands, scope.LocalItems.Commands)
+			result.LocalItems.Skills = mergeStringSlice(result.LocalItems.Skills, scope.LocalItems.Skills)
+			result.LocalItems.Hooks = mergeStringSlice(result.LocalItems.Hooks, scope.LocalItems.Hooks)
+			result.LocalItems.Rules = mergeStringSlice(result.LocalItems.Rules, scope.LocalItems.Rules)
+			result.LocalItems.OutputStyles = mergeStringSlice(result.LocalItems.OutputStyles, scope.LocalItems.OutputStyles)
+		}
+	}
+
 	return result
 }
 
@@ -212,6 +228,7 @@ func (p *Profile) ForScope(scope string) *Profile {
 	if settings != nil {
 		result.Plugins = settings.Plugins
 		result.MCPServers = settings.MCPServers
+		result.LocalItems = settings.LocalItems
 	}
 
 	return result
@@ -639,6 +656,20 @@ func (p *Profile) Clone(newName string) *Profile {
 		}
 	}
 
+	// Deep copy PerScope
+	if p.PerScope != nil {
+		clone.PerScope = &PerScopeSettings{}
+		if p.PerScope.User != nil {
+			clone.PerScope.User = cloneScopeSettings(p.PerScope.User)
+		}
+		if p.PerScope.Project != nil {
+			clone.PerScope.Project = cloneScopeSettings(p.PerScope.Project)
+		}
+		if p.PerScope.Local != nil {
+			clone.PerScope.Local = cloneScopeSettings(p.PerScope.Local)
+		}
+	}
+
 	return clone
 }
 
@@ -686,6 +717,11 @@ func (p *Profile) Equal(other *Profile) bool {
 
 	// Compare PostApplyHook
 	if !postApplyHookPtrEqual(p.PostApply, other.PostApply) {
+		return false
+	}
+
+	// Compare PerScope
+	if !perScopeSettingsEqual(p.PerScope, other.PerScope) {
 		return false
 	}
 
@@ -881,4 +917,113 @@ func (p *Profile) GenerateDescription() string {
 		result += ", " + parts[i]
 	}
 	return result
+}
+
+// cloneScopeSettings deep-copies a ScopeSettings
+func cloneScopeSettings(s *ScopeSettings) *ScopeSettings {
+	if s == nil {
+		return nil
+	}
+	clone := &ScopeSettings{}
+	if len(s.Plugins) > 0 {
+		clone.Plugins = make([]string, len(s.Plugins))
+		copy(clone.Plugins, s.Plugins)
+	}
+	if len(s.MCPServers) > 0 {
+		clone.MCPServers = make([]MCPServer, len(s.MCPServers))
+		copy(clone.MCPServers, s.MCPServers)
+	}
+	if s.LocalItems != nil {
+		clone.LocalItems = cloneLocalItemSettings(s.LocalItems)
+	}
+	return clone
+}
+
+// cloneLocalItemSettings deep-copies a LocalItemSettings
+func cloneLocalItemSettings(l *LocalItemSettings) *LocalItemSettings {
+	if l == nil {
+		return nil
+	}
+	clone := &LocalItemSettings{}
+	if len(l.Agents) > 0 {
+		clone.Agents = make([]string, len(l.Agents))
+		copy(clone.Agents, l.Agents)
+	}
+	if len(l.Commands) > 0 {
+		clone.Commands = make([]string, len(l.Commands))
+		copy(clone.Commands, l.Commands)
+	}
+	if len(l.Skills) > 0 {
+		clone.Skills = make([]string, len(l.Skills))
+		copy(clone.Skills, l.Skills)
+	}
+	if len(l.Hooks) > 0 {
+		clone.Hooks = make([]string, len(l.Hooks))
+		copy(clone.Hooks, l.Hooks)
+	}
+	if len(l.Rules) > 0 {
+		clone.Rules = make([]string, len(l.Rules))
+		copy(clone.Rules, l.Rules)
+	}
+	if len(l.OutputStyles) > 0 {
+		clone.OutputStyles = make([]string, len(l.OutputStyles))
+		copy(clone.OutputStyles, l.OutputStyles)
+	}
+	return clone
+}
+
+// perScopeSettingsEqual compares two PerScopeSettings pointers
+func perScopeSettingsEqual(a, b *PerScopeSettings) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if !scopeSettingsEqual(a.User, b.User) {
+		return false
+	}
+	if !scopeSettingsEqual(a.Project, b.Project) {
+		return false
+	}
+	if !scopeSettingsEqual(a.Local, b.Local) {
+		return false
+	}
+	return true
+}
+
+// scopeSettingsEqual compares two ScopeSettings pointers
+func scopeSettingsEqual(a, b *ScopeSettings) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	if !strSlicesEqual(a.Plugins, b.Plugins) {
+		return false
+	}
+	if !mcpServerSlicesEqual(a.MCPServers, b.MCPServers) {
+		return false
+	}
+	if !localItemSettingsEqual(a.LocalItems, b.LocalItems) {
+		return false
+	}
+	return true
+}
+
+// localItemSettingsEqual compares two LocalItemSettings pointers
+func localItemSettingsEqual(a, b *LocalItemSettings) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return strSlicesEqual(a.Agents, b.Agents) &&
+		strSlicesEqual(a.Commands, b.Commands) &&
+		strSlicesEqual(a.Skills, b.Skills) &&
+		strSlicesEqual(a.Hooks, b.Hooks) &&
+		strSlicesEqual(a.Rules, b.Rules) &&
+		strSlicesEqual(a.OutputStyles, b.OutputStyles)
 }
