@@ -186,9 +186,15 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	// Check plugin updates
 	fmt.Println()
 	scopes := availableScopes(upgradeAll)
-	scopedPlugins := plugins.GetPluginsAtScopes(scopes)
+	projectDir := ""
+	if !upgradeAll {
+		if dir, err := os.Getwd(); err == nil {
+			projectDir = dir
+		}
+	}
+	scopedPlugins := plugins.GetPluginsForContext(scopes, projectDir)
 	fmt.Println(ui.RenderSection("Checking Plugins", len(scopedPlugins)))
-	pluginUpdates := checkPluginUpdates(plugins, marketplaces, scopes)
+	pluginUpdates := checkPluginUpdates(scopedPlugins, marketplaces)
 
 	var outdatedUpdates []PluginUpdate
 	for _, update := range pluginUpdates {
@@ -362,9 +368,17 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry, onResult f
 		}
 		remoteCommit := strings.TrimSpace(string(remoteOutput))
 
+		// Only flag as update available when the remote has commits not in local.
+		// A simple != check falsely triggers when local is ahead of remote.
+		hasUpdate := false
+		if currentCommit != remoteCommit {
+			ancestorCmd := exec.Command("git", "-C", marketplace.InstallLocation, "merge-base", "--is-ancestor", remoteCommit, currentCommit)
+			hasUpdate = ancestorCmd.Run() != nil
+		}
+
 		update = MarketplaceUpdate{
 			Name:          name,
-			HasUpdate:     currentCommit != remoteCommit,
+			HasUpdate:     hasUpdate,
 			CurrentCommit: truncateHash(currentCommit),
 			LatestCommit:  truncateHash(remoteCommit),
 		}
@@ -377,10 +391,10 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry, onResult f
 	return updates
 }
 
-func checkPluginUpdates(plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry, scopes []string) []PluginUpdate {
+func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude.MarketplaceRegistry) []PluginUpdate {
 	var updates []PluginUpdate
 
-	for _, sp := range plugins.GetPluginsAtScopes(scopes) {
+	for _, sp := range scopedPlugins {
 		name := sp.Name
 		plugin := sp.PluginMetadata
 

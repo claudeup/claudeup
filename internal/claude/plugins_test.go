@@ -487,3 +487,71 @@ func TestRemovePluginAtScope(t *testing.T) {
 		t.Error("should return false for non-existent plugin")
 	}
 }
+
+func TestGetPluginsForContext(t *testing.T) {
+	registry := &PluginRegistry{
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"global-tool": {
+				{Scope: "user", Version: "1.0.0"},
+			},
+			"project-tool": {
+				{Scope: "project", Version: "2.0.0", ProjectPath: "/projects/alpha"},
+			},
+			"local-tool": {
+				{Scope: "local", Version: "3.0.0", ProjectPath: "/projects/alpha"},
+			},
+			"other-project-tool": {
+				{Scope: "project", Version: "4.0.0", ProjectPath: "/projects/beta"},
+			},
+			"multi-scope-tool": {
+				{Scope: "user", Version: "5.0.0"},
+				{Scope: "project", Version: "5.1.0", ProjectPath: "/projects/alpha"},
+				{Scope: "local", Version: "5.2.0", ProjectPath: "/projects/beta"},
+			},
+		},
+	}
+
+	// With projectDir set, only user plugins + matching project/local plugins
+	result := registry.GetPluginsForContext(ValidScopes, "/projects/alpha")
+	names := make(map[string]bool)
+	for _, sp := range result {
+		names[sp.Name+":"+sp.Scope] = true
+	}
+	if len(result) != 5 {
+		t.Errorf("expected 5 results for /projects/alpha context, got %d: %v", len(result), names)
+	}
+	if !names["global-tool:user"] {
+		t.Error("should include user-scope global-tool")
+	}
+	if !names["project-tool:project"] {
+		t.Error("should include project-scope project-tool matching alpha")
+	}
+	if !names["local-tool:local"] {
+		t.Error("should include local-scope local-tool matching alpha")
+	}
+	if !names["multi-scope-tool:user"] {
+		t.Error("should include user-scope multi-scope-tool")
+	}
+	if !names["multi-scope-tool:project"] {
+		t.Error("should include project-scope multi-scope-tool matching alpha")
+	}
+	if names["other-project-tool:project"] {
+		t.Error("should NOT include project-scope other-project-tool (beta)")
+	}
+	if names["multi-scope-tool:local"] {
+		t.Error("should NOT include local-scope multi-scope-tool (beta)")
+	}
+
+	// With empty projectDir, returns all plugins (same as GetPluginsAtScopes)
+	allResult := registry.GetPluginsForContext(ValidScopes, "")
+	if len(allResult) != 7 {
+		t.Errorf("expected 7 results for empty projectDir, got %d", len(allResult))
+	}
+
+	// User-only scope with projectDir still returns only user plugins
+	userOnly := registry.GetPluginsForContext([]string{"user"}, "/projects/alpha")
+	if len(userOnly) != 2 {
+		t.Errorf("expected 2 user-scope results, got %d", len(userOnly))
+	}
+}

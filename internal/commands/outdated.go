@@ -4,6 +4,7 @@ package commands
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/selfupdate"
@@ -81,12 +82,18 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 	// Check plugin updates
 	fmt.Println()
 	scopes := availableScopes(outdatedAll)
-	scopedPlugins := plugins.GetPluginsAtScopes(scopes)
+	projectDir := ""
+	if !outdatedAll {
+		if dir, err := os.Getwd(); err == nil {
+			projectDir = dir
+		}
+	}
+	scopedPlugins := plugins.GetPluginsForContext(scopes, projectDir)
 	fmt.Println(ui.RenderSection("Plugins", len(scopedPlugins)))
 	if len(scopedPlugins) == 0 {
 		fmt.Printf("  %s\n", ui.Muted("No plugins installed"))
 	} else {
-		pluginUpdates := checkPluginUpdates(plugins, marketplaces, scopes)
+		pluginUpdates := checkPluginUpdates(scopedPlugins, marketplaces)
 		if len(pluginUpdates) == 0 {
 			fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 		} else {

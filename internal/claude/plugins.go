@@ -29,6 +29,7 @@ type PluginMetadata struct {
 	InstallPath  string `json:"installPath"`
 	GitCommitSha string `json:"gitCommitSha"`
 	IsLocal      bool   `json:"isLocal"`
+	ProjectPath  string `json:"projectPath,omitempty"`
 }
 
 // ScopedPlugin pairs a plugin name with its scope-specific metadata.
@@ -190,6 +191,40 @@ func (r *PluginRegistry) GetPluginsAtScopes(scopes []string) []ScopedPlugin {
 		return result[i].Scope < result[j].Scope
 	})
 
+	return result
+}
+
+// GetPluginsForContext returns plugins relevant to a specific project context.
+// User-scope plugins are always included. Project and local scope plugins are
+// included only if their ProjectPath matches projectDir.
+// When projectDir is empty, all plugins at the given scopes are returned.
+func (r *PluginRegistry) GetPluginsForContext(scopes []string, projectDir string) []ScopedPlugin {
+	all := r.GetPluginsAtScopes(scopes)
+	if projectDir == "" {
+		return all
+	}
+
+	// Resolve symlinks for reliable comparison (e.g., /var → /private/var on macOS)
+	resolvedDir, err := filepath.EvalSymlinks(projectDir)
+	if err != nil {
+		resolvedDir = filepath.Clean(projectDir)
+	}
+	var result []ScopedPlugin
+	for _, sp := range all {
+		if sp.Scope == ScopeUser {
+			result = append(result, sp)
+			continue
+		}
+		pluginDir := sp.ProjectPath
+		if resolved, err := filepath.EvalSymlinks(pluginDir); err == nil {
+			pluginDir = resolved
+		} else {
+			pluginDir = filepath.Clean(pluginDir)
+		}
+		if pluginDir == resolvedDir {
+			result = append(result, sp)
+		}
+	}
 	return result
 }
 

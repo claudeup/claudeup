@@ -108,12 +108,41 @@ var _ = Describe("upgrade", func() {
 			})
 
 			It("checks user, project, and local scopes without --all", func() {
-				env.CreateInstalledPlugins(multiScopePlugins)
+				// Set projectPath on project-scope plugins to match this project dir
+				projectPlugins := map[string]interface{}{
+					"user-plugin@marketplace": []interface{}{
+						map[string]interface{}{
+							"scope": "user", "version": "1.0.0",
+							"installedAt": "2025-01-01T00:00:00Z", "lastUpdated": "2025-01-01T00:00:00Z",
+							"installPath": "/nonexistent/path", "gitCommitSha": "abc1234",
+						},
+					},
+					"project-plugin@marketplace": []interface{}{
+						map[string]interface{}{
+							"scope": "project", "version": "1.0.0", "projectPath": projectDir,
+							"installedAt": "2025-01-01T00:00:00Z", "lastUpdated": "2025-01-01T00:00:00Z",
+							"installPath": "/nonexistent/path", "gitCommitSha": "def5678",
+						},
+					},
+					"multi-plugin@marketplace": []interface{}{
+						map[string]interface{}{
+							"scope": "user", "version": "1.0.0",
+							"installedAt": "2025-01-01T00:00:00Z", "lastUpdated": "2025-01-01T00:00:00Z",
+							"installPath": "/nonexistent/path", "gitCommitSha": "aaa1111",
+						},
+						map[string]interface{}{
+							"scope": "project", "version": "1.0.0", "projectPath": projectDir,
+							"installedAt": "2025-01-01T00:00:00Z", "lastUpdated": "2025-01-01T00:00:00Z",
+							"installPath": "/nonexistent/path", "gitCommitSha": "bbb2222",
+						},
+					},
+				}
+				env.CreateInstalledPlugins(projectPlugins)
 
 				result := env.RunInDir(projectDir, "upgrade")
 
 				Expect(result.ExitCode).To(Equal(0))
-				// 4 total: project context includes user + project + local scopes
+				// 4 total: project context includes user + project plugins matching this project
 				Expect(result.Stdout).To(ContainSubstring("Plugins (4)"))
 			})
 		})
