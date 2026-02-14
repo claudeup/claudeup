@@ -81,13 +81,13 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 
 	// Check plugin updates
 	fmt.Println()
-	scopes := availableScopes(outdatedAll)
 	projectDir := ""
 	if !outdatedAll {
 		if dir, err := os.Getwd(); err == nil {
 			projectDir = dir
 		}
 	}
+	scopes := availableScopes(outdatedAll, projectDir)
 	scopedPlugins := plugins.GetPluginsForContext(scopes, projectDir)
 	fmt.Println(ui.RenderSection("Plugins", len(scopedPlugins)))
 	if len(scopedPlugins) == 0 {

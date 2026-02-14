@@ -132,12 +132,12 @@ var _ = Describe("findUnmatchedTargets", func() {
 
 var _ = Describe("availableScopes", func() {
 	It("returns all scopes when allFlag is true", func() {
-		scopes := availableScopes(true)
+		scopes := availableScopes(true, "")
 		Expect(scopes).To(Equal(claude.ValidScopes))
 	})
 
 	It("always includes user scope when allFlag is false", func() {
-		scopes := availableScopes(false)
+		scopes := availableScopes(false, "")
 		Expect(scopes).To(ContainElement("user"))
 	})
 
@@ -145,12 +145,9 @@ var _ = Describe("availableScopes", func() {
 		var tempDir string
 		var claudeHome string
 		var origClaudeDir string
-		var origWd string
 
 		BeforeEach(func() {
 			var err error
-			origWd, err = os.Getwd()
-			Expect(err).NotTo(HaveOccurred())
 			origClaudeDir = claudeDir
 
 			// Create a temp dir with a .claude subdirectory to simulate a project
@@ -163,28 +160,23 @@ var _ = Describe("availableScopes", func() {
 			claudeHome, err = os.MkdirTemp("", "claude-home-*")
 			Expect(err).NotTo(HaveOccurred())
 			claudeDir = claudeHome
-
-			// Change to the project directory
-			err = os.Chdir(tempDir)
-			Expect(err).NotTo(HaveOccurred())
 		})
 
 		AfterEach(func() {
-			os.Chdir(origWd)
 			claudeDir = origClaudeDir
 			os.RemoveAll(tempDir)
 			os.RemoveAll(claudeHome)
 		})
 
 		It("includes project and local scopes when allFlag is false", func() {
-			scopes := availableScopes(false)
+			scopes := availableScopes(false, tempDir)
 			Expect(scopes).To(ContainElement("user"))
 			Expect(scopes).To(ContainElement("project"))
 			Expect(scopes).To(ContainElement("local"))
 		})
 
 		It("returns all valid scopes when allFlag is true regardless of context", func() {
-			scopes := availableScopes(true)
+			scopes := availableScopes(true, tempDir)
 			Expect(scopes).To(Equal(claude.ValidScopes))
 		})
 	})
@@ -193,12 +185,9 @@ var _ = Describe("availableScopes", func() {
 		var tempDir string
 		var claudeHome string
 		var origClaudeDir string
-		var origWd string
 
 		BeforeEach(func() {
 			var err error
-			origWd, err = os.Getwd()
-			Expect(err).NotTo(HaveOccurred())
 			origClaudeDir = claudeDir
 
 			// Create a temp dir WITHOUT .claude to simulate non-project context
@@ -207,20 +196,16 @@ var _ = Describe("availableScopes", func() {
 			claudeHome, err = os.MkdirTemp("", "claude-home-*")
 			Expect(err).NotTo(HaveOccurred())
 			claudeDir = claudeHome
-
-			err = os.Chdir(tempDir)
-			Expect(err).NotTo(HaveOccurred())
 		})
 
 		AfterEach(func() {
-			os.Chdir(origWd)
 			claudeDir = origClaudeDir
 			os.RemoveAll(tempDir)
 			os.RemoveAll(claudeHome)
 		})
 
 		It("returns only user scope when allFlag is false", func() {
-			scopes := availableScopes(false)
+			scopes := availableScopes(false, tempDir)
 			Expect(scopes).To(Equal([]string{"user"}))
 		})
 	})

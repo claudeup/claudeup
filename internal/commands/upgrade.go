@@ -49,16 +49,12 @@ func init() {
 	upgradeCmd.Flags().BoolVar(&upgradeAll, "all", false, "Upgrade plugins across all scopes, not just the current context")
 }
 
-func availableScopes(allFlag bool) []string {
+func availableScopes(allFlag bool, projectDir string) []string {
 	if allFlag {
 		return claude.ValidScopes
 	}
-	projectDir, err := os.Getwd()
-	if err != nil {
-		return []string{"user"}
-	}
 	scopes := []string{"user"}
-	if claude.IsProjectContext(claudeDir, projectDir) {
+	if projectDir != "" && claude.IsProjectContext(claudeDir, projectDir) {
 		scopes = append(scopes, "project", "local")
 	}
 	return scopes
@@ -185,13 +181,13 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 	// Check plugin updates
 	fmt.Println()
-	scopes := availableScopes(upgradeAll)
 	projectDir := ""
 	if !upgradeAll {
 		if dir, err := os.Getwd(); err == nil {
 			projectDir = dir
 		}
 	}
+	scopes := availableScopes(upgradeAll, projectDir)
 	scopedPlugins := plugins.GetPluginsForContext(scopes, projectDir)
 	fmt.Println(ui.RenderSection("Checking Plugins", len(scopedPlugins)))
 	pluginUpdates := checkPluginUpdates(scopedPlugins, marketplaces)
