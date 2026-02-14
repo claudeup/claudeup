@@ -373,14 +373,82 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 		p.Marketplaces = marketplaces
 	}
 
-	// Read local items from enabled.json
-	localItems, err := readLocalItems(claudeDir, claudeupHome)
-	if err == nil && localItems != nil {
-		p.LocalItems = localItems
+	// Read user-scoped local items from enabled.json into PerScope.User
+	userLocalItems, err := readLocalItems(claudeDir, claudeupHome)
+	if err == nil && userLocalItems != nil {
+		if p.PerScope.User == nil {
+			p.PerScope.User = &ScopeSettings{}
+		}
+		p.PerScope.User.LocalItems = userLocalItems
+	}
+
+	// Read project-scoped local items from project .claude/{agents,rules}/
+	if projectDir != "" {
+		projectLocalItems := readProjectLocalItems(projectDir)
+		if projectLocalItems != nil {
+			if p.PerScope.Project == nil {
+				p.PerScope.Project = &ScopeSettings{}
+			}
+			p.PerScope.Project.LocalItems = projectLocalItems
+		}
 	}
 
 	// Auto-generate description based on contents
 	p.Description = p.GenerateDescription()
 
 	return p, nil
+}
+
+// readProjectLocalItems scans .claude/{agents,rules}/ in the project directory
+// for regular files (not symlinks). Regular files are project-scoped items;
+// symlinks are user-scoped items managed by claudeup and should be skipped.
+func readProjectLocalItems(projectDir string) *LocalItemSettings {
+	settings := &LocalItemSettings{}
+	hasItems := false
+
+	for _, category := range []string{"agents", "rules"} {
+		dir := filepath.Join(projectDir, ".claude", category)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+
+		var items []string
+		for _, entry := range entries {
+			name := entry.Name()
+			if strings.HasPrefix(name, ".") || name == "CLAUDE.md" {
+				continue
+			}
+
+			path := filepath.Join(dir, name)
+			info, err := os.Lstat(path)
+			if err != nil {
+				continue
+			}
+
+			// Skip symlinks (user-scoped items managed by claudeup)
+			if info.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
+
+			items = append(items, name)
+		}
+
+		sort.Strings(items)
+
+		if len(items) > 0 {
+			switch category {
+			case "agents":
+				settings.Agents = items
+			case "rules":
+				settings.Rules = items
+			}
+			hasItems = true
+		}
+	}
+
+	if !hasItems {
+		return nil
+	}
+	return settings
 }
