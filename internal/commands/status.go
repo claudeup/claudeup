@@ -162,15 +162,16 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check installed plugins for issues (deduplicate by name to avoid
-	// over-counting when a plugin is installed at multiple scopes)
-	seen := make(map[string]bool)
+	// Select highest-precedence instance per plugin name
+	// (local > project > user) to match Claude Code's scope layering
+	bestPlugin := make(map[string]claude.ScopedPlugin)
 	for _, sp := range plugins.GetPluginsAtScopes(scopes) {
-		name := sp.Name
-		if seen[name] {
-			continue
+		if existing, ok := bestPlugin[sp.Name]; !ok || claude.ScopePrecedence(sp.Scope) > claude.ScopePrecedence(existing.Scope) {
+			bestPlugin[sp.Name] = sp
 		}
-		seen[name] = true
+	}
+	for _, sp := range bestPlugin {
+		name := sp.Name
 		plugin := sp.PluginMetadata
 		// Check if plugin is enabled in any scope
 		if _, enabled := pluginScopes[name]; enabled {

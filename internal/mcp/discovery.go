@@ -38,18 +38,20 @@ func DiscoverEnabledMCPServers(pluginRegistry *claude.PluginRegistry, settings *
 
 // discoverMCPServers is the internal implementation that optionally filters by enabled plugins
 func discoverMCPServers(pluginRegistry *claude.PluginRegistry, settings *claude.Settings) ([]PluginMCPServers, error) {
-	var results []PluginMCPServers
-
-	// Deduplicate by plugin name to avoid registering the same MCP servers
-	// twice when a plugin is installed at multiple scopes
-	seen := make(map[string]bool)
+	// Select highest-precedence instance per plugin name
+	// (local > project > user) to match Claude Code's scope layering
+	best := make(map[string]claude.ScopedPlugin)
 	for _, sp := range pluginRegistry.GetPluginsAtScopes(claude.ValidScopes) {
-		name := sp.Name
-		if seen[name] {
-			continue
+		if existing, ok := best[sp.Name]; !ok || claude.ScopePrecedence(sp.Scope) > claude.ScopePrecedence(existing.Scope) {
+			best[sp.Name] = sp
 		}
-		seen[name] = true
+	}
+
+	var results []PluginMCPServers
+	for _, sp := range best {
+		name := sp.Name
 		plugin := sp.PluginMetadata
+
 		// If settings provided, skip disabled plugins
 		if settings != nil && !settings.IsPluginEnabled(name) {
 			continue
