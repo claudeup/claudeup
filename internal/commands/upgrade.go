@@ -65,6 +65,7 @@ func availableScopes(allFlag bool, projectDir string) []string {
 type MarketplaceUpdate struct {
 	Name          string
 	HasUpdate     bool
+	CheckFailed   bool
 	CurrentCommit string
 	LatestCommit  string
 }
@@ -174,6 +175,8 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Warning("Update available"))
 			outdatedMarketplaces = append(outdatedMarketplaces, update.Name)
+		} else if update.CheckFailed {
+			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Muted("Unable to check for updates"))
 		} else {
 			fmt.Printf("  %s %s: %s\n", ui.Success(ui.SymbolSuccess), update.Name, ui.Muted("Up to date"))
 		}
@@ -325,11 +328,9 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry, onResult f
 		fetchErr := fetchCmd.Run()
 		cancel()
 		if fetchErr != nil {
-			// Fetch failed - warn user and mark as unable to check
-			fmt.Fprintf(os.Stderr, "  %s %s: %s (git fetch failed)\n", ui.Warning(ui.SymbolWarning), name, ui.Muted("Unable to check for updates"))
 			update = MarketplaceUpdate{
-				Name:      name,
-				HasUpdate: false,
+				Name:        name,
+				CheckFailed: true,
 			}
 			updates = append(updates, update)
 			if onResult != nil {
@@ -396,6 +397,7 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 
 		// Skip if plugin path doesn't exist
 		if !plugin.PathExists() {
+			updates = append(updates, PluginUpdate{Name: name, Scope: plugin.Scope})
 			continue
 		}
 
@@ -409,32 +411,34 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 		}
 
 		if marketplacePath == "" {
+			updates = append(updates, PluginUpdate{Name: name, Scope: plugin.Scope})
 			continue
 		}
 
 		// Get current commit from marketplace
 		gitDir := filepath.Join(marketplacePath, ".git")
 		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+			updates = append(updates, PluginUpdate{Name: name, Scope: plugin.Scope})
 			continue
 		}
 
 		currentCmd := exec.Command("git", "-C", marketplacePath, "rev-parse", "HEAD")
 		currentOutput, err := currentCmd.Output()
 		if err != nil {
+			updates = append(updates, PluginUpdate{Name: name, Scope: plugin.Scope})
 			continue
 		}
 		currentCommit := strings.TrimSpace(string(currentOutput))
 
 		// Compare with plugin's gitCommitSha
-		if plugin.GitCommitSha != currentCommit {
-			updates = append(updates, PluginUpdate{
-				Name:          name,
-				Scope:         plugin.Scope,
-				HasUpdate:     true,
-				CurrentCommit: truncateHash(plugin.GitCommitSha),
-				LatestCommit:  truncateHash(currentCommit),
-			})
-		}
+		hasUpdate := plugin.GitCommitSha != currentCommit
+		updates = append(updates, PluginUpdate{
+			Name:          name,
+			Scope:         plugin.Scope,
+			HasUpdate:     hasUpdate,
+			CurrentCommit: truncateHash(plugin.GitCommitSha),
+			LatestCommit:  truncateHash(currentCommit),
+		})
 	}
 
 	return updates

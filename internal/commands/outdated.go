@@ -73,6 +73,8 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 		checkMarketplaceUpdates(marketplaces, func(update MarketplaceUpdate) {
 			if update.HasUpdate {
 				fmt.Printf("  %s %s %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
+			} else if update.CheckFailed {
+				fmt.Printf("  %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, ui.Muted("(unable to check)"))
 			} else {
 				fmt.Printf("  %s %s %s\n", ui.Success(ui.SymbolSuccess), update.Name, ui.Muted("(up to date)"))
 			}
