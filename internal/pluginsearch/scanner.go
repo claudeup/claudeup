@@ -6,6 +6,7 @@ package pluginsearch
 import (
 	"bufio"
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,6 +14,10 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 )
+
+// maxContentBytes limits how much SKILL.md body content is indexed for search.
+// Prevents excessive memory usage when scanning large files.
+const maxContentBytes = 64 * 1024 // 64KB
 
 // Scanner scans the plugin cache to build a search index.
 type Scanner struct{}
@@ -181,7 +186,8 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 	name := dirName
 	description := ""
 	var bodyLines []string
-	const maxBodyLines = 500
+	bodyBytes := 0
+	truncated := false
 
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
@@ -194,7 +200,6 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 		}
 		if line == "---" && inFrontmatter {
 			inFrontmatter = false
-			firstLine = false
 			continue
 		}
 		firstLine = false
@@ -207,9 +212,14 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 				description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
 				description = strings.Trim(description, "\"'")
 			}
-		} else {
-			if len(bodyLines) < maxBodyLines {
+		} else if !truncated {
+			lineLen := len(line) + 1 // +1 for newline
+			if bodyBytes+lineLen > maxContentBytes {
+				truncated = true
+				log.Printf("Warning: skill content truncated at %d bytes: %s", maxContentBytes, skillFile)
+			} else {
 				bodyLines = append(bodyLines, line)
+				bodyBytes += lineLen
 			}
 		}
 	}
@@ -223,6 +233,7 @@ func (s *Scanner) parseSkillFrontmatter(skillPath, dirName string) ComponentInfo
 		Description: description,
 		Path:        skillPath,
 		Content:     strings.TrimSpace(strings.Join(bodyLines, "\n")),
+		Truncated:   truncated,
 	}
 }
 
