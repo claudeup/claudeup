@@ -1351,14 +1351,23 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 
 	// Show per-scope plugin counts for multi-scope profiles
 	if p.IsMultiScope() {
-		if p.PerScope.User != nil && len(p.PerScope.User.Plugins) > 0 {
-			fmt.Println(ui.Indent(ui.RenderDetail("User plugins", fmt.Sprintf("%d", len(p.PerScope.User.Plugins))), 1))
-		}
-		if p.PerScope.Project != nil && len(p.PerScope.Project.Plugins) > 0 {
-			fmt.Println(ui.Indent(ui.RenderDetail("Project plugins", fmt.Sprintf("%d", len(p.PerScope.Project.Plugins))), 1))
-		}
-		if p.PerScope.Local != nil && len(p.PerScope.Local.Plugins) > 0 {
-			fmt.Println(ui.Indent(ui.RenderDetail("Local plugins", fmt.Sprintf("%d", len(p.PerScope.Local.Plugins))), 1))
+		for _, s := range []struct {
+			label    string
+			settings *profile.ScopeSettings
+		}{
+			{"User", p.PerScope.User},
+			{"Project", p.PerScope.Project},
+			{"Local", p.PerScope.Local},
+		} {
+			if s.settings == nil {
+				continue
+			}
+			if len(s.settings.Plugins) > 0 {
+				fmt.Println(ui.Indent(ui.RenderDetail(s.label+" plugins", fmt.Sprintf("%d", len(s.settings.Plugins))), 1))
+			}
+			if n := countLocalItems(s.settings.LocalItems); n > 0 {
+				fmt.Println(ui.Indent(ui.RenderDetail(s.label+" local items", fmt.Sprintf("%d", n)), 1))
+			}
 		}
 	} else {
 		fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
@@ -1452,11 +1461,13 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// scopeEntry pairs a scope label with its settings for display.
+type scopeEntry struct {
+	label    string
+	settings *profile.ScopeSettings
+}
+
 func showMultiScopeProfile(p *profile.Profile) {
-	type scopeEntry struct {
-		label    string
-		settings *profile.ScopeSettings
-	}
 	scopes := []scopeEntry{
 		{"user", p.PerScope.User},
 		{"project", p.PerScope.Project},
@@ -1506,6 +1517,18 @@ func showMultiScopeProfile(p *profile.Profile) {
 			}
 		}
 		fmt.Println()
+	}
+
+	// Collect local items across scopes with labels
+	var hasLocalItems bool
+	for _, s := range scopes {
+		if s.settings != nil && s.settings.LocalItems != nil {
+			hasLocalItems = true
+			break
+		}
+	}
+	if hasLocalItems {
+		showScopedLocalItems(scopes)
 	}
 }
 
@@ -1566,6 +1589,61 @@ func showLocalItems(items *profile.LocalItemSettings) {
 		}
 	}
 	fmt.Println()
+}
+
+// showScopedLocalItems displays local items grouped by category, with scope labels.
+func showScopedLocalItems(scopes []scopeEntry) {
+	type categoryDef struct {
+		label  string
+		getter func(*profile.LocalItemSettings) []string
+	}
+	categories := []categoryDef{
+		{"Agents", func(l *profile.LocalItemSettings) []string { return l.Agents }},
+		{"Commands", func(l *profile.LocalItemSettings) []string { return l.Commands }},
+		{"Skills", func(l *profile.LocalItemSettings) []string { return l.Skills }},
+		{"Hooks", func(l *profile.LocalItemSettings) []string { return l.Hooks }},
+		{"Rules", func(l *profile.LocalItemSettings) []string { return l.Rules }},
+		{"Output Styles", func(l *profile.LocalItemSettings) []string { return l.OutputStyles }},
+	}
+
+	var hasAny bool
+	for _, s := range scopes {
+		if s.settings != nil && s.settings.LocalItems != nil {
+			hasAny = true
+			break
+		}
+	}
+	if !hasAny {
+		return
+	}
+
+	fmt.Println("Local Items:")
+	for _, cat := range categories {
+		var printed bool
+		for _, s := range scopes {
+			if s.settings == nil || s.settings.LocalItems == nil {
+				continue
+			}
+			items := cat.getter(s.settings.LocalItems)
+			for _, item := range items {
+				if !printed {
+					fmt.Printf("  %s:\n", cat.label)
+					printed = true
+				}
+				fmt.Printf("    - %s [%s]\n", item, s.label)
+			}
+		}
+	}
+	fmt.Println()
+}
+
+// countLocalItems returns the total number of items across all categories.
+func countLocalItems(items *profile.LocalItemSettings) int {
+	if items == nil {
+		return 0
+	}
+	return len(items.Agents) + len(items.Commands) + len(items.Skills) +
+		len(items.Hooks) + len(items.Rules) + len(items.OutputStyles)
 }
 
 // showStackIncludes displays the include tree for a stack profile.
@@ -1751,14 +1829,30 @@ func showMultiScopeSummary(p *profile.Profile) {
 
 	fmt.Printf("  %s\n", ui.Info("Multi-scope profile:"))
 
-	if p.PerScope.User != nil && len(p.PerScope.User.Plugins) > 0 {
-		fmt.Printf("    User scope:    %d plugins\n", len(p.PerScope.User.Plugins))
-	}
-	if p.PerScope.Project != nil && len(p.PerScope.Project.Plugins) > 0 {
-		fmt.Printf("    Project scope: %d plugins\n", len(p.PerScope.Project.Plugins))
-	}
-	if p.PerScope.Local != nil && len(p.PerScope.Local.Plugins) > 0 {
-		fmt.Printf("    Local scope:   %d plugins\n", len(p.PerScope.Local.Plugins))
+	for _, s := range []struct {
+		label    string
+		settings *profile.ScopeSettings
+	}{
+		{"User", p.PerScope.User},
+		{"Project", p.PerScope.Project},
+		{"Local", p.PerScope.Local},
+	} {
+		if s.settings == nil {
+			continue
+		}
+		var parts []string
+		if len(s.settings.Plugins) > 0 {
+			parts = append(parts, fmt.Sprintf("%d plugins", len(s.settings.Plugins)))
+		}
+		if s.settings.LocalItems != nil {
+			n := countLocalItems(s.settings.LocalItems)
+			if n > 0 {
+				parts = append(parts, fmt.Sprintf("%d local items", n))
+			}
+		}
+		if len(parts) > 0 {
+			fmt.Printf("    %-15s %s\n", s.label+" scope:", strings.Join(parts, ", "))
+		}
 	}
 }
 
