@@ -1553,23 +1553,26 @@ func showLegacyProfile(p *profile.Profile) {
 	}
 }
 
-func showLocalItems(items *profile.LocalItemSettings) {
-	type category struct {
-		label string
-		items []string
-	}
-	categories := []category{
-		{"Agents", items.Agents},
-		{"Commands", items.Commands},
-		{"Skills", items.Skills},
-		{"Hooks", items.Hooks},
-		{"Rules", items.Rules},
-		{"Output Styles", items.OutputStyles},
-	}
+// localItemCategory maps a display label to a getter for that category's items.
+type localItemCategory struct {
+	label  string
+	getter func(*profile.LocalItemSettings) []string
+}
 
+// localItemCategories defines the display order and accessors for local item categories.
+var localItemCategories = []localItemCategory{
+	{"Agents", func(l *profile.LocalItemSettings) []string { return l.Agents }},
+	{"Commands", func(l *profile.LocalItemSettings) []string { return l.Commands }},
+	{"Skills", func(l *profile.LocalItemSettings) []string { return l.Skills }},
+	{"Hooks", func(l *profile.LocalItemSettings) []string { return l.Hooks }},
+	{"Rules", func(l *profile.LocalItemSettings) []string { return l.Rules }},
+	{"Output Styles", func(l *profile.LocalItemSettings) []string { return l.OutputStyles }},
+}
+
+func showLocalItems(items *profile.LocalItemSettings) {
 	var hasItems bool
-	for _, c := range categories {
-		if len(c.items) > 0 {
+	for _, c := range localItemCategories {
+		if len(c.getter(items)) > 0 {
 			hasItems = true
 			break
 		}
@@ -1579,12 +1582,13 @@ func showLocalItems(items *profile.LocalItemSettings) {
 	}
 
 	fmt.Println("Local Items:")
-	for _, c := range categories {
-		if len(c.items) == 0 {
+	for _, c := range localItemCategories {
+		catItems := c.getter(items)
+		if len(catItems) == 0 {
 			continue
 		}
 		fmt.Printf("  %s:\n", c.label)
-		for _, item := range c.items {
+		for _, item := range catItems {
 			fmt.Printf("    - %s\n", item)
 		}
 	}
@@ -1593,19 +1597,6 @@ func showLocalItems(items *profile.LocalItemSettings) {
 
 // showScopedLocalItems displays local items grouped by category, with scope labels.
 func showScopedLocalItems(scopes []scopeEntry) {
-	type categoryDef struct {
-		label  string
-		getter func(*profile.LocalItemSettings) []string
-	}
-	categories := []categoryDef{
-		{"Agents", func(l *profile.LocalItemSettings) []string { return l.Agents }},
-		{"Commands", func(l *profile.LocalItemSettings) []string { return l.Commands }},
-		{"Skills", func(l *profile.LocalItemSettings) []string { return l.Skills }},
-		{"Hooks", func(l *profile.LocalItemSettings) []string { return l.Hooks }},
-		{"Rules", func(l *profile.LocalItemSettings) []string { return l.Rules }},
-		{"Output Styles", func(l *profile.LocalItemSettings) []string { return l.OutputStyles }},
-	}
-
 	var hasAny bool
 	for _, s := range scopes {
 		if s.settings != nil && s.settings.LocalItems != nil {
@@ -1618,7 +1609,7 @@ func showScopedLocalItems(scopes []scopeEntry) {
 	}
 
 	fmt.Println("Local Items:")
-	for _, cat := range categories {
+	for _, cat := range localItemCategories {
 		var printed bool
 		for _, s := range scopes {
 			if s.settings == nil || s.settings.LocalItems == nil {
@@ -1642,8 +1633,11 @@ func countLocalItems(items *profile.LocalItemSettings) int {
 	if items == nil {
 		return 0
 	}
-	return len(items.Agents) + len(items.Commands) + len(items.Skills) +
-		len(items.Hooks) + len(items.Rules) + len(items.OutputStyles)
+	count := 0
+	for _, c := range localItemCategories {
+		count += len(c.getter(items))
+	}
+	return count
 }
 
 // showStackIncludes displays the include tree for a stack profile.

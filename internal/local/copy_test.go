@@ -225,6 +225,35 @@ func TestProjectScopeCategories(t *testing.T) {
 	}
 }
 
+func TestValidateDestPath(t *testing.T) {
+	// Defense-in-depth: OS filesystems reject "/" in filenames, so
+	// listLocalItems cannot return traversal sequences. This tests the
+	// validateDestPath safety net against externally-crafted item names.
+	baseDir := filepath.Clean("/project/.claude/rules")
+
+	tests := []struct {
+		name      string
+		item      string
+		wantError bool
+	}{
+		{"normal item", "golang.md", false},
+		{"nested item", "team/reviewer.md", false},
+		{"traversal escapes category", "../agents/evil.md", true},
+		{"traversal escapes .claude", "../../etc/evil.md", true},
+		{"dot-dot only", "..", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			destPath := filepath.Clean(filepath.Join(baseDir, tt.item))
+			err := validateDestPath(destPath, baseDir)
+			if (err != nil) != tt.wantError {
+				t.Errorf("validateDestPath(%q, %q): got err=%v, wantError=%v", destPath, baseDir, err, tt.wantError)
+			}
+		})
+	}
+}
+
 func TestValidateProjectScopeCategories(t *testing.T) {
 	// Valid categories
 	if err := ValidateProjectScope("agents"); err != nil {
