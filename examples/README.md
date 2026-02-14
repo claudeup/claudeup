@@ -1,6 +1,7 @@
 # claudeup Examples
 
-Hands-on tutorials for learning claudeup.
+Hands-on tutorials for learning claudeup. Each workflow directory has its own
+README with details on audience, script descriptions, and suggested order.
 
 ## Before You Start
 
@@ -29,7 +30,7 @@ By default, examples run in an isolated temp directory (safe to experiment):
 ./examples/getting-started/01-check-installation.sh
 ```
 
-Temp mode creates a fresh Claude environment - your real settings are not visible or affected.
+Temp mode creates a fresh Claude environment -- your real settings are not visible or affected.
 
 To run against your actual Claude installation:
 
@@ -45,21 +46,51 @@ For scripting or CI (no pauses):
 
 ## Workflows
 
-| Directory | Description |
-|-----------|-------------|
-| `getting-started/` | First steps with claudeup |
-| `profile-management/` | Create and switch configurations |
-| `plugin-management/` | Control your plugins |
-| `troubleshooting/` | Diagnose and fix issues |
-| `team-setup/` | Share configurations across projects |
+Start with **Getting Started**, then explore based on what you need.
+
+| Directory                                    | What it covers                                                  | README                                 |
+| -------------------------------------------- | --------------------------------------------------------------- | -------------------------------------- |
+| [`getting-started/`](getting-started/)       | Verify installation, explore profiles, apply your first profile | [README](getting-started/README.md)    |
+| [`profile-management/`](profile-management/) | Save, create, switch, clone, and compose profiles               | [README](profile-management/README.md) |
+| [`plugin-management/`](plugin-management/)   | List plugins, check for updates, apply upgrades                 | [README](plugin-management/README.md)  |
+| [`team-setup/`](team-setup/)                 | Understand scopes, layer personal and team profiles             | [README](team-setup/README.md)         |
+| [`troubleshooting/`](troubleshooting/)       | Diagnose issues, view event history, diff configuration changes | [README](troubleshooting/README.md)    |
 
 The `lib/` directory contains shared utilities used by all example scripts.
 
+### Suggested learning path
+
+```
+getting-started/  -->  profile-management/  -->  team-setup/
+                            |
+                            v
+                   plugin-management/
+
+         (any time)  troubleshooting/
+```
+
+1. **Getting Started** -- verify claudeup works and learn basic concepts
+2. **Profile Management** -- the core workflow: save, create, switch, compose
+3. **Team Setup** -- layer profiles across scopes for team collaboration
+4. **Plugin Management** -- manage individual plugins and updates
+5. **Troubleshooting** -- use anytime something goes wrong
+
 ## Flags
 
-| Flag | Behavior |
-|------|----------|
-| (none) | Interactive mode with isolated temp directory |
-| `--real` | Operate on actual `~/.claude/` with safety checks |
-| `--non-interactive` | No pauses, for CI/scripting |
-| `--help` | Show usage for the specific example |
+| Flag                | Behavior                                          |
+| ------------------- | ------------------------------------------------- |
+| (none)              | Interactive mode with isolated temp directory     |
+| `--real`            | Operate on actual `~/.claude/` with safety checks |
+| `--non-interactive` | No pauses, for CI/scripting                       |
+| `--help`            | Show usage for the specific example               |
+
+## Temp mode vs real mode
+
+Most examples work in **temp mode** (the default), which creates an isolated
+`~/.claude/` in `/tmp/`. This is safe for experimentation but means some
+commands show placeholder output since there are no real plugins or
+marketplaces to work with.
+
+**Real mode** (`--real`) operates on your actual Claude configuration. It
+requires interactive mode and checks for uncommitted changes in `~/.claude/`
+before proceeding. Use this to see realistic output with your actual plugins.
