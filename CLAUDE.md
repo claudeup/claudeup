@@ -137,6 +137,11 @@ var _ = Describe("feature", func() {
 go run github.com/onsi/ginkgo/v2/ginkgo -v ./test/...
 ```
 
+**Ginkgo gotchas:**
+
+- Use `ginkgo -focus "pattern"` to filter specific tests, NOT `go test -run`. The `-run` flag filters Go test functions, not Ginkgo spec names.
+- On macOS, symlink resolution can cause path mismatches (`/var` vs `/private/var`). When writing tests that compare file paths, use `filepath.EvalSymlinks()` to normalize paths before comparison.
+
 ## Testing Environment Isolation
 
 This project uses the `CLAUDE_CONFIG_DIR` environment variable to create isolated Claude Code environments for testing. This prevents tests from interfering with your real `~/.claude` configuration.
