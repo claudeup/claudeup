@@ -7,16 +7,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 
-# Resolve claudeup path to absolute before cd (same logic as setup_temp_claude_dir)
-if [[ "$EXAMPLE_CLAUDEUP_BIN" != /* ]]; then
-    if [[ -f "$EXAMPLE_CLAUDEUP_BIN" ]]; then
-        EXAMPLE_CLAUDEUP_BIN=$(cd "$(dirname "$EXAMPLE_CLAUDEUP_BIN")" && pwd)/$(basename "$EXAMPLE_CLAUDEUP_BIN")
-    elif command -v "$EXAMPLE_CLAUDEUP_BIN" &>/dev/null; then
-        EXAMPLE_CLAUDEUP_BIN=$(command -v "$EXAMPLE_CLAUDEUP_BIN")
-    fi
+# This script manages multiple CLAUDE_CONFIG_DIR values (one per team member),
+# so it cannot use setup_environment which sets a single directory.
+if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
+    error "This demo always uses isolated temp directories."
+    error "The --real flag is not supported."
+    exit 1
 fi
 
+resolve_claudeup_bin
 check_claudeup_installed
+check_claude_config_dir_override
 
 EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXXXXXXX")
 trap_preserve_on_error
@@ -115,7 +116,7 @@ cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/alice-tools.json" <<'PROFI
         "superpowers@superpowers-marketplace"
       ],
       "localItems": {
-        "rules": ["coding-standards"]
+        "rules": ["coding-standards.md"]
       }
     }
   }
