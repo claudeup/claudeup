@@ -36,9 +36,9 @@ switch_member() {
 # Banner
 # ---------------------------------------------------------------------------
 cat <<'EOF'
-+================================================================+
-|        Team Setup: Isolated Workspace Demo                     |
-+================================================================+
+╔════════════════════════════════════════════════════════════════╗
+║        Team Setup: Isolated Workspace Demo                     ║
+╚════════════════════════════════════════════════════════════════╝
 
 Three engineers -- Alice, Bob, and Charlie -- collaborate on a Go
 backend project. Each has their own machine (simulated with
@@ -235,6 +235,9 @@ switch_member bob
 cd "$EXAMPLE_TEMP_DIR/bob/project" || exit 1
 echo
 
+# The profile and local items below let Bob see the team profile in
+# 'claudeup profile list' and apply it to other projects. They're not
+# needed for this project -- .claude/ from the clone already has everything.
 step "Copy team profile to Bob's profiles (from onboarding wiki)"
 cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/go-backend-team.json" \
    "$EXAMPLE_TEMP_DIR/bob/claudeup-home/profiles/"
@@ -307,22 +310,33 @@ echo
 
 step "Project-scoped settings (identical across all clones)"
 for member in alice bob charlie; do
-    local_settings="$EXAMPLE_TEMP_DIR/$member/project/.claude/settings.json"
-    if [[ -f "$local_settings" ]]; then
+    project_settings="$EXAMPLE_TEMP_DIR/$member/project/.claude/settings.json"
+    if [[ -f "$project_settings" ]]; then
         info "$member's project settings.json:"
-        cat "$local_settings"
+        cat "$project_settings"
     else
         info "$member: (no project settings.json)"
     fi
     echo
 done
 
+step "Verify project settings match across all clones"
+if diff -q "$EXAMPLE_TEMP_DIR/alice/project/.claude/settings.json" \
+        "$EXAMPLE_TEMP_DIR/bob/project/.claude/settings.json" &>/dev/null && \
+   diff -q "$EXAMPLE_TEMP_DIR/alice/project/.claude/settings.json" \
+        "$EXAMPLE_TEMP_DIR/charlie/project/.claude/settings.json" &>/dev/null; then
+    success "All project settings identical (as expected from git)"
+else
+    warn "Project settings differ (unexpected -- git should sync these)"
+fi
+echo
+
 step "User-scoped settings (personal to each member)"
 for member in alice bob charlie; do
-    local_settings="$EXAMPLE_TEMP_DIR/$member/claude-config/settings.json"
-    if [[ -f "$local_settings" ]]; then
+    user_settings="$EXAMPLE_TEMP_DIR/$member/claude-config/settings.json"
+    if [[ -f "$user_settings" ]]; then
         info "$member's user settings.json:"
-        cat "$local_settings"
+        cat "$user_settings"
     else
         info "$member: (no user settings -- minimal setup)"
     fi
