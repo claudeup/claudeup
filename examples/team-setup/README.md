@@ -16,15 +16,12 @@ Team leads and developers who want to:
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `01-scoped-profiles.sh`         | Explains the three configuration scopes (user, project, local), their precedence, and how to apply profiles to each scope                             |
 | `02-isolated-workspace-demo.sh` | End-to-end demo simulating three team members (Alice, Bob, Charlie) with isolated environments, project-scoped local items, and git-based sharing     |
-| `04-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
-
-> **Note:** Script numbering has a gap (no `03-*`). This is a known issue
-> and does not affect functionality.
+| `03-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
 
 ## Suggested order
 
 Read `01-scoped-profiles.sh` first to understand scopes, then `02-isolated-workspace-demo.sh`
-to see a realistic team workflow in action, then `04-profile-layering.sh` for profile
+to see a realistic team workflow in action, then `03-profile-layering.sh` for profile
 layering details.
 
 ## What you'll learn
@@ -47,7 +44,7 @@ The `02-isolated-workspace-demo.sh` script demonstrates this pattern:
 
 ## Important details
 
-- `01-scoped-profiles.sh` and `04-profile-layering.sh` are mostly informational --
+- `01-scoped-profiles.sh` and `03-profile-layering.sh` are mostly informational --
   they explain concepts with example output rather than making changes.
 - `02-isolated-workspace-demo.sh` runs real `claudeup` commands against isolated
   temp directories. It demonstrates project-scoped local items (rules and agents
