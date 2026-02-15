@@ -1,4 +1,4 @@
-// ABOUTME: Tests for local package core types and category validation
+// ABOUTME: Tests for ext package core types and category validation
 // ABOUTME: Verifies category constants and validation logic
 package ext
 

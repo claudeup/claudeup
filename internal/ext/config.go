@@ -4,6 +4,7 @@ package ext
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -14,7 +15,7 @@ type Config map[string]map[string]bool
 // Manager handles extension operations
 type Manager struct {
 	claudeDir  string
-	extDir   string
+	extDir     string
 	configFile string
 }
 
@@ -30,13 +31,15 @@ func NewManager(claudeDir, claudeupHome string) *Manager {
 	oldDir := filepath.Join(claudeupHome, "local")
 	if info, err := os.Stat(oldDir); err == nil && info.IsDir() {
 		if _, err := os.Stat(extDir); os.IsNotExist(err) {
-			os.Rename(oldDir, extDir)
+			if err := os.Rename(oldDir, extDir); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to migrate %s to %s: %v\n", oldDir, extDir, err)
+			}
 		}
 	}
 
 	return &Manager{
 		claudeDir:  claudeDir,
-		extDir:   extDir,
+		extDir:     extDir,
 		configFile: filepath.Join(claudeupHome, "enabled.json"),
 	}
 }
