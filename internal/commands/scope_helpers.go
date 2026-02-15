@@ -140,8 +140,8 @@ func renderUntrackedScopeHints(untrackedScopes []UntrackedScopeInfo) {
 		fmt.Printf("  %s %d %s in %s (no profile tracked)\n",
 			ui.Warning(us.Scope+":"),
 			us.PluginCount, pluginWord, us.SettingsFile)
-		fmt.Printf("    %s Save with: claudeup profile save <name> && claudeup profile apply <name> --%s\n",
-			ui.Muted(ui.SymbolArrow), us.Scope)
+		fmt.Printf("    %s Save with: claudeup profile save <name> --%s && claudeup profile apply <name> --%s\n",
+			ui.Muted(ui.SymbolArrow), us.Scope, us.Scope)
 	}
 	if len(untrackedScopes) > 0 {
 		fmt.Println()
