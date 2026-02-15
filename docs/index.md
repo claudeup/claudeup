@@ -35,7 +35,7 @@ claudeup profile apply <name>
 
 **Profiles** - Save your plugin and MCP server configurations, switch between them instantly. Compose reusable profiles into stacks for multi-language or multi-tool setups. Profiles are for bootstrapping -- apply once, then manage settings directly.
 
-**Local Extensions** - Manage local agents, commands, skills, hooks, rules, and output-styles from `~/.claudeup/local`. Import, install, enable, and disable with wildcard support.
+**Extensions** - Manage agents, commands, skills, hooks, rules, and output-styles from `~/.claudeup/ext`. Import, install, enable, and disable with wildcard support.
 
 **Event Tracking** - Audit trail of all file operations. View recent changes, diff configurations, and generate reports.
 

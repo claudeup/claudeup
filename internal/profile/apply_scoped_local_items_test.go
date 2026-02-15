@@ -1,4 +1,4 @@
-// ABOUTME: Tests for scope-aware local item application
+// ABOUTME: Tests for scope-aware extension application
 // ABOUTME: Validates user-scope symlinks, project-scope copies, and backward compat
 package profile
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
+func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -17,12 +17,12 @@ func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
 	mustMkdir(t, claudeDir)
 	mustMkdir(t, projectDir)
 
-	// Create local items in claudeup storage
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	// Create extensions in claudeup storage
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 
-	agentsDir := filepath.Join(claudeupHome, "local", "agents")
+	agentsDir := filepath.Join(claudeupHome, "ext", "agents")
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer Agent")
 
@@ -30,15 +30,15 @@ func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
 		Name: "test",
 	}
 
-	localItems := &LocalItemSettings{
+	extensions := &ExtensionSettings{
 		Rules:  []string{"golang.md"},
 		Agents: []string{"reviewer.md"},
 	}
 
 	// Apply at project scope
-	err := applyLocalItemsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
+	err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err != nil {
-		t.Fatalf("applyLocalItemsScoped failed: %v", err)
+		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
 
 	// Verify files were COPIED (not symlinked) to project .claude/
@@ -65,7 +65,7 @@ func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
 	}
 }
 
-func TestApplyLocalItemsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
+func TestApplyExtensionsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -74,32 +74,32 @@ func TestApplyLocalItemsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	mustMkdir(t, claudeDir)
 	mustMkdir(t, projectDir)
 
-	// Create a skill in local storage
-	skillDir := filepath.Join(claudeupHome, "local", "skills", "test-skill")
+	// Create a skill in extension storage
+	skillDir := filepath.Join(claudeupHome, "ext", "skills", "test-skill")
 	mustMkdir(t, skillDir)
 	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), "# Skill")
 
 	profile := &Profile{Name: "test"}
-	localItems := &LocalItemSettings{
+	extensions := &ExtensionSettings{
 		Skills: []string{"test-skill"},
 	}
 
 	// Apply at project scope should fail for unsupported category
-	err := applyLocalItemsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
+	err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err == nil {
 		t.Fatal("expected error for unsupported category at project scope")
 	}
 }
 
-func TestApplyLocalItemsUserScopeUsesSymlinks(t *testing.T) {
+func TestApplyExtensionsUserScopeUsesSymlinks(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	mustMkdir(t, claudeDir)
 
-	// Create a rule in local storage
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	// Create a rule in extension storage
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 
@@ -107,14 +107,14 @@ func TestApplyLocalItemsUserScopeUsesSymlinks(t *testing.T) {
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
 	profile := &Profile{Name: "test"}
-	localItems := &LocalItemSettings{
+	extensions := &ExtensionSettings{
 		Rules: []string{"golang.md"},
 	}
 
 	// Apply at user scope should use symlinks (existing behavior)
-	err := applyLocalItemsScoped(profile, localItems, ScopeUser, claudeDir, claudeupHome, "")
+	err := applyExtensionsScoped(profile, extensions, ScopeUser, claudeDir, claudeupHome, "")
 	if err != nil {
-		t.Fatalf("applyLocalItemsScoped failed: %v", err)
+		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
 
 	// Verify it created a symlink
@@ -128,31 +128,31 @@ func TestApplyLocalItemsUserScopeUsesSymlinks(t *testing.T) {
 	}
 }
 
-func TestApplyLocalItemsBackwardCompatFlatField(t *testing.T) {
+func TestApplyExtensionsBackwardCompatFlatField(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
 
 	mustMkdir(t, claudeDir)
 
-	// Create a rule in local storage
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	// Create a rule in extension storage
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
-	// Profile with flat LocalItems (legacy format)
+	// Profile with flat Extensions (legacy format)
 	profile := &Profile{
 		Name: "test",
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Rules: []string{"golang.md"},
 		},
 	}
 
-	// applyLocalItems (the existing function) should still work
-	err := applyLocalItems(profile, claudeDir, claudeupHome)
+	// applyExtensions (the existing function) should still work
+	err := applyExtensions(profile, claudeDir, claudeupHome)
 	if err != nil {
-		t.Fatalf("applyLocalItems failed: %v", err)
+		t.Fatalf("applyExtensions failed: %v", err)
 	}
 
 	// Verify symlink was created
@@ -162,11 +162,11 @@ func TestApplyLocalItemsBackwardCompatFlatField(t *testing.T) {
 		t.Fatalf("expected file at %s: %v", rulesPath, err)
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		t.Error("expected symlink for backward compat flat LocalItems")
+		t.Error("expected symlink for backward compat flat Extensions")
 	}
 }
 
-func TestApplyAllScopesWithScopedLocalItems(t *testing.T) {
+func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -184,32 +184,32 @@ func TestApplyAllScopesWithScopedLocalItems(t *testing.T) {
 	mustWriteJSON(t, claudeJSONPath, map[string]any{"mcpServers": map[string]any{}})
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
-	// Create local items
-	userRulesDir := filepath.Join(claudeupHome, "local", "rules")
+	// Create extensions
+	userRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, userRulesDir)
 	mustWriteFile(t, filepath.Join(userRulesDir, "coding-standards.md"), "# Coding Standards")
 	mustWriteFile(t, filepath.Join(userRulesDir, "golang.md"), "# Golang Rules")
 
-	userSkillsDir := filepath.Join(claudeupHome, "local", "skills", "session-notes")
+	userSkillsDir := filepath.Join(claudeupHome, "ext", "skills", "session-notes")
 	mustMkdir(t, userSkillsDir)
 	mustWriteFile(t, filepath.Join(userSkillsDir, "SKILL.md"), "# Session Notes Skill")
 
-	agentsDir := filepath.Join(claudeupHome, "local", "agents")
+	agentsDir := filepath.Join(claudeupHome, "ext", "agents")
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
 
-	// Multi-scope profile with scoped local items
+	// Multi-scope profile with scoped extensions
 	profile := &Profile{
 		Name: "test",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Skills: []string{"session-notes"},
 					Rules:  []string{"coding-standards.md"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules:  []string{"golang.md"},
 					Agents: []string{"reviewer.md"},
 				},

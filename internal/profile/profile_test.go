@@ -783,56 +783,56 @@ func TestSaveProfileTrailingNewline(t *testing.T) {
 }
 
 func TestPreserveFromExisting(t *testing.T) {
-	// When overwriting an existing profile, localItems should be preserved
+	// When overwriting an existing profile, extensions should be preserved
 	// from the original, not re-snapshotted.
 	existing := &Profile{
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"original-agent"},
 		},
 	}
 
 	// Fresh snapshot picked up extra stuff from the environment
 	fresh := &Profile{
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"original-agent", "extra-agent"},
 		},
 	}
 
 	fresh.PreserveFrom(existing)
 
-	if len(fresh.LocalItems.Agents) != 1 {
-		t.Errorf("Expected 1 agent (preserved), got %d", len(fresh.LocalItems.Agents))
+	if len(fresh.Extensions.Agents) != 1 {
+		t.Errorf("Expected 1 agent (preserved), got %d", len(fresh.Extensions.Agents))
 	}
-	if fresh.LocalItems.Agents[0] != "original-agent" {
-		t.Errorf("Expected original agent, got %q", fresh.LocalItems.Agents[0])
+	if fresh.Extensions.Agents[0] != "original-agent" {
+		t.Errorf("Expected original agent, got %q", fresh.Extensions.Agents[0])
 	}
 }
 
 func TestPreserveFromExistingNilFields(t *testing.T) {
-	// When existing profile has no localItems, fresh should keep them nil
+	// When existing profile has no extensions, fresh should keep them nil
 	existing := &Profile{}
 
 	fresh := &Profile{
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"extra-agent"},
 		},
 	}
 
 	fresh.PreserveFrom(existing)
 
-	if fresh.LocalItems != nil {
-		t.Errorf("Expected nil localItems (existing had none), got %v", fresh.LocalItems)
+	if fresh.Extensions != nil {
+		t.Errorf("Expected nil extensions (existing had none), got %v", fresh.Extensions)
 	}
 }
 
-func TestProfileWithLocalItems(t *testing.T) {
+func TestProfileWithExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilesDir := filepath.Join(tmpDir, "profiles")
 
 	p := &Profile{
 		Name:        "gsd-profile",
 		Description: "Get Shit Done workflow",
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents:   []string{"gsd-*"},
 			Commands: []string{"gsd/*"},
 			Hooks:    []string{"gsd-check-update.js"},
@@ -856,18 +856,18 @@ func TestProfileWithLocalItems(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	// Verify LocalItems
-	if loaded.LocalItems == nil {
-		t.Fatal("LocalItems is nil")
+	// Verify Extensions
+	if loaded.Extensions == nil {
+		t.Fatal("Extensions is nil")
 	}
-	if len(loaded.LocalItems.Agents) != 1 || loaded.LocalItems.Agents[0] != "gsd-*" {
-		t.Errorf("LocalItems.Agents = %v, want [gsd-*]", loaded.LocalItems.Agents)
+	if len(loaded.Extensions.Agents) != 1 || loaded.Extensions.Agents[0] != "gsd-*" {
+		t.Errorf("Extensions.Agents = %v, want [gsd-*]", loaded.Extensions.Agents)
 	}
-	if len(loaded.LocalItems.Commands) != 1 || loaded.LocalItems.Commands[0] != "gsd/*" {
-		t.Errorf("LocalItems.Commands = %v, want [gsd/*]", loaded.LocalItems.Commands)
+	if len(loaded.Extensions.Commands) != 1 || loaded.Extensions.Commands[0] != "gsd/*" {
+		t.Errorf("Extensions.Commands = %v, want [gsd/*]", loaded.Extensions.Commands)
 	}
-	if len(loaded.LocalItems.Hooks) != 1 || loaded.LocalItems.Hooks[0] != "gsd-check-update.js" {
-		t.Errorf("LocalItems.Hooks = %v, want [gsd-check-update.js]", loaded.LocalItems.Hooks)
+	if len(loaded.Extensions.Hooks) != 1 || loaded.Extensions.Hooks[0] != "gsd-check-update.js" {
+		t.Errorf("Extensions.Hooks = %v, want [gsd-check-update.js]", loaded.Extensions.Hooks)
 	}
 
 	// Verify SettingsHooks
@@ -1720,7 +1720,7 @@ func TestEqual_IncludesComparison(t *testing.T) {
 func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
 	existing := &Profile{
 		Includes: []string{"saved-include"},
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"saved-agent"},
 		},
 	}
@@ -1737,8 +1737,8 @@ func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
 	if len(p.Includes) != 0 {
 		t.Errorf("includes should not be preserved: got %v", p.Includes)
 	}
-	if p.LocalItems == nil || len(p.LocalItems.Agents) != 1 {
-		t.Error("local items not preserved")
+	if p.Extensions == nil || len(p.Extensions.Agents) != 1 {
+		t.Error("extensions not preserved")
 	}
 }
 
@@ -1797,5 +1797,97 @@ func TestProfileRoundTrip_WithIncludes(t *testing.T) {
 	}
 	if !loaded.IsStack() {
 		t.Error("loaded profile should be a stack")
+	}
+}
+
+func TestLoadProfileWithLegacyLocalItemsField(t *testing.T) {
+	// Profiles saved before the rename used "localItems" in JSON.
+	// Verify they load correctly into the Extensions field.
+	jsonData := []byte(`{
+		"name": "legacy",
+		"localItems": {
+			"agents": ["planner.md"],
+			"rules": ["coding.md"]
+		}
+	}`)
+
+	var p Profile
+	if err := json.Unmarshal(jsonData, &p); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if p.Extensions == nil {
+		t.Fatal("Extensions should be populated from legacy localItems field")
+	}
+	if len(p.Extensions.Agents) != 1 || p.Extensions.Agents[0] != "planner.md" {
+		t.Errorf("Agents = %v, want [planner.md]", p.Extensions.Agents)
+	}
+	if len(p.Extensions.Rules) != 1 || p.Extensions.Rules[0] != "coding.md" {
+		t.Errorf("Rules = %v, want [coding.md]", p.Extensions.Rules)
+	}
+}
+
+func TestLoadProfileWithLegacyLocalItemsInPerScope(t *testing.T) {
+	// Per-scope settings also used "localItems" before the rename.
+	jsonData := []byte(`{
+		"name": "legacy-scoped",
+		"perScope": {
+			"user": {
+				"localItems": {
+					"agents": ["user-agent.md"]
+				}
+			},
+			"project": {
+				"localItems": {
+					"rules": ["project-rule.md"]
+				}
+			}
+		}
+	}`)
+
+	var p Profile
+	if err := json.Unmarshal(jsonData, &p); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if p.PerScope == nil {
+		t.Fatal("PerScope should be populated")
+	}
+	if p.PerScope.User == nil || p.PerScope.User.Extensions == nil {
+		t.Fatal("User scope Extensions should be populated from legacy localItems")
+	}
+	if p.PerScope.User.Extensions.Agents[0] != "user-agent.md" {
+		t.Errorf("User agents = %v, want [user-agent.md]", p.PerScope.User.Extensions.Agents)
+	}
+	if p.PerScope.Project == nil || p.PerScope.Project.Extensions == nil {
+		t.Fatal("Project scope Extensions should be populated from legacy localItems")
+	}
+	if p.PerScope.Project.Extensions.Rules[0] != "project-rule.md" {
+		t.Errorf("Project rules = %v, want [project-rule.md]", p.PerScope.Project.Extensions.Rules)
+	}
+}
+
+func TestNewFieldTakesPrecedenceOverLegacy(t *testing.T) {
+	// If both "extensions" and "localItems" are present, "extensions" wins.
+	jsonData := []byte(`{
+		"name": "both",
+		"extensions": {
+			"agents": ["new-agent.md"]
+		},
+		"localItems": {
+			"agents": ["old-agent.md"]
+		}
+	}`)
+
+	var p Profile
+	if err := json.Unmarshal(jsonData, &p); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if p.Extensions == nil {
+		t.Fatal("Extensions should be populated")
+	}
+	if p.Extensions.Agents[0] != "new-agent.md" {
+		t.Errorf("Agents = %v, want [new-agent.md] (new field should take precedence)", p.Extensions.Agents)
 	}
 }

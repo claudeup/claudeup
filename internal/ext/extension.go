@@ -1,13 +1,13 @@
 // ABOUTME: Core types for managing local Claude Code extensions
 // ABOUTME: Defines categories and provides validation
-package local
+package ext
 
 import (
 	"fmt"
 	"sort"
 )
 
-// Category constants for local item types
+// Category constants for extension types
 const (
 	CategoryAgents       = "agents"
 	CategoryCommands     = "commands"

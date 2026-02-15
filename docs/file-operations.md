@@ -249,44 +249,44 @@ These files are created and managed exclusively by `claudeup`.
 
 **Owner:** claudeup
 **Format:** JSON
-**Purpose:** Tracks which local items are enabled per category
+**Purpose:** Tracks which extensions are enabled per category
 
 **Read by:**
 
-- `internal/local/config.go:LoadConfig()`
-- Used by: all `local` subcommands, symlink reconciliation
+- `internal/ext/config.go:LoadConfig()`
+- Used by: all `extensions` subcommands, symlink reconciliation
 
 **Written by:**
 
-- `internal/local/config.go:SaveConfig()`
+- `internal/ext/config.go:SaveConfig()`
 - Triggered by:
-  - `local enable` - marks items as enabled
-  - `local disable` - marks items as disabled
-  - `local install` - enables newly installed items
-  - `local import` - enables imported items
+  - `extensions enable` - marks items as enabled
+  - `extensions disable` - marks items as disabled
+  - `extensions install` - enables newly installed items
+  - `extensions import` - enables imported items
 
 ---
 
-### `~/.claudeup/local/<category>/`
+### `~/.claudeup/ext/<category>/`
 
 **Owner:** claudeup
 **Format:** Directory tree organized by category (agents, commands, hooks, output-styles, rules, skills)
-**Purpose:** Stores local extension files; symlinks in `~/.claude/<category>/` point here
+**Purpose:** Stores extension files; symlinks in `~/.claude/<category>/` point here
 
 **Read by:**
 
-- `internal/local/list.go:ListItems()`
-- `internal/local/view.go:ViewItem()`
-- `internal/local/symlinks.go:ReconcileSymlinks()`
-- Used by: all `local` subcommands
+- `internal/ext/list.go:ListItems()`
+- `internal/ext/view.go:ViewItem()`
+- `internal/ext/symlinks.go:ReconcileSymlinks()`
+- Used by: all `extensions` subcommands
 
 **Written by:**
 
-- `internal/local/install.go:Install()`
-- `internal/local/symlinks.go:Import()`
+- `internal/ext/install.go:Install()`
+- `internal/ext/symlinks.go:Import()`
 - Triggered by:
-  - `local install` - copies items from external paths
-  - `local import` - moves items from active directory to local storage
+  - `extensions install` - copies items from external paths
+  - `extensions import` - moves items from active directory to storage
 
 ---
 
@@ -306,10 +306,10 @@ These files are created and managed exclusively by `claudeup`.
 | `marketplace add/remove`   | Via claude CLI - updates `known_marketplaces.json`                | INDIRECT   |
 | `mcp add/remove`           | Via claude CLI - updates `~/.claude.json`                         | INDIRECT   |
 | `setup`                    | `~/.claudeup/config.json` (initial config)                        | WRITE      |
-| `local enable`             | `~/.claudeup/enabled.json`, `~/.claude/<category>/<item>` symlink | WRITE      |
-| `local disable`            | `~/.claudeup/enabled.json`, removes `~/.claude/<category>/<item>` | WRITE      |
-| `local install`            | `~/.claudeup/local/<category>/`, `~/.claudeup/enabled.json`       | WRITE      |
-| `local import`             | `~/.claudeup/local/<category>/`, `~/.claudeup/enabled.json`       | WRITE      |
+| `extensions enable`        | `~/.claudeup/enabled.json`, `~/.claude/<category>/<item>` symlink | WRITE      |
+| `extensions disable`       | `~/.claudeup/enabled.json`, removes `~/.claude/<category>/<item>` | WRITE      |
+| `extensions install`       | `~/.claudeup/ext/<category>/`, `~/.claudeup/enabled.json`         | WRITE      |
+| `extensions import`        | `~/.claudeup/ext/<category>/`, `~/.claudeup/enabled.json`         | WRITE      |
 
 ---
 

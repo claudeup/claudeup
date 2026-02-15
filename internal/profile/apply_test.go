@@ -1362,29 +1362,29 @@ func TestResetHandlesPluginNotFoundError(t *testing.T) {
 	}
 }
 
-func TestApplyWithLocalItems(t *testing.T) {
+func TestApplyWithExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := tmpDir
 
-	// Create local directory structure (in claudeupHome/local/)
-	localDir := filepath.Join(claudeDir, "local")
-	agentsDir := filepath.Join(localDir, "agents")
+	// Create extension storage directory structure
+	extDir := filepath.Join(claudeDir, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
 
-	// Create profile with LocalItems
+	// Create profile with Extensions
 	p := &Profile{
 		Name: "test-local",
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"gsd-*"},
 		},
 	}
 
-	// Apply local items
-	err := applyLocalItems(p, claudeDir, claudeDir)
+	// Apply extensions
+	err := applyExtensions(p, claudeDir, claudeDir)
 	if err != nil {
-		t.Fatalf("applyLocalItems() error = %v", err)
+		t.Fatalf("applyExtensions() error = %v", err)
 	}
 
 	// Verify symlinks created
@@ -1434,18 +1434,18 @@ func TestApplyWithSettingsHooks(t *testing.T) {
 	}
 }
 
-func TestApplyLocalItemsNilProfile(t *testing.T) {
+func TestApplyExtensionsNilProfile(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Profile with no LocalItems
+	// Profile with no Extensions
 	p := &Profile{
 		Name: "test-no-local",
 	}
 
 	// Should return nil with no error
-	err := applyLocalItems(p, tmpDir, tmpDir)
+	err := applyExtensions(p, tmpDir, tmpDir)
 	if err != nil {
-		t.Fatalf("applyLocalItems() should return nil for nil LocalItems, got error = %v", err)
+		t.Fatalf("applyExtensions() should return nil for nil Extensions, got error = %v", err)
 	}
 }
 

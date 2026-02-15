@@ -1,6 +1,6 @@
-// ABOUTME: Removes items from local storage
+// ABOUTME: Removes items from extension storage
 // ABOUTME: Disables items, deletes files, and cleans up config entries
-package local
+package ext
 
 import (
 	"fmt"
@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 )
 
-// Uninstall removes items matching the given patterns from local storage.
-// For each matched item: removes the symlink, deletes from local storage,
+// Uninstall removes items matching the given patterns from extension storage.
+// For each matched item: removes the symlink, deletes from extension storage,
 // and removes the config entry.
 // Returns (removed items, not found patterns, error).
 func (m *Manager) Uninstall(category string, patterns []string) ([]string, []string, error) {
@@ -53,8 +53,8 @@ func (m *Manager) Uninstall(category string, patterns []string) ([]string, []str
 				return nil, nil, err
 			}
 
-			// Remove from local storage
-			itemPath := filepath.Join(m.localDir, category, item)
+			// Remove from extension storage
+			itemPath := filepath.Join(m.extDir, category, item)
 			if err := os.RemoveAll(itemPath); err != nil {
 				return nil, nil, fmt.Errorf("failed to remove %s: %w", item, err)
 			}

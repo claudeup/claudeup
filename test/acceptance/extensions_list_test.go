@@ -1,4 +1,4 @@
-// ABOUTME: Acceptance tests for local list command
+// ABOUTME: Acceptance tests for extensions list command
 // ABOUTME: Tests output formatting, summary mode, and empty library guidance
 package acceptance
 
@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("local list", func() {
+var _ = Describe("extensions list", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
@@ -20,26 +20,26 @@ var _ = Describe("local list", func() {
 
 	Context("with empty library", func() {
 		It("shows a helpful message", func() {
-			result := env.Run("local", "list")
+			result := env.Run("extensions", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("No local items found"))
-			Expect(result.Stdout).To(ContainSubstring("claudeup local install"))
+			Expect(result.Stdout).To(ContainSubstring("No extensions found"))
+			Expect(result.Stdout).To(ContainSubstring("claudeup extensions install"))
 		})
 
 		It("does not show global message for specific category", func() {
-			result := env.Run("local", "list", "rules")
+			result := env.Run("extensions", "list", "rules")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("(empty)"))
-			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No extensions found"))
 		})
 	})
 
 	Context("with items in library", func() {
 		BeforeEach(func() {
-			// Create rule items in local storage
-			rulesDir := filepath.Join(env.ClaudeupDir, "local", "rules")
+			// Create rule items in extension storage
+			rulesDir := filepath.Join(env.ClaudeupDir, "ext", "rules")
 			Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
 			Expect(os.WriteFile(filepath.Join(rulesDir, "enabled-rule.md"), []byte("# Enabled"), 0644)).To(Succeed())
 			Expect(os.WriteFile(filepath.Join(rulesDir, "disabled-rule.md"), []byte("# Disabled"), 0644)).To(Succeed())
@@ -50,28 +50,28 @@ var _ = Describe("local list", func() {
 		})
 
 		It("does not show the empty library message", func() {
-			result := env.Run("local", "list")
+			result := env.Run("extensions", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No extensions found"))
 		})
 
 		It("shows checkmark for enabled items in specific category", func() {
-			result := env.Run("local", "list", "rules")
+			result := env.Run("extensions", "list", "rules")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(MatchRegexp(`✓.*enabled-rule\.md`))
 		})
 
 		It("shows muted dot for disabled items in specific category", func() {
-			result := env.Run("local", "list", "rules")
+			result := env.Run("extensions", "list", "rules")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(MatchRegexp(`·.*disabled-rule\.md`))
 		})
 
 		It("does not use old * and x markers", func() {
-			result := env.Run("local", "list", "rules")
+			result := env.Run("extensions", "list", "rules")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).NotTo(MatchRegexp(`\s+\*\s+\w`))
@@ -79,15 +79,15 @@ var _ = Describe("local list", func() {
 		})
 
 		It("does not show the empty library message when filters exclude all items", func() {
-			result := env.Run("local", "list", "--enabled")
+			result := env.Run("extensions", "list", "--enabled")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).NotTo(ContainSubstring("No local items found"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No extensions found"))
 		})
 
 		Context("summary mode (default for all categories)", func() {
 			It("shows summary counts instead of individual items", func() {
-				result := env.Run("local", "list")
+				result := env.Run("extensions", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				// Should show count summary for rules category
@@ -95,7 +95,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("does not list individual items", func() {
-				result := env.Run("local", "list")
+				result := env.Run("extensions", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).NotTo(ContainSubstring("enabled-rule.md"))
@@ -103,7 +103,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("skips empty categories in summary", func() {
-				result := env.Run("local", "list")
+				result := env.Run("extensions", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				// agents/ has no items, should not appear
@@ -111,7 +111,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("shows a total summary line", func() {
-				result := env.Run("local", "list")
+				result := env.Run("extensions", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`Total: 2 items across 1 categor`))
@@ -121,7 +121,7 @@ var _ = Describe("local list", func() {
 		Context("long listing", func() {
 			BeforeEach(func() {
 				// Add hooks with different file types for long listing tests
-				hooksDir := filepath.Join(env.ClaudeupDir, "local", "hooks")
+				hooksDir := filepath.Join(env.ClaudeupDir, "ext", "hooks")
 				Expect(os.MkdirAll(hooksDir, 0755)).To(Succeed())
 				Expect(os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)).To(Succeed())
 				Expect(os.WriteFile(filepath.Join(hooksDir, "lint-check.py"), []byte("#!/usr/bin/env python3"), 0644)).To(Succeed())
@@ -131,7 +131,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("shows file type in brackets with --long flag", func() {
-				result := env.Run("local", "list", "hooks", "--long")
+				result := env.Run("extensions", "list", "hooks", "--long")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`format-on-save\.sh\s+\[bash\]`))
@@ -139,52 +139,52 @@ var _ = Describe("local list", func() {
 			})
 
 			It("shows markdown type for rule items", func() {
-				result := env.Run("local", "list", "rules", "--long")
+				result := env.Run("extensions", "list", "rules", "--long")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`enabled-rule\.md\s+\[markdown\]`))
 			})
 
-			It("shows relative path from local storage", func() {
-				result := env.Run("local", "list", "hooks", "--long")
+			It("shows relative path from extension storage", func() {
+				result := env.Run("extensions", "list", "hooks", "--long")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("local/hooks/format-on-save.sh"))
+				Expect(result.Stdout).To(ContainSubstring("ext/hooks/format-on-save.sh"))
 			})
 
 			It("supports -l shorthand", func() {
-				result := env.Run("local", "list", "hooks", "-l")
+				result := env.Run("extensions", "list", "hooks", "-l")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`format-on-save\.sh\s+\[bash\]`))
 			})
 
 			It("does not show type or path without --long flag", func() {
-				result := env.Run("local", "list", "rules")
+				result := env.Run("extensions", "list", "rules")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).NotTo(ContainSubstring("[markdown]"))
-				Expect(result.Stdout).NotTo(ContainSubstring("local/rules/"))
+				Expect(result.Stdout).NotTo(ContainSubstring("ext/rules/"))
 			})
 		})
 
 		Context("per-category counts", func() {
 			It("shows count after items in specific category listing", func() {
-				result := env.Run("local", "list", "rules")
+				result := env.Run("extensions", "list", "rules")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`2 items \(1 enabled\)`))
 			})
 
 			It("shows count after items with --full flag", func() {
-				result := env.Run("local", "list", "--full")
+				result := env.Run("extensions", "list", "--full")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`2 items \(1 enabled\)`))
 			})
 
 			It("does not show count in summary mode", func() {
-				result := env.Run("local", "list")
+				result := env.Run("extensions", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
 				// Summary mode already shows counts inline, no duplicate
@@ -194,7 +194,7 @@ var _ = Describe("local list", func() {
 
 		Context("full listing", func() {
 			It("shows individual items with --full flag", func() {
-				result := env.Run("local", "list", "--full")
+				result := env.Run("extensions", "list", "--full")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`✓.*enabled-rule\.md`))
@@ -202,7 +202,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("shows individual items for specific category", func() {
-				result := env.Run("local", "list", "rules")
+				result := env.Run("extensions", "list", "rules")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`✓.*enabled-rule\.md`))
@@ -210,7 +210,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("shows individual items with --enabled filter", func() {
-				result := env.Run("local", "list", "--enabled")
+				result := env.Run("extensions", "list", "--enabled")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`✓.*enabled-rule\.md`))
@@ -218,7 +218,7 @@ var _ = Describe("local list", func() {
 			})
 
 			It("shows individual items with --disabled filter", func() {
-				result := env.Run("local", "list", "--disabled")
+				result := env.Run("extensions", "list", "--disabled")
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(MatchRegexp(`·.*disabled-rule\.md`))

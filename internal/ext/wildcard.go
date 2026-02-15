@@ -1,6 +1,6 @@
 // ABOUTME: Wildcard pattern matching for item selection
 // ABOUTME: Supports prefix (gsd-*), directory (gsd/*), and global (*) wildcards
-package local
+package ext
 
 import (
 	"sort"

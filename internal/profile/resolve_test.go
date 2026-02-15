@@ -496,19 +496,19 @@ func TestResolveIncludes_MCPServerLastWins(t *testing.T) {
 	}
 }
 
-func TestResolveIncludes_LocalItemsUnion(t *testing.T) {
+func TestResolveIncludes_ExtensionsUnion(t *testing.T) {
 	loader := &mockLoader{
 		profiles: map[string]*Profile{
 			"a": {
 				Name: "a",
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Agents:   []string{"agent-a"},
 					Commands: []string{"shared-cmd", "cmd-a"},
 				},
 			},
 			"b": {
 				Name: "b",
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Agents:   []string{"agent-b"},
 					Commands: []string{"shared-cmd", "cmd-b"},
 				},
@@ -526,18 +526,18 @@ func TestResolveIncludes_LocalItemsUnion(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resolved.LocalItems == nil {
-		t.Fatal("expected LocalItems to be set")
+	if resolved.Extensions == nil {
+		t.Fatal("expected Extensions to be set")
 	}
 
 	// Agents: agent-a, agent-b = 2
-	if len(resolved.LocalItems.Agents) != 2 {
-		t.Errorf("agents: got %v, want 2 items", resolved.LocalItems.Agents)
+	if len(resolved.Extensions.Agents) != 2 {
+		t.Errorf("agents: got %v, want 2 items", resolved.Extensions.Agents)
 	}
 
 	// Commands: shared-cmd (deduped), cmd-a, cmd-b = 3
-	if len(resolved.LocalItems.Commands) != 3 {
-		t.Errorf("commands: got %v, want 3 items (shared-cmd deduped)", resolved.LocalItems.Commands)
+	if len(resolved.Extensions.Commands) != 3 {
+		t.Errorf("commands: got %v, want 3 items (shared-cmd deduped)", resolved.Extensions.Commands)
 	}
 }
 
@@ -934,7 +934,7 @@ func TestHasConfigFields(t *testing.T) {
 		{"with marketplaces", &Profile{Marketplaces: []Marketplace{{Source: "github"}}}, true},
 		{"with mcp servers", &Profile{MCPServers: []MCPServer{{Name: "a"}}}, true},
 		{"with perScope", &Profile{PerScope: &PerScopeSettings{}}, true},
-		{"with localItems", &Profile{LocalItems: &LocalItemSettings{}}, true},
+		{"with extensions", &Profile{Extensions: &ExtensionSettings{}}, true},
 		{"with settingsHooks", &Profile{SettingsHooks: map[string][]HookEntry{"a": {}}}, true},
 		{"with detect files", &Profile{Detect: DetectRules{Files: []string{"a"}}}, true},
 		{"with detect contains", &Profile{Detect: DetectRules{Contains: map[string]string{"a": "b"}}}, true},

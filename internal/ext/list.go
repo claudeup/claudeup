@@ -1,6 +1,6 @@
-// ABOUTME: Functions for listing items in local storage
+// ABOUTME: Functions for listing items in extension storage
 // ABOUTME: Handles both flat items and grouped items (like agents)
-package local
+package ext
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// ListItems returns all items in local storage for a category.
+// ListItems returns all items in extension storage for a category.
 // For agents, returns 'group/agent.md' format for grouped items.
 // Excludes hidden files (starting with .) and CLAUDE.md.
 func (m *Manager) ListItems(category string) ([]string, error) {
@@ -17,7 +17,7 @@ func (m *Manager) ListItems(category string) ([]string, error) {
 		return nil, err
 	}
 
-	libPath := filepath.Join(m.localDir, category)
+	libPath := filepath.Join(m.extDir, category)
 	if _, err := os.Stat(libPath); os.IsNotExist(err) {
 		return []string{}, nil
 	}

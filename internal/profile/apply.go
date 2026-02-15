@@ -13,7 +13,7 @@ import (
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/config"
-	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ext"
 	"github.com/claudeup/claudeup/v5/internal/secrets"
 )
 
@@ -299,7 +299,7 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 	return nil
 }
 
-// writeLocalScopeConfigs writes settings.local.json for local scope
+// writeLocalScopeConfigs writes settings.ext.json for local scope
 func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
 	localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
@@ -390,8 +390,8 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 		return nil, fmt.Errorf("failed to save profile to project: %w", err)
 	}
 
-	// 6. Apply local items if present
-	if err := applyLocalItems(profile, claudeDir, claudeupHome); err != nil {
+	// 6. Apply extensions if present
+	if err := applyExtensions(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -510,8 +510,8 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome s
 		}
 	}
 
-	// 7. Apply local items if present
-	if err := applyLocalItems(profile, claudeDir, claudeupHome); err != nil {
+	// 7. Apply extensions if present
+	if err := applyExtensions(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -702,8 +702,8 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 		}
 	}
 
-	// Apply local items if present
-	if err := applyLocalItems(profile, claudeDir, claudeupHome); err != nil {
+	// Apply extensions if present
+	if err := applyExtensions(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
@@ -1097,9 +1097,9 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		}
 		aggregateResults(result, userResult)
 
-		if profile.PerScope.User.LocalItems != nil {
-			if err := applyLocalItemsScoped(profile, profile.PerScope.User.LocalItems, ScopeUser, claudeDir, claudeupHome, projectDir); err != nil {
-				result.Errors = append(result.Errors, fmt.Errorf("user-scope local items: %w", err))
+		if profile.PerScope.User.Extensions != nil {
+			if err := applyExtensionsScoped(profile, profile.PerScope.User.Extensions, ScopeUser, claudeDir, claudeupHome, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("user-scope extensions: %w", err))
 			}
 		}
 	}
@@ -1111,9 +1111,9 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		}
 		aggregateResults(result, projectResult)
 
-		if profile.PerScope.Project.LocalItems != nil {
-			if err := applyLocalItemsScoped(profile, profile.PerScope.Project.LocalItems, ScopeProject, claudeDir, claudeupHome, projectDir); err != nil {
-				result.Errors = append(result.Errors, fmt.Errorf("project-scope local items: %w", err))
+		if profile.PerScope.Project.Extensions != nil {
+			if err := applyExtensionsScoped(profile, profile.PerScope.Project.Extensions, ScopeProject, claudeDir, claudeupHome, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("project-scope extensions: %w", err))
 			}
 		}
 	}
@@ -1125,9 +1125,9 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		}
 		aggregateResults(result, localResult)
 
-		if profile.PerScope.Local.LocalItems != nil {
-			if err := applyLocalItemsScoped(profile, profile.PerScope.Local.LocalItems, ScopeLocal, claudeDir, claudeupHome, projectDir); err != nil {
-				result.Errors = append(result.Errors, fmt.Errorf("local-scope local items: %w", err))
+		if profile.PerScope.Local.Extensions != nil {
+			if err := applyExtensionsScoped(profile, profile.PerScope.Local.Extensions, ScopeLocal, claudeDir, claudeupHome, projectDir); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("local-scope extensions: %w", err))
 			}
 		}
 	}
@@ -1204,7 +1204,7 @@ func applyProjectScopeSettings(profile *Profile, claudeDir, projectDir string) (
 	return result, nil
 }
 
-// applyLocalScopeSettings writes plugins to local-scope settings.local.json
+// applyLocalScopeSettings writes plugins to local-scope settings.ext.json
 func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
@@ -1247,32 +1247,32 @@ func aggregateResults(target, source *ApplyResult) {
 	target.Errors = append(target.Errors, source.Errors...)
 }
 
-// applyLocalItems enables local items from the profile at user scope (backward compat).
-func applyLocalItems(profile *Profile, claudeDir, claudeupHome string) error {
-	if profile.LocalItems == nil {
+// applyExtensions enables extensions from the profile at user scope (backward compat).
+func applyExtensions(profile *Profile, claudeDir, claudeupHome string) error {
+	if profile.Extensions == nil {
 		return nil
 	}
-	return applyLocalItemsScoped(profile, profile.LocalItems, ScopeUser, claudeDir, claudeupHome, "")
+	return applyExtensionsScoped(profile, profile.Extensions, ScopeUser, claudeDir, claudeupHome, "")
 }
 
-// applyLocalItemsScoped enables local items at the specified scope.
-// User scope: creates symlinks from claudeDir to claudeupHome/local (existing behavior).
-// Project/local scope: copies files from claudeupHome/local into projectDir/.claude/.
-func applyLocalItemsScoped(_ *Profile, items *LocalItemSettings, scope Scope, claudeDir, claudeupHome, projectDir string) error {
+// applyExtensionsScoped enables extensions at the specified scope.
+// User scope: creates symlinks from claudeDir to claudeupHome/ext (existing behavior).
+// Project/local scope: copies files from claudeupHome/ext into projectDir/.claude/.
+func applyExtensionsScoped(_ *Profile, items *ExtensionSettings, scope Scope, claudeDir, claudeupHome, projectDir string) error {
 	if items == nil {
 		return nil
 	}
 
 	if scope == ScopeProject || scope == ScopeLocal {
-		return applyLocalItemsCopy(items, claudeupHome, projectDir)
+		return applyExtensionsCopy(items, claudeupHome, projectDir)
 	}
 
-	return applyLocalItemsSymlink(items, claudeDir, claudeupHome)
+	return applyExtensionsSymlink(items, claudeDir, claudeupHome)
 }
 
-// applyLocalItemsSymlink enables local items via symlinks (user scope).
-func applyLocalItemsSymlink(items *LocalItemSettings, claudeDir, claudeupHome string) error {
-	manager := local.NewManager(claudeDir, claudeupHome)
+// applyExtensionsSymlink enables extensions via symlinks (user scope).
+func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome string) error {
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	type categoryItems struct {
 		category string
@@ -1280,12 +1280,12 @@ func applyLocalItemsSymlink(items *LocalItemSettings, claudeDir, claudeupHome st
 	}
 
 	categories := []categoryItems{
-		{local.CategoryAgents, items.Agents},
-		{local.CategoryCommands, items.Commands},
-		{local.CategorySkills, items.Skills},
-		{local.CategoryHooks, items.Hooks},
-		{local.CategoryRules, items.Rules},
-		{local.CategoryOutputStyles, items.OutputStyles},
+		{ext.CategoryAgents, items.Agents},
+		{ext.CategoryCommands, items.Commands},
+		{ext.CategorySkills, items.Skills},
+		{ext.CategoryHooks, items.Hooks},
+		{ext.CategoryRules, items.Rules},
+		{ext.CategoryOutputStyles, items.OutputStyles},
 	}
 
 	for _, ci := range categories {
@@ -1299,10 +1299,10 @@ func applyLocalItemsSymlink(items *LocalItemSettings, claudeDir, claudeupHome st
 	return nil
 }
 
-// applyLocalItemsCopy copies local items into the project's .claude/ directory.
+// applyExtensionsCopy copies extensions into the project's .claude/ directory.
 // Only categories that Claude Code reads from project scope are allowed.
-func applyLocalItemsCopy(items *LocalItemSettings, claudeupHome, projectDir string) error {
-	localDir := filepath.Join(claudeupHome, "local")
+func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir string) error {
+	localDir := filepath.Join(claudeupHome, "ext")
 
 	type categoryItems struct {
 		category string
@@ -1310,12 +1310,12 @@ func applyLocalItemsCopy(items *LocalItemSettings, claudeupHome, projectDir stri
 	}
 
 	categories := []categoryItems{
-		{local.CategoryAgents, items.Agents},
-		{local.CategoryCommands, items.Commands},
-		{local.CategorySkills, items.Skills},
-		{local.CategoryHooks, items.Hooks},
-		{local.CategoryRules, items.Rules},
-		{local.CategoryOutputStyles, items.OutputStyles},
+		{ext.CategoryAgents, items.Agents},
+		{ext.CategoryCommands, items.Commands},
+		{ext.CategorySkills, items.Skills},
+		{ext.CategoryHooks, items.Hooks},
+		{ext.CategoryRules, items.Rules},
+		{ext.CategoryOutputStyles, items.OutputStyles},
 	}
 
 	for _, ci := range categories {
@@ -1323,11 +1323,11 @@ func applyLocalItemsCopy(items *LocalItemSettings, claudeupHome, projectDir stri
 			continue
 		}
 
-		if err := local.ValidateProjectScope(ci.category); err != nil {
+		if err := ext.ValidateProjectScope(ci.category); err != nil {
 			return fmt.Errorf("cannot copy %s to project scope: %w", ci.category, err)
 		}
 
-		if _, _, err := local.CopyToProject(localDir, ci.category, ci.patterns, projectDir); err != nil {
+		if _, _, err := ext.CopyToProject(localDir, ci.category, ci.patterns, projectDir); err != nil {
 			return fmt.Errorf("failed to copy %s to project: %w", ci.category, err)
 		}
 	}

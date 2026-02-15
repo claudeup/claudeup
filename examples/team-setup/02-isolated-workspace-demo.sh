@@ -92,7 +92,7 @@ cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/go-backend-team.json" <<'P
         "backend-development@claude-code-workflows",
         "tdd-workflows@claude-code-workflows"
       ],
-      "localItems": {
+      "extensions": {
         "rules": ["golang.md"],
         "agents": ["reviewer.md"]
       }
@@ -112,7 +112,7 @@ cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/alice-tools.json" <<'PROFI
       "plugins": [
         "superpowers@superpowers-marketplace"
       ],
-      "localItems": {
+      "extensions": {
         "rules": ["coding-standards.md"]
       }
     }
@@ -139,12 +139,12 @@ PROFILE
 success "Created bob-tools.json (Bob's personal profile)"
 echo
 
-step "Create fixture local items for the team profile"
+step "Create fixture extensions for the team profile"
 
-mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules"
-mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents"
+mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules"
+mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/agents"
 
-cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" <<'RULE'
+cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules/golang.md" <<'RULE'
 # Go Coding Rules
 
 - Follow Effective Go guidelines
@@ -152,24 +152,24 @@ cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" <<'RULE'
 - Handle all errors explicitly
 - Prefer table-driven tests
 RULE
-success "Created local/rules/golang.md"
+success "Created ext/rules/golang.md"
 
-cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/coding-standards.md" <<'RULE'
+cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules/coding-standards.md" <<'RULE'
 # Coding Standards
 
 - Write clear, descriptive variable names
 - Keep functions under 40 lines
 - Document all exported symbols
 RULE
-success "Created local/rules/coding-standards.md"
+success "Created ext/rules/coding-standards.md"
 
-cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents/reviewer.md" <<'AGENT'
+cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/agents/reviewer.md" <<'AGENT'
 # Code Reviewer
 
 You are a thorough code reviewer focused on Go best practices.
 Check for error handling, naming conventions, and test coverage.
 AGENT
-success "Created local/agents/reviewer.md"
+success "Created ext/agents/reviewer.md"
 pause
 
 # ===================================================================
@@ -209,7 +209,7 @@ section "3. Bob Clones the Project"
 # ===================================================================
 
 info "Bob clones the project repository. The project-scoped settings"
-info "and local items (.claude/) travel with git -- no re-application needed."
+info "and extensions (.claude/) travel with git -- no re-application needed."
 echo
 
 step "Simulate git clone (copy Alice's project to Bob's machine)"
@@ -235,7 +235,7 @@ switch_member bob
 cd "$EXAMPLE_TEMP_DIR/bob/project" || exit 1
 echo
 
-# The profile and local items below let Bob see the team profile in
+# The profile and extensions below let Bob see the team profile in
 # 'claudeup profile list' and apply it to other projects. They're not
 # needed for this project -- .claude/ from the clone already has everything.
 step "Copy team profile to Bob's profiles (from onboarding wiki)"
@@ -244,14 +244,14 @@ cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/profiles/go-backend-team.json" \
 success "Copied go-backend-team.json to Bob's profiles"
 echo
 
-step "Copy team local items to Bob (from shared team tooling)"
-mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/rules"
-mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/agents"
-cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" \
-   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/rules/"
-cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents/reviewer.md" \
-   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/agents/"
-success "Copied local items to Bob"
+step "Copy team extensions to Bob (from shared team tooling)"
+mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/rules"
+mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/agents"
+cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules/golang.md" \
+   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/rules/"
+cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/agents/reviewer.md" \
+   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/agents/"
+success "Copied extensions to Bob"
 echo
 
 info "Bob does NOT need to re-apply the team profile at project scope."
@@ -355,7 +355,7 @@ info ""
 info "  CLAUDE_CONFIG_DIR isolates each member's personal config"
 info "    Alice, Bob, and Charlie each have their own settings.json"
 info ""
-info "  CLAUDEUP_HOME isolates each member's profiles and local items"
+info "  CLAUDEUP_HOME isolates each member's profiles and extensions"
 info "    Profiles and rules are stored per-member, not globally"
 info ""
 info "  Project settings travel through git, not re-application"

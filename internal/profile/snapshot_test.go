@@ -319,7 +319,7 @@ func writeJSON(t *testing.T, path string, data interface{}) {
 	}
 }
 
-func TestSnapshotCapturesLocalItems(t *testing.T) {
+func TestSnapshotCapturesExtensions(t *testing.T) {
 	// Create temp directories
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
@@ -328,7 +328,7 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create mock enabled.json with enabled local items
+	// Create mock enabled.json with enabled extensions
 	enabledData := map[string]map[string]bool{
 		"agents": {
 			"gsd-planner":  true,
@@ -388,43 +388,43 @@ func TestSnapshotCapturesLocalItems(t *testing.T) {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
 
-	// Verify LocalItems was captured
-	if p.LocalItems == nil {
-		t.Fatal("Expected LocalItems to be captured, got nil")
+	// Verify Extensions was captured
+	if p.Extensions == nil {
+		t.Fatal("Expected Extensions to be captured, got nil")
 	}
 
 	// Check agents - should only include enabled ones, sorted
 	expectedAgents := []string{"gsd-executor", "gsd-planner"}
-	if len(p.LocalItems.Agents) != len(expectedAgents) {
-		t.Errorf("Expected %d agents, got %d: %v", len(expectedAgents), len(p.LocalItems.Agents), p.LocalItems.Agents)
+	if len(p.Extensions.Agents) != len(expectedAgents) {
+		t.Errorf("Expected %d agents, got %d: %v", len(expectedAgents), len(p.Extensions.Agents), p.Extensions.Agents)
 	} else {
 		for i, expected := range expectedAgents {
-			if p.LocalItems.Agents[i] != expected {
-				t.Errorf("Agent[%d]: expected %q, got %q", i, expected, p.LocalItems.Agents[i])
+			if p.Extensions.Agents[i] != expected {
+				t.Errorf("Agent[%d]: expected %q, got %q", i, expected, p.Extensions.Agents[i])
 			}
 		}
 	}
 
 	// Check commands - should be sorted
 	expectedCommands := []string{"gsd/start", "gsd/stop"}
-	if len(p.LocalItems.Commands) != len(expectedCommands) {
-		t.Errorf("Expected %d commands, got %d: %v", len(expectedCommands), len(p.LocalItems.Commands), p.LocalItems.Commands)
+	if len(p.Extensions.Commands) != len(expectedCommands) {
+		t.Errorf("Expected %d commands, got %d: %v", len(expectedCommands), len(p.Extensions.Commands), p.Extensions.Commands)
 	} else {
 		for i, expected := range expectedCommands {
-			if p.LocalItems.Commands[i] != expected {
-				t.Errorf("Command[%d]: expected %q, got %q", i, expected, p.LocalItems.Commands[i])
+			if p.Extensions.Commands[i] != expected {
+				t.Errorf("Command[%d]: expected %q, got %q", i, expected, p.Extensions.Commands[i])
 			}
 		}
 	}
 
 	// Check hooks
 	expectedHooks := []string{"gsd-check-update.js"}
-	if len(p.LocalItems.Hooks) != len(expectedHooks) {
-		t.Errorf("Expected %d hooks, got %d: %v", len(expectedHooks), len(p.LocalItems.Hooks), p.LocalItems.Hooks)
+	if len(p.Extensions.Hooks) != len(expectedHooks) {
+		t.Errorf("Expected %d hooks, got %d: %v", len(expectedHooks), len(p.Extensions.Hooks), p.Extensions.Hooks)
 	}
 }
 
-func TestSnapshotExcludesStaleLocalItems(t *testing.T) {
+func TestSnapshotExcludesStaleExtensions(t *testing.T) {
 	// enabled.json may have stale entries (marked true but no corresponding
 	// symlink in the active directory). These should be excluded from snapshots.
 	tmpDir := t.TempDir()
@@ -465,14 +465,14 @@ func TestSnapshotExcludesStaleLocalItems(t *testing.T) {
 	}
 
 	// Should only include real-agent, not stale-agent
-	if p.LocalItems == nil {
-		t.Fatal("Expected LocalItems to be non-nil")
+	if p.Extensions == nil {
+		t.Fatal("Expected Extensions to be non-nil")
 	}
-	if len(p.LocalItems.Agents) != 1 {
-		t.Errorf("Expected 1 agent (real-agent only), got %d: %v", len(p.LocalItems.Agents), p.LocalItems.Agents)
+	if len(p.Extensions.Agents) != 1 {
+		t.Errorf("Expected 1 agent (real-agent only), got %d: %v", len(p.Extensions.Agents), p.Extensions.Agents)
 	}
-	if len(p.LocalItems.Agents) > 0 && p.LocalItems.Agents[0] != "real-agent" {
-		t.Errorf("Expected real-agent, got %q", p.LocalItems.Agents[0])
+	if len(p.Extensions.Agents) > 0 && p.Extensions.Agents[0] != "real-agent" {
+		t.Errorf("Expected real-agent, got %q", p.Extensions.Agents[0])
 	}
 }
 
@@ -637,7 +637,7 @@ func TestSnapshotReturnsAllMarketplacesForDiff(t *testing.T) {
 	}
 }
 
-func TestSnapshotNoLocalItemsWhenConfigMissing(t *testing.T) {
+func TestSnapshotNoExtensionsWhenConfigMissing(t *testing.T) {
 	// Create temp directories
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
@@ -646,7 +646,7 @@ func TestSnapshotNoLocalItemsWhenConfigMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// No enabled.json file - should still work but LocalItems should be nil
+	// No enabled.json file - should still work but Extensions should be nil
 
 	// Create minimal settings.json
 	settingsData := map[string]interface{}{
@@ -669,8 +669,8 @@ func TestSnapshotNoLocalItemsWhenConfigMissing(t *testing.T) {
 		t.Fatalf("Snapshot failed: %v", err)
 	}
 
-	// LocalItems should be nil when no enabled.json exists
-	if p.LocalItems != nil {
-		t.Errorf("Expected LocalItems to be nil when no enabled.json, got %+v", p.LocalItems)
+	// Extensions should be nil when no enabled.json exists
+	if p.Extensions != nil {
+		t.Errorf("Expected Extensions to be nil when no enabled.json, got %+v", p.Extensions)
 	}
 }

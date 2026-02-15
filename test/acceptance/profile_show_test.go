@@ -1,5 +1,5 @@
 // ABOUTME: Acceptance tests for profile show command
-// ABOUTME: Verifies display of multi-scope profiles with plugins, MCP servers, and local items
+// ABOUTME: Verifies display of multi-scope profiles with plugins, MCP servers, and extensions
 package acceptance
 
 import (
@@ -41,7 +41,7 @@ var _ = Describe("profile show", func() {
 						},
 					},
 				},
-				LocalItems: &profile.LocalItemSettings{
+				Extensions: &profile.ExtensionSettings{
 					Agents:   []string{"test-runner/test-runner.md"},
 					Commands: []string{"commit.md"},
 					Skills:   []string{"golang"},
@@ -65,7 +65,7 @@ var _ = Describe("profile show", func() {
 			Expect(result.Stdout).To(ContainSubstring("user-mcp"))
 		})
 
-		It("shows local items", func() {
+		It("shows extensions", func() {
 			result := env.Run("profile", "show", "multi-scope")
 
 			Expect(result.ExitCode).To(Equal(0))

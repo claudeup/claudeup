@@ -1,6 +1,6 @@
-// ABOUTME: Copies local items into project .claude/ directory for project-scope profiles
+// ABOUTME: Copies extensions into project .claude/ directory for project-scope profiles
 // ABOUTME: Uses file copy (not symlinks) so items are portable and git-committable
-package local
+package ext
 
 import (
 	"fmt"
@@ -10,16 +10,16 @@ import (
 	"strings"
 )
 
-// CopyToProject copies local items matching patterns into the project's .claude/{category}/ directory.
-// Source items are read from {localDir}/{category}/{item}.
+// CopyToProject copies extensions matching patterns into the project's .claude/{category}/ directory.
+// Source items are read from {extDir}/{category}/{item}.
 // Destination is {projectDir}/.claude/{category}/{item}.
 // Skill directories (containing SKILL.md) are copied recursively.
 // Returns (copied items, not found patterns, error).
-func CopyToProject(localDir, category string, patterns []string, projectDir string) ([]string, []string, error) {
-	sourceDir := filepath.Join(localDir, category)
+func CopyToProject(extDir, category string, patterns []string, projectDir string) ([]string, []string, error) {
+	sourceDir := filepath.Join(extDir, category)
 
-	// List available items in local storage
-	allItems, err := listLocalItems(sourceDir, category)
+	// List available items in extension storage
+	allItems, err := listItems(sourceDir, category)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list items for %s: %w", category, err)
 	}
@@ -54,7 +54,7 @@ func CopyToProject(localDir, category string, patterns []string, projectDir stri
 }
 
 // validateDestPath checks that destPath stays within baseDir.
-// OS filesystems reject "/" in filenames, so listLocalItems cannot return
+// OS filesystems reject "/" in filenames, so listItems cannot return
 // traversal sequences. This is a safety net against externally-crafted item names.
 func validateDestPath(destPath, baseDir string) error {
 	if !strings.HasPrefix(destPath, baseDir+string(filepath.Separator)) {
@@ -63,9 +63,9 @@ func validateDestPath(destPath, baseDir string) error {
 	return nil
 }
 
-// listLocalItems enumerates items in a local storage directory.
+// listItems enumerates items in an extension storage directory.
 // Mirrors the listing logic from Manager.ListItems but without needing a Manager.
-func listLocalItems(dir, category string) ([]string, error) {
+func listItems(dir, category string) ([]string, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		return []string{}, nil
 	}

@@ -408,30 +408,32 @@ claudeup plugin search api --format json
 - **Table** - Tabular view with plugin, type, component, and description columns
 - **JSON** - Machine-readable output for scripting
 
-## Local Extensions
+## Extensions
 
-### local
+### extensions
 
-Manage local Claude Code extensions (agents, commands, skills, hooks, rules, output-styles) from `~/.claudeup/local`.
+Manage Claude Code extensions (agents, commands, skills, hooks, rules, output-styles) from `~/.claudeup/ext`.
+
+Alias: `ext`
 
 ```bash
-claudeup local list                          # List all items and enabled status
-claudeup local list agents                   # List items in a category
-claudeup local list --enabled                # Show only enabled items
-claudeup local list hooks --disabled         # Show only disabled hooks
-claudeup local enable <category> <items...>  # Enable items (supports wildcards)
-claudeup local disable <category> <items...> # Disable items (supports wildcards)
-claudeup local view <category> <item>        # View item contents
-claudeup local sync                          # Recreate symlinks from enabled.json
-claudeup local import <category> <items...>  # Move items from active dir to local storage
-claudeup local import-all [patterns...]      # Import items from all categories
-claudeup local install <category> <path>     # Install items from an external path
-claudeup local uninstall <category> <items...> # Remove items from local storage
+claudeup extensions list                          # List all items and enabled status
+claudeup extensions list agents                   # List items in a category
+claudeup extensions list --enabled                # Show only enabled items
+claudeup extensions list hooks --disabled         # Show only disabled hooks
+claudeup extensions enable <category> <items...>  # Enable items (supports wildcards)
+claudeup extensions disable <category> <items...> # Disable items (supports wildcards)
+claudeup extensions view <category> <item>        # View item contents
+claudeup extensions sync                          # Recreate symlinks from enabled.json
+claudeup extensions import <category> <items...>  # Move items from active dir to storage
+claudeup extensions import-all [patterns...]      # Import items from all categories
+claudeup extensions install <category> <path>     # Install items from an external path
+claudeup extensions uninstall <category> <items...> # Remove items from storage
 ```
 
 **Categories:** `agents`, `commands`, `skills`, `hooks`, `rules`, `output-styles`
 
-**`local list` flags:**
+**`extensions list` flags:**
 
 | Flag             | Description              |
 | ---------------- | ------------------------ |
@@ -448,13 +450,13 @@ claudeup local uninstall <category> <items...> # Remove items from local storage
 
 **Import commands:**
 
-`import` moves items from active directories (`~/.claude/<category>/`) to local storage (`~/.claudeup/local/<category>/`) and creates symlinks back. Use when tools install directly to active directories.
+`import` moves items from active directories (`~/.claude/<category>/`) to storage (`~/.claudeup/ext/<category>/`) and creates symlinks back. Use when tools install directly to active directories.
 
 `import-all` scans all categories at once. Without patterns, imports everything. With patterns, only matching items.
 
-`install` copies items from an external path (git repos, downloads) to local storage and enables them.
+`install` copies items from an external path (git repos, downloads) to storage and enables them.
 
-`uninstall` removes items from local storage entirely -- disables the item, removes its symlink from `~/.claude/<category>/`, deletes the file from `~/.claudeup/local/<category>/`, and removes the config entry. Supports the same wildcards as enable/disable.
+`uninstall` removes items from storage entirely -- disables the item, removes its symlink from `~/.claude/<category>/`, deletes the file from `~/.claudeup/ext/<category>/`, and removes the config entry. Supports the same wildcards as enable/disable.
 
 ## Event Tracking
 
@@ -563,10 +565,10 @@ Configuration is stored in `~/.claudeup/`:
 ```text
 ~/.claudeup/
 ├── config.json       # Disabled plugins/servers, preferences
-├── enabled.json      # Tracks which local items are enabled per category
+├── enabled.json      # Tracks which extensions are enabled per category
 ├── projects.json     # Local-scope project-to-profile mappings
 ├── events/           # Operation event logs
-├── local/            # Local storage for extensions
+├── ext/              # Storage for extensions
 │   ├── agents/
 │   ├── commands/
 │   ├── hooks/

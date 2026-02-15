@@ -1,4 +1,4 @@
-// ABOUTME: Tests for project-scoped LocalItems on ScopeSettings
+// ABOUTME: Tests for project-scoped Extensions on ScopeSettings
 // ABOUTME: Validates JSON marshaling, ForScope, CombinedScopes, Equal, Clone
 package profile
 
@@ -7,19 +7,19 @@ import (
 	"testing"
 )
 
-func TestScopeSettingsLocalItemsJSONRoundTrip(t *testing.T) {
+func TestScopeSettingsExtensionsJSONRoundTrip(t *testing.T) {
 	p := &Profile{
 		Name: "scoped-items",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
 				Plugins: []string{"user-plugin@mp"},
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Skills: []string{"session-notes"},
 					Rules:  []string{"coding-standards"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules:  []string{"golang"},
 					Agents: []string{"reviewer"},
 				},
@@ -43,31 +43,31 @@ func TestScopeSettingsLocalItemsJSONRoundTrip(t *testing.T) {
 	if loaded.PerScope.User == nil {
 		t.Fatal("expected PerScope.User to be non-nil")
 	}
-	if loaded.PerScope.User.LocalItems == nil {
-		t.Fatal("expected PerScope.User.LocalItems to be non-nil")
+	if loaded.PerScope.User.Extensions == nil {
+		t.Fatal("expected PerScope.User.Extensions to be non-nil")
 	}
-	if len(loaded.PerScope.User.LocalItems.Skills) != 1 || loaded.PerScope.User.LocalItems.Skills[0] != "session-notes" {
-		t.Errorf("expected user skills [session-notes], got %v", loaded.PerScope.User.LocalItems.Skills)
+	if len(loaded.PerScope.User.Extensions.Skills) != 1 || loaded.PerScope.User.Extensions.Skills[0] != "session-notes" {
+		t.Errorf("expected user skills [session-notes], got %v", loaded.PerScope.User.Extensions.Skills)
 	}
-	if len(loaded.PerScope.User.LocalItems.Rules) != 1 || loaded.PerScope.User.LocalItems.Rules[0] != "coding-standards" {
-		t.Errorf("expected user rules [coding-standards], got %v", loaded.PerScope.User.LocalItems.Rules)
+	if len(loaded.PerScope.User.Extensions.Rules) != 1 || loaded.PerScope.User.Extensions.Rules[0] != "coding-standards" {
+		t.Errorf("expected user rules [coding-standards], got %v", loaded.PerScope.User.Extensions.Rules)
 	}
 
 	if loaded.PerScope.Project == nil {
 		t.Fatal("expected PerScope.Project to be non-nil")
 	}
-	if loaded.PerScope.Project.LocalItems == nil {
-		t.Fatal("expected PerScope.Project.LocalItems to be non-nil")
+	if loaded.PerScope.Project.Extensions == nil {
+		t.Fatal("expected PerScope.Project.Extensions to be non-nil")
 	}
-	if len(loaded.PerScope.Project.LocalItems.Rules) != 1 || loaded.PerScope.Project.LocalItems.Rules[0] != "golang" {
-		t.Errorf("expected project rules [golang], got %v", loaded.PerScope.Project.LocalItems.Rules)
+	if len(loaded.PerScope.Project.Extensions.Rules) != 1 || loaded.PerScope.Project.Extensions.Rules[0] != "golang" {
+		t.Errorf("expected project rules [golang], got %v", loaded.PerScope.Project.Extensions.Rules)
 	}
-	if len(loaded.PerScope.Project.LocalItems.Agents) != 1 || loaded.PerScope.Project.LocalItems.Agents[0] != "reviewer" {
-		t.Errorf("expected project agents [reviewer], got %v", loaded.PerScope.Project.LocalItems.Agents)
+	if len(loaded.PerScope.Project.Extensions.Agents) != 1 || loaded.PerScope.Project.Extensions.Agents[0] != "reviewer" {
+		t.Errorf("expected project agents [reviewer], got %v", loaded.PerScope.Project.Extensions.Agents)
 	}
 }
 
-func TestScopeSettingsLocalItemsOmittedWhenNil(t *testing.T) {
+func TestScopeSettingsExtensionsOmittedWhenNil(t *testing.T) {
 	p := &Profile{
 		Name: "no-items",
 		PerScope: &PerScopeSettings{
@@ -83,23 +83,23 @@ func TestScopeSettingsLocalItemsOmittedWhenNil(t *testing.T) {
 	}
 
 	jsonStr := string(data)
-	if containsSubstring(jsonStr, `"localItems"`) {
-		t.Errorf("expected localItems to be omitted when nil, got:\n%s", jsonStr)
+	if containsSubstring(jsonStr, `"extensions"`) {
+		t.Errorf("expected extensions to be omitted when nil, got:\n%s", jsonStr)
 	}
 }
 
-func TestForScopeReturnsLocalItems(t *testing.T) {
+func TestForScopeReturnsExtensions(t *testing.T) {
 	p := &Profile{
 		Name: "test",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
 				Plugins: []string{"user-p1"},
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Skills: []string{"session-notes"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules:  []string{"golang"},
 					Agents: []string{"reviewer"},
 				},
@@ -107,46 +107,46 @@ func TestForScopeReturnsLocalItems(t *testing.T) {
 		},
 	}
 
-	// User scope should have user's local items
+	// User scope should have user's extensions
 	userProfile := p.ForScope("user")
-	if userProfile.LocalItems == nil {
-		t.Fatal("expected user scope to have LocalItems")
+	if userProfile.Extensions == nil {
+		t.Fatal("expected user scope to have Extensions")
 	}
-	if len(userProfile.LocalItems.Skills) != 1 || userProfile.LocalItems.Skills[0] != "session-notes" {
-		t.Errorf("expected user skills [session-notes], got %v", userProfile.LocalItems.Skills)
+	if len(userProfile.Extensions.Skills) != 1 || userProfile.Extensions.Skills[0] != "session-notes" {
+		t.Errorf("expected user skills [session-notes], got %v", userProfile.Extensions.Skills)
 	}
 
-	// Project scope should have project's local items
+	// Project scope should have project's extensions
 	projectProfile := p.ForScope("project")
-	if projectProfile.LocalItems == nil {
-		t.Fatal("expected project scope to have LocalItems")
+	if projectProfile.Extensions == nil {
+		t.Fatal("expected project scope to have Extensions")
 	}
-	if len(projectProfile.LocalItems.Rules) != 1 || projectProfile.LocalItems.Rules[0] != "golang" {
-		t.Errorf("expected project rules [golang], got %v", projectProfile.LocalItems.Rules)
+	if len(projectProfile.Extensions.Rules) != 1 || projectProfile.Extensions.Rules[0] != "golang" {
+		t.Errorf("expected project rules [golang], got %v", projectProfile.Extensions.Rules)
 	}
-	if len(projectProfile.LocalItems.Agents) != 1 || projectProfile.LocalItems.Agents[0] != "reviewer" {
-		t.Errorf("expected project agents [reviewer], got %v", projectProfile.LocalItems.Agents)
+	if len(projectProfile.Extensions.Agents) != 1 || projectProfile.Extensions.Agents[0] != "reviewer" {
+		t.Errorf("expected project agents [reviewer], got %v", projectProfile.Extensions.Agents)
 	}
 
-	// Local scope (not set) should have nil LocalItems
-	localProfile := p.ForScope("local")
-	if localProfile.LocalItems != nil {
-		t.Errorf("expected local scope to have nil LocalItems, got %v", localProfile.LocalItems)
+	// Local scope (not set) should have nil Extensions
+	scopeProfile := p.ForScope("local")
+	if scopeProfile.Extensions != nil {
+		t.Errorf("expected local scope to have nil Extensions, got %v", scopeProfile.Extensions)
 	}
 }
 
-func TestCombinedScopesMergesLocalItems(t *testing.T) {
+func TestCombinedScopesMergesExtensions(t *testing.T) {
 	p := &Profile{
 		Name: "test",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Skills: []string{"session-notes"},
 					Rules:  []string{"coding-standards"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules:  []string{"golang", "coding-standards"}, // coding-standards is a duplicate
 					Agents: []string{"reviewer"},
 				},
@@ -156,27 +156,27 @@ func TestCombinedScopesMergesLocalItems(t *testing.T) {
 
 	combined := p.CombinedScopes()
 
-	if combined.LocalItems == nil {
-		t.Fatal("expected combined to have LocalItems")
+	if combined.Extensions == nil {
+		t.Fatal("expected combined to have Extensions")
 	}
 
 	// Skills should come from user scope
-	if len(combined.LocalItems.Skills) != 1 || combined.LocalItems.Skills[0] != "session-notes" {
-		t.Errorf("expected skills [session-notes], got %v", combined.LocalItems.Skills)
+	if len(combined.Extensions.Skills) != 1 || combined.Extensions.Skills[0] != "session-notes" {
+		t.Errorf("expected skills [session-notes], got %v", combined.Extensions.Skills)
 	}
 
 	// Rules should be union (coding-standards deduplicated)
-	if len(combined.LocalItems.Rules) != 2 {
-		t.Errorf("expected 2 rules (deduplicated), got %d: %v", len(combined.LocalItems.Rules), combined.LocalItems.Rules)
+	if len(combined.Extensions.Rules) != 2 {
+		t.Errorf("expected 2 rules (deduplicated), got %d: %v", len(combined.Extensions.Rules), combined.Extensions.Rules)
 	}
 
 	// Agents should come from project scope
-	if len(combined.LocalItems.Agents) != 1 || combined.LocalItems.Agents[0] != "reviewer" {
-		t.Errorf("expected agents [reviewer], got %v", combined.LocalItems.Agents)
+	if len(combined.Extensions.Agents) != 1 || combined.Extensions.Agents[0] != "reviewer" {
+		t.Errorf("expected agents [reviewer], got %v", combined.Extensions.Agents)
 	}
 }
 
-func TestCombinedScopesNoLocalItems(t *testing.T) {
+func TestCombinedScopesNoExtensions(t *testing.T) {
 	p := &Profile{
 		Name: "test",
 		PerScope: &PerScopeSettings{
@@ -188,23 +188,23 @@ func TestCombinedScopesNoLocalItems(t *testing.T) {
 
 	combined := p.CombinedScopes()
 
-	// No local items anywhere - should be nil
-	if combined.LocalItems != nil {
-		t.Errorf("expected nil LocalItems when no scopes have them, got %v", combined.LocalItems)
+	// No extensions anywhere - should be nil
+	if combined.Extensions != nil {
+		t.Errorf("expected nil Extensions when no scopes have them, got %v", combined.Extensions)
 	}
 }
 
-func TestEqualWithScopedLocalItems(t *testing.T) {
+func TestEqualWithScopedExtensions(t *testing.T) {
 	p1 := &Profile{
 		Name: "test",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules: []string{"coding-standards"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Agents: []string{"reviewer"},
 				},
 			},
@@ -216,12 +216,12 @@ func TestEqualWithScopedLocalItems(t *testing.T) {
 		Name: "test2",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules: []string{"coding-standards"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Agents: []string{"reviewer"},
 				},
 			},
@@ -229,15 +229,15 @@ func TestEqualWithScopedLocalItems(t *testing.T) {
 	}
 
 	if !p1.Equal(p2) {
-		t.Error("expected profiles with identical scoped LocalItems to be equal")
+		t.Error("expected profiles with identical scoped Extensions to be equal")
 	}
 
-	// Different local items
+	// Different extensions
 	p3 := &Profile{
 		Name: "test3",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules: []string{"different-rule"},
 				},
 			},
@@ -245,23 +245,23 @@ func TestEqualWithScopedLocalItems(t *testing.T) {
 	}
 
 	if p1.Equal(p3) {
-		t.Error("expected profiles with different scoped LocalItems to not be equal")
+		t.Error("expected profiles with different scoped Extensions to not be equal")
 	}
 }
 
-func TestCloneWithScopedLocalItems(t *testing.T) {
+func TestCloneWithScopedExtensions(t *testing.T) {
 	original := &Profile{
 		Name: "original",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
 				Plugins: []string{"p1"},
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Skills: []string{"session-notes"},
 					Rules:  []string{"coding-standards"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules:  []string{"golang"},
 					Agents: []string{"reviewer"},
 				},
@@ -276,19 +276,19 @@ func TestCloneWithScopedLocalItems(t *testing.T) {
 	}
 
 	// Verify deep copy - modifying clone should not affect original
-	if clone.PerScope == nil || clone.PerScope.User == nil || clone.PerScope.User.LocalItems == nil {
-		t.Fatal("expected clone to have PerScope.User.LocalItems")
+	if clone.PerScope == nil || clone.PerScope.User == nil || clone.PerScope.User.Extensions == nil {
+		t.Fatal("expected clone to have PerScope.User.Extensions")
 	}
-	clone.PerScope.User.LocalItems.Skills[0] = "modified"
-	if original.PerScope.User.LocalItems.Skills[0] == "modified" {
+	clone.PerScope.User.Extensions.Skills[0] = "modified"
+	if original.PerScope.User.Extensions.Skills[0] == "modified" {
 		t.Error("modifying clone affected original - not a deep copy")
 	}
 
-	// Verify project scope local items are cloned
-	if clone.PerScope.Project == nil || clone.PerScope.Project.LocalItems == nil {
-		t.Fatal("expected clone to have PerScope.Project.LocalItems")
+	// Verify project scope extensions are cloned
+	if clone.PerScope.Project == nil || clone.PerScope.Project.Extensions == nil {
+		t.Fatal("expected clone to have PerScope.Project.Extensions")
 	}
-	if len(clone.PerScope.Project.LocalItems.Rules) != 1 || clone.PerScope.Project.LocalItems.Rules[0] != "golang" {
-		t.Errorf("expected clone project rules [golang], got %v", clone.PerScope.Project.LocalItems.Rules)
+	if len(clone.PerScope.Project.Extensions.Rules) != 1 || clone.PerScope.Project.Extensions.Rules[0] != "golang" {
+		t.Errorf("expected clone project rules [golang], got %v", clone.PerScope.Project.Extensions.Rules)
 	}
 }

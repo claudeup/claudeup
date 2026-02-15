@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for local uninstall command
-// ABOUTME: Tests CLI behavior for removing items from local storage
+// ABOUTME: Acceptance tests for extensions uninstall command
+// ABOUTME: Tests CLI behavior for removing items from extension storage
 package acceptance
 
 import (
@@ -11,14 +11,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("local uninstall", func() {
+var _ = Describe("extensions uninstall", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 
-		// Create items in local storage
-		rulesDir := filepath.Join(env.ClaudeupDir, "local", "rules")
+		// Create items in extension storage
+		rulesDir := filepath.Join(env.ClaudeupDir, "ext", "rules")
 		Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(rulesDir, "my-rule.md"), []byte("# Rule"), 0644)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(rulesDir, "other-rule.md"), []byte("# Other"), 0644)).To(Succeed())
@@ -35,43 +35,43 @@ var _ = Describe("local uninstall", func() {
 	})
 
 	It("removes the item and shows success", func() {
-		result := env.Run("local", "uninstall", "rules", "my-rule.md")
+		result := env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
 		Expect(result.ExitCode).To(Equal(0))
 		Expect(result.Stdout).To(ContainSubstring("Removed"))
 		Expect(result.Stdout).To(ContainSubstring("my-rule.md"))
 	})
 
-	It("removes the file from local storage", func() {
-		env.Run("local", "uninstall", "rules", "my-rule.md")
+	It("removes the file from extension storage", func() {
+		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
-		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "local", "rules", "my-rule.md"))
+		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "ext", "rules", "my-rule.md"))
 		Expect(os.IsNotExist(err)).To(BeTrue())
 	})
 
 	It("removes the symlink from the active directory", func() {
-		env.Run("local", "uninstall", "rules", "my-rule.md")
+		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
 		_, err := os.Lstat(filepath.Join(env.ClaudeDir, "rules", "my-rule.md"))
 		Expect(os.IsNotExist(err)).To(BeTrue())
 	})
 
 	It("does not affect other items", func() {
-		env.Run("local", "uninstall", "rules", "my-rule.md")
+		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
-		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "local", "rules", "other-rule.md"))
+		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "ext", "rules", "other-rule.md"))
 		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("warns on not found items", func() {
-		result := env.Run("local", "uninstall", "rules", "nonexistent.md")
+		result := env.Run("extensions", "uninstall", "rules", "nonexistent.md")
 
 		Expect(result.ExitCode).NotTo(Equal(0))
 		Expect(result.Combined()).To(ContainSubstring("Not found"))
 	})
 
 	It("requires category and items arguments", func() {
-		result := env.Run("local", "uninstall")
+		result := env.Run("extensions", "uninstall")
 		Expect(result.ExitCode).NotTo(Equal(0))
 	})
 })

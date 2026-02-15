@@ -1,6 +1,6 @@
 // ABOUTME: Tests for resolving item names with extension inference
 // ABOUTME: Verifies partial name matching and agent group resolution
-package local
+package ext
 
 import (
 	"os"
@@ -14,8 +14,8 @@ func TestResolveItemName(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
-	hooksDir := filepath.Join(localDir, "hooks")
+	extDir := filepath.Join(claudeupHome, "ext")
+	hooksDir := filepath.Join(extDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
@@ -54,8 +54,8 @@ func TestResolveAgentName(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure with groups
-	localDir := filepath.Join(claudeupHome, "local")
-	agentsDir := filepath.Join(localDir, "agents")
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
 

@@ -1,4 +1,4 @@
-// ABOUTME: Acceptance tests for local command help text
+// ABOUTME: Acceptance tests for extensions command help text
 // ABOUTME: Verifies help output clarifies import vs install vs import-all
 package acceptance
 
@@ -8,22 +8,22 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("local help", func() {
+var _ = Describe("extensions help", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 	})
 
-	It("includes a section explaining how to add items", func() {
-		result := env.Run("local", "--help")
+	It("includes a section explaining how to add extensions", func() {
+		result := env.Run("extensions", "--help")
 
 		Expect(result.ExitCode).To(Equal(0))
-		Expect(result.Stdout).To(ContainSubstring("Adding items"))
+		Expect(result.Stdout).To(ContainSubstring("Adding extensions"))
 	})
 
 	It("explains that install copies from external paths", func() {
-		result := env.Run("local", "--help")
+		result := env.Run("extensions", "--help")
 
 		Expect(result.ExitCode).To(Equal(0))
 		// The description should explain install copies from external sources
@@ -31,7 +31,7 @@ var _ = Describe("local help", func() {
 	})
 
 	It("explains that import moves from active directories", func() {
-		result := env.Run("local", "--help")
+		result := env.Run("extensions", "--help")
 
 		Expect(result.ExitCode).To(Equal(0))
 		// The description should explain import moves from active dirs

@@ -171,7 +171,7 @@ func mergeProfile(dst, src *Profile) {
 	mergePerScope(dst, src)
 	mergeFlatPlugins(dst, src)
 	mergeFlatMCPServers(dst, src)
-	mergeLocalItems(dst, src)
+	mergeExtensions(dst, src)
 	mergeSettingsHooks(dst, src)
 	mergeDetect(dst, src)
 
@@ -239,7 +239,7 @@ func mergePerScope(dst, src *Profile) {
 }
 
 // mergeScopeSettings merges plugins (union, dedup), MCP servers (last-wins by name),
-// and LocalItems (union, dedup per category).
+// and extensions (union, dedup per category).
 func mergeScopeSettings(dst, src *ScopeSettings) {
 	dst.Plugins = mergeStringSlice(dst.Plugins, src.Plugins)
 
@@ -258,16 +258,16 @@ func mergeScopeSettings(dst, src *ScopeSettings) {
 		}
 	}
 
-	if src.LocalItems != nil {
-		if dst.LocalItems == nil {
-			dst.LocalItems = &LocalItemSettings{}
+	if src.Extensions != nil {
+		if dst.Extensions == nil {
+			dst.Extensions = &ExtensionSettings{}
 		}
-		dst.LocalItems.Agents = mergeStringSlice(dst.LocalItems.Agents, src.LocalItems.Agents)
-		dst.LocalItems.Commands = mergeStringSlice(dst.LocalItems.Commands, src.LocalItems.Commands)
-		dst.LocalItems.Skills = mergeStringSlice(dst.LocalItems.Skills, src.LocalItems.Skills)
-		dst.LocalItems.Hooks = mergeStringSlice(dst.LocalItems.Hooks, src.LocalItems.Hooks)
-		dst.LocalItems.Rules = mergeStringSlice(dst.LocalItems.Rules, src.LocalItems.Rules)
-		dst.LocalItems.OutputStyles = mergeStringSlice(dst.LocalItems.OutputStyles, src.LocalItems.OutputStyles)
+		dst.Extensions.Agents = mergeStringSlice(dst.Extensions.Agents, src.Extensions.Agents)
+		dst.Extensions.Commands = mergeStringSlice(dst.Extensions.Commands, src.Extensions.Commands)
+		dst.Extensions.Skills = mergeStringSlice(dst.Extensions.Skills, src.Extensions.Skills)
+		dst.Extensions.Hooks = mergeStringSlice(dst.Extensions.Hooks, src.Extensions.Hooks)
+		dst.Extensions.Rules = mergeStringSlice(dst.Extensions.Rules, src.Extensions.Rules)
+		dst.Extensions.OutputStyles = mergeStringSlice(dst.Extensions.OutputStyles, src.Extensions.OutputStyles)
 	}
 }
 
@@ -296,22 +296,22 @@ func mergeFlatMCPServers(dst, src *Profile) {
 	}
 }
 
-// mergeLocalItems unions local items per category with dedup.
-func mergeLocalItems(dst, src *Profile) {
-	if src.LocalItems == nil {
+// mergeExtensions unions extensions per category with dedup.
+func mergeExtensions(dst, src *Profile) {
+	if src.Extensions == nil {
 		return
 	}
 
-	if dst.LocalItems == nil {
-		dst.LocalItems = &LocalItemSettings{}
+	if dst.Extensions == nil {
+		dst.Extensions = &ExtensionSettings{}
 	}
 
-	dst.LocalItems.Agents = mergeStringSlice(dst.LocalItems.Agents, src.LocalItems.Agents)
-	dst.LocalItems.Commands = mergeStringSlice(dst.LocalItems.Commands, src.LocalItems.Commands)
-	dst.LocalItems.Skills = mergeStringSlice(dst.LocalItems.Skills, src.LocalItems.Skills)
-	dst.LocalItems.Hooks = mergeStringSlice(dst.LocalItems.Hooks, src.LocalItems.Hooks)
-	dst.LocalItems.Rules = mergeStringSlice(dst.LocalItems.Rules, src.LocalItems.Rules)
-	dst.LocalItems.OutputStyles = mergeStringSlice(dst.LocalItems.OutputStyles, src.LocalItems.OutputStyles)
+	dst.Extensions.Agents = mergeStringSlice(dst.Extensions.Agents, src.Extensions.Agents)
+	dst.Extensions.Commands = mergeStringSlice(dst.Extensions.Commands, src.Extensions.Commands)
+	dst.Extensions.Skills = mergeStringSlice(dst.Extensions.Skills, src.Extensions.Skills)
+	dst.Extensions.Hooks = mergeStringSlice(dst.Extensions.Hooks, src.Extensions.Hooks)
+	dst.Extensions.Rules = mergeStringSlice(dst.Extensions.Rules, src.Extensions.Rules)
+	dst.Extensions.OutputStyles = mergeStringSlice(dst.Extensions.OutputStyles, src.Extensions.OutputStyles)
 }
 
 // mergeSettingsHooks unions hooks per event type, deduplicating by command.

@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for local view markdown rendering
-// ABOUTME: Tests glamour rendering and --raw flag for local items
+// ABOUTME: Acceptance tests for extensions view markdown rendering
+// ABOUTME: Tests glamour rendering and --raw flag for extension items
 package acceptance
 
 import (
@@ -12,14 +12,14 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("local view", func() {
+var _ = Describe("extensions view", func() {
 	var env *helpers.TestEnv
 
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 
-		// Create local directory structure in claudeupHome/local/
-		localDir := filepath.Join(env.ClaudeupDir, "local")
+		// Create extension storage directory structure in claudeupHome/ext/
+		localDir := filepath.Join(env.ClaudeupDir, "ext")
 
 		agentsDir := filepath.Join(localDir, "agents")
 		hooksDir := filepath.Join(localDir, "hooks")
@@ -48,7 +48,7 @@ var _ = Describe("local view", func() {
 
 	Describe("markdown rendering for agents", func() {
 		It("renders markdown content", func() {
-			result := env.Run("local", "view", "agents", "test-agent")
+			result := env.Run("extensions", "view", "agents", "test-agent")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Test Agent"))
@@ -58,7 +58,7 @@ var _ = Describe("local view", func() {
 
 	Describe("markdown rendering for skills", func() {
 		It("renders skill SKILL.md content", func() {
-			result := env.Run("local", "view", "skills", "test-skill")
+			result := env.Run("extensions", "view", "skills", "test-skill")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Test Skill"))
@@ -68,7 +68,7 @@ var _ = Describe("local view", func() {
 
 	Describe("--raw flag", func() {
 		It("bypasses markdown rendering for agents", func() {
-			result := env.Run("local", "view", "agents", "test-agent", "--raw")
+			result := env.Run("extensions", "view", "agents", "test-agent", "--raw")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Raw output should contain the markdown syntax
@@ -77,7 +77,7 @@ var _ = Describe("local view", func() {
 		})
 
 		It("bypasses markdown rendering for skills", func() {
-			result := env.Run("local", "view", "skills", "test-skill", "--raw")
+			result := env.Run("extensions", "view", "skills", "test-skill", "--raw")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("# Test Skill"))
@@ -87,7 +87,7 @@ var _ = Describe("local view", func() {
 
 	Describe("non-markdown files", func() {
 		It("shows raw content for shell scripts", func() {
-			result := env.Run("local", "view", "hooks", "format-check")
+			result := env.Run("extensions", "view", "hooks", "format-check")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("#!/bin/bash"))

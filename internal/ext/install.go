@@ -1,6 +1,6 @@
-// ABOUTME: Installs items from external paths to local storage
+// ABOUTME: Installs items from external paths to extension storage
 // ABOUTME: Copies files/directories and auto-enables them
-package local
+package ext
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Install copies items from sourcePath to local storage and enables them.
+// Install copies items from sourcePath to extension storage and enables them.
 // For single files/directories: copies as-is.
 // For containers with multiple items: copies each item individually.
 // Returns (installed items, skipped items, error).
@@ -29,8 +29,8 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 		return nil, nil, fmt.Errorf("source not found: %s", sourcePath)
 	}
 
-	localDir := filepath.Join(m.localDir, category)
-	if err := os.MkdirAll(localDir, 0755); err != nil {
+	extDir := filepath.Join(m.extDir, category)
+	if err := os.MkdirAll(extDir, 0755); err != nil {
 		return nil, nil, err
 	}
 
@@ -44,7 +44,7 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 		if isSingleItem {
 			// Copy the directory as a single item
 			itemName := filepath.Base(source)
-			destPath := filepath.Join(localDir, itemName)
+			destPath := filepath.Join(extDir, itemName)
 
 			if pathExists(destPath) {
 				skipped = append(skipped, itemName)
@@ -68,7 +68,7 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 
 				itemName := entry.Name()
 				srcPath := filepath.Join(source, itemName)
-				destPath := filepath.Join(localDir, itemName)
+				destPath := filepath.Join(extDir, itemName)
 
 				if pathExists(destPath) {
 					skipped = append(skipped, itemName)
@@ -90,7 +90,7 @@ func (m *Manager) Install(category string, sourcePath string) ([]string, []strin
 	} else {
 		// Single file
 		itemName := filepath.Base(source)
-		destPath := filepath.Join(localDir, itemName)
+		destPath := filepath.Join(extDir, itemName)
 
 		if pathExists(destPath) {
 			skipped = append(skipped, itemName)
