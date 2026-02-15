@@ -786,25 +786,25 @@ func TestPreserveFromExisting(t *testing.T) {
 	// When overwriting an existing profile, localItems should be preserved
 	// from the original, not re-snapshotted.
 	existing := &Profile{
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"original-agent"},
 		},
 	}
 
 	// Fresh snapshot picked up extra stuff from the environment
 	fresh := &Profile{
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"original-agent", "extra-agent"},
 		},
 	}
 
 	fresh.PreserveFrom(existing)
 
-	if len(fresh.LocalItems.Agents) != 1 {
-		t.Errorf("Expected 1 agent (preserved), got %d", len(fresh.LocalItems.Agents))
+	if len(fresh.Extensions.Agents) != 1 {
+		t.Errorf("Expected 1 agent (preserved), got %d", len(fresh.Extensions.Agents))
 	}
-	if fresh.LocalItems.Agents[0] != "original-agent" {
-		t.Errorf("Expected original agent, got %q", fresh.LocalItems.Agents[0])
+	if fresh.Extensions.Agents[0] != "original-agent" {
+		t.Errorf("Expected original agent, got %q", fresh.Extensions.Agents[0])
 	}
 }
 
@@ -813,26 +813,26 @@ func TestPreserveFromExistingNilFields(t *testing.T) {
 	existing := &Profile{}
 
 	fresh := &Profile{
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"extra-agent"},
 		},
 	}
 
 	fresh.PreserveFrom(existing)
 
-	if fresh.LocalItems != nil {
-		t.Errorf("Expected nil localItems (existing had none), got %v", fresh.LocalItems)
+	if fresh.Extensions != nil {
+		t.Errorf("Expected nil localItems (existing had none), got %v", fresh.Extensions)
 	}
 }
 
-func TestProfileWithLocalItems(t *testing.T) {
+func TestProfileWithExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
 	profilesDir := filepath.Join(tmpDir, "profiles")
 
 	p := &Profile{
 		Name:        "gsd-profile",
 		Description: "Get Shit Done workflow",
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents:   []string{"gsd-*"},
 			Commands: []string{"gsd/*"},
 			Hooks:    []string{"gsd-check-update.js"},
@@ -856,18 +856,18 @@ func TestProfileWithLocalItems(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 
-	// Verify LocalItems
-	if loaded.LocalItems == nil {
-		t.Fatal("LocalItems is nil")
+	// Verify Extensions
+	if loaded.Extensions == nil {
+		t.Fatal("Extensions is nil")
 	}
-	if len(loaded.LocalItems.Agents) != 1 || loaded.LocalItems.Agents[0] != "gsd-*" {
-		t.Errorf("LocalItems.Agents = %v, want [gsd-*]", loaded.LocalItems.Agents)
+	if len(loaded.Extensions.Agents) != 1 || loaded.Extensions.Agents[0] != "gsd-*" {
+		t.Errorf("Extensions.Agents = %v, want [gsd-*]", loaded.Extensions.Agents)
 	}
-	if len(loaded.LocalItems.Commands) != 1 || loaded.LocalItems.Commands[0] != "gsd/*" {
-		t.Errorf("LocalItems.Commands = %v, want [gsd/*]", loaded.LocalItems.Commands)
+	if len(loaded.Extensions.Commands) != 1 || loaded.Extensions.Commands[0] != "gsd/*" {
+		t.Errorf("Extensions.Commands = %v, want [gsd/*]", loaded.Extensions.Commands)
 	}
-	if len(loaded.LocalItems.Hooks) != 1 || loaded.LocalItems.Hooks[0] != "gsd-check-update.js" {
-		t.Errorf("LocalItems.Hooks = %v, want [gsd-check-update.js]", loaded.LocalItems.Hooks)
+	if len(loaded.Extensions.Hooks) != 1 || loaded.Extensions.Hooks[0] != "gsd-check-update.js" {
+		t.Errorf("Extensions.Hooks = %v, want [gsd-check-update.js]", loaded.Extensions.Hooks)
 	}
 
 	// Verify SettingsHooks
@@ -1720,7 +1720,7 @@ func TestEqual_IncludesComparison(t *testing.T) {
 func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
 	existing := &Profile{
 		Includes: []string{"saved-include"},
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Agents: []string{"saved-agent"},
 		},
 	}
@@ -1737,7 +1737,7 @@ func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
 	if len(p.Includes) != 0 {
 		t.Errorf("includes should not be preserved: got %v", p.Includes)
 	}
-	if p.LocalItems == nil || len(p.LocalItems.Agents) != 1 {
+	if p.Extensions == nil || len(p.Extensions.Agents) != 1 {
 		t.Error("local items not preserved")
 	}
 }

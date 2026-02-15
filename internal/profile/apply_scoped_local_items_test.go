@@ -1,4 +1,4 @@
-// ABOUTME: Tests for scope-aware local item application
+// ABOUTME: Tests for scope-aware extension application
 // ABOUTME: Validates user-scope symlinks, project-scope copies, and backward compat
 package profile
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
+func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -30,15 +30,15 @@ func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
 		Name: "test",
 	}
 
-	localItems := &LocalItemSettings{
+	localItems := &ExtensionSettings{
 		Rules:  []string{"golang.md"},
 		Agents: []string{"reviewer.md"},
 	}
 
 	// Apply at project scope
-	err := applyLocalItemsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
+	err := applyExtensionsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err != nil {
-		t.Fatalf("applyLocalItemsScoped failed: %v", err)
+		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
 
 	// Verify files were COPIED (not symlinked) to project .claude/
@@ -65,7 +65,7 @@ func TestApplyLocalItemsProjectScopeCopiesFiles(t *testing.T) {
 	}
 }
 
-func TestApplyLocalItemsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
+func TestApplyExtensionsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -80,18 +80,18 @@ func TestApplyLocalItemsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), "# Skill")
 
 	profile := &Profile{Name: "test"}
-	localItems := &LocalItemSettings{
+	localItems := &ExtensionSettings{
 		Skills: []string{"test-skill"},
 	}
 
 	// Apply at project scope should fail for unsupported category
-	err := applyLocalItemsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
+	err := applyExtensionsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err == nil {
 		t.Fatal("expected error for unsupported category at project scope")
 	}
 }
 
-func TestApplyLocalItemsUserScopeUsesSymlinks(t *testing.T) {
+func TestApplyExtensionsUserScopeUsesSymlinks(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -107,14 +107,14 @@ func TestApplyLocalItemsUserScopeUsesSymlinks(t *testing.T) {
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
 	profile := &Profile{Name: "test"}
-	localItems := &LocalItemSettings{
+	localItems := &ExtensionSettings{
 		Rules: []string{"golang.md"},
 	}
 
 	// Apply at user scope should use symlinks (existing behavior)
-	err := applyLocalItemsScoped(profile, localItems, ScopeUser, claudeDir, claudeupHome, "")
+	err := applyExtensionsScoped(profile, localItems, ScopeUser, claudeDir, claudeupHome, "")
 	if err != nil {
-		t.Fatalf("applyLocalItemsScoped failed: %v", err)
+		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
 
 	// Verify it created a symlink
@@ -128,7 +128,7 @@ func TestApplyLocalItemsUserScopeUsesSymlinks(t *testing.T) {
 	}
 }
 
-func TestApplyLocalItemsBackwardCompatFlatField(t *testing.T) {
+func TestApplyExtensionsBackwardCompatFlatField(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -141,18 +141,18 @@ func TestApplyLocalItemsBackwardCompatFlatField(t *testing.T) {
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
-	// Profile with flat LocalItems (legacy format)
+	// Profile with flat Extensions (legacy format)
 	profile := &Profile{
 		Name: "test",
-		LocalItems: &LocalItemSettings{
+		Extensions: &ExtensionSettings{
 			Rules: []string{"golang.md"},
 		},
 	}
 
-	// applyLocalItems (the existing function) should still work
-	err := applyLocalItems(profile, claudeDir, claudeupHome)
+	// applyExtensions (the existing function) should still work
+	err := applyExtensions(profile, claudeDir, claudeupHome)
 	if err != nil {
-		t.Fatalf("applyLocalItems failed: %v", err)
+		t.Fatalf("applyExtensions failed: %v", err)
 	}
 
 	// Verify symlink was created
@@ -162,11 +162,11 @@ func TestApplyLocalItemsBackwardCompatFlatField(t *testing.T) {
 		t.Fatalf("expected file at %s: %v", rulesPath, err)
 	}
 	if info.Mode()&os.ModeSymlink == 0 {
-		t.Error("expected symlink for backward compat flat LocalItems")
+		t.Error("expected symlink for backward compat flat Extensions")
 	}
 }
 
-func TestApplyAllScopesWithScopedLocalItems(t *testing.T) {
+func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -203,13 +203,13 @@ func TestApplyAllScopesWithScopedLocalItems(t *testing.T) {
 		Name: "test",
 		PerScope: &PerScopeSettings{
 			User: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Skills: []string{"session-notes"},
 					Rules:  []string{"coding-standards.md"},
 				},
 			},
 			Project: &ScopeSettings{
-				LocalItems: &LocalItemSettings{
+				Extensions: &ExtensionSettings{
 					Rules:  []string{"golang.md"},
 					Agents: []string{"reviewer.md"},
 				},

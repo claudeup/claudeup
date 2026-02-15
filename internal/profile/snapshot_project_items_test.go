@@ -1,4 +1,4 @@
-// ABOUTME: Tests for project-scoped local item snapshot capture
+// ABOUTME: Tests for project-scoped extension snapshot capture
 // ABOUTME: Validates scanning .claude/{agents,rules}/ for non-symlink files
 package profile
 
@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestReadProjectLocalItemsCapturesRegularFiles(t *testing.T) {
+func TestReadProjectExtensionsCapturesRegularFiles(t *testing.T) {
 	projectDir := t.TempDir()
 
 	// Create regular files in project .claude/ directories
@@ -21,9 +21,9 @@ func TestReadProjectLocalItemsCapturesRegularFiles(t *testing.T) {
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
 
-	items := readProjectLocalItems(projectDir)
+	items := readProjectExtensions(projectDir)
 	if items == nil {
-		t.Fatal("expected non-nil LocalItemSettings")
+		t.Fatal("expected non-nil ExtensionSettings")
 	}
 
 	if len(items.Rules) != 2 {
@@ -34,7 +34,7 @@ func TestReadProjectLocalItemsCapturesRegularFiles(t *testing.T) {
 	}
 }
 
-func TestReadProjectLocalItemsSkipsSymlinks(t *testing.T) {
+func TestReadProjectExtensionsSkipsSymlinks(t *testing.T) {
 	projectDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
@@ -56,9 +56,9 @@ func TestReadProjectLocalItemsSkipsSymlinks(t *testing.T) {
 	// Also create a regular file (project-scoped)
 	mustWriteFile(t, filepath.Join(projectRulesDir, "project-rule.md"), "# Project Rule")
 
-	items := readProjectLocalItems(projectDir)
+	items := readProjectExtensions(projectDir)
 	if items == nil {
-		t.Fatal("expected non-nil LocalItemSettings")
+		t.Fatal("expected non-nil ExtensionSettings")
 	}
 
 	// Should capture regular file, skip symlink
@@ -67,17 +67,17 @@ func TestReadProjectLocalItemsSkipsSymlinks(t *testing.T) {
 	}
 }
 
-func TestReadProjectLocalItemsReturnsNilWhenEmpty(t *testing.T) {
+func TestReadProjectExtensionsReturnsNilWhenEmpty(t *testing.T) {
 	projectDir := t.TempDir()
 
 	// No .claude directory at all
-	items := readProjectLocalItems(projectDir)
+	items := readProjectExtensions(projectDir)
 	if items != nil {
 		t.Errorf("expected nil for empty project, got %v", items)
 	}
 }
 
-func TestReadProjectLocalItemsReturnsNilWhenOnlySymlinks(t *testing.T) {
+func TestReadProjectExtensionsReturnsNilWhenOnlySymlinks(t *testing.T) {
 	projectDir := t.TempDir()
 
 	// Create a rules directory with only a symlink
@@ -95,13 +95,13 @@ func TestReadProjectLocalItemsReturnsNilWhenOnlySymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	items := readProjectLocalItems(projectDir)
+	items := readProjectExtensions(projectDir)
 	if items != nil {
 		t.Errorf("expected nil when only symlinks present, got %v", items)
 	}
 }
 
-func TestReadProjectLocalItemsSkipsHiddenAndCLAUDE(t *testing.T) {
+func TestReadProjectExtensionsSkipsHiddenAndCLAUDE(t *testing.T) {
 	projectDir := t.TempDir()
 
 	rulesDir := filepath.Join(projectDir, ".claude", "rules")
@@ -110,9 +110,9 @@ func TestReadProjectLocalItemsSkipsHiddenAndCLAUDE(t *testing.T) {
 	mustWriteFile(t, filepath.Join(rulesDir, "CLAUDE.md"), "# Claude")
 	mustWriteFile(t, filepath.Join(rulesDir, "visible-rule.md"), "# Visible")
 
-	items := readProjectLocalItems(projectDir)
+	items := readProjectExtensions(projectDir)
 	if items == nil {
-		t.Fatal("expected non-nil LocalItemSettings")
+		t.Fatal("expected non-nil ExtensionSettings")
 	}
 
 	if len(items.Rules) != 1 || items.Rules[0] != "visible-rule.md" {
@@ -120,7 +120,7 @@ func TestReadProjectLocalItemsSkipsHiddenAndCLAUDE(t *testing.T) {
 	}
 }
 
-func TestSnapshotAllScopesCapturesProjectLocalItems(t *testing.T) {
+func TestSnapshotAllScopesCapturesProjectExtensions(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
 	claudeupHome := filepath.Join(tempDir, ".claudeup")
@@ -152,15 +152,15 @@ func TestSnapshotAllScopesCapturesProjectLocalItems(t *testing.T) {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
 
-	// Project-scoped local items should be in PerScope.Project.LocalItems
+	// Project-scoped local items should be in PerScope.Project.Extensions
 	if profile.PerScope == nil || profile.PerScope.Project == nil {
 		t.Fatal("expected PerScope.Project to be set")
 	}
-	if profile.PerScope.Project.LocalItems == nil {
-		t.Fatal("expected PerScope.Project.LocalItems to be set")
+	if profile.PerScope.Project.Extensions == nil {
+		t.Fatal("expected PerScope.Project.Extensions to be set")
 	}
 
-	projectItems := profile.PerScope.Project.LocalItems
+	projectItems := profile.PerScope.Project.Extensions
 	if len(projectItems.Rules) != 1 || projectItems.Rules[0] != "golang.md" {
 		t.Errorf("expected project rules [golang.md], got %v", projectItems.Rules)
 	}
@@ -210,19 +210,19 @@ func TestSnapshotAllScopesPutsUserItemsInPerScopeUser(t *testing.T) {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
 
-	// User-scoped local items should be in PerScope.User.LocalItems
+	// User-scoped local items should be in PerScope.User.Extensions
 	if profile.PerScope == nil || profile.PerScope.User == nil {
 		t.Fatal("expected PerScope.User to be set")
 	}
-	if profile.PerScope.User.LocalItems == nil {
-		t.Fatal("expected PerScope.User.LocalItems to be set")
+	if profile.PerScope.User.Extensions == nil {
+		t.Fatal("expected PerScope.User.Extensions to be set")
 	}
-	if len(profile.PerScope.User.LocalItems.Rules) != 1 || profile.PerScope.User.LocalItems.Rules[0] != "coding.md" {
-		t.Errorf("expected user rules [coding.md], got %v", profile.PerScope.User.LocalItems.Rules)
+	if len(profile.PerScope.User.Extensions.Rules) != 1 || profile.PerScope.User.Extensions.Rules[0] != "coding.md" {
+		t.Errorf("expected user rules [coding.md], got %v", profile.PerScope.User.Extensions.Rules)
 	}
 
-	// Should NOT be in flat LocalItems anymore
-	if profile.LocalItems != nil {
-		t.Errorf("expected flat LocalItems to be nil for multi-scope snapshot, got %v", profile.LocalItems)
+	// Should NOT be in flat Extensions anymore
+	if profile.Extensions != nil {
+		t.Errorf("expected flat Extensions to be nil for multi-scope snapshot, got %v", profile.Extensions)
 	}
 }
