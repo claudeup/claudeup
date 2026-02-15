@@ -122,9 +122,9 @@ print_step "Importing all GSD items..."
 echo
 
 # Count imported items
-GSD_AGENTS=$(ls "$CLAUDEUP_HOME/local/agents/" 2>/dev/null | grep -c "gsd-" || echo "0")
-GSD_COMMANDS=$(ls "$CLAUDEUP_HOME/local/commands/gsd/" 2>/dev/null | wc -l | tr -d ' ')
-GSD_HOOKS=$(ls "$CLAUDEUP_HOME/local/hooks/" 2>/dev/null | grep -c "gsd-" || echo "0")
+GSD_AGENTS=$(ls "$CLAUDEUP_HOME/ext/agents/" 2>/dev/null | grep -c "gsd-" || echo "0")
+GSD_COMMANDS=$(ls "$CLAUDEUP_HOME/ext/commands/gsd/" 2>/dev/null | wc -l | tr -d ' ')
+GSD_HOOKS=$(ls "$CLAUDEUP_HOME/ext/hooks/" 2>/dev/null | grep -c "gsd-" || echo "0")
 
 print_success "Imported $GSD_AGENTS GSD agents, $GSD_COMMANDS GSD commands, $GSD_HOOKS GSD hooks"
 
@@ -236,8 +236,8 @@ else
 fi
 
 # Check that file was copied to local storage
-if [[ -f "$CLAUDEUP_HOME/local/agents/demo-agent.md" ]]; then
-    print_success "File copied to local/agents/"
+if [[ -f "$CLAUDEUP_HOME/ext/agents/demo-agent.md" ]]; then
+    print_success "File copied to ext/agents/"
 else
     print_error "File not found in local storage!"
     exit 1
@@ -278,9 +278,9 @@ print_step "Installing agent group directory..."
 echo
 
 print_step "Verifying agent group installation..."
-if [[ -d "$CLAUDEUP_HOME/local/agents/my-agents" ]]; then
-    print_success "Agent group directory copied to local/"
-    ls -la "$CLAUDEUP_HOME/local/agents/my-agents/"
+if [[ -d "$CLAUDEUP_HOME/ext/agents/my-agents" ]]; then
+    print_success "Agent group directory copied to ext/"
+    ls -la "$CLAUDEUP_HOME/ext/agents/my-agents/"
 else
     print_error "Agent group not found in local storage!"
     exit 1
@@ -313,8 +313,8 @@ echo
 print_header "Demo Complete!"
 
 CUSTOM_AGENTS=0
-if [ -d "$CLAUDEUP_HOME/local/agents" ]; then
-    CUSTOM_AGENTS=$(find "$CLAUDEUP_HOME/local/agents" -name '*.md' \( -name 'demo-agent*' -o -path '*/my-agents/*' \) | wc -l | tr -d ' ')
+if [ -d "$CLAUDEUP_HOME/ext/agents" ]; then
+    CUSTOM_AGENTS=$(find "$CLAUDEUP_HOME/ext/agents" -name '*.md' \( -name 'demo-agent*' -o -path '*/my-agents/*' \) | wc -l | tr -d ' ')
 fi
 
 echo "Summary:"

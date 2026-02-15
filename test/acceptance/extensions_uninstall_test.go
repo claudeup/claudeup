@@ -18,7 +18,7 @@ var _ = Describe("extensions uninstall", func() {
 		env = helpers.NewTestEnv(binaryPath)
 
 		// Create items in local storage
-		rulesDir := filepath.Join(env.ClaudeupDir, "local", "rules")
+		rulesDir := filepath.Join(env.ClaudeupDir, "ext", "rules")
 		Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(rulesDir, "my-rule.md"), []byte("# Rule"), 0644)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(rulesDir, "other-rule.md"), []byte("# Other"), 0644)).To(Succeed())
@@ -45,7 +45,7 @@ var _ = Describe("extensions uninstall", func() {
 	It("removes the file from local storage", func() {
 		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
-		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "local", "rules", "my-rule.md"))
+		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "ext", "rules", "my-rule.md"))
 		Expect(os.IsNotExist(err)).To(BeTrue())
 	})
 
@@ -59,7 +59,7 @@ var _ = Describe("extensions uninstall", func() {
 	It("does not affect other items", func() {
 		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
-		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "local", "rules", "other-rule.md"))
+		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "ext", "rules", "other-rule.md"))
 		Expect(err).NotTo(HaveOccurred())
 	})
 

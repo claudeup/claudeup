@@ -18,11 +18,11 @@ func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 	mustMkdir(t, projectDir)
 
 	// Create local items in claudeup storage
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 
-	agentsDir := filepath.Join(claudeupHome, "local", "agents")
+	agentsDir := filepath.Join(claudeupHome, "ext", "agents")
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer Agent")
 
@@ -75,7 +75,7 @@ func TestApplyExtensionsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	mustMkdir(t, projectDir)
 
 	// Create a skill in local storage
-	skillDir := filepath.Join(claudeupHome, "local", "skills", "test-skill")
+	skillDir := filepath.Join(claudeupHome, "ext", "skills", "test-skill")
 	mustMkdir(t, skillDir)
 	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), "# Skill")
 
@@ -99,7 +99,7 @@ func TestApplyExtensionsUserScopeUsesSymlinks(t *testing.T) {
 	mustMkdir(t, claudeDir)
 
 	// Create a rule in local storage
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 
@@ -136,7 +136,7 @@ func TestApplyExtensionsBackwardCompatFlatField(t *testing.T) {
 	mustMkdir(t, claudeDir)
 
 	// Create a rule in local storage
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
@@ -185,16 +185,16 @@ func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
 	// Create local items
-	userRulesDir := filepath.Join(claudeupHome, "local", "rules")
+	userRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, userRulesDir)
 	mustWriteFile(t, filepath.Join(userRulesDir, "coding-standards.md"), "# Coding Standards")
 	mustWriteFile(t, filepath.Join(userRulesDir, "golang.md"), "# Golang Rules")
 
-	userSkillsDir := filepath.Join(claudeupHome, "local", "skills", "session-notes")
+	userSkillsDir := filepath.Join(claudeupHome, "ext", "skills", "session-notes")
 	mustMkdir(t, userSkillsDir)
 	mustWriteFile(t, filepath.Join(userSkillsDir, "SKILL.md"), "# Session Notes Skill")
 
-	agentsDir := filepath.Join(claudeupHome, "local", "agents")
+	agentsDir := filepath.Join(claudeupHome, "ext", "agents")
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
 

@@ -267,7 +267,7 @@ These files are created and managed exclusively by `claudeup`.
 
 ---
 
-### `~/.claudeup/local/<category>/`
+### `~/.claudeup/ext/<category>/`
 
 **Owner:** claudeup
 **Format:** Directory tree organized by category (agents, commands, hooks, output-styles, rules, skills)
@@ -308,8 +308,8 @@ These files are created and managed exclusively by `claudeup`.
 | `setup`                    | `~/.claudeup/config.json` (initial config)                        | WRITE      |
 | `extensions enable`        | `~/.claudeup/enabled.json`, `~/.claude/<category>/<item>` symlink | WRITE      |
 | `extensions disable`       | `~/.claudeup/enabled.json`, removes `~/.claude/<category>/<item>` | WRITE      |
-| `extensions install`       | `~/.claudeup/local/<category>/`, `~/.claudeup/enabled.json`       | WRITE      |
-| `extensions import`        | `~/.claudeup/local/<category>/`, `~/.claudeup/enabled.json`       | WRITE      |
+| `extensions install`       | `~/.claudeup/ext/<category>/`, `~/.claudeup/enabled.json`         | WRITE      |
+| `extensions import`        | `~/.claudeup/ext/<category>/`, `~/.claudeup/enabled.json`         | WRITE      |
 
 ---
 

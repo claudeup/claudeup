@@ -65,7 +65,7 @@ Extensions:
     - golang
 ```
 
-Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Extensions (from `~/.claudeup/local/`) are grouped by category.
+Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Extensions (from `~/.claudeup/ext/`) are grouped by category.
 
 ## Profile Scopes
 

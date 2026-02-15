@@ -47,7 +47,7 @@ claudeup operates across two distinct directory trees:
 **claudeup's home directory** (`claudeupHome`, defaults to `~/.claudeup/`):
 
 - Owned by claudeup -- all claudeup-managed data lives here
-- `local/<category>/` stores the actual item files (agents, commands, skills, hooks, rules, output-styles)
+- `ext/<category>/` stores the actual item files (agents, commands, skills, hooks, rules, output-styles)
 - `enabled.json` tracks which items are enabled per category
 - `profiles/` stores saved profiles
 - `events/` stores operation logs
@@ -56,8 +56,8 @@ claudeup operates across two distinct directory trees:
 **How symlinks work:**
 
 ```
-~/.claude/agents/my-agent.md  -->  ~/.claudeup/local/agents/my-agent.md  (absolute symlink)
-~/.claude/hooks/my-hook.sh    -->  ~/.claudeup/local/hooks/my-hook.sh    (absolute symlink)
+~/.claude/agents/my-agent.md  -->  ~/.claudeup/ext/agents/my-agent.md  (absolute symlink)
+~/.claude/hooks/my-hook.sh    -->  ~/.claudeup/ext/hooks/my-hook.sh    (absolute symlink)
 ```
 
 **In code**, the `local.Manager` constructor takes both paths explicitly:

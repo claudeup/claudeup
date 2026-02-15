@@ -298,7 +298,7 @@ type DetectRules struct {
 }
 
 // ExtensionSettings contains extension patterns to enable.
-// These are items from ~/.claudeup/local/ that get symlinked to ~/.claude/
+// These are items from ~/.claudeup/ext/ that get symlinked to ~/.claude/
 type ExtensionSettings struct {
 	Agents       []string `json:"agents,omitempty"`
 	Commands     []string `json:"commands,omitempty"`

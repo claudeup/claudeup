@@ -1302,7 +1302,7 @@ func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome st
 // applyExtensionsCopy copies extensions into the project's .claude/ directory.
 // Only categories that Claude Code reads from project scope are allowed.
 func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir string) error {
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 
 	type categoryItems struct {
 		category string

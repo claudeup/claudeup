@@ -18,8 +18,8 @@ var _ = Describe("extensions view", func() {
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 
-		// Create local directory structure in claudeupHome/local/
-		localDir := filepath.Join(env.ClaudeupDir, "local")
+		// Create extension storage directory structure in claudeupHome/ext/
+		localDir := filepath.Join(env.ClaudeupDir, "ext")
 
 		agentsDir := filepath.Join(localDir, "agents")
 		hooksDir := filepath.Join(localDir, "hooks")

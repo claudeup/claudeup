@@ -14,7 +14,7 @@ func TestUninstall(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Setup: create and enable a rule
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	os.MkdirAll(rulesDir, 0755)
 	os.WriteFile(filepath.Join(rulesDir, "my-rule.md"), []byte("# Rule"), 0644)
 	if _, _, err := manager.Enable("rules", []string{"my-rule.md"}); err != nil {
@@ -61,7 +61,7 @@ func TestUninstallWildcard(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	os.MkdirAll(rulesDir, 0755)
 	os.WriteFile(filepath.Join(rulesDir, "gsd-one.md"), []byte("# One"), 0644)
 	os.WriteFile(filepath.Join(rulesDir, "gsd-two.md"), []byte("# Two"), 0644)
@@ -107,7 +107,7 @@ func TestUninstallDisabledItem(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create item without enabling it
-	rulesDir := filepath.Join(claudeupHome, "local", "rules")
+	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	os.MkdirAll(rulesDir, 0755)
 	os.WriteFile(filepath.Join(rulesDir, "disabled-rule.md"), []byte("# Disabled"), 0644)
 

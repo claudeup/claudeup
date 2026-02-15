@@ -141,10 +141,10 @@ echo
 
 step "Create fixture extensions for the team profile"
 
-mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules"
-mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents"
+mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules"
+mkdir -p "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/agents"
 
-cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" <<'RULE'
+cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules/golang.md" <<'RULE'
 # Go Coding Rules
 
 - Follow Effective Go guidelines
@@ -152,24 +152,24 @@ cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" <<'RULE'
 - Handle all errors explicitly
 - Prefer table-driven tests
 RULE
-success "Created local/rules/golang.md"
+success "Created ext/rules/golang.md"
 
-cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/coding-standards.md" <<'RULE'
+cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules/coding-standards.md" <<'RULE'
 # Coding Standards
 
 - Write clear, descriptive variable names
 - Keep functions under 40 lines
 - Document all exported symbols
 RULE
-success "Created local/rules/coding-standards.md"
+success "Created ext/rules/coding-standards.md"
 
-cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents/reviewer.md" <<'AGENT'
+cat > "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/agents/reviewer.md" <<'AGENT'
 # Code Reviewer
 
 You are a thorough code reviewer focused on Go best practices.
 Check for error handling, naming conventions, and test coverage.
 AGENT
-success "Created local/agents/reviewer.md"
+success "Created ext/agents/reviewer.md"
 pause
 
 # ===================================================================
@@ -245,12 +245,12 @@ success "Copied go-backend-team.json to Bob's profiles"
 echo
 
 step "Copy team extensions to Bob (from shared team tooling)"
-mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/rules"
-mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/agents"
-cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/rules/golang.md" \
-   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/rules/"
-cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/local/agents/reviewer.md" \
-   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/local/agents/"
+mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/rules"
+mkdir -p "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/agents"
+cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/rules/golang.md" \
+   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/rules/"
+cp "$EXAMPLE_TEMP_DIR/alice/claudeup-home/ext/agents/reviewer.md" \
+   "$EXAMPLE_TEMP_DIR/bob/claudeup-home/ext/agents/"
 success "Copied extensions to Bob"
 echo
 

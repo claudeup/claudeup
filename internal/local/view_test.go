@@ -14,7 +14,7 @@ func TestView(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	hooksDir := filepath.Join(localDir, "hooks")
 	skillsDir := filepath.Join(localDir, "skills", "bash")
 	os.MkdirAll(hooksDir, 0755)
@@ -48,7 +48,7 @@ func TestViewAgent(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure with grouped agent
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)

@@ -24,7 +24,7 @@ type Manager struct {
 func NewManager(claudeDir, claudeupHome string) *Manager {
 	return &Manager{
 		claudeDir:  claudeDir,
-		localDir:   filepath.Join(claudeupHome, "local"),
+		localDir:   filepath.Join(claudeupHome, "ext"),
 		configFile: filepath.Join(claudeupHome, "enabled.json"),
 	}
 }

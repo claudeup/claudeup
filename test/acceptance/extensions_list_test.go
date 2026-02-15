@@ -39,7 +39,7 @@ var _ = Describe("extensions list", func() {
 	Context("with items in library", func() {
 		BeforeEach(func() {
 			// Create rule items in local storage
-			rulesDir := filepath.Join(env.ClaudeupDir, "local", "rules")
+			rulesDir := filepath.Join(env.ClaudeupDir, "ext", "rules")
 			Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
 			Expect(os.WriteFile(filepath.Join(rulesDir, "enabled-rule.md"), []byte("# Enabled"), 0644)).To(Succeed())
 			Expect(os.WriteFile(filepath.Join(rulesDir, "disabled-rule.md"), []byte("# Disabled"), 0644)).To(Succeed())
@@ -121,7 +121,7 @@ var _ = Describe("extensions list", func() {
 		Context("long listing", func() {
 			BeforeEach(func() {
 				// Add hooks with different file types for long listing tests
-				hooksDir := filepath.Join(env.ClaudeupDir, "local", "hooks")
+				hooksDir := filepath.Join(env.ClaudeupDir, "ext", "hooks")
 				Expect(os.MkdirAll(hooksDir, 0755)).To(Succeed())
 				Expect(os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)).To(Succeed())
 				Expect(os.WriteFile(filepath.Join(hooksDir, "lint-check.py"), []byte("#!/usr/bin/env python3"), 0644)).To(Succeed())
@@ -149,7 +149,7 @@ var _ = Describe("extensions list", func() {
 				result := env.Run("extensions", "list", "hooks", "--long")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("local/hooks/format-on-save.sh"))
+				Expect(result.Stdout).To(ContainSubstring("ext/hooks/format-on-save.sh"))
 			})
 
 			It("supports -l shorthand", func() {
@@ -164,7 +164,7 @@ var _ = Describe("extensions list", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).NotTo(ContainSubstring("[markdown]"))
-				Expect(result.Stdout).NotTo(ContainSubstring("local/rules/"))
+				Expect(result.Stdout).NotTo(ContainSubstring("ext/rules/"))
 			})
 		})
 

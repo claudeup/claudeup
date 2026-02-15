@@ -32,7 +32,7 @@ var extensionsCmd = &cobra.Command{
 	Use:     "extensions",
 	Aliases: []string{"ext"},
 	Short:   "Manage extensions (agents, commands, skills, hooks, rules, output-styles)",
-	Long: `Manage Claude Code extensions stored in ~/.claudeup/local.
+	Long: `Manage Claude Code extensions stored in ~/.claudeup/ext.
 
 These are files (not marketplace plugins) that extend Claude Code
 with custom agents, commands, skills, hooks, rules, and output-styles.
@@ -121,7 +121,7 @@ var extensionsImportCmd = &cobra.Command{
 	Short: "Import items from active directory to extension storage",
 	Long: `Import items that were installed directly to active directories (like GSD).
 
-This command moves files from ~/.claude/<category>/ to ~/.claudeup/local/<category>/
+This command moves files from ~/.claude/<category>/ to ~/.claudeup/ext/<category>/
 and creates symlinks back, enabling management via claudeup.
 
 This is useful when tools install directly to active directories instead of extension storage.
@@ -299,7 +299,7 @@ func runExtensionsList(cmd *cobra.Command, args []string) error {
 				}
 				if extListLong {
 					fileType := fileTypeLabel(item.name)
-					relPath := filepath.Join("local", category, item.name)
+					relPath := filepath.Join("ext", category, item.name)
 					fmt.Printf("  %s %-30s [%s]  %s\n", status, item.name, fileType, relPath)
 				} else {
 					fmt.Printf("  %s %s\n", status, item.name)
@@ -356,7 +356,7 @@ func printGroupedAgents(items []itemStatus, long bool, category string) {
 		}
 		if long {
 			fileType := fileTypeLabel(item.name)
-			relPath := filepath.Join("local", category, item.name)
+			relPath := filepath.Join("ext", category, item.name)
 			fmt.Printf("  %s %-30s [%s]  %s\n", status, item.name, fileType, relPath)
 		} else {
 			fmt.Printf("  %s %s\n", status, item.name)
@@ -381,7 +381,7 @@ func printGroupedAgents(items []itemStatus, long bool, category string) {
 			if long {
 				fullName := group + "/" + item.name
 				fileType := fileTypeLabel(item.name)
-				relPath := filepath.Join("local", category, fullName)
+				relPath := filepath.Join("ext", category, fullName)
 				fmt.Printf("    %s %-28s [%s]  %s\n", status, displayName, fileType, relPath)
 			} else {
 				fmt.Printf("    %s %s\n", status, displayName)

@@ -412,7 +412,7 @@ claudeup plugin search api --format json
 
 ### extensions
 
-Manage Claude Code extensions (agents, commands, skills, hooks, rules, output-styles) from `~/.claudeup/local`.
+Manage Claude Code extensions (agents, commands, skills, hooks, rules, output-styles) from `~/.claudeup/ext`.
 
 Alias: `ext`
 
@@ -450,13 +450,13 @@ claudeup extensions uninstall <category> <items...> # Remove items from storage
 
 **Import commands:**
 
-`import` moves items from active directories (`~/.claude/<category>/`) to storage (`~/.claudeup/local/<category>/`) and creates symlinks back. Use when tools install directly to active directories.
+`import` moves items from active directories (`~/.claude/<category>/`) to storage (`~/.claudeup/ext/<category>/`) and creates symlinks back. Use when tools install directly to active directories.
 
 `import-all` scans all categories at once. Without patterns, imports everything. With patterns, only matching items.
 
 `install` copies items from an external path (git repos, downloads) to storage and enables them.
 
-`uninstall` removes items from storage entirely -- disables the item, removes its symlink from `~/.claude/<category>/`, deletes the file from `~/.claudeup/local/<category>/`, and removes the config entry. Supports the same wildcards as enable/disable.
+`uninstall` removes items from storage entirely -- disables the item, removes its symlink from `~/.claude/<category>/`, deletes the file from `~/.claudeup/ext/<category>/`, and removes the config entry. Supports the same wildcards as enable/disable.
 
 ## Event Tracking
 

@@ -15,7 +15,7 @@ func TestEnableDisable(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
@@ -72,7 +72,7 @@ func TestEnableAgentWithGroup(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure with groups
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	groupDir := filepath.Join(localDir, "agents", "business-product")
 	os.MkdirAll(groupDir, 0755)
 	os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644)
@@ -97,7 +97,7 @@ func TestEnableAgentWithGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
 	}
-	expectedTarget := filepath.Join(claudeupHome, "local", "agents", "business-product", "analyst.md")
+	expectedTarget := filepath.Join(claudeupHome, "ext", "agents", "business-product", "analyst.md")
 	if target != expectedTarget {
 		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
@@ -109,7 +109,7 @@ func TestEnableWildcard(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	agentsDir := filepath.Join(localDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
@@ -132,7 +132,7 @@ func TestEnableNestedCommand(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure for commands with subdirectory
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	gsdCommandsDir := filepath.Join(localDir, "commands", "gsd")
 	os.MkdirAll(gsdCommandsDir, 0755)
 	os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644)
@@ -162,7 +162,7 @@ func TestEnableNestedCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
 	}
-	expectedTarget := filepath.Join(claudeupHome, "local", "commands", "gsd", "new-project.md")
+	expectedTarget := filepath.Join(claudeupHome, "ext", "commands", "gsd", "new-project.md")
 	if target != expectedTarget {
 		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
@@ -174,7 +174,7 @@ func TestImport(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure (empty)
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
 	os.MkdirAll(filepath.Join(localDir, "hooks"), 0755)
 
@@ -237,7 +237,7 @@ func TestImportDirectory(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure (empty)
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	os.MkdirAll(filepath.Join(localDir, "commands"), 0755)
 
 	// Create commands/gsd directory directly (simulating GSD install)
@@ -299,7 +299,7 @@ func TestImportSkipsSymlinks(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local storage with an item
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
 	os.WriteFile(filepath.Join(localDir, "agents", "existing.md"), []byte("# Existing"), 0644)
 
@@ -361,7 +361,7 @@ func TestImportAll(t *testing.T) {
 	}
 
 	// Verify files moved to local storage
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
 		t.Error("gsd-planner.md was not moved to local storage")
 	}
@@ -382,7 +382,7 @@ func TestEnableDirectoryByName(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure for commands with a subdirectory
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	vsphereDir := filepath.Join(localDir, "commands", "vsphere-architect")
 	os.MkdirAll(vsphereDir, 0755)
 	os.WriteFile(filepath.Join(vsphereDir, "capacity-plan.md"), []byte("# Capacity Plan"), 0644)
@@ -433,7 +433,7 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	commandsDir := filepath.Join(localDir, "commands")
 	os.MkdirAll(commandsDir, 0755)
 	os.WriteFile(filepath.Join(commandsDir, "legit.md"), []byte("# Legit"), 0644)
@@ -506,7 +506,7 @@ func TestImportReconciliation(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local storage with an existing item
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
 	os.WriteFile(filepath.Join(localDir, "agents", "existing-agent.md"), []byte("# Stored Version"), 0644)
 
@@ -555,7 +555,7 @@ func TestEnableMixedItems(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	commandsDir := filepath.Join(localDir, "commands")
 	groupDir := filepath.Join(commandsDir, "group")
 	os.MkdirAll(groupDir, 0755)
@@ -596,7 +596,7 @@ func TestEnableEmptyDirectory(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local storage with empty directory
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	emptyDir := filepath.Join(localDir, "commands", "empty-dir")
 	os.MkdirAll(emptyDir, 0755)
 
@@ -620,7 +620,7 @@ func TestEnableNestedDirectories(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create nested directory structure (only one level is expanded)
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	topDir := filepath.Join(localDir, "commands", "top")
 	os.MkdirAll(topDir, 0755)
 	os.WriteFile(filepath.Join(topDir, "item.md"), []byte("# Item"), 0644)

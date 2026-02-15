@@ -39,7 +39,7 @@ func TestReadProjectExtensionsSkipsSymlinks(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create a source file in claudeup local storage
-	localRulesDir := filepath.Join(claudeupHome, "local", "rules")
+	localRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, localRulesDir)
 	mustWriteFile(t, filepath.Join(localRulesDir, "user-rule.md"), "# User Rule")
 
@@ -186,7 +186,7 @@ func TestSnapshotAllScopesPutsUserItemsInPerScopeUser(t *testing.T) {
 	mustWriteJSON(t, claudeJSONPath, map[string]any{"mcpServers": map[string]any{}})
 
 	// Create local items in claudeup storage and enable them
-	localRulesDir := filepath.Join(claudeupHome, "local", "rules")
+	localRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, localRulesDir)
 	mustWriteFile(t, filepath.Join(localRulesDir, "coding.md"), "# Coding")
 

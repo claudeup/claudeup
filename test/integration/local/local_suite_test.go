@@ -15,7 +15,7 @@ func TestLocalIntegration(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create full local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	agentsDir := filepath.Join(localDir, "agents")
 	commandsDir := filepath.Join(localDir, "commands", "gsd")
 	hooksDir := filepath.Join(localDir, "hooks")
@@ -96,7 +96,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create local directory structure with agent groups
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	agentsDir := filepath.Join(localDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 
@@ -138,7 +138,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
 	}
-	expectedTarget := filepath.Join(claudeupHome, "local", "agents", "business-product", "analyst.md")
+	expectedTarget := filepath.Join(claudeupHome, "ext", "agents", "business-product", "analyst.md")
 	if target != expectedTarget {
 		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
 	}
@@ -149,7 +149,7 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create local directory structure for commands with directories
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	commandsDir := filepath.Join(localDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 
@@ -193,7 +193,7 @@ func TestLocalConfigPersistence(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "local")
+	localDir := filepath.Join(claudeupHome, "ext")
 	hooksDir := filepath.Join(localDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
