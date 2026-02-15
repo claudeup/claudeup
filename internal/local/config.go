@@ -1,4 +1,4 @@
-// ABOUTME: Manages enabled.json configuration file for local items
+// ABOUTME: Manages enabled.json configuration file for extensions
 // ABOUTME: Provides load/save operations for tracking enabled state in CLAUDEUP_HOME
 package local
 

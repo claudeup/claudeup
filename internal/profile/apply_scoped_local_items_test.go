@@ -17,7 +17,7 @@ func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 	mustMkdir(t, claudeDir)
 	mustMkdir(t, projectDir)
 
-	// Create local items in claudeup storage
+	// Create extensions in claudeup storage
 	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
@@ -184,7 +184,7 @@ func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	mustWriteJSON(t, claudeJSONPath, map[string]any{"mcpServers": map[string]any{}})
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
-	// Create local items
+	// Create extensions
 	userRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, userRulesDir)
 	mustWriteFile(t, filepath.Join(userRulesDir, "coding-standards.md"), "# Coding Standards")

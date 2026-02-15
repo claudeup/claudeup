@@ -568,7 +568,7 @@ Configuration is stored in `~/.claudeup/`:
 ├── enabled.json      # Tracks which extensions are enabled per category
 ├── projects.json     # Local-scope project-to-profile mappings
 ├── events/           # Operation event logs
-├── local/            # Storage for extensions
+├── ext/              # Storage for extensions
 │   ├── agents/
 │   ├── commands/
 │   ├── hooks/

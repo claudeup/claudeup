@@ -1256,8 +1256,8 @@ func applyExtensions(profile *Profile, claudeDir, claudeupHome string) error {
 }
 
 // applyExtensionsScoped enables extensions at the specified scope.
-// User scope: creates symlinks from claudeDir to claudeupHome/local (existing behavior).
-// Project/local scope: copies files from claudeupHome/local into projectDir/.claude/.
+// User scope: creates symlinks from claudeDir to claudeupHome/ext (existing behavior).
+// Project/local scope: copies files from claudeupHome/ext into projectDir/.claude/.
 func applyExtensionsScoped(_ *Profile, items *ExtensionSettings, scope Scope, claudeDir, claudeupHome, projectDir string) error {
 	if items == nil {
 		return nil
