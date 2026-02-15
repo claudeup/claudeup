@@ -279,6 +279,66 @@ func (e *TestEnv) CreateSettings(enabledPlugins map[string]bool) {
 	Expect(os.WriteFile(filepath.Join(e.ClaudeDir, "settings.json"), jsonData, 0644)).To(Succeed())
 }
 
+// CreateProjectScopeSettings writes a .claude/settings.json in the given project directory
+func (e *TestEnv) CreateProjectScopeSettings(projectDir string, enabledPlugins map[string]bool) {
+	claudeDir := filepath.Join(projectDir, ".claude")
+	Expect(os.MkdirAll(claudeDir, 0755)).To(Succeed())
+	settings := map[string]interface{}{
+		"enabledPlugins": enabledPlugins,
+	}
+	jsonData, err := json.MarshalIndent(settings, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(claudeDir, "settings.json"), jsonData, 0644)).To(Succeed())
+}
+
+// CreateLocalScopeSettings writes a .claude/settings.local.json in the given project directory
+func (e *TestEnv) CreateLocalScopeSettings(projectDir string, enabledPlugins map[string]bool) {
+	claudeDir := filepath.Join(projectDir, ".claude")
+	Expect(os.MkdirAll(claudeDir, 0755)).To(Succeed())
+	settings := map[string]interface{}{
+		"enabledPlugins": enabledPlugins,
+	}
+	jsonData, err := json.MarshalIndent(settings, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(claudeDir, "settings.local.json"), jsonData, 0644)).To(Succeed())
+}
+
+// RegisterProjectScope registers a profile at project scope for a directory in projects.json.
+// Unlike RegisterProject (which sets local scope), this sets the projectProfile field.
+func (e *TestEnv) RegisterProjectScope(projectDir, profileName string) {
+	path := filepath.Join(e.ClaudeupDir, "projects.json")
+
+	normalizedDir := projectDir
+	if resolved, err := filepath.EvalSymlinks(projectDir); err == nil {
+		normalizedDir = resolved
+	}
+
+	// Read existing registry or create new
+	var registry map[string]interface{}
+	if data, err := os.ReadFile(path); err == nil {
+		json.Unmarshal(data, &registry)
+	}
+	if registry == nil {
+		registry = map[string]interface{}{
+			"version":  "1",
+			"projects": map[string]interface{}{},
+		}
+	}
+
+	projects := registry["projects"].(map[string]interface{})
+	entry, ok := projects[normalizedDir].(map[string]interface{})
+	if !ok {
+		entry = map[string]interface{}{}
+	}
+	entry["projectProfile"] = profileName
+	entry["projectAppliedAt"] = "2025-01-01T00:00:00Z"
+	projects[normalizedDir] = entry
+
+	data, err := json.MarshalIndent(registry, "", "  ")
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(path, data, 0644)).To(Succeed())
+}
+
 // IsPluginEnabled checks if a plugin is enabled in settings.json
 func (e *TestEnv) IsPluginEnabled(pluginName string) bool {
 	data, err := os.ReadFile(filepath.Join(e.ClaudeDir, "settings.json"))
