@@ -39,15 +39,15 @@ func TestReadProjectExtensionsSkipsSymlinks(t *testing.T) {
 	claudeupHome := t.TempDir()
 
 	// Create a source file in claudeup extension storage
-	localRulesDir := filepath.Join(claudeupHome, "ext", "rules")
-	mustMkdir(t, localRulesDir)
-	mustWriteFile(t, filepath.Join(localRulesDir, "user-rule.md"), "# User Rule")
+	extRulesDir := filepath.Join(claudeupHome, "ext", "rules")
+	mustMkdir(t, extRulesDir)
+	mustWriteFile(t, filepath.Join(extRulesDir, "user-rule.md"), "# User Rule")
 
 	// Create a symlink in project .claude/rules/ pointing to extension storage
 	projectRulesDir := filepath.Join(projectDir, ".claude", "rules")
 	mustMkdir(t, projectRulesDir)
 	if err := os.Symlink(
-		filepath.Join(localRulesDir, "user-rule.md"),
+		filepath.Join(extRulesDir, "user-rule.md"),
 		filepath.Join(projectRulesDir, "user-rule.md"),
 	); err != nil {
 		t.Fatal(err)
@@ -186,15 +186,15 @@ func TestSnapshotAllScopesPutsUserItemsInPerScopeUser(t *testing.T) {
 	mustWriteJSON(t, claudeJSONPath, map[string]any{"mcpServers": map[string]any{}})
 
 	// Create extensions in claudeup storage and enable them
-	localRulesDir := filepath.Join(claudeupHome, "ext", "rules")
-	mustMkdir(t, localRulesDir)
-	mustWriteFile(t, filepath.Join(localRulesDir, "coding.md"), "# Coding")
+	extRulesDir := filepath.Join(claudeupHome, "ext", "rules")
+	mustMkdir(t, extRulesDir)
+	mustWriteFile(t, filepath.Join(extRulesDir, "coding.md"), "# Coding")
 
 	// Create symlink in claudeDir (simulating enabled state)
 	claudeRulesDir := filepath.Join(claudeDir, "rules")
 	mustMkdir(t, claudeRulesDir)
 	if err := os.Symlink(
-		filepath.Join(localRulesDir, "coding.md"),
+		filepath.Join(extRulesDir, "coding.md"),
 		filepath.Join(claudeRulesDir, "coding.md"),
 	); err != nil {
 		t.Fatal(err)

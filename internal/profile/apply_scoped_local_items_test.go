@@ -30,13 +30,13 @@ func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 		Name: "test",
 	}
 
-	localItems := &ExtensionSettings{
+	extensions := &ExtensionSettings{
 		Rules:  []string{"golang.md"},
 		Agents: []string{"reviewer.md"},
 	}
 
 	// Apply at project scope
-	err := applyExtensionsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
+	err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err != nil {
 		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
@@ -80,12 +80,12 @@ func TestApplyExtensionsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), "# Skill")
 
 	profile := &Profile{Name: "test"}
-	localItems := &ExtensionSettings{
+	extensions := &ExtensionSettings{
 		Skills: []string{"test-skill"},
 	}
 
 	// Apply at project scope should fail for unsupported category
-	err := applyExtensionsScoped(profile, localItems, ScopeProject, claudeDir, claudeupHome, projectDir)
+	err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err == nil {
 		t.Fatal("expected error for unsupported category at project scope")
 	}
@@ -107,12 +107,12 @@ func TestApplyExtensionsUserScopeUsesSymlinks(t *testing.T) {
 	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
 
 	profile := &Profile{Name: "test"}
-	localItems := &ExtensionSettings{
+	extensions := &ExtensionSettings{
 		Rules: []string{"golang.md"},
 	}
 
 	// Apply at user scope should use symlinks (existing behavior)
-	err := applyExtensionsScoped(profile, localItems, ScopeUser, claudeDir, claudeupHome, "")
+	err := applyExtensionsScoped(profile, extensions, ScopeUser, claudeDir, claudeupHome, "")
 	if err != nil {
 		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}

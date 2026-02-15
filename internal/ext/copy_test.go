@@ -9,11 +9,11 @@ import (
 )
 
 func TestCopyToProjectCopiesFiles(t *testing.T) {
-	localDir := t.TempDir()
+	extDir := t.TempDir()
 	projectDir := t.TempDir()
 
 	// Create source files in extension storage
-	rulesDir := filepath.Join(localDir, "rules")
+	rulesDir := filepath.Join(extDir, "rules")
 	if err := os.MkdirAll(rulesDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -21,7 +21,7 @@ func TestCopyToProjectCopiesFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	copied, notFound, err := CopyToProject(localDir, "rules", []string{"golang.md"}, projectDir)
+	copied, notFound, err := CopyToProject(extDir, "rules", []string{"golang.md"}, projectDir)
 	if err != nil {
 		t.Fatalf("CopyToProject failed: %v", err)
 	}
@@ -54,11 +54,11 @@ func TestCopyToProjectCopiesFiles(t *testing.T) {
 }
 
 func TestCopyToProjectCreatesDirectories(t *testing.T) {
-	localDir := t.TempDir()
+	extDir := t.TempDir()
 	projectDir := t.TempDir()
 
 	// Create a nested agent file
-	agentDir := filepath.Join(localDir, "agents", "review-team")
+	agentDir := filepath.Join(extDir, "agents", "review-team")
 	if err := os.MkdirAll(agentDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestCopyToProjectCreatesDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	copied, _, err := CopyToProject(localDir, "agents", []string{"review-team/reviewer.md"}, projectDir)
+	copied, _, err := CopyToProject(extDir, "agents", []string{"review-team/reviewer.md"}, projectDir)
 	if err != nil {
 		t.Fatalf("CopyToProject failed: %v", err)
 	}
@@ -83,11 +83,11 @@ func TestCopyToProjectCreatesDirectories(t *testing.T) {
 }
 
 func TestCopyToProjectHandlesSkillDirectories(t *testing.T) {
-	localDir := t.TempDir()
+	extDir := t.TempDir()
 	projectDir := t.TempDir()
 
 	// Create a skill directory with SKILL.md and supporting files
-	skillDir := filepath.Join(localDir, "skills", "session-notes")
+	skillDir := filepath.Join(extDir, "skills", "session-notes")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestCopyToProjectHandlesSkillDirectories(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	copied, _, err := CopyToProject(localDir, "skills", []string{"session-notes"}, projectDir)
+	copied, _, err := CopyToProject(extDir, "skills", []string{"session-notes"}, projectDir)
 	if err != nil {
 		t.Fatalf("CopyToProject failed: %v", err)
 	}
@@ -119,11 +119,11 @@ func TestCopyToProjectHandlesSkillDirectories(t *testing.T) {
 }
 
 func TestCopyToProjectWithWildcards(t *testing.T) {
-	localDir := t.TempDir()
+	extDir := t.TempDir()
 	projectDir := t.TempDir()
 
 	// Create multiple rules
-	rulesDir := filepath.Join(localDir, "rules")
+	rulesDir := filepath.Join(extDir, "rules")
 	if err := os.MkdirAll(rulesDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +133,7 @@ func TestCopyToProjectWithWildcards(t *testing.T) {
 		}
 	}
 
-	copied, _, err := CopyToProject(localDir, "rules", []string{"go*"}, projectDir)
+	copied, _, err := CopyToProject(extDir, "rules", []string{"go*"}, projectDir)
 	if err != nil {
 		t.Fatalf("CopyToProject failed: %v", err)
 	}
@@ -150,11 +150,11 @@ func TestCopyToProjectWithWildcards(t *testing.T) {
 }
 
 func TestCopyToProjectOverwrites(t *testing.T) {
-	localDir := t.TempDir()
+	extDir := t.TempDir()
 	projectDir := t.TempDir()
 
 	// Create source
-	rulesDir := filepath.Join(localDir, "rules")
+	rulesDir := filepath.Join(extDir, "rules")
 	if err := os.MkdirAll(rulesDir, 0755); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestCopyToProjectOverwrites(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, _, err := CopyToProject(localDir, "rules", []string{"golang.md"}, projectDir)
+	_, _, err := CopyToProject(extDir, "rules", []string{"golang.md"}, projectDir)
 	if err != nil {
 		t.Fatalf("CopyToProject failed: %v", err)
 	}
@@ -187,15 +187,15 @@ func TestCopyToProjectOverwrites(t *testing.T) {
 }
 
 func TestCopyToProjectNotFound(t *testing.T) {
-	localDir := t.TempDir()
+	extDir := t.TempDir()
 	projectDir := t.TempDir()
 
 	// Create rules dir but no matching files
-	if err := os.MkdirAll(filepath.Join(localDir, "rules"), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(extDir, "rules"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
-	copied, notFound, err := CopyToProject(localDir, "rules", []string{"nonexistent.md"}, projectDir)
+	copied, notFound, err := CopyToProject(extDir, "rules", []string{"nonexistent.md"}, projectDir)
 	if err != nil {
 		t.Fatalf("CopyToProject failed: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestProjectScopeCategories(t *testing.T) {
 
 func TestValidateDestPath(t *testing.T) {
 	// Defense-in-depth: OS filesystems reject "/" in filenames, so
-	// listLocalItems cannot return traversal sequences. This tests the
+	// listItems cannot return traversal sequences. This tests the
 	// validateDestPath safety net against externally-crafted item names.
 	baseDir := filepath.Clean("/project/.claude/rules")
 

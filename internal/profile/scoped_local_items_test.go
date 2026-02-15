@@ -129,9 +129,9 @@ func TestForScopeReturnsExtensions(t *testing.T) {
 	}
 
 	// Local scope (not set) should have nil Extensions
-	localProfile := p.ForScope("local")
-	if localProfile.Extensions != nil {
-		t.Errorf("expected local scope to have nil Extensions, got %v", localProfile.Extensions)
+	scopeProfile := p.ForScope("local")
+	if scopeProfile.Extensions != nil {
+		t.Errorf("expected local scope to have nil Extensions, got %v", scopeProfile.Extensions)
 	}
 }
 

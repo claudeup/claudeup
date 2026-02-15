@@ -934,7 +934,7 @@ func TestHasConfigFields(t *testing.T) {
 		{"with marketplaces", &Profile{Marketplaces: []Marketplace{{Source: "github"}}}, true},
 		{"with mcp servers", &Profile{MCPServers: []MCPServer{{Name: "a"}}}, true},
 		{"with perScope", &Profile{PerScope: &PerScopeSettings{}}, true},
-		{"with localItems", &Profile{Extensions: &ExtensionSettings{}}, true},
+		{"with extensions", &Profile{Extensions: &ExtensionSettings{}}, true},
 		{"with settingsHooks", &Profile{SettingsHooks: map[string][]HookEntry{"a": {}}}, true},
 		{"with detect files", &Profile{Detect: DetectRules{Files: []string{"a"}}}, true},
 		{"with detect contains", &Profile{Detect: DetectRules{Contains: map[string]string{"a": "b"}}}, true},

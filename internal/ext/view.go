@@ -19,7 +19,7 @@ func (m *Manager) View(category, item string) (string, error) {
 
 	if category == CategorySkills {
 		// Skills are directories with SKILL.md inside
-		skillDir := filepath.Join(m.localDir, category, item)
+		skillDir := filepath.Join(m.extDir, category, item)
 		if info, err := os.Stat(skillDir); err == nil && info.IsDir() {
 			skillFile := filepath.Join(skillDir, "SKILL.md")
 			data, err := os.ReadFile(skillFile)
@@ -38,7 +38,7 @@ func (m *Manager) View(category, item string) (string, error) {
 	}
 
 	// Read the file
-	filePath := filepath.Join(m.localDir, category, resolved)
+	filePath := filepath.Join(m.extDir, category, resolved)
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", fmt.Errorf("item not found: %s/%s", category, item)

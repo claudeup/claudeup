@@ -237,12 +237,12 @@ func TestForScope(t *testing.T) {
 	}
 
 	// Test extracting local scope
-	localProfile := multiProfile.ForScope("local")
-	if localProfile == nil {
+	scopeProfile := multiProfile.ForScope("local")
+	if scopeProfile == nil {
 		t.Fatal("ForScope(local) returned nil")
 	}
-	if len(localProfile.Plugins) != 1 {
-		t.Errorf("expected 1 local plugin, got %d", len(localProfile.Plugins))
+	if len(scopeProfile.Plugins) != 1 {
+		t.Errorf("expected 1 local plugin, got %d", len(scopeProfile.Plugins))
 	}
 
 	// Test extracting non-existent scope returns empty profile

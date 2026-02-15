@@ -54,7 +54,7 @@ func (m *Manager) Uninstall(category string, patterns []string) ([]string, []str
 			}
 
 			// Remove from extension storage
-			itemPath := filepath.Join(m.localDir, category, item)
+			itemPath := filepath.Join(m.extDir, category, item)
 			if err := os.RemoveAll(itemPath); err != nil {
 				return nil, nil, fmt.Errorf("failed to remove %s: %w", item, err)
 			}

@@ -14,8 +14,8 @@ func TestListItems(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "ext")
-	agentsDir := filepath.Join(localDir, "agents")
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 
 	// Create some agent files
@@ -44,8 +44,8 @@ func TestListItemsWithGroups(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure with groups (for agents)
-	localDir := filepath.Join(claudeupHome, "ext")
-	agentsDir := filepath.Join(localDir, "agents")
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 	os.MkdirAll(groupDir, 0755)
 
@@ -100,8 +100,8 @@ func TestListItemsErrorPropagation(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "ext")
-	agentsDir := filepath.Join(localDir, "agents")
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "test.md"), []byte("# Test"), 0644)
 
@@ -122,8 +122,8 @@ func TestListItemsNestedCommands(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure for commands with subdirectories
-	localDir := filepath.Join(claudeupHome, "ext")
-	commandsDir := filepath.Join(localDir, "commands")
+	extDir := filepath.Join(claudeupHome, "ext")
+	commandsDir := filepath.Join(extDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 	os.MkdirAll(gsdDir, 0755)
 
@@ -166,8 +166,8 @@ func TestListItemsSkillsWithSKILLMD(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Create local directory structure for skills (directories containing SKILL.md)
-	localDir := filepath.Join(claudeupHome, "ext")
-	skillsDir := filepath.Join(localDir, "skills")
+	extDir := filepath.Join(claudeupHome, "ext")
+	skillsDir := filepath.Join(extDir, "skills")
 	bashSkill := filepath.Join(skillsDir, "bash")
 	webDesignSkill := filepath.Join(skillsDir, "web-design-guidelines")
 	os.MkdirAll(bashSkill, 0755)

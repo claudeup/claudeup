@@ -37,8 +37,8 @@ func TestInstall_SingleFile(t *testing.T) {
 	}
 
 	// Assert: File exists in extension storage
-	localFile := filepath.Join(claudeupHome, "ext", "hooks", "my-hook.sh")
-	if _, err := os.Stat(localFile); err != nil {
+	extFile := filepath.Join(claudeupHome, "ext", "hooks", "my-hook.sh")
+	if _, err := os.Stat(extFile); err != nil {
 		t.Errorf("file not in extension storage: %v", err)
 	}
 
@@ -90,8 +90,8 @@ func TestInstall_SingleDirectory(t *testing.T) {
 	}
 
 	// Assert: Directory exists in extension storage with contents
-	localSkill := filepath.Join(claudeupHome, "ext", "skills", "my-skill", "SKILL.md")
-	if _, err := os.Stat(localSkill); err != nil {
+	extSkill := filepath.Join(claudeupHome, "ext", "skills", "my-skill", "SKILL.md")
+	if _, err := os.Stat(extSkill); err != nil {
 		t.Errorf("skill not in extension storage: %v", err)
 	}
 }
@@ -143,11 +143,11 @@ func TestInstall_SkipsExisting(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Pre-create existing item in extension storage
-	localDir := filepath.Join(claudeupHome, "ext", "hooks")
-	if err := os.MkdirAll(localDir, 0755); err != nil {
+	extDir := filepath.Join(claudeupHome, "ext", "hooks")
+	if err := os.MkdirAll(extDir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	existingFile := filepath.Join(localDir, "existing.sh")
+	existingFile := filepath.Join(extDir, "existing.sh")
 	if err := os.WriteFile(existingFile, []byte("original content"), 0755); err != nil {
 		t.Fatal(err)
 	}

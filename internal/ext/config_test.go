@@ -77,3 +77,61 @@ func TestConfigRoundTrip(t *testing.T) {
 		t.Error("commands/gsd/new-project.md should be true")
 	}
 }
+
+func TestManagerMigratesOldDirectory(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	// Create the old "local" directory with content
+	oldDir := filepath.Join(claudeupHome, "local", "agents")
+	os.MkdirAll(oldDir, 0755)
+	os.WriteFile(filepath.Join(oldDir, "my-agent.md"), []byte("# Agent"), 0644)
+
+	// Create manager -- should auto-migrate
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Old directory should be gone
+	if _, err := os.Stat(filepath.Join(claudeupHome, "local")); !os.IsNotExist(err) {
+		t.Error("Old 'local' directory should have been removed after migration")
+	}
+
+	// New directory should exist with the content
+	newPath := filepath.Join(claudeupHome, "ext", "agents", "my-agent.md")
+	if _, err := os.Stat(newPath); os.IsNotExist(err) {
+		t.Error("Content should be in new 'ext' directory after migration")
+	}
+
+	// Manager should use new directory
+	items, err := manager.ListItems("agents")
+	if err != nil {
+		t.Fatalf("ListItems() error = %v", err)
+	}
+	if len(items) != 1 {
+		t.Errorf("ListItems() = %d, want 1", len(items))
+	}
+}
+
+func TestManagerSkipsMigrationWhenExtExists(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	// Create both old and new directories
+	oldDir := filepath.Join(claudeupHome, "local", "agents")
+	os.MkdirAll(oldDir, 0755)
+	os.WriteFile(filepath.Join(oldDir, "old-agent.md"), []byte("# Old"), 0644)
+
+	newDir := filepath.Join(claudeupHome, "ext", "agents")
+	os.MkdirAll(newDir, 0755)
+	os.WriteFile(filepath.Join(newDir, "new-agent.md"), []byte("# New"), 0644)
+
+	// Create manager -- should NOT overwrite ext
+	_ = NewManager(claudeDir, claudeupHome)
+
+	// Both directories should still exist
+	if _, err := os.Stat(filepath.Join(claudeupHome, "local")); os.IsNotExist(err) {
+		t.Error("Old 'local' directory should be preserved when 'ext' already exists")
+	}
+	if _, err := os.Stat(filepath.Join(claudeupHome, "ext", "agents", "new-agent.md")); os.IsNotExist(err) {
+		t.Error("New 'ext' content should be preserved")
+	}
+}

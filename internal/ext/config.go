@@ -14,17 +14,29 @@ type Config map[string]map[string]bool
 // Manager handles extension operations
 type Manager struct {
 	claudeDir  string
-	localDir   string
+	extDir   string
 	configFile string
 }
 
 // NewManager creates a new Manager for managing extensions.
 // claudeDir is where Claude Code reads extensions (e.g., ~/.claude).
 // claudeupHome is where claudeup stores its data (e.g., ~/.claudeup).
+// If the old storage directory (~/.claudeup/local/) exists and the new one
+// (~/.claudeup/ext/) does not, the old directory is automatically migrated.
 func NewManager(claudeDir, claudeupHome string) *Manager {
+	extDir := filepath.Join(claudeupHome, "ext")
+
+	// Migrate from old directory name if needed
+	oldDir := filepath.Join(claudeupHome, "local")
+	if info, err := os.Stat(oldDir); err == nil && info.IsDir() {
+		if _, err := os.Stat(extDir); os.IsNotExist(err) {
+			os.Rename(oldDir, extDir)
+		}
+	}
+
 	return &Manager{
 		claudeDir:  claudeDir,
-		localDir:   filepath.Join(claudeupHome, "ext"),
+		extDir:   extDir,
 		configFile: filepath.Join(claudeupHome, "enabled.json"),
 	}
 }

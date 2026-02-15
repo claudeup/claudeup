@@ -783,7 +783,7 @@ func TestSaveProfileTrailingNewline(t *testing.T) {
 }
 
 func TestPreserveFromExisting(t *testing.T) {
-	// When overwriting an existing profile, localItems should be preserved
+	// When overwriting an existing profile, extensions should be preserved
 	// from the original, not re-snapshotted.
 	existing := &Profile{
 		Extensions: &ExtensionSettings{
@@ -809,7 +809,7 @@ func TestPreserveFromExisting(t *testing.T) {
 }
 
 func TestPreserveFromExistingNilFields(t *testing.T) {
-	// When existing profile has no localItems, fresh should keep them nil
+	// When existing profile has no extensions, fresh should keep them nil
 	existing := &Profile{}
 
 	fresh := &Profile{
@@ -821,7 +821,7 @@ func TestPreserveFromExistingNilFields(t *testing.T) {
 	fresh.PreserveFrom(existing)
 
 	if fresh.Extensions != nil {
-		t.Errorf("Expected nil localItems (existing had none), got %v", fresh.Extensions)
+		t.Errorf("Expected nil extensions (existing had none), got %v", fresh.Extensions)
 	}
 }
 
@@ -1797,5 +1797,97 @@ func TestProfileRoundTrip_WithIncludes(t *testing.T) {
 	}
 	if !loaded.IsStack() {
 		t.Error("loaded profile should be a stack")
+	}
+}
+
+func TestLoadProfileWithLegacyLocalItemsField(t *testing.T) {
+	// Profiles saved before the rename used "localItems" in JSON.
+	// Verify they load correctly into the Extensions field.
+	jsonData := []byte(`{
+		"name": "legacy",
+		"localItems": {
+			"agents": ["planner.md"],
+			"rules": ["coding.md"]
+		}
+	}`)
+
+	var p Profile
+	if err := json.Unmarshal(jsonData, &p); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if p.Extensions == nil {
+		t.Fatal("Extensions should be populated from legacy localItems field")
+	}
+	if len(p.Extensions.Agents) != 1 || p.Extensions.Agents[0] != "planner.md" {
+		t.Errorf("Agents = %v, want [planner.md]", p.Extensions.Agents)
+	}
+	if len(p.Extensions.Rules) != 1 || p.Extensions.Rules[0] != "coding.md" {
+		t.Errorf("Rules = %v, want [coding.md]", p.Extensions.Rules)
+	}
+}
+
+func TestLoadProfileWithLegacyLocalItemsInPerScope(t *testing.T) {
+	// Per-scope settings also used "localItems" before the rename.
+	jsonData := []byte(`{
+		"name": "legacy-scoped",
+		"perScope": {
+			"user": {
+				"localItems": {
+					"agents": ["user-agent.md"]
+				}
+			},
+			"project": {
+				"localItems": {
+					"rules": ["project-rule.md"]
+				}
+			}
+		}
+	}`)
+
+	var p Profile
+	if err := json.Unmarshal(jsonData, &p); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if p.PerScope == nil {
+		t.Fatal("PerScope should be populated")
+	}
+	if p.PerScope.User == nil || p.PerScope.User.Extensions == nil {
+		t.Fatal("User scope Extensions should be populated from legacy localItems")
+	}
+	if p.PerScope.User.Extensions.Agents[0] != "user-agent.md" {
+		t.Errorf("User agents = %v, want [user-agent.md]", p.PerScope.User.Extensions.Agents)
+	}
+	if p.PerScope.Project == nil || p.PerScope.Project.Extensions == nil {
+		t.Fatal("Project scope Extensions should be populated from legacy localItems")
+	}
+	if p.PerScope.Project.Extensions.Rules[0] != "project-rule.md" {
+		t.Errorf("Project rules = %v, want [project-rule.md]", p.PerScope.Project.Extensions.Rules)
+	}
+}
+
+func TestNewFieldTakesPrecedenceOverLegacy(t *testing.T) {
+	// If both "extensions" and "localItems" are present, "extensions" wins.
+	jsonData := []byte(`{
+		"name": "both",
+		"extensions": {
+			"agents": ["new-agent.md"]
+		},
+		"localItems": {
+			"agents": ["old-agent.md"]
+		}
+	}`)
+
+	var p Profile
+	if err := json.Unmarshal(jsonData, &p); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if p.Extensions == nil {
+		t.Fatal("Extensions should be populated")
+	}
+	if p.Extensions.Agents[0] != "new-agent.md" {
+		t.Errorf("Agents = %v, want [new-agent.md] (new field should take precedence)", p.Extensions.Agents)
 	}
 }

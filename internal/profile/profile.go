@@ -297,6 +297,96 @@ type DetectRules struct {
 	Contains map[string]string `json:"contains,omitempty"`
 }
 
+// profileJSON is the raw JSON shape used for unmarshaling profiles.
+// It accepts both the old "localItems" field and the new "extensions" field.
+type profileJSON struct {
+	Name           string                 `json:"name"`
+	Description    string                 `json:"description,omitempty"`
+	Includes       []string               `json:"includes,omitempty"`
+	MCPServers     []MCPServer            `json:"mcpServers,omitempty"`
+	Marketplaces   []Marketplace          `json:"marketplaces,omitempty"`
+	Plugins        []string               `json:"plugins,omitempty"`
+	SkipPluginDiff bool                   `json:"skipPluginDiff,omitempty"`
+	Detect         DetectRules            `json:"detect,omitempty"`
+	PostApply      *PostApplyHook         `json:"postApply,omitempty"`
+	PerScope       *perScopeSettingsJSON  `json:"perScope,omitempty"`
+	Extensions     *ExtensionSettings     `json:"extensions,omitempty"`
+	LocalItems     *ExtensionSettings     `json:"localItems,omitempty"` // deprecated field
+	SettingsHooks  map[string][]HookEntry `json:"settingsHooks,omitempty"`
+}
+
+// perScopeSettingsJSON is the raw JSON shape for per-scope settings,
+// accepting both "localItems" and "extensions" in each scope.
+type perScopeSettingsJSON struct {
+	User    *scopeSettingsJSON `json:"user,omitempty"`
+	Project *scopeSettingsJSON `json:"project,omitempty"`
+	Local   *scopeSettingsJSON `json:"local,omitempty"`
+}
+
+// scopeSettingsJSON is the raw JSON shape for a single scope,
+// accepting both "localItems" and "extensions".
+type scopeSettingsJSON struct {
+	Plugins    []string           `json:"plugins,omitempty"`
+	MCPServers []MCPServer        `json:"mcpServers,omitempty"`
+	Extensions *ExtensionSettings `json:"extensions,omitempty"`
+	LocalItems *ExtensionSettings `json:"localItems,omitempty"` // deprecated field
+}
+
+// UnmarshalJSON handles migration from the old "localItems" JSON field
+// to the new "extensions" field. Profiles saved before the rename used
+// "localItems"; this ensures they load correctly.
+func (p *Profile) UnmarshalJSON(data []byte) error {
+	var raw profileJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	p.Name = raw.Name
+	p.Description = raw.Description
+	p.Includes = raw.Includes
+	p.MCPServers = raw.MCPServers
+	p.Marketplaces = raw.Marketplaces
+	p.Plugins = raw.Plugins
+	p.SkipPluginDiff = raw.SkipPluginDiff
+	p.Detect = raw.Detect
+	p.PostApply = raw.PostApply
+	p.SettingsHooks = raw.SettingsHooks
+
+	// Migrate top-level localItems → extensions
+	p.Extensions = raw.Extensions
+	if p.Extensions == nil && raw.LocalItems != nil {
+		p.Extensions = raw.LocalItems
+	}
+
+	// Migrate per-scope settings
+	if raw.PerScope != nil {
+		p.PerScope = &PerScopeSettings{
+			User:    migrateScopeSettings(raw.PerScope.User),
+			Project: migrateScopeSettings(raw.PerScope.Project),
+			Local:   migrateScopeSettings(raw.PerScope.Local),
+		}
+	}
+
+	return nil
+}
+
+// migrateScopeSettings converts a scopeSettingsJSON (with possible old
+// "localItems" field) into a ScopeSettings with the canonical "extensions" field.
+func migrateScopeSettings(raw *scopeSettingsJSON) *ScopeSettings {
+	if raw == nil {
+		return nil
+	}
+	s := &ScopeSettings{
+		Plugins:    raw.Plugins,
+		MCPServers: raw.MCPServers,
+		Extensions: raw.Extensions,
+	}
+	if s.Extensions == nil && raw.LocalItems != nil {
+		s.Extensions = raw.LocalItems
+	}
+	return s
+}
+
 // ExtensionSettings contains extension patterns to enable.
 // These are items from ~/.claudeup/ext/ that get symlinked to ~/.claude/
 type ExtensionSettings struct {
