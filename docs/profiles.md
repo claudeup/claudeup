@@ -56,7 +56,7 @@ Marketplaces:
   - anthropics/claude-plugins-official
   - obra/superpowers-marketplace
 
-Local Items:
+Extensions:
   Agents:
     - test-runner/test-runner.md
   Commands:
@@ -65,7 +65,7 @@ Local Items:
     - golang
 ```
 
-Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Local items (user-scope extensions from `~/.claudeup/local/`) are grouped by category.
+Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Extensions (from `~/.claudeup/local/`) are grouped by category.
 
 ## Profile Scopes
 
@@ -308,7 +308,7 @@ When included profiles have overlapping settings, these rules determine the resu
 | Plugins        | Union with deduplication (all plugins from all includes) |
 | MCP Servers    | Union; last-wins by name on conflicts                    |
 | Marketplaces   | Union with deduplication                                 |
-| Local Items    | Union per category with deduplication                    |
+| Extensions     | Union per category with deduplication                    |
 | Settings Hooks | Union per event type, deduplicated by command            |
 | Detect         | Union files; merge contains map (later wins)             |
 | SkipPluginDiff | OR (any true results in true)                            |
@@ -586,13 +586,13 @@ claudeup profile save my-work
 
 - Plugins and MCP servers from all scopes (user, project, local), stored with their scope in the `perScope` structure
 - Marketplaces referenced by at least one enabled plugin (unreferenced marketplaces are excluded)
-- Local items (agents, commands, skills, hooks, rules, output styles) that exist in the active directory
+- Extensions (agents, commands, skills, hooks, rules, output styles) that exist in the active directory
 
 The profile is saved once to `~/.claudeup/profiles/<name>.json`, but internally it records which scope each item came from. When you later run `profile apply`, each item is restored to its original scope.
 
 **When re-saving an existing profile:**
 
-- Local items are preserved from the existing profile (not re-scanned from the system)
+- Extensions are preserved from the existing profile (not re-scanned from the system)
 - Marketplaces are always re-filtered based on current plugins
 - Custom descriptions are preserved unless overridden with `--description`
 
@@ -693,7 +693,7 @@ Profiles capture settings from all scopes (user, project, local) using the `perS
       "mcpServers": []
     }
   },
-  "localItems": {
+  "extensions": {
     "agents": ["test-runner/test-runner.md"],
     "commands": ["commit.md"],
     "skills": ["golang"]
@@ -703,9 +703,9 @@ Profiles capture settings from all scopes (user, project, local) using the `perS
 
 When you run `profile save`, all three scopes are captured automatically. When you run `profile apply`, settings are restored to the correct scope.
 
-### Project-Scoped Local Items
+### Project-Scoped Extensions
 
-Profiles can also install local items at project scope by placing them in `perScope.project.localItems`:
+Profiles can also install extensions at project scope by placing them in `perScope.project.extensions`:
 
 ```json
 {
@@ -714,7 +714,7 @@ Profiles can also install local items at project scope by placing them in `perSc
       "plugins": ["superpowers@superpowers-marketplace"]
     },
     "project": {
-      "localItems": {
+      "extensions": {
         "rules": ["golang"],
         "agents": ["reviewer"]
       }
@@ -723,7 +723,7 @@ Profiles can also install local items at project scope by placing them in `perSc
 }
 ```
 
-When applied, project-scoped local items are **copied** (not symlinked) into the project's `.claude/` directory. This makes them portable, git-committable, and available to the whole team.
+When applied, project-scoped extensions are **copied** (not symlinked) into the project's `.claude/` directory. This makes them portable, git-committable, and available to the whole team.
 
 **Supported categories at project scope:** `agents`, `rules`
 
@@ -731,7 +731,7 @@ Other categories (commands, skills, hooks, output-styles) are only supported at 
 
 **Marketplace filtering:** Only marketplaces referenced by at least one enabled plugin are included. Marketplaces installed by other tools (e.g., mpm) that have no corresponding plugins in the profile are excluded.
 
-**Local items:** Enabled local items (agents, commands, skills, hooks, rules, output styles) are captured from the active directory. When re-saving an existing profile, local items are preserved from the original to prevent accumulation of items enabled by other tools.
+**Extensions:** Enabled extensions (agents, commands, skills, hooks, rules, output styles) are captured from the active directory. When re-saving an existing profile, extensions are preserved from the original to prevent accumulation of items enabled by other tools.
 
 ### Stack Format
 

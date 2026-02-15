@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ABOUTME: Demo script for claudeup local management feature
+# ABOUTME: Demo script for claudeup extensions management feature
 # ABOUTME: Creates isolated environment, installs GSD, and configures with claudeup
 
 set -euo pipefail
@@ -72,7 +72,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-print_header "claudeup Local Management Demo"
+print_header "claudeup Extensions Management Demo"
 
 print_info "Demo directory: $DEMO_DIR"
 print_info "CLAUDE_CONFIG_DIR: $CLAUDE_CONFIG_DIR"
@@ -114,11 +114,11 @@ print_success "GSD installed"
 print_header "Step 4: Import GSD to Local Storage"
 
 print_info "GSD installs directly to active directories."
-print_info "Using 'claudeup local import-all' to move to local storage and create symlinks..."
+print_info "Using 'claudeup extensions import-all' to move to storage and create symlinks..."
 echo
 
 print_step "Importing all GSD items..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local import-all "gsd-*" gsd
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" extensions import-all "gsd-*" gsd
 echo
 
 # Count imported items
@@ -174,16 +174,16 @@ echo
 # Step 7: List only enabled items
 print_header "Step 7: List Enabled Items"
 
-print_step "Running: claudeup local list --enabled"
+print_step "Running: claudeup extensions list --enabled"
 echo
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local list --enabled
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" extensions list --enabled
 echo
 
 # Step 8: Save as a profile
 print_header "Step 8: Save as Profile"
 
 print_step "Saving current state as 'gsd-demo' profile..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" profile save gsd-demo --description "GSD demo profile with local items"
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" profile save gsd-demo --description "GSD demo profile with extensions"
 print_success "Profile saved"
 echo
 
@@ -195,7 +195,7 @@ echo
 # Step 9: Demonstrate 'install' command with external source
 print_header "Step 9: Install External Agent"
 
-print_info "Now demonstrating 'claudeup local install' (different from import)..."
+print_info "Now demonstrating 'claudeup extensions install' (different from import)..."
 print_info "- import: moves files from active dirs to local storage"
 print_info "- install: copies files from external sources to local storage"
 echo
@@ -208,7 +208,7 @@ print_step "Creating custom agent in external directory..."
 cat > "$EXTERNAL_AGENTS/demo-agent.md" << 'EOF'
 # Demo Agent
 
-This is a custom agent created to demonstrate the `claudeup local install` command.
+This is a custom agent created to demonstrate the `claudeup extensions install` command.
 
 ## Purpose
 Show how to install agents from external sources (git repos, downloads, etc.)
@@ -216,14 +216,14 @@ Show how to install agents from external sources (git repos, downloads, etc.)
 ## Usage
 This agent was installed using:
 ```bash
-claudeup local install agents /path/to/my-custom-agents/demo-agent.md
+claudeup extensions install agents /path/to/my-custom-agents/demo-agent.md
 ```
 EOF
 print_success "Created demo-agent.md in $EXTERNAL_AGENTS"
 echo
 
 print_step "Installing custom agent from external source..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local install agents "$EXTERNAL_AGENTS/demo-agent.md"
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" extensions install agents "$EXTERNAL_AGENTS/demo-agent.md"
 echo
 
 print_step "Verifying installation..."
@@ -274,7 +274,7 @@ print_success "Created agent group with 2 agents"
 echo
 
 print_step "Installing agent group directory..."
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local install agents "$AGENT_GROUP"
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" extensions install agents "$AGENT_GROUP"
 echo
 
 print_step "Verifying agent group installation..."
@@ -299,9 +299,9 @@ echo
 # Step 11: Show final state with all items
 print_header "Step 11: Final State"
 
-print_step "All enabled local items:"
+print_step "All enabled extensions:"
 echo
-"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" local list --enabled
+"$CLAUDEUP_BIN" --claude-dir "$CLAUDE_CONFIG_DIR" extensions list --enabled
 echo
 
 print_step "Updated enabled.json:"
@@ -325,9 +325,9 @@ echo "  - Custom agents installed: $CUSTOM_AGENTS (demo-agent + 2 in my-agents g
 echo "  - Profile saved: gsd-demo"
 echo
 echo "Commands demonstrated:"
-echo "  ✓ claudeup local import-all  - Move files from active dirs to local storage"
-echo "  ✓ claudeup local install     - Copy external files to local storage"
-echo "  ✓ claudeup local list        - View enabled/disabled items"
+echo "  ✓ claudeup extensions import-all  - Move files from active dirs to local storage"
+echo "  ✓ claudeup extensions install     - Copy external files to local storage"
+echo "  ✓ claudeup extensions list        - View enabled/disabled items"
 echo "  ✓ claudeup profile save      - Save configuration as profile"
 echo
 echo "Key differences:"
