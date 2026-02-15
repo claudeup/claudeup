@@ -856,6 +856,25 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
+	// Show untracked scope hints (only when not filtering by scope)
+	if profileListScope == "" {
+		untrackedScopes := getUntrackedScopes(cwd, claudeDir, allActiveProfiles)
+		for _, us := range untrackedScopes {
+			pluginWord := "plugins"
+			if us.PluginCount == 1 {
+				pluginWord = "plugin"
+			}
+			fmt.Printf("  %s %d %s in %s (no profile tracked)\n",
+				ui.Warning(us.Scope+":"),
+				us.PluginCount, pluginWord, us.SettingsFile)
+			fmt.Printf("    %s Save with: claudeup profile save <name> && claudeup profile apply <name> --%s\n",
+				ui.Muted(ui.SymbolArrow), us.Scope)
+		}
+		if len(untrackedScopes) > 0 {
+			fmt.Println()
+		}
+	}
+
 	// Warn if user has a profile named "current" (now reserved)
 	if profileOnDisk["current"] && profileListScope == "" {
 		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
