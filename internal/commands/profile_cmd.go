@@ -1196,8 +1196,9 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		cleanupStalePlugins(claudeDir)
 	}
 
-	// Track project scope in registry (for project scope or multi-scope profiles)
-	if scope == profile.ScopeProject || p.IsMultiScope() {
+	// Track project scope in registry for multi-scope profiles.
+	// Single-scope project applies are tracked in apply.go already.
+	if p.IsMultiScope() {
 		if registry, regErr := config.LoadProjectsRegistry(); regErr == nil {
 			registry.SetProjectScope(cwd, name)
 			_ = config.SaveProjectsRegistry(registry)

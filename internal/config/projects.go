@@ -73,18 +73,23 @@ func SaveProjectsRegistry(reg *ProjectsRegistry) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// SetProject associates a project directory with a profile
+// SetProject associates a project directory with a profile at local scope.
+// Preserves any existing project-scope fields on the entry.
 func (r *ProjectsRegistry) SetProject(projectPath, profile string) {
-	r.Projects[projectPath] = ProjectEntry{
-		Profile:   profile,
-		AppliedAt: time.Now(),
-	}
+	entry := r.Projects[projectPath]
+	entry.Profile = profile
+	entry.AppliedAt = time.Now()
+	r.Projects[projectPath] = entry
 }
 
-// GetProject returns the profile entry for a project directory
+// GetProject returns the profile entry for a project directory at local scope.
+// Returns false if no local-scope profile is set, even if a project-scope profile exists.
 func (r *ProjectsRegistry) GetProject(projectPath string) (ProjectEntry, bool) {
 	entry, ok := r.Projects[projectPath]
-	return entry, ok
+	if !ok || entry.Profile == "" {
+		return entry, false
+	}
+	return entry, true
 }
 
 // SetProjectScope associates a project directory with a profile at project scope

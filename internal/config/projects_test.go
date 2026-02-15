@@ -138,6 +138,58 @@ func TestProjectsRegistry_BothScopesIndependent(t *testing.T) {
 	}
 }
 
+func TestProjectsRegistry_BothScopesIndependent_ReverseOrder(t *testing.T) {
+	reg := &ProjectsRegistry{
+		Projects: make(map[string]ProjectEntry),
+	}
+
+	// Set project scope first, then local scope
+	reg.SetProjectScope("/path/to/project", "team-backend")
+	reg.SetProject("/path/to/project", "my-overrides")
+
+	// Local scope should be set
+	entry, ok := reg.GetProject("/path/to/project")
+	if !ok {
+		t.Fatal("GetProject returned false after SetProject")
+	}
+	if entry.Profile != "my-overrides" {
+		t.Errorf("Profile (local) = %q, want %q", entry.Profile, "my-overrides")
+	}
+
+	// Project scope should still be preserved
+	name, ok := reg.GetProjectScope("/path/to/project")
+	if !ok {
+		t.Fatal("GetProjectScope returned false after SetProject")
+	}
+	if name != "team-backend" {
+		t.Errorf("ProjectProfile = %q, want %q", name, "team-backend")
+	}
+}
+
+func TestProjectsRegistry_GetProject_IgnoresProjectOnlyEntries(t *testing.T) {
+	reg := &ProjectsRegistry{
+		Projects: make(map[string]ProjectEntry),
+	}
+
+	// Only set project scope (no local scope)
+	reg.SetProjectScope("/path/to/project", "team-backend")
+
+	// GetProject should return false since local scope isn't set
+	_, ok := reg.GetProject("/path/to/project")
+	if ok {
+		t.Error("GetProject should return false for project-scope-only entries")
+	}
+
+	// GetProjectScope should still work
+	name, ok := reg.GetProjectScope("/path/to/project")
+	if !ok {
+		t.Fatal("GetProjectScope returned false")
+	}
+	if name != "team-backend" {
+		t.Errorf("ProjectProfile = %q, want %q", name, "team-backend")
+	}
+}
+
 func TestProjectsRegistry_BackwardCompatibility(t *testing.T) {
 	// Simulate old JSON without projectProfile/projectAppliedAt fields
 	oldJSON := `{
