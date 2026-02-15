@@ -96,6 +96,7 @@ section "1. Create Fixture Profiles"
 # Profiles use flat format so claudeup-lab controls scope at apply time:
 #   --base-profile → user scope (foundation layer)
 #   --profile      → project scope (layers on top)
+# Compare with demo 02 which uses perScope format for direct claudeup apply.
 step "Create team profile: go-backend-team"
 cat > "$CLAUDEUP_HOME/profiles/go-backend-team.json" <<'PROFILE'
 {
