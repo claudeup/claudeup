@@ -1,180 +1,184 @@
 #!/usr/bin/env bash
-# ABOUTME: Example showing how user and project profiles layer together
-# ABOUTME: Demonstrates combining personal and team configurations
+# ABOUTME: Demo showing how user and project profiles layer together
+# ABOUTME: Executes real commands to demonstrate combining personal and team configurations
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment
 
 cat <<'EOF'
 ╔════════════════════════════════════════════════════════════════╗
-║          Team Setup: Profile Layering Strategy                 ║
+║          Team Setup: Profile Layering in Action                ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Combine personal preferences with team requirements by layering
-profiles from different scopes.
+Personal preferences + team requirements combine through scope
+layering. This demo applies profiles at user and project scopes
+to show how they merge.
 
 EOF
 pause
 
-section "1. The Layering Concept"
+# ===================================================================
+section "1. Create Fixture Profiles"
+# ===================================================================
 
-info "Two levels of profiles work together:"
-echo
-info "  USER profiles (~/.claudeup/profiles/)"
-info "    → Your personal tools and preferences"
-info "    → Available in all projects"
-info "    → Only you have these"
-echo
-info "  PROJECT profiles (.claudeup/profiles/)"
-info "    → Team-shared configurations"
-info "    → Specific to this repository"
-info "    → Everyone on the team gets these"
-pause
-
-section "2. Example: Full-Stack Team"
-
-step "User profile: Personal productivity tools"
-cat <<'PROFILE1'
-# ~/.claudeup/profiles/my-tools.json
+step "Create a personal tools profile (for user scope)"
+cat > "$CLAUDEUP_HOME/profiles/personal-tools.json" <<'PROFILE'
 {
-  "name": "my-tools",
-  "description": "My personal coding helpers",
+  "name": "personal-tools",
+  "description": "Personal productivity tools for all projects",
   "plugins": [
     "superpowers@superpowers-marketplace",
     "elements-of-style@superpowers-marketplace"
   ]
 }
-PROFILE1
+PROFILE
+success "Created personal-tools.json"
 echo
-info "These are YOUR tools that you use everywhere"
-pause
 
-step "Project profile: Team backend requirements"
-cat <<'PROFILE2'
-# .claudeup/profiles/backend-team.json
+step "Create a team backend profile (for project scope)"
+cat > "$CLAUDEUP_HOME/profiles/go-team.json" <<'PROFILE'
 {
-  "name": "backend-team",
-  "description": "Required for backend development",
+  "name": "go-team",
+  "description": "Shared Go backend team configuration",
   "plugins": [
     "backend-development@claude-code-workflows",
-    "security-scanning@claude-code-workflows"
+    "tdd-workflows@claude-code-workflows"
   ]
 }
-PROFILE2
+PROFILE
+success "Created go-team.json"
 echo
-info "These are plugins EVERYONE on the team needs"
+
+step "Verify both profiles exist"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 pause
 
-section "3. How to Set Up Layering"
+# ===================================================================
+section "2. Set Up a Project Directory"
+# ===================================================================
 
-step "Save your personal profile"
-echo -e "${YELLOW}\$ claudeup profile save my-tools${NC}"
+step "Create a project with a .claude/ directory"
+PROJECT_DIR="$EXAMPLE_TEMP_DIR/team-project"
+mkdir -p "$PROJECT_DIR/.claude"
+cd "$PROJECT_DIR" || exit 1
+success "Working in $PROJECT_DIR"
 echo
-info "This saves to ~/.claudeup/profiles/my-tools.json"
-echo
-info "Your personal profile follows you to any project"
+
+info "Project scope requires a .claude/ subdirectory in the project root."
 pause
 
-step "Team lead saves and applies project profile"
-echo -e "${YELLOW}\$ claudeup profile save backend-team${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply backend-team --project${NC}"
+# ===================================================================
+section "3. Apply Personal Tools at User Scope"
+# ===================================================================
+
+step "Apply personal-tools at user scope"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply personal-tools --user --yes
 echo
-info "This writes settings to .claude/settings.json for team sharing"
+
+step "Check profile list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 echo
-info "Then commit and share with the team"
+
+step "Inspect user-scope settings"
+info "File: $CLAUDE_CONFIG_DIR/settings.json"
+cat "$CLAUDE_CONFIG_DIR/settings.json" 2>/dev/null || info "(not found)"
+echo
+
+info "personal-tools is the only active profile, so it gets the * marker."
+info "These settings live in ~/.claude/settings.json and apply to all projects."
 pause
 
-section "4. Applying Layered Profiles"
+# ===================================================================
+section "4. Apply Team Config at Project Scope"
+# ===================================================================
 
-step "Apply user profile at user scope"
-echo -e "${YELLOW}\$ claudeup profile apply my-tools --user${NC}"
+step "Apply go-team at project scope"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply go-team --project --yes
 echo
-info "Your personal tools are now active globally"
+
+step "Check profile list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
+echo
+
+step "Inspect project-scope settings"
+info "File: $PROJECT_DIR/.claude/settings.json"
+cat "$PROJECT_DIR/.claude/settings.json" 2>/dev/null || info "(not found)"
+echo
+
+info "Both profiles are now active simultaneously:"
+info "  * go-team [project]          -- highest precedence"
+info "  ○ personal-tools [user]      -- overridden on conflicts"
+echo
+info "Claude sees plugins from BOTH scopes. If the same setting"
+info "appears at both scopes, project wins."
 pause
 
-step "Apply project profile at project scope"
-echo -e "${YELLOW}\$ claudeup profile apply backend-team --project${NC}"
-echo
-info "Team requirements are active for this project"
-pause
-
-step "View the combined configuration"
-echo -e "${YELLOW}\$ claudeup profile list${NC}"
-echo
-info "Example output showing layered profiles:"
-cat <<'EXAMPLE'
-Your profiles (4)
-
-○ my-tools          Personal tools [user]
-* backend-team      Team config [project]
-  frontend-dev      Frontend setup [project]
-  data-science      DS tools [user]
-EXAMPLE
-echo
-info "○ = active at lower scope (user)"
-info "* = active at highest scope (project)"
-echo
-info "Both are active! User settings + project settings combine"
-pause
-
+# ===================================================================
 section "5. Scope Precedence"
+# ===================================================================
 
-info "When the same setting exists in multiple scopes:"
+info "Claude Code merges settings from all scopes:"
 echo
 info "  user → project → local"
 info "  (lowest)        (highest)"
 echo
-info "Later scopes override earlier ones"
+info "Both profiles contribute their plugins."
+info "If the same plugin appears at both scopes,"
+info "the higher scope's setting wins."
 echo
-step "Example: Plugin enabled in user, disabled in project"
-info "  User scope:    Plugin A = enabled"
-info "  Project scope: Plugin A = disabled"
-info "  Result:        Plugin A = disabled (project wins)"
+
+step "Files created at each scope"
+info "User:    $CLAUDE_CONFIG_DIR/settings.json"
+info "Project: $PROJECT_DIR/.claude/settings.json"
+echo
+
+step "The project registry tracks applied profiles"
+info "File: $CLAUDEUP_HOME/projects.json"
+cat "$CLAUDEUP_HOME/projects.json" 2>/dev/null || info "(not found)"
 pause
 
+# ===================================================================
 section "6. Best Practices"
+# ===================================================================
 
-info "USER profiles (personal):"
-info "  • General productivity tools"
-info "  • Writing style plugins"
-info "  • Your preferred workflow helpers"
+info "USER scope (--user): tools you use on EVERY project"
+info "  - General productivity tools"
+info "  - Writing style plugins"
+info "  - Workflow helpers that follow you everywhere"
 echo
-info "PROJECT profiles (team):"
-info "  • Language/framework specific plugins"
-info "  • Security scanning tools"
-info "  • Required MCP servers"
+info "PROJECT scope (--project): team requirements for THIS project"
+info "  - Language/framework-specific plugins"
+info "  - Security scanning tools"
+info "  - Required MCP servers"
 echo
-info "LOCAL scope (personal overrides):"
-info "  • Temporary experiments"
-info "  • Debugging configurations"
-info "  • Sensitive personal settings"
+info "LOCAL scope (--local): personal overrides for this project"
+info "  - Override team settings with your own preferences"
+info "  - Temporary experiments or debugging config"
+info "  - See 05-scope-apply-demo.sh for a full three-scope example"
+echo
+info "profile list shows * for highest precedence and ○ for overridden."
+info "All scopes are active simultaneously -- they accumulate, not replace."
 pause
 
-section "7. Recommended Workflow"
-
-step "Developer setup (one time)"
-echo -e "${YELLOW}\$ claudeup profile save my-tools${NC}"
-echo -e "${YELLOW}\$ claudeup profile apply my-tools --user${NC}"
-echo
-step "Each project (after clone)"
-echo -e "${YELLOW}\$ claudeup profile apply${NC}"
-echo
-info "Now you have: personal tools + team requirements"
-pause
-
+# ===================================================================
 section "Summary"
+# ===================================================================
 
-success "Layer profiles for personalized team collaboration"
+success "Layered personal tools (user) with team config (project)"
 echo
-info "Strategy:"
-info "  • User scope: Your personal toolkit (all projects)"
-info "  • Project scope: Team requirements (this project)"
-info "  • Local scope: Personal overrides (git-ignored)"
-echo
-info "Both user and project profiles can be active simultaneously"
-info "They combine, with project settings winning on conflicts"
+info "What we demonstrated:"
+info "  1. --user    writes to ~/.claude/settings.json (tools for all projects)"
+info "  2. --project writes to .claude/settings.json (team config, git-tracked)"
+info ""
+info "  profile list shows * for highest-precedence and ○ for overridden"
+info "  Both scopes are active simultaneously -- they accumulate, not replace"
+info ""
+info "New to a team? Apply your personal tools at user scope, then use"
+info "local scope (--local) to override any team project settings you"
+info "want to customize for yourself."
 echo
 
 prompt_cleanup
