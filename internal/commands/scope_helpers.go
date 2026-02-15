@@ -79,6 +79,57 @@ func getAllActiveProfiles(cwd string) []ActiveProfileInfo {
 	return profiles
 }
 
+// UntrackedScopeInfo describes a scope that has settings but no tracked profile
+type UntrackedScopeInfo struct {
+	Scope        string // "project" or "local"
+	PluginCount  int
+	SettingsFile string // relative path like ".claude/settings.json"
+}
+
+// getUntrackedScopes checks project and local scopes for settings files with
+// enabled plugins that have no corresponding tracked profile.
+func getUntrackedScopes(cwd, claudeDir string, trackedProfiles []ActiveProfileInfo) []UntrackedScopeInfo {
+	trackedScopes := make(map[string]bool)
+	for _, p := range trackedProfiles {
+		trackedScopes[p.Scope] = true
+	}
+
+	var untracked []UntrackedScopeInfo
+	for _, scope := range []string{"project", "local"} {
+		if trackedScopes[scope] {
+			continue
+		}
+
+		settings, err := claude.LoadSettingsForScope(scope, claudeDir, cwd)
+		if err != nil {
+			continue
+		}
+
+		count := 0
+		for _, enabled := range settings.EnabledPlugins {
+			if enabled {
+				count++
+			}
+		}
+		if count == 0 {
+			continue
+		}
+
+		settingsFile := ".claude/settings.json"
+		if scope == "local" {
+			settingsFile = ".claude/settings.local.json"
+		}
+
+		untracked = append(untracked, UntrackedScopeInfo{
+			Scope:        scope,
+			PluginCount:  count,
+			SettingsFile: settingsFile,
+		})
+	}
+
+	return untracked
+}
+
 // formatScopeName returns a capitalized scope name for display
 func formatScopeName(scope string) string {
 	switch scope {
