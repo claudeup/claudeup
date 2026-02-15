@@ -1366,9 +1366,9 @@ func TestApplyWithExtensions(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := tmpDir
 
-	// Create local directory structure (in claudeupHome/local/)
-	localDir := filepath.Join(claudeDir, "ext")
-	agentsDir := filepath.Join(localDir, "agents")
+	// Create extension storage directory structure
+	extDir := filepath.Join(claudeDir, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	os.MkdirAll(agentsDir, 0755)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
 	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)

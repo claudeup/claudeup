@@ -253,12 +253,12 @@ These files are created and managed exclusively by `claudeup`.
 
 **Read by:**
 
-- `internal/local/config.go:LoadConfig()`
+- `internal/ext/config.go:LoadConfig()`
 - Used by: all `extensions` subcommands, symlink reconciliation
 
 **Written by:**
 
-- `internal/local/config.go:SaveConfig()`
+- `internal/ext/config.go:SaveConfig()`
 - Triggered by:
   - `extensions enable` - marks items as enabled
   - `extensions disable` - marks items as disabled
@@ -275,15 +275,15 @@ These files are created and managed exclusively by `claudeup`.
 
 **Read by:**
 
-- `internal/local/list.go:ListItems()`
-- `internal/local/view.go:ViewItem()`
-- `internal/local/symlinks.go:ReconcileSymlinks()`
+- `internal/ext/list.go:ListItems()`
+- `internal/ext/view.go:ViewItem()`
+- `internal/ext/symlinks.go:ReconcileSymlinks()`
 - Used by: all `extensions` subcommands
 
 **Written by:**
 
-- `internal/local/install.go:Install()`
-- `internal/local/symlinks.go:Import()`
+- `internal/ext/install.go:Install()`
+- `internal/ext/symlinks.go:Import()`
 - Triggered by:
   - `extensions install` - copies items from external paths
   - `extensions import` - moves items from active directory to storage
