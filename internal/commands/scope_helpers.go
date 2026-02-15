@@ -130,6 +130,24 @@ func getUntrackedScopes(cwd, claudeDir string, trackedProfiles []ActiveProfileIn
 	return untracked
 }
 
+// renderUntrackedScopeHints displays warnings for scopes with enabled plugins but no tracked profile
+func renderUntrackedScopeHints(untrackedScopes []UntrackedScopeInfo) {
+	for _, us := range untrackedScopes {
+		pluginWord := "plugins"
+		if us.PluginCount == 1 {
+			pluginWord = "plugin"
+		}
+		fmt.Printf("  %s %d %s in %s (no profile tracked)\n",
+			ui.Warning(us.Scope+":"),
+			us.PluginCount, pluginWord, us.SettingsFile)
+		fmt.Printf("    %s Save with: claudeup profile save <name> && claudeup profile apply <name> --%s\n",
+			ui.Muted(ui.SymbolArrow), us.Scope)
+	}
+	if len(untrackedScopes) > 0 {
+		fmt.Println()
+	}
+}
+
 // formatScopeName returns a capitalized scope name for display
 func formatScopeName(scope string) string {
 	switch scope {
