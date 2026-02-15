@@ -335,7 +335,12 @@ var (
 )
 
 // Flags for profile save command
-// var profileSaveScope string // Removed: profiles always capture all scopes now
+var (
+	profileSaveScope   string
+	profileSaveUser    bool
+	profileSaveProject bool
+	profileSaveLocal   bool
+)
 
 // Flags for profile list command
 var (
@@ -635,8 +640,10 @@ func init() {
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
 
 	profileSaveCmd.Flags().StringVar(&profileSaveDescription, "description", "", "Custom description for the profile")
-	// --scope flag removed: profiles now always capture all scopes (user, project, local)
-	// and are saved to user profiles directory
+	profileSaveCmd.Flags().StringVar(&profileSaveScope, "scope", "", "Save only settings from specified scope: user, project, local")
+	profileSaveCmd.Flags().BoolVar(&profileSaveUser, "user", false, "Save only user scope settings")
+	profileSaveCmd.Flags().BoolVar(&profileSaveProject, "project", false, "Save only project scope settings")
+	profileSaveCmd.Flags().BoolVar(&profileSaveLocal, "local", false, "Save only local scope settings")
 
 	// Add flags to profile apply command
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
@@ -1289,6 +1296,12 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	// Profiles are always saved to user profiles directory
 	profilesDir := getProfilesDir()
 
+	// Resolve scope flags
+	resolvedScope, err := resolveScopeFlags(profileSaveScope, profileSaveUser, profileSaveProject, profileSaveLocal)
+	if err != nil {
+		return err
+	}
+
 	// Determine profile name
 	var name string
 	isActiveProfile := false
@@ -1327,10 +1340,19 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-	// Create snapshot capturing ALL scopes (user, project, local)
-	p, err := profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
-	if err != nil {
-		return fmt.Errorf("failed to snapshot current state: %w", err)
+	// Create snapshot -- either all scopes or a specific one
+	var p *profile.Profile
+	if resolvedScope != "" {
+		p, err = profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
+		if err != nil {
+			return fmt.Errorf("failed to snapshot current state: %w", err)
+		}
+		p.FilterToScope(resolvedScope)
+	} else {
+		p, err = profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
+		if err != nil {
+			return fmt.Errorf("failed to snapshot current state: %w", err)
+		}
 	}
 
 	// When overwriting, preserve localItems from the existing profile.

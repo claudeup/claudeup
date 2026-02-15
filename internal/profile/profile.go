@@ -234,6 +234,59 @@ func (p *Profile) ForScope(scope string) *Profile {
 	return result
 }
 
+// FilterToScope removes all scope data except the specified scope.
+// This is used when saving a profile for a single scope.
+func (p *Profile) FilterToScope(scope string) {
+	if p.PerScope == nil {
+		return
+	}
+	switch scope {
+	case "user":
+		p.PerScope.Project = nil
+		p.PerScope.Local = nil
+	case "project":
+		p.PerScope.User = nil
+		p.PerScope.Local = nil
+		// Marketplaces are user-scoped; only keep those referenced by remaining plugins
+		p.filterMarketplacesToPlugins()
+	case "local":
+		p.PerScope.User = nil
+		p.PerScope.Project = nil
+		// Marketplaces are user-scoped; only keep those referenced by remaining plugins
+		p.filterMarketplacesToPlugins()
+	}
+	// Clear flat fields that may have been populated
+	p.Plugins = nil
+	p.MCPServers = nil
+	p.Extensions = nil
+	// Regenerate description
+	p.Description = p.GenerateDescription()
+}
+
+// filterMarketplacesToPlugins removes marketplaces not referenced by remaining plugins
+func (p *Profile) filterMarketplacesToPlugins() {
+	remaining := p.CombinedScopes()
+	if len(remaining.Plugins) == 0 {
+		p.Marketplaces = nil
+		return
+	}
+	// Build set of marketplace refs from plugin names (part after @)
+	refs := make(map[string]bool)
+	for _, plugin := range remaining.Plugins {
+		parts := strings.SplitN(plugin, "@", 2)
+		if len(parts) == 2 {
+			refs[parts[1]] = true
+		}
+	}
+	var filtered []Marketplace
+	for _, m := range p.Marketplaces {
+		if refs[m.DisplayName()] {
+			filtered = append(filtered, m)
+		}
+	}
+	p.Marketplaces = filtered
+}
+
 // PostApplyHook defines a hook to run after a profile is applied.
 //
 // Execution order: Script takes precedence over Command. If both are set,
