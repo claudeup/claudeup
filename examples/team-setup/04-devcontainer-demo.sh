@@ -82,9 +82,9 @@ Three engineers -- Alice, Bob, and Charlie -- collaborate on a Go
 backend project. Each gets a real Docker container with their own
 Claude Code environment, managed by claudeup-lab.
 
-  Alice   = team profile + personal tools (superpowers)
-  Bob     = team profile + personal tools (style + PR review)
-  Charlie = team profile only (no personal tools)
+  Alice   = team (user scope) + personal tools (project scope)
+  Bob     = team (user scope) + personal tools (project scope)
+  Charlie = team profile only (user scope)
 
 EOF
 pause
@@ -93,22 +93,19 @@ pause
 section "1. Create Fixture Profiles"
 # ===================================================================
 
-# claudeup-lab applies all profiles at user scope inside the container,
-# so both team and personal profiles target "user" here (unlike demo 02
-# which uses project scope for team config).
+# Profiles use flat format so claudeup-lab controls scope at apply time:
+#   --base-profile → user scope (foundation layer)
+#   --profile      → project scope (layers on top)
+# Compare with demo 02 which uses perScope format for direct claudeup apply.
 step "Create team profile: go-backend-team"
 cat > "$CLAUDEUP_HOME/profiles/go-backend-team.json" <<'PROFILE'
 {
   "name": "go-backend-team",
   "description": "Shared Go backend team configuration",
-  "perScope": {
-    "user": {
-      "plugins": [
-        "backend-development@claude-code-workflows",
-        "tdd-workflows@claude-code-workflows"
-      ]
-    }
-  }
+  "plugins": [
+    "backend-development@claude-code-workflows",
+    "tdd-workflows@claude-code-workflows"
+  ]
 }
 PROFILE
 success "Created go-backend-team.json (team profile)"
@@ -118,13 +115,9 @@ cat > "$CLAUDEUP_HOME/profiles/alice-tools.json" <<'PROFILE'
 {
   "name": "alice-tools",
   "description": "Alice's personal productivity tools",
-  "perScope": {
-    "user": {
-      "plugins": [
-        "superpowers@superpowers-marketplace"
-      ]
-    }
-  }
+  "plugins": [
+    "superpowers@superpowers-marketplace"
+  ]
 }
 PROFILE
 success "Created alice-tools.json (Alice's personal profile)"
@@ -134,14 +127,10 @@ cat > "$CLAUDEUP_HOME/profiles/bob-tools.json" <<'PROFILE'
 {
   "name": "bob-tools",
   "description": "Bob's code review and documentation tools",
-  "perScope": {
-    "user": {
-      "plugins": [
-        "elements-of-style@superpowers-marketplace",
-        "pr-review-toolkit@claude-plugins-official"
-      ]
-    }
-  }
+  "plugins": [
+    "elements-of-style@superpowers-marketplace",
+    "pr-review-toolkit@claude-plugins-official"
+  ]
 }
 PROFILE
 success "Created bob-tools.json (Bob's personal profile)"
@@ -239,8 +228,8 @@ info "  --base-profile layers a shared team profile under personal tools"
 info "    Alice and Bob get team config + their own plugins"
 info "    Charlie gets only the team config"
 info ""
-info "  Profile stacking uses user scope inside the container"
-info "    claudeup-lab handles profile application at container startup"
+info "  Scope layering: base-profile at user, profile at project"
+info "    Claude Code accumulates settings across scopes automatically"
 info ""
 info "  Labs are disposable -- spin up, test, tear down"
 info "    No risk to your host Claude Code configuration"
