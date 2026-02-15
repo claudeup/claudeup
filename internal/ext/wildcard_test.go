@@ -1,6 +1,6 @@
 // ABOUTME: Tests for wildcard pattern matching
 // ABOUTME: Verifies prefix (gsd-*) and directory (gsd/*) wildcards
-package local
+package ext
 
 import "testing"
 

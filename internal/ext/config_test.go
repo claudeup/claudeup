@@ -1,6 +1,6 @@
 // ABOUTME: Tests for enabled.json config loading and saving
 // ABOUTME: Verifies round-trip serialization and default behavior
-package local
+package ext
 
 import (
 	"os"

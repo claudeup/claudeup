@@ -107,7 +107,7 @@ func TestForScopeReturnsExtensions(t *testing.T) {
 		},
 	}
 
-	// User scope should have user's local items
+	// User scope should have user's extensions
 	userProfile := p.ForScope("user")
 	if userProfile.Extensions == nil {
 		t.Fatal("expected user scope to have Extensions")
@@ -116,7 +116,7 @@ func TestForScopeReturnsExtensions(t *testing.T) {
 		t.Errorf("expected user skills [session-notes], got %v", userProfile.Extensions.Skills)
 	}
 
-	// Project scope should have project's local items
+	// Project scope should have project's extensions
 	projectProfile := p.ForScope("project")
 	if projectProfile.Extensions == nil {
 		t.Fatal("expected project scope to have Extensions")
@@ -188,7 +188,7 @@ func TestCombinedScopesNoExtensions(t *testing.T) {
 
 	combined := p.CombinedScopes()
 
-	// No local items anywhere - should be nil
+	// No extensions anywhere - should be nil
 	if combined.Extensions != nil {
 		t.Errorf("expected nil Extensions when no scopes have them, got %v", combined.Extensions)
 	}
@@ -232,7 +232,7 @@ func TestEqualWithScopedExtensions(t *testing.T) {
 		t.Error("expected profiles with identical scoped Extensions to be equal")
 	}
 
-	// Different local items
+	// Different extensions
 	p3 := &Profile{
 		Name: "test3",
 		PerScope: &PerScopeSettings{
@@ -284,7 +284,7 @@ func TestCloneWithScopedExtensions(t *testing.T) {
 		t.Error("modifying clone affected original - not a deep copy")
 	}
 
-	// Verify project scope local items are cloned
+	// Verify project scope extensions are cloned
 	if clone.PerScope.Project == nil || clone.PerScope.Project.Extensions == nil {
 		t.Fatal("expected clone to have PerScope.Project.Extensions")
 	}

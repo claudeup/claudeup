@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
-	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ext"
 	"github.com/claudeup/claudeup/v5/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -315,7 +315,7 @@ type BrokenSymlink struct {
 // checkBrokenSymlinks scans category directories recursively for symlinks with missing targets
 func checkBrokenSymlinks() []BrokenSymlink {
 	var broken []BrokenSymlink
-	for _, category := range local.AllCategories() {
+	for _, category := range ext.AllCategories() {
 		catDir := filepath.Join(claudeDir, category)
 		if _, err := os.Stat(catDir); err != nil {
 			continue

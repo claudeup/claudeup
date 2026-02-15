@@ -74,7 +74,7 @@ func TestApplyExtensionsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	mustMkdir(t, claudeDir)
 	mustMkdir(t, projectDir)
 
-	// Create a skill in local storage
+	// Create a skill in extension storage
 	skillDir := filepath.Join(claudeupHome, "ext", "skills", "test-skill")
 	mustMkdir(t, skillDir)
 	mustWriteFile(t, filepath.Join(skillDir, "SKILL.md"), "# Skill")
@@ -98,7 +98,7 @@ func TestApplyExtensionsUserScopeUsesSymlinks(t *testing.T) {
 
 	mustMkdir(t, claudeDir)
 
-	// Create a rule in local storage
+	// Create a rule in extension storage
 	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
@@ -135,7 +135,7 @@ func TestApplyExtensionsBackwardCompatFlatField(t *testing.T) {
 
 	mustMkdir(t, claudeDir)
 
-	// Create a rule in local storage
+	// Create a rule in extension storage
 	rulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, rulesDir)
 	mustWriteFile(t, filepath.Join(rulesDir, "golang.md"), "# Go Rules")
@@ -198,7 +198,7 @@ func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
 
-	// Multi-scope profile with scoped local items
+	// Multi-scope profile with scoped extensions
 	profile := &Profile{
 		Name: "test",
 		PerScope: &PerScopeSettings{

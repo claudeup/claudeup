@@ -1,6 +1,6 @@
-// ABOUTME: Tests for listing local storage items
+// ABOUTME: Tests for listing extension storage items
 // ABOUTME: Verifies directory scanning and item discovery
-package local
+package ext
 
 import (
 	"os"

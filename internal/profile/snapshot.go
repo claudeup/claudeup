@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
-	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ext"
 )
 
 // ClaudeJSON represents the ~/.claude.json file structure (relevant parts)
@@ -196,7 +196,7 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 
 // readExtensions reads enabled extensions from enabled.json
 func readExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) {
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return nil, err
@@ -234,27 +234,27 @@ func readExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) 
 	}
 
 	// Extract each category
-	if agents := extractEnabled(local.CategoryAgents); len(agents) > 0 {
+	if agents := extractEnabled(ext.CategoryAgents); len(agents) > 0 {
 		settings.Agents = agents
 		hasItems = true
 	}
-	if commands := extractEnabled(local.CategoryCommands); len(commands) > 0 {
+	if commands := extractEnabled(ext.CategoryCommands); len(commands) > 0 {
 		settings.Commands = commands
 		hasItems = true
 	}
-	if skills := extractEnabled(local.CategorySkills); len(skills) > 0 {
+	if skills := extractEnabled(ext.CategorySkills); len(skills) > 0 {
 		settings.Skills = skills
 		hasItems = true
 	}
-	if hooks := extractEnabled(local.CategoryHooks); len(hooks) > 0 {
+	if hooks := extractEnabled(ext.CategoryHooks); len(hooks) > 0 {
 		settings.Hooks = hooks
 		hasItems = true
 	}
-	if rules := extractEnabled(local.CategoryRules); len(rules) > 0 {
+	if rules := extractEnabled(ext.CategoryRules); len(rules) > 0 {
 		settings.Rules = rules
 		hasItems = true
 	}
-	if outputStyles := extractEnabled(local.CategoryOutputStyles); len(outputStyles) > 0 {
+	if outputStyles := extractEnabled(ext.CategoryOutputStyles); len(outputStyles) > 0 {
 		settings.OutputStyles = outputStyles
 		hasItems = true
 	}

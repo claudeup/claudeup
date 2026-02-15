@@ -1,6 +1,6 @@
 // ABOUTME: Tests for symlink-based enable/disable operations
 // ABOUTME: Verifies symlink creation, removal, and sync behavior
-package local
+package ext
 
 import (
 	"os"
@@ -92,7 +92,7 @@ func TestEnableAgentWithGroup(t *testing.T) {
 		t.Error("Symlink was not created in group directory")
 	}
 
-	// Verify symlink target is an absolute path to local storage
+	// Verify symlink target is an absolute path to extension storage
 	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
@@ -157,7 +157,7 @@ func TestEnableNestedCommand(t *testing.T) {
 		t.Error("Expected symlink, got regular file")
 	}
 
-	// Verify symlink target is an absolute path to local storage
+	// Verify symlink target is an absolute path to extension storage
 	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
@@ -201,12 +201,12 @@ func TestImport(t *testing.T) {
 		t.Errorf("Import() notFound = %v, want []", notFound)
 	}
 
-	// Verify files moved to local storage
+	// Verify files moved to extension storage
 	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
-		t.Error("gsd-planner.md was not moved to local storage")
+		t.Error("gsd-planner.md was not moved to extension storage")
 	}
 	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-executor.md")); os.IsNotExist(err) {
-		t.Error("gsd-executor.md was not moved to local storage")
+		t.Error("gsd-executor.md was not moved to extension storage")
 	}
 
 	// Verify other-agent.md was NOT moved (didn't match pattern)
@@ -257,9 +257,9 @@ func TestImportDirectory(t *testing.T) {
 		t.Errorf("Import() imported = %v, want [gsd]", imported)
 	}
 
-	// Verify directory moved to local storage
+	// Verify directory moved to extension storage
 	if _, err := os.Stat(filepath.Join(localDir, "commands", "gsd", "new-project.md")); os.IsNotExist(err) {
-		t.Error("gsd directory was not moved to local storage")
+		t.Error("gsd directory was not moved to extension storage")
 	}
 
 	// Verify gsd directory was created (as regular dir with symlinks inside)
@@ -298,7 +298,7 @@ func TestImportSkipsSymlinks(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create local storage with an item
+	// Create extension storage with an item
 	localDir := filepath.Join(claudeupHome, "ext")
 	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
 	os.WriteFile(filepath.Join(localDir, "agents", "existing.md"), []byte("# Existing"), 0644)
@@ -360,10 +360,10 @@ func TestImportAll(t *testing.T) {
 		t.Errorf("ImportAll() hooks = %v, want 1 item", results["hooks"])
 	}
 
-	// Verify files moved to local storage
+	// Verify files moved to extension storage
 	localDir := filepath.Join(claudeupHome, "ext")
 	if _, err := os.Stat(filepath.Join(localDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
-		t.Error("gsd-planner.md was not moved to local storage")
+		t.Error("gsd-planner.md was not moved to extension storage")
 	}
 
 	// Verify other-agent.md was NOT moved (didn't match pattern)
@@ -499,13 +499,13 @@ func TestImportAllNoPattern(t *testing.T) {
 }
 
 // TestImportReconciliation verifies that when importing items that already exist
-// in local storage, the active copies are removed and symlinks are created.
+// in extension storage, the active copies are removed and symlinks are created.
 func TestImportReconciliation(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create local storage with an existing item
+	// Create extension storage with an existing item
 	localDir := filepath.Join(claudeupHome, "ext")
 	os.MkdirAll(filepath.Join(localDir, "agents"), 0755)
 	os.WriteFile(filepath.Join(localDir, "agents", "existing-agent.md"), []byte("# Stored Version"), 0644)
@@ -595,7 +595,7 @@ func TestEnableEmptyDirectory(t *testing.T) {
 	claudeupHome := t.TempDir()
 	manager := NewManager(claudeDir, claudeupHome)
 
-	// Create local storage with empty directory
+	// Create extension storage with empty directory
 	localDir := filepath.Join(claudeupHome, "ext")
 	emptyDir := filepath.Join(localDir, "commands", "empty-dir")
 	os.MkdirAll(emptyDir, 0755)

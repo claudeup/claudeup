@@ -1,6 +1,6 @@
 // ABOUTME: Tests for viewing item contents
 // ABOUTME: Verifies content retrieval for different item types
-package local
+package ext
 
 import (
 	"os"

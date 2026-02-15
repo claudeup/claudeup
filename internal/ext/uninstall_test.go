@@ -1,6 +1,6 @@
 // ABOUTME: Tests for Uninstall function
-// ABOUTME: Verifies item removal from local storage with config and symlink cleanup
-package local
+// ABOUTME: Verifies item removal from extension storage with config and symlink cleanup
+package ext
 
 import (
 	"os"
@@ -39,9 +39,9 @@ func TestUninstall(t *testing.T) {
 		t.Errorf("Uninstall() notFound = %v, want []", notFound)
 	}
 
-	// File should be gone from local storage
+	// File should be gone from extension storage
 	if _, err := os.Stat(filepath.Join(rulesDir, "my-rule.md")); !os.IsNotExist(err) {
-		t.Error("File was not removed from local storage")
+		t.Error("File was not removed from extension storage")
 	}
 
 	// Symlink should be gone
@@ -120,7 +120,7 @@ func TestUninstallDisabledItem(t *testing.T) {
 	}
 
 	if _, err := os.Stat(filepath.Join(rulesDir, "disabled-rule.md")); !os.IsNotExist(err) {
-		t.Error("File was not removed from local storage")
+		t.Error("File was not removed from extension storage")
 	}
 }
 

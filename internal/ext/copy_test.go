@@ -1,6 +1,6 @@
-// ABOUTME: Tests for CopyToProject - copies local items into project .claude/ directory
+// ABOUTME: Tests for CopyToProject - copies extensions into project .claude/ directory
 // ABOUTME: Validates file copy, directory creation, skill dirs, wildcards, and overwrite
-package local
+package ext
 
 import (
 	"os"
@@ -12,7 +12,7 @@ func TestCopyToProjectCopiesFiles(t *testing.T) {
 	localDir := t.TempDir()
 	projectDir := t.TempDir()
 
-	// Create source files in local storage
+	// Create source files in extension storage
 	rulesDir := filepath.Join(localDir, "rules")
 	if err := os.MkdirAll(rulesDir, 0755); err != nil {
 		t.Fatal(err)

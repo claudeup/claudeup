@@ -1,6 +1,6 @@
-// ABOUTME: Installs items from external paths to local storage
+// ABOUTME: Installs items from external paths to extension storage
 // ABOUTME: Copies files/directories and auto-enables them
-package local
+package ext
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Install copies items from sourcePath to local storage and enables them.
+// Install copies items from sourcePath to extension storage and enables them.
 // For single files/directories: copies as-is.
 // For containers with multiple items: copies each item individually.
 // Returns (installed items, skipped items, error).

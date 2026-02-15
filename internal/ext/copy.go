@@ -1,6 +1,6 @@
-// ABOUTME: Copies local items into project .claude/ directory for project-scope profiles
+// ABOUTME: Copies extensions into project .claude/ directory for project-scope profiles
 // ABOUTME: Uses file copy (not symlinks) so items are portable and git-committable
-package local
+package ext
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// CopyToProject copies local items matching patterns into the project's .claude/{category}/ directory.
+// CopyToProject copies extensions matching patterns into the project's .claude/{category}/ directory.
 // Source items are read from {localDir}/{category}/{item}.
 // Destination is {projectDir}/.claude/{category}/{item}.
 // Skill directories (containing SKILL.md) are copied recursively.
@@ -18,7 +18,7 @@ import (
 func CopyToProject(localDir, category string, patterns []string, projectDir string) ([]string, []string, error) {
 	sourceDir := filepath.Join(localDir, category)
 
-	// List available items in local storage
+	// List available items in extension storage
 	allItems, err := listLocalItems(sourceDir, category)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list items for %s: %w", category, err)
@@ -63,7 +63,7 @@ func validateDestPath(destPath, baseDir string) error {
 	return nil
 }
 
-// listLocalItems enumerates items in a local storage directory.
+// listLocalItems enumerates items in an extension storage directory.
 // Mirrors the listing logic from Manager.ListItems but without needing a Manager.
 func listLocalItems(dir, category string) ([]string, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {

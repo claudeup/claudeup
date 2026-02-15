@@ -1,6 +1,6 @@
 // ABOUTME: Tests for resolving item names with extension inference
 // ABOUTME: Verifies partial name matching and agent group resolution
-package local
+package ext
 
 import (
 	"os"

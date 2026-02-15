@@ -1,6 +1,6 @@
 // ABOUTME: Manages enabled.json configuration file for extensions
 // ABOUTME: Provides load/save operations for tracking enabled state in CLAUDEUP_HOME
-package local
+package ext
 
 import (
 	"encoding/json"
@@ -11,14 +11,14 @@ import (
 // Config maps category -> item -> enabled status
 type Config map[string]map[string]bool
 
-// Manager handles local item operations
+// Manager handles extension operations
 type Manager struct {
 	claudeDir  string
 	localDir   string
 	configFile string
 }
 
-// NewManager creates a new Manager for managing local items.
+// NewManager creates a new Manager for managing extensions.
 // claudeDir is where Claude Code reads extensions (e.g., ~/.claude).
 // claudeupHome is where claudeup stores its data (e.g., ~/.claudeup).
 func NewManager(claudeDir, claudeupHome string) *Manager {

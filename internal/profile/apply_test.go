@@ -1381,7 +1381,7 @@ func TestApplyWithExtensions(t *testing.T) {
 		},
 	}
 
-	// Apply local items
+	// Apply extensions
 	err := applyExtensions(p, claudeDir, claudeDir)
 	if err != nil {
 		t.Fatalf("applyExtensions() error = %v", err)

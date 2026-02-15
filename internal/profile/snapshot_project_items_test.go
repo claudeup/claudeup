@@ -38,12 +38,12 @@ func TestReadProjectExtensionsSkipsSymlinks(t *testing.T) {
 	projectDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create a source file in claudeup local storage
+	// Create a source file in claudeup extension storage
 	localRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, localRulesDir)
 	mustWriteFile(t, filepath.Join(localRulesDir, "user-rule.md"), "# User Rule")
 
-	// Create a symlink in project .claude/rules/ pointing to the local storage
+	// Create a symlink in project .claude/rules/ pointing to extension storage
 	projectRulesDir := filepath.Join(projectDir, ".claude", "rules")
 	mustMkdir(t, projectRulesDir)
 	if err := os.Symlink(
@@ -152,7 +152,7 @@ func TestSnapshotAllScopesCapturesProjectExtensions(t *testing.T) {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
 
-	// Project-scoped local items should be in PerScope.Project.Extensions
+	// Project-scoped extensions should be in PerScope.Project.Extensions
 	if profile.PerScope == nil || profile.PerScope.Project == nil {
 		t.Fatal("expected PerScope.Project to be set")
 	}
@@ -185,7 +185,7 @@ func TestSnapshotAllScopesPutsUserItemsInPerScopeUser(t *testing.T) {
 	mustWriteJSON(t, filepath.Join(claudeDir, "plugins", "known_marketplaces.json"), map[string]any{})
 	mustWriteJSON(t, claudeJSONPath, map[string]any{"mcpServers": map[string]any{}})
 
-	// Create local items in claudeup storage and enable them
+	// Create extensions in claudeup storage and enable them
 	localRulesDir := filepath.Join(claudeupHome, "ext", "rules")
 	mustMkdir(t, localRulesDir)
 	mustWriteFile(t, filepath.Join(localRulesDir, "coding.md"), "# Coding")
@@ -210,7 +210,7 @@ func TestSnapshotAllScopesPutsUserItemsInPerScopeUser(t *testing.T) {
 		t.Fatalf("SnapshotAllScopes failed: %v", err)
 	}
 
-	// User-scoped local items should be in PerScope.User.Extensions
+	// User-scoped extensions should be in PerScope.User.Extensions
 	if profile.PerScope == nil || profile.PerScope.User == nil {
 		t.Fatal("expected PerScope.User to be set")
 	}

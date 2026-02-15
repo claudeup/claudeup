@@ -328,7 +328,7 @@ func TestSnapshotCapturesExtensions(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Create mock enabled.json with enabled local items
+	// Create mock enabled.json with enabled extensions
 	enabledData := map[string]map[string]bool{
 		"agents": {
 			"gsd-planner":  true,

@@ -1,6 +1,6 @@
-// ABOUTME: View item contents from local storage
+// ABOUTME: View item contents from extension storage
 // ABOUTME: Handles files and skill directories
-package local
+package ext
 
 import (
 	"fmt"

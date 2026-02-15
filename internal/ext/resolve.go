@@ -1,6 +1,6 @@
 // ABOUTME: Resolves item names with extension inference
 // ABOUTME: Handles partial matches and agent group resolution
-package local
+package ext
 
 import (
 	"fmt"

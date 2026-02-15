@@ -1,24 +1,24 @@
-// ABOUTME: Integration tests for local item management
+// ABOUTME: Integration tests for extension management
 // ABOUTME: Tests end-to-end enable/disable/list/view flows
-package local
+package ext
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ext"
 )
 
-func TestLocalIntegration(t *testing.T) {
+func TestExtensionIntegration(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create full local directory structure
-	localDir := filepath.Join(claudeupHome, "ext")
-	agentsDir := filepath.Join(localDir, "agents")
-	commandsDir := filepath.Join(localDir, "commands", "gsd")
-	hooksDir := filepath.Join(localDir, "hooks")
+	// Create full extension directory structure
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
+	commandsDir := filepath.Join(extDir, "commands", "gsd")
+	hooksDir := filepath.Join(extDir, "hooks")
 
 	os.MkdirAll(agentsDir, 0755)
 	os.MkdirAll(commandsDir, 0755)
@@ -30,7 +30,7 @@ func TestLocalIntegration(t *testing.T) {
 	os.WriteFile(filepath.Join(commandsDir, "new-project.md"), []byte("# New Project"), 0644)
 	os.WriteFile(filepath.Join(hooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	// Test: List items
 	agents, err := manager.ListItems("agents")
@@ -91,13 +91,13 @@ func TestLocalIntegration(t *testing.T) {
 	}
 }
 
-func TestLocalWithAgentGroups(t *testing.T) {
+func TestExtensionWithAgentGroups(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create local directory structure with agent groups
-	localDir := filepath.Join(claudeupHome, "ext")
-	agentsDir := filepath.Join(localDir, "agents")
+	// Create extension directory structure with agent groups
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
 	groupDir := filepath.Join(agentsDir, "business-product")
 
 	os.MkdirAll(groupDir, 0755)
@@ -107,7 +107,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644)
 	os.WriteFile(filepath.Join(groupDir, "strategist.md"), []byte("# Strategist"), 0644)
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	// Test: List returns both flat and grouped
 	agents, err := manager.ListItems("agents")
@@ -133,7 +133,7 @@ func TestLocalWithAgentGroups(t *testing.T) {
 		t.Error("Symlink was not created in group directory")
 	}
 
-	// Verify symlink target is an absolute path to local storage
+	// Verify symlink target is an absolute path to extension storage
 	target, err := os.Readlink(symlinkPath)
 	if err != nil {
 		t.Fatalf("Readlink() error = %v", err)
@@ -144,13 +144,13 @@ func TestLocalWithAgentGroups(t *testing.T) {
 	}
 }
 
-func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
+func TestExtensionCommandsWithDirectoryStructure(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create local directory structure for commands with directories
-	localDir := filepath.Join(claudeupHome, "ext")
-	commandsDir := filepath.Join(localDir, "commands")
+	// Create extension directory structure for commands with directories
+	extDir := filepath.Join(claudeupHome, "ext")
+	commandsDir := filepath.Join(extDir, "commands")
 	gsdDir := filepath.Join(commandsDir, "gsd")
 
 	os.MkdirAll(gsdDir, 0755)
@@ -160,7 +160,7 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	os.WriteFile(filepath.Join(gsdDir, "execute-phase.md"), []byte("# Execute Phase"), 0644)
 	os.WriteFile(filepath.Join(commandsDir, "other-command.md"), []byte("# Other"), 0644)
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	// Test: List commands
 	commands, err := manager.ListItems("commands")
@@ -188,17 +188,17 @@ func TestLocalCommandsWithDirectoryStructure(t *testing.T) {
 	}
 }
 
-func TestLocalConfigPersistence(t *testing.T) {
+func TestExtensionConfigPersistence(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
 
-	// Create local directory structure
-	localDir := filepath.Join(claudeupHome, "ext")
-	hooksDir := filepath.Join(localDir, "hooks")
+	// Create extension directory structure
+	extDir := filepath.Join(claudeupHome, "ext")
+	hooksDir := filepath.Join(extDir, "hooks")
 	os.MkdirAll(hooksDir, 0755)
 	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	// Enable hook
 	_, _, err := manager.Enable("hooks", []string{"format-on-save"})
@@ -207,7 +207,7 @@ func TestLocalConfigPersistence(t *testing.T) {
 	}
 
 	// Create new manager instance (simulating restart)
-	manager2 := local.NewManager(claudeDir, claudeupHome)
+	manager2 := ext.NewManager(claudeDir, claudeupHome)
 
 	// Load config should show enabled item
 	config, err := manager2.LoadConfig()

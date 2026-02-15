@@ -13,7 +13,7 @@ import (
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/config"
-	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ext"
 	"github.com/claudeup/claudeup/v5/internal/secrets"
 )
 
@@ -299,7 +299,7 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 	return nil
 }
 
-// writeLocalScopeConfigs writes settings.local.json for local scope
+// writeLocalScopeConfigs writes settings.ext.json for local scope
 func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
 	localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
@@ -1204,7 +1204,7 @@ func applyProjectScopeSettings(profile *Profile, claudeDir, projectDir string) (
 	return result, nil
 }
 
-// applyLocalScopeSettings writes plugins to local-scope settings.local.json
+// applyLocalScopeSettings writes plugins to local-scope settings.ext.json
 func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
@@ -1272,7 +1272,7 @@ func applyExtensionsScoped(_ *Profile, items *ExtensionSettings, scope Scope, cl
 
 // applyExtensionsSymlink enables extensions via symlinks (user scope).
 func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome string) error {
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	type categoryItems struct {
 		category string
@@ -1280,12 +1280,12 @@ func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome st
 	}
 
 	categories := []categoryItems{
-		{local.CategoryAgents, items.Agents},
-		{local.CategoryCommands, items.Commands},
-		{local.CategorySkills, items.Skills},
-		{local.CategoryHooks, items.Hooks},
-		{local.CategoryRules, items.Rules},
-		{local.CategoryOutputStyles, items.OutputStyles},
+		{ext.CategoryAgents, items.Agents},
+		{ext.CategoryCommands, items.Commands},
+		{ext.CategorySkills, items.Skills},
+		{ext.CategoryHooks, items.Hooks},
+		{ext.CategoryRules, items.Rules},
+		{ext.CategoryOutputStyles, items.OutputStyles},
 	}
 
 	for _, ci := range categories {
@@ -1310,12 +1310,12 @@ func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir stri
 	}
 
 	categories := []categoryItems{
-		{local.CategoryAgents, items.Agents},
-		{local.CategoryCommands, items.Commands},
-		{local.CategorySkills, items.Skills},
-		{local.CategoryHooks, items.Hooks},
-		{local.CategoryRules, items.Rules},
-		{local.CategoryOutputStyles, items.OutputStyles},
+		{ext.CategoryAgents, items.Agents},
+		{ext.CategoryCommands, items.Commands},
+		{ext.CategorySkills, items.Skills},
+		{ext.CategoryHooks, items.Hooks},
+		{ext.CategoryRules, items.Rules},
+		{ext.CategoryOutputStyles, items.OutputStyles},
 	}
 
 	for _, ci := range categories {
@@ -1323,11 +1323,11 @@ func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir stri
 			continue
 		}
 
-		if err := local.ValidateProjectScope(ci.category); err != nil {
+		if err := ext.ValidateProjectScope(ci.category); err != nil {
 			return fmt.Errorf("cannot copy %s to project scope: %w", ci.category, err)
 		}
 
-		if _, _, err := local.CopyToProject(localDir, ci.category, ci.patterns, projectDir); err != nil {
+		if _, _, err := ext.CopyToProject(localDir, ci.category, ci.patterns, projectDir); err != nil {
 			return fmt.Errorf("failed to copy %s to project: %w", ci.category, err)
 		}
 	}

@@ -17,7 +17,7 @@ var _ = Describe("extensions uninstall", func() {
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 
-		// Create items in local storage
+		// Create items in extension storage
 		rulesDir := filepath.Join(env.ClaudeupDir, "ext", "rules")
 		Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(rulesDir, "my-rule.md"), []byte("# Rule"), 0644)).To(Succeed())
@@ -42,7 +42,7 @@ var _ = Describe("extensions uninstall", func() {
 		Expect(result.Stdout).To(ContainSubstring("my-rule.md"))
 	})
 
-	It("removes the file from local storage", func() {
+	It("removes the file from extension storage", func() {
 		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
 		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "ext", "rules", "my-rule.md"))

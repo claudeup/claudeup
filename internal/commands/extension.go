@@ -8,16 +8,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/claudeup/claudeup/v5/internal/local"
+	"github.com/claudeup/claudeup/v5/internal/ext"
 	"github.com/claudeup/claudeup/v5/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 // markdownCategories are categories where all items are markdown files.
 var markdownCategories = map[string]bool{
-	local.CategoryAgents: true,
-	local.CategorySkills: true,
-	local.CategoryRules:  true,
+	ext.CategoryAgents: true,
+	ext.CategorySkills: true,
+	ext.CategoryRules:  true,
 }
 
 var (
@@ -216,7 +216,7 @@ func runExtensionsList(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--enabled and --disabled are mutually exclusive")
 	}
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -228,12 +228,12 @@ func runExtensionsList(cmd *cobra.Command, args []string) error {
 
 	var categories []string
 	if specificCategory {
-		if err := local.ValidateCategory(args[0]); err != nil {
+		if err := ext.ValidateCategory(args[0]); err != nil {
 			return err
 		}
 		categories = []string{args[0]}
 	} else {
-		categories = local.AllCategories()
+		categories = ext.AllCategories()
 	}
 
 	totalItems := 0
@@ -288,7 +288,7 @@ func runExtensionsList(cmd *cobra.Command, args []string) error {
 
 		fmt.Printf("\n%s/:\n", category)
 
-		if category == local.CategoryAgents {
+		if category == ext.CategoryAgents {
 			// Group agents by their group directory
 			printGroupedAgents(filtered, extListLong, category)
 		} else {
@@ -416,7 +416,7 @@ func runExtensionsEnable(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	enabled, notFound, err := manager.Enable(category, patterns)
 	if err != nil {
 		return err
@@ -441,7 +441,7 @@ func runExtensionsDisable(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	disabled, notFound, err := manager.Disable(category, patterns)
 	if err != nil {
 		return err
@@ -466,7 +466,7 @@ func runExtensionsView(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	item := args[1]
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	content, err := manager.View(category, item)
 	if err != nil {
 		return err
@@ -489,7 +489,7 @@ func runExtensionsView(cmd *cobra.Command, args []string) error {
 }
 
 func runExtensionsSync(cmd *cobra.Command, args []string) error {
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	fmt.Println("Syncing extensions from enabled.json...")
 	if err := manager.Sync(); err != nil {
@@ -504,7 +504,7 @@ func runExtensionsImport(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	imported, skipped, notFound, err := manager.Import(category, patterns)
 	if err != nil {
 		return err
@@ -530,7 +530,7 @@ func runExtensionsImport(cmd *cobra.Command, args []string) error {
 }
 
 func runExtensionsImportAll(cmd *cobra.Command, args []string) error {
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	var patterns []string
 	if len(args) > 0 {
@@ -567,7 +567,7 @@ func runExtensionsInstall(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	sourcePath := args[1]
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	installed, skipped, err := manager.Install(category, sourcePath)
 	if err != nil {
 		return err
@@ -592,7 +592,7 @@ func runExtensionsUninstall(cmd *cobra.Command, args []string) error {
 	category := args[0]
 	patterns := args[1:]
 
-	manager := local.NewManager(claudeDir, claudeupHome)
+	manager := ext.NewManager(claudeDir, claudeupHome)
 	removed, notFound, err := manager.Uninstall(category, patterns)
 	if err != nil {
 		return err

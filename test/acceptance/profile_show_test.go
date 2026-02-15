@@ -65,7 +65,7 @@ var _ = Describe("profile show", func() {
 			Expect(result.Stdout).To(ContainSubstring("user-mcp"))
 		})
 
-		It("shows local items", func() {
+		It("shows extensions", func() {
 			result := env.Run("profile", "show", "multi-scope")
 
 			Expect(result.ExitCode).To(Equal(0))

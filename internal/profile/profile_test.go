@@ -1738,7 +1738,7 @@ func TestPreserveFrom_DoesNotCopyIncludes(t *testing.T) {
 		t.Errorf("includes should not be preserved: got %v", p.Includes)
 	}
 	if p.Extensions == nil || len(p.Extensions.Agents) != 1 {
-		t.Error("local items not preserved")
+		t.Error("extensions not preserved")
 	}
 }
 

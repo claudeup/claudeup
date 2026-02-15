@@ -1,6 +1,6 @@
 // ABOUTME: Tests for local package core types and category validation
 // ABOUTME: Verifies category constants and validation logic
-package local
+package ext
 
 import "testing"
 

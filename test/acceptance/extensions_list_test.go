@@ -38,7 +38,7 @@ var _ = Describe("extensions list", func() {
 
 	Context("with items in library", func() {
 		BeforeEach(func() {
-			// Create rule items in local storage
+			// Create rule items in extension storage
 			rulesDir := filepath.Join(env.ClaudeupDir, "ext", "rules")
 			Expect(os.MkdirAll(rulesDir, 0755)).To(Succeed())
 			Expect(os.WriteFile(filepath.Join(rulesDir, "enabled-rule.md"), []byte("# Enabled"), 0644)).To(Succeed())
@@ -145,7 +145,7 @@ var _ = Describe("extensions list", func() {
 				Expect(result.Stdout).To(MatchRegexp(`enabled-rule\.md\s+\[markdown\]`))
 			})
 
-			It("shows relative path from local storage", func() {
+			It("shows relative path from extension storage", func() {
 				result := env.Run("extensions", "list", "hooks", "--long")
 
 				Expect(result.ExitCode).To(Equal(0))

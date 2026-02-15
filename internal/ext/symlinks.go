@@ -1,6 +1,6 @@
-// ABOUTME: Symlink-based enable/disable for local items
-// ABOUTME: Creates absolute symlinks from Claude's active dirs to local storage
-package local
+// ABOUTME: Symlink-based enable/disable for extensions
+// ABOUTME: Creates absolute symlinks from Claude's active dirs to extension storage
+package ext
 
 import (
 	"fmt"
@@ -356,12 +356,12 @@ func (m *Manager) Sync() error {
 	return nil
 }
 
-// Import moves items from active directory to local storage and enables them.
+// Import moves items from active directory to extension storage and enables them.
 // This is useful when tools like GSD install directly to active directories.
 //
-// Reconciliation: If an item already exists in local storage, the copy in the
+// Reconciliation: If an item already exists in extension storage, the copy in the
 // active directory is removed and a symlink to the stored version is created.
-// This ensures the state is consistent (no duplicate items, symlinks point to local storage).
+// This ensures the state is consistent (no duplicate items, symlinks point to extension storage).
 //
 // Returns (imported items, skipped/reconciled items, not found patterns, error).
 func (m *Manager) Import(category string, patterns []string) ([]string, []string, []string, error) {
@@ -372,7 +372,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 	activeDir := filepath.Join(m.claudeDir, category)
 	localDir := filepath.Join(m.localDir, category)
 
-	// Ensure local storage directory exists
+	// Ensure extension storage directory exists
 	if err := os.MkdirAll(localDir, 0755); err != nil {
 		return nil, nil, nil, err
 	}
@@ -398,10 +398,10 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 			sourcePath := filepath.Join(activeDir, item)
 			destPath := filepath.Join(localDir, item)
 
-			// Check if destination already exists in local storage
+			// Check if destination already exists in extension storage
 			if _, err := os.Stat(destPath); err == nil {
-				// Local storage already has this item - remove source and enable the stored version
-				// This reconciles the state (replaces active copy with symlink to local storage)
+				// Extension storage already has this item - remove source and enable the stored version
+				// This reconciles the state (replaces active copy with symlink to extension storage)
 				if err := os.RemoveAll(sourcePath); err != nil {
 					return nil, nil, nil, fmt.Errorf("failed to remove %s: %w", sourcePath, err)
 				}
@@ -409,7 +409,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 				continue
 			}
 
-			// Move to local storage
+			// Move to extension storage
 			if err := os.Rename(sourcePath, destPath); err != nil {
 				return nil, nil, nil, err
 			}
@@ -418,7 +418,7 @@ func (m *Manager) Import(category string, patterns []string) ([]string, []string
 		}
 	}
 
-	// Enable all items (creates symlinks) - both imported and skipped (already in local storage)
+	// Enable all items (creates symlinks) - both imported and skipped (already in extension storage)
 	toEnable := append(imported, skipped...)
 	if len(toEnable) > 0 {
 		_, _, err := m.Enable(category, toEnable)
