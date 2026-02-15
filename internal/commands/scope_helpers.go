@@ -20,14 +20,19 @@ type ActiveProfileInfo struct {
 
 // getActiveProfile returns the active profile name and scope using the hierarchy:
 // 1. Local scope (projects.json registry) - highest priority
-// 2. User scope (~/.claudeup/config.json) - lowest priority
+// 2. Project scope (projects.json registry) - middle priority
+// 3. User scope (~/.claudeup/config.json) - lowest priority
 //
 // Returns empty strings if no profile is active.
 func getActiveProfile(cwd string) (profileName, scope string) {
-	// Check local scope in registry first (highest precedence)
 	if registry, err := config.LoadProjectsRegistry(); err == nil {
+		// Check local scope first (highest precedence)
 		if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
 			return entry.Profile, "local"
+		}
+		// Check project scope (middle precedence)
+		if name, ok := registry.GetProjectScope(cwd); ok {
+			return name, "project"
 		}
 	}
 
@@ -40,17 +45,25 @@ func getActiveProfile(cwd string) (profileName, scope string) {
 }
 
 // getAllActiveProfiles returns active profiles from all scopes that have a profile set
-// Returns profiles in order: local, user (matching precedence order)
+// Returns profiles in order: local, project, user (matching precedence order)
 // Used to display all active profiles when they differ across scopes
 func getAllActiveProfiles(cwd string) []ActiveProfileInfo {
 	var profiles []ActiveProfileInfo
 
-	// Local scope
 	if registry, err := config.LoadProjectsRegistry(); err == nil {
+		// Local scope
 		if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
 			profiles = append(profiles, ActiveProfileInfo{
 				Name:  entry.Profile,
 				Scope: "local",
+			})
+		}
+
+		// Project scope
+		if name, ok := registry.GetProjectScope(cwd); ok {
+			profiles = append(profiles, ActiveProfileInfo{
+				Name:  name,
+				Scope: "project",
 			})
 		}
 	}

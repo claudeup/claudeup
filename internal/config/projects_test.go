@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -82,6 +83,143 @@ func TestLoadProjectsRegistry_CreatesEmpty(t *testing.T) {
 	}
 	if len(reg.Projects) != 0 {
 		t.Errorf("len(Projects) = %d, want 0", len(reg.Projects))
+	}
+}
+
+func TestProjectsRegistry_SetAndGetProjectScope(t *testing.T) {
+	reg := &ProjectsRegistry{
+		Projects: make(map[string]ProjectEntry),
+	}
+
+	// Set project scope
+	reg.SetProjectScope("/path/to/project", "team-backend")
+
+	// Get it back
+	name, ok := reg.GetProjectScope("/path/to/project")
+	if !ok {
+		t.Fatal("GetProjectScope returned false for existing project")
+	}
+	if name != "team-backend" {
+		t.Errorf("ProjectProfile = %q, want %q", name, "team-backend")
+	}
+
+	// Get nonexistent
+	_, ok = reg.GetProjectScope("/nonexistent")
+	if ok {
+		t.Error("GetProjectScope should return false for nonexistent project")
+	}
+}
+
+func TestProjectsRegistry_BothScopesIndependent(t *testing.T) {
+	reg := &ProjectsRegistry{
+		Projects: make(map[string]ProjectEntry),
+	}
+
+	// Set both scopes on the same project
+	reg.SetProject("/path/to/project", "my-overrides")
+	reg.SetProjectScope("/path/to/project", "team-backend")
+
+	// Local scope should be preserved
+	entry, ok := reg.GetProject("/path/to/project")
+	if !ok {
+		t.Fatal("GetProject returned false after SetProjectScope")
+	}
+	if entry.Profile != "my-overrides" {
+		t.Errorf("Profile (local) = %q, want %q", entry.Profile, "my-overrides")
+	}
+
+	// Project scope should be preserved
+	name, ok := reg.GetProjectScope("/path/to/project")
+	if !ok {
+		t.Fatal("GetProjectScope returned false after SetProject")
+	}
+	if name != "team-backend" {
+		t.Errorf("ProjectProfile = %q, want %q", name, "team-backend")
+	}
+}
+
+func TestProjectsRegistry_BothScopesIndependent_ReverseOrder(t *testing.T) {
+	reg := &ProjectsRegistry{
+		Projects: make(map[string]ProjectEntry),
+	}
+
+	// Set project scope first, then local scope
+	reg.SetProjectScope("/path/to/project", "team-backend")
+	reg.SetProject("/path/to/project", "my-overrides")
+
+	// Local scope should be set
+	entry, ok := reg.GetProject("/path/to/project")
+	if !ok {
+		t.Fatal("GetProject returned false after SetProject")
+	}
+	if entry.Profile != "my-overrides" {
+		t.Errorf("Profile (local) = %q, want %q", entry.Profile, "my-overrides")
+	}
+
+	// Project scope should still be preserved
+	name, ok := reg.GetProjectScope("/path/to/project")
+	if !ok {
+		t.Fatal("GetProjectScope returned false after SetProject")
+	}
+	if name != "team-backend" {
+		t.Errorf("ProjectProfile = %q, want %q", name, "team-backend")
+	}
+}
+
+func TestProjectsRegistry_GetProject_IgnoresProjectOnlyEntries(t *testing.T) {
+	reg := &ProjectsRegistry{
+		Projects: make(map[string]ProjectEntry),
+	}
+
+	// Only set project scope (no local scope)
+	reg.SetProjectScope("/path/to/project", "team-backend")
+
+	// GetProject should return false since local scope isn't set
+	_, ok := reg.GetProject("/path/to/project")
+	if ok {
+		t.Error("GetProject should return false for project-scope-only entries")
+	}
+
+	// GetProjectScope should still work
+	name, ok := reg.GetProjectScope("/path/to/project")
+	if !ok {
+		t.Fatal("GetProjectScope returned false")
+	}
+	if name != "team-backend" {
+		t.Errorf("ProjectProfile = %q, want %q", name, "team-backend")
+	}
+}
+
+func TestProjectsRegistry_BackwardCompatibility(t *testing.T) {
+	// Simulate old JSON without projectProfile/projectAppliedAt fields
+	oldJSON := `{
+		"version": "1",
+		"projects": {
+			"/old/project": {
+				"profile": "legacy-profile",
+				"appliedAt": "2026-01-01T00:00:00Z"
+			}
+		}
+	}`
+
+	var reg ProjectsRegistry
+	if err := json.Unmarshal([]byte(oldJSON), &reg); err != nil {
+		t.Fatalf("Failed to unmarshal old-format JSON: %v", err)
+	}
+
+	// Local scope should still work
+	entry, ok := reg.GetProject("/old/project")
+	if !ok {
+		t.Fatal("GetProject returned false for old-format entry")
+	}
+	if entry.Profile != "legacy-profile" {
+		t.Errorf("Profile = %q, want %q", entry.Profile, "legacy-profile")
+	}
+
+	// Project scope should return false (not set in old format)
+	_, ok = reg.GetProjectScope("/old/project")
+	if ok {
+		t.Error("GetProjectScope should return false for old-format entry")
 	}
 }
 

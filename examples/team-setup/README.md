@@ -18,6 +18,7 @@ Team leads and developers who want to:
 | `02-isolated-workspace-demo.sh` | End-to-end demo simulating three team members (Alice, Bob, Charlie) with isolated environments, project-scoped extensions, and git-based sharing      |
 | `03-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
 | `04-devcontainer-demo.sh`       | End-to-end demo using claudeup-lab to create real Docker containers for three team members with profile stacking via `--base-profile`                 |
+| `05-scope-apply-demo.sh`        | Applies profiles at all three scopes (user, project, local) and shows how `profile list` markers change as scopes accumulate                          |
 
 ## Suggested order
 
