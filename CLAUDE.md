@@ -60,10 +60,10 @@ claudeup operates across two distinct directory trees:
 ~/.claude/hooks/my-hook.sh    -->  ~/.claudeup/ext/hooks/my-hook.sh    (absolute symlink)
 ```
 
-**In code**, the `local.Manager` constructor takes both paths explicitly:
+**In code**, the `ext.Manager` constructor takes both paths explicitly:
 
 ```go
-manager := local.NewManager(claudeDir, claudeupHome)
+manager := ext.NewManager(claudeDir, claudeupHome)
 ```
 
 **In tests**, each path gets its own `t.TempDir()` to verify proper separation:
