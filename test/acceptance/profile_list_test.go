@@ -378,13 +378,12 @@ var _ = Describe("profile list", func() {
 				Expect(result.Stdout).To(ContainSubstring("no profile tracked"))
 			})
 
-			It("shows suggested save command", func() {
+			It("shows suggested save command with scope flag", func() {
 				result := env.RunInDir(projectDir, "profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("profile save"))
-				Expect(result.Stdout).To(ContainSubstring("profile apply"))
-				Expect(result.Stdout).To(ContainSubstring("--project"))
+				Expect(result.Stdout).To(ContainSubstring("profile save <name> --project"))
+				Expect(result.Stdout).To(ContainSubstring("profile apply <name> --project"))
 			})
 		})
 
