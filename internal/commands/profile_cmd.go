@@ -1069,6 +1069,14 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 		}
 
+		// Track project scope in registry when no changes needed
+		if scope == profile.ScopeProject || p.IsMultiScope() {
+			if registry, regErr := config.LoadProjectsRegistry(); regErr == nil {
+				registry.SetProjectScope(cwd, name)
+				_ = config.SaveProjectsRegistry(registry)
+			}
+		}
+
 		if p.SkipPluginDiff {
 			ui.PrintSuccess("No configuration changes needed.")
 			fmt.Println()
@@ -1186,6 +1194,14 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 		// Silently clean up stale plugin entries
 		cleanupStalePlugins(claudeDir)
+	}
+
+	// Track project scope in registry (for project scope or multi-scope profiles)
+	if scope == profile.ScopeProject || p.IsMultiScope() {
+		if registry, regErr := config.LoadProjectsRegistry(); regErr == nil {
+			registry.SetProjectScope(cwd, name)
+			_ = config.SaveProjectsRegistry(registry)
+		}
 	}
 
 	fmt.Println()

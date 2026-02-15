@@ -121,9 +121,8 @@ cat "$PROJECT_DIR/.claude/settings.json" 2>/dev/null || info "(not found)"
 echo
 
 info "Expected: two profiles active with team-backend taking precedence."
-info "Note: project scope is not yet tracked in profile list (see #180)."
-info "The settings ARE written to .claude/settings.json -- only the"
-info "profile list display is missing the project-scope marker."
+info "  * team-backend [project] -- highest precedence"
+info "  ○ base-tools [user]      -- overridden"
 pause
 
 # ===================================================================
@@ -143,12 +142,14 @@ info "File: $PROJECT_DIR/.claude/settings.local.json"
 cat "$PROJECT_DIR/.claude/settings.local.json" 2>/dev/null || info "(not found)"
 echo
 
-info "All three scopes now have an active profile:"
+info "Local scope overlays on top of both user and project settings."
+info "All three scopes are now active simultaneously:"
 info "  * my-overrides [local]   -- highest precedence"
+info "  ○ team-backend [project] -- overridden"
 info "  ○ base-tools [user]      -- overridden"
 info ""
-info "Note: team-backend [project] is active but not shown -- project scope"
-info "tracking is not yet implemented (see #180)."
+info "Claude sees all plugins from every scope. If the same setting"
+info "appears at multiple scopes, the highest scope wins."
 pause
 
 # ===================================================================
@@ -171,7 +172,7 @@ info "Project: $PROJECT_DIR/.claude/settings.json"
 info "Local:   $PROJECT_DIR/.claude/settings.local.json"
 echo
 
-step "Local scope also records the profile in the registry"
+step "Project and local scopes record profiles in the registry"
 info "File: $CLAUDEUP_HOME/projects.json"
 cat "$CLAUDEUP_HOME/projects.json" 2>/dev/null || info "(not found)"
 pause

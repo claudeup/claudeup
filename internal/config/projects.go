@@ -12,10 +12,13 @@ import (
 // ProjectsFile is the filename for the projects registry
 const ProjectsFile = "projects.json"
 
-// ProjectEntry represents a project's profile configuration
+// ProjectEntry represents a project's profile configuration.
+// Profile/AppliedAt track local scope; ProjectProfile/ProjectAppliedAt track project scope.
 type ProjectEntry struct {
-	Profile   string    `json:"profile"`
-	AppliedAt time.Time `json:"appliedAt"`
+	Profile          string    `json:"profile"`
+	AppliedAt        time.Time `json:"appliedAt"`
+	ProjectProfile   string    `json:"projectProfile,omitempty"`
+	ProjectAppliedAt time.Time `json:"projectAppliedAt,omitzero"`
 }
 
 // ProjectsRegistry tracks which profiles are applied to which project directories
@@ -82,6 +85,23 @@ func (r *ProjectsRegistry) SetProject(projectPath, profile string) {
 func (r *ProjectsRegistry) GetProject(projectPath string) (ProjectEntry, bool) {
 	entry, ok := r.Projects[projectPath]
 	return entry, ok
+}
+
+// SetProjectScope associates a project directory with a profile at project scope
+func (r *ProjectsRegistry) SetProjectScope(projectPath, profile string) {
+	entry := r.Projects[projectPath]
+	entry.ProjectProfile = profile
+	entry.ProjectAppliedAt = time.Now()
+	r.Projects[projectPath] = entry
+}
+
+// GetProjectScope returns the project-scope profile name for a project directory
+func (r *ProjectsRegistry) GetProjectScope(projectPath string) (string, bool) {
+	entry, ok := r.Projects[projectPath]
+	if !ok || entry.ProjectProfile == "" {
+		return "", false
+	}
+	return entry.ProjectProfile, true
 }
 
 // RemoveProject removes a project from the registry
