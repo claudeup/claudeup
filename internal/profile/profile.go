@@ -42,8 +42,8 @@ type Profile struct {
 	// When absent, the flat fields are treated as user-scope (backward compatibility).
 	PerScope *PerScopeSettings `json:"perScope,omitempty"`
 
-	// LocalItems contains patterns for local items to enable (agents, commands, etc.)
-	LocalItems *LocalItemSettings `json:"localItems,omitempty"`
+	// Extensions contains patterns for extensions to enable (agents, commands, etc.)
+	Extensions *ExtensionSettings `json:"extensions,omitempty"`
 
 	// SettingsHooks contains hooks to merge into settings.json by event type
 	SettingsHooks map[string][]HookEntry `json:"settingsHooks,omitempty"`
@@ -61,7 +61,7 @@ type PerScopeSettings struct {
 type ScopeSettings struct {
 	Plugins    []string           `json:"plugins,omitempty"`
 	MCPServers []MCPServer        `json:"mcpServers,omitempty"`
-	LocalItems *LocalItemSettings `json:"localItems,omitempty"`
+	Extensions *ExtensionSettings `json:"extensions,omitempty"`
 }
 
 // IsMultiScope returns true if this profile uses per-scope settings.
@@ -87,7 +87,7 @@ func (p *Profile) HasConfigFields() bool {
 		len(p.Plugins) > 0 ||
 		len(p.MCPServers) > 0 ||
 		p.PerScope != nil ||
-		p.LocalItems != nil ||
+		p.Extensions != nil ||
 		len(p.SettingsHooks) > 0 ||
 		len(p.Detect.Files) > 0 ||
 		len(p.Detect.Contains) > 0 ||
@@ -173,18 +173,18 @@ func (p *Profile) CombinedScopes() *Profile {
 		result.MCPServers = append(result.MCPServers, server)
 	}
 
-	// Aggregate local items from all scopes (union with dedup)
+	// Aggregate extensions from all scopes (union with dedup)
 	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
-		if scope != nil && scope.LocalItems != nil {
-			if result.LocalItems == nil {
-				result.LocalItems = &LocalItemSettings{}
+		if scope != nil && scope.Extensions != nil {
+			if result.Extensions == nil {
+				result.Extensions = &ExtensionSettings{}
 			}
-			result.LocalItems.Agents = mergeStringSlice(result.LocalItems.Agents, scope.LocalItems.Agents)
-			result.LocalItems.Commands = mergeStringSlice(result.LocalItems.Commands, scope.LocalItems.Commands)
-			result.LocalItems.Skills = mergeStringSlice(result.LocalItems.Skills, scope.LocalItems.Skills)
-			result.LocalItems.Hooks = mergeStringSlice(result.LocalItems.Hooks, scope.LocalItems.Hooks)
-			result.LocalItems.Rules = mergeStringSlice(result.LocalItems.Rules, scope.LocalItems.Rules)
-			result.LocalItems.OutputStyles = mergeStringSlice(result.LocalItems.OutputStyles, scope.LocalItems.OutputStyles)
+			result.Extensions.Agents = mergeStringSlice(result.Extensions.Agents, scope.Extensions.Agents)
+			result.Extensions.Commands = mergeStringSlice(result.Extensions.Commands, scope.Extensions.Commands)
+			result.Extensions.Skills = mergeStringSlice(result.Extensions.Skills, scope.Extensions.Skills)
+			result.Extensions.Hooks = mergeStringSlice(result.Extensions.Hooks, scope.Extensions.Hooks)
+			result.Extensions.Rules = mergeStringSlice(result.Extensions.Rules, scope.Extensions.Rules)
+			result.Extensions.OutputStyles = mergeStringSlice(result.Extensions.OutputStyles, scope.Extensions.OutputStyles)
 		}
 	}
 
@@ -228,7 +228,7 @@ func (p *Profile) ForScope(scope string) *Profile {
 	if settings != nil {
 		result.Plugins = settings.Plugins
 		result.MCPServers = settings.MCPServers
-		result.LocalItems = settings.LocalItems
+		result.Extensions = settings.Extensions
 	}
 
 	return result
@@ -297,9 +297,9 @@ type DetectRules struct {
 	Contains map[string]string `json:"contains,omitempty"`
 }
 
-// LocalItemSettings contains local item patterns to enable.
+// ExtensionSettings contains extension patterns to enable.
 // These are items from ~/.claudeup/local/ that get symlinked to ~/.claude/
-type LocalItemSettings struct {
+type ExtensionSettings struct {
 	Agents       []string `json:"agents,omitempty"`
 	Commands     []string `json:"commands,omitempty"`
 	Skills       []string `json:"skills,omitempty"`
@@ -314,11 +314,11 @@ type HookEntry struct {
 	Command string `json:"command"`
 }
 
-// PreserveFrom copies localItems from an existing profile.
-// When re-saving, this keeps only the local items the user originally saved,
+// PreserveFrom copies extensions from an existing profile.
+// When re-saving, this keeps only the extensions the user originally saved,
 // preventing accumulation of items enabled by other tools.
 func (p *Profile) PreserveFrom(existing *Profile) {
-	p.LocalItems = existing.LocalItems
+	p.Extensions = existing.Extensions
 }
 
 // Save writes a profile to the profiles directory
@@ -933,18 +933,18 @@ func cloneScopeSettings(s *ScopeSettings) *ScopeSettings {
 		clone.MCPServers = make([]MCPServer, len(s.MCPServers))
 		copy(clone.MCPServers, s.MCPServers)
 	}
-	if s.LocalItems != nil {
-		clone.LocalItems = cloneLocalItemSettings(s.LocalItems)
+	if s.Extensions != nil {
+		clone.Extensions = cloneExtensionSettings(s.Extensions)
 	}
 	return clone
 }
 
-// cloneLocalItemSettings deep-copies a LocalItemSettings
-func cloneLocalItemSettings(l *LocalItemSettings) *LocalItemSettings {
+// cloneExtensionSettings deep-copies an ExtensionSettings
+func cloneExtensionSettings(l *ExtensionSettings) *ExtensionSettings {
 	if l == nil {
 		return nil
 	}
-	clone := &LocalItemSettings{}
+	clone := &ExtensionSettings{}
 	if len(l.Agents) > 0 {
 		clone.Agents = make([]string, len(l.Agents))
 		copy(clone.Agents, l.Agents)
@@ -1006,14 +1006,14 @@ func scopeSettingsEqual(a, b *ScopeSettings) bool {
 	if !mcpServerSlicesEqual(a.MCPServers, b.MCPServers) {
 		return false
 	}
-	if !localItemSettingsEqual(a.LocalItems, b.LocalItems) {
+	if !extensionSettingsEqual(a.Extensions, b.Extensions) {
 		return false
 	}
 	return true
 }
 
-// localItemSettingsEqual compares two LocalItemSettings pointers
-func localItemSettingsEqual(a, b *LocalItemSettings) bool {
+// extensionSettingsEqual compares two ExtensionSettings pointers
+func extensionSettingsEqual(a, b *ExtensionSettings) bool {
 	if a == nil && b == nil {
 		return true
 	}

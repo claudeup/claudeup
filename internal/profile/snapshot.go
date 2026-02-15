@@ -1,5 +1,5 @@
 // ABOUTME: Creates a profile from current Claude Code state
-// ABOUTME: Reads installed plugins, marketplaces, MCP servers, and local items
+// ABOUTME: Reads installed plugins, marketplaces, MCP servers, and extensions
 package profile
 
 import (
@@ -82,10 +82,10 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 		p.MCPServers = mcpServers
 	}
 
-	// Read local items from enabled.json
-	localItems, err := readLocalItems(claudeDir, claudeupHome)
-	if err == nil && localItems != nil {
-		p.LocalItems = localItems
+	// Read extensions from enabled.json
+	extensions, err := readExtensions(claudeDir, claudeupHome)
+	if err == nil && extensions != nil {
+		p.Extensions = extensions
 	}
 
 	// Auto-generate description based on contents
@@ -194,20 +194,20 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 	return marketplaces, nil
 }
 
-// readLocalItems reads enabled local items from enabled.json
-func readLocalItems(claudeDir, claudeupHome string) (*LocalItemSettings, error) {
+// readExtensions reads enabled extensions from enabled.json
+func readExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) {
 	manager := local.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	// If config is empty, return nil (no local items to capture)
+	// If config is empty, return nil (no extensions to capture)
 	if len(config) == 0 {
 		return nil, nil
 	}
 
-	settings := &LocalItemSettings{}
+	settings := &ExtensionSettings{}
 	hasItems := false
 
 	// Helper to extract enabled items for a category, verifying each
@@ -373,23 +373,23 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 		p.Marketplaces = marketplaces
 	}
 
-	// Read user-scoped local items from enabled.json into PerScope.User
-	userLocalItems, err := readLocalItems(claudeDir, claudeupHome)
-	if err == nil && userLocalItems != nil {
+	// Read user-scoped extensions from enabled.json into PerScope.User
+	userExtensions, err := readExtensions(claudeDir, claudeupHome)
+	if err == nil && userExtensions != nil {
 		if p.PerScope.User == nil {
 			p.PerScope.User = &ScopeSettings{}
 		}
-		p.PerScope.User.LocalItems = userLocalItems
+		p.PerScope.User.Extensions = userExtensions
 	}
 
-	// Read project-scoped local items from project .claude/{agents,rules}/
+	// Read project-scoped extensions from project .claude/{agents,rules}/
 	if projectDir != "" {
-		projectLocalItems := readProjectLocalItems(projectDir)
-		if projectLocalItems != nil {
+		projectExtensions := readProjectExtensions(projectDir)
+		if projectExtensions != nil {
 			if p.PerScope.Project == nil {
 				p.PerScope.Project = &ScopeSettings{}
 			}
-			p.PerScope.Project.LocalItems = projectLocalItems
+			p.PerScope.Project.Extensions = projectExtensions
 		}
 	}
 
@@ -399,11 +399,11 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	return p, nil
 }
 
-// readProjectLocalItems scans .claude/{agents,rules}/ in the project directory
-// for regular files (not symlinks). Regular files are project-scoped items;
-// symlinks are user-scoped items managed by claudeup and should be skipped.
-func readProjectLocalItems(projectDir string) *LocalItemSettings {
-	settings := &LocalItemSettings{}
+// readProjectExtensions scans .claude/{agents,rules}/ in the project directory
+// for regular files (not symlinks). Regular files are project-scoped extensions;
+// symlinks are user-scoped extensions managed by claudeup and should be skipped.
+func readProjectExtensions(projectDir string) *ExtensionSettings {
+	settings := &ExtensionSettings{}
 	hasItems := false
 
 	for _, category := range []string{"agents", "rules"} {

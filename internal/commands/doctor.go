@@ -183,7 +183,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println(ui.Indent(ui.Muted("(use --fix-only or --remove-only for granular control)"), 2))
 		}
 	}
-	// Check for broken symlinks in local items
+	// Check for broken symlinks in extensions
 	fmt.Println(ui.RenderSection("Checking Local Symlinks", -1))
 	brokenSymlinks := checkBrokenSymlinks()
 	if len(brokenSymlinks) == 0 {
@@ -195,7 +195,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println(ui.Indent(ui.Muted("-> "+bs.Target), 3))
 		}
 		fmt.Println()
-		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("claudeup local sync")), 1))
+		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("claudeup extensions sync")), 1))
 	}
 	fmt.Println()
 

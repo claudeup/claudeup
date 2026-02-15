@@ -1365,8 +1365,8 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 			if len(s.settings.Plugins) > 0 {
 				fmt.Println(ui.Indent(ui.RenderDetail(s.label+" plugins", fmt.Sprintf("%d", len(s.settings.Plugins))), 1))
 			}
-			if n := countLocalItems(s.settings.LocalItems); n > 0 {
-				fmt.Println(ui.Indent(ui.RenderDetail(s.label+" local items", fmt.Sprintf("%d", n)), 1))
+			if n := countExtensions(s.settings.Extensions); n > 0 {
+				fmt.Println(ui.Indent(ui.RenderDetail(s.label+" extensions", fmt.Sprintf("%d", n)), 1))
 			}
 		}
 	} else {
@@ -1454,8 +1454,8 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	if p.LocalItems != nil {
-		showLocalItems(p.LocalItems)
+	if p.Extensions != nil {
+		showExtensions(p.Extensions)
 	}
 
 	return nil
@@ -1519,16 +1519,16 @@ func showMultiScopeProfile(p *profile.Profile) {
 		fmt.Println()
 	}
 
-	// Collect local items across scopes with labels
-	var hasLocalItems bool
+	// Collect extensions across scopes with labels
+	var hasExtensions bool
 	for _, s := range scopes {
-		if s.settings != nil && s.settings.LocalItems != nil {
-			hasLocalItems = true
+		if s.settings != nil && s.settings.Extensions != nil {
+			hasExtensions = true
 			break
 		}
 	}
-	if hasLocalItems {
-		showScopedLocalItems(scopes)
+	if hasExtensions {
+		showScopedExtensions(scopes)
 	}
 }
 
@@ -1553,25 +1553,25 @@ func showLegacyProfile(p *profile.Profile) {
 	}
 }
 
-// localItemCategory maps a display label to a getter for that category's items.
-type localItemCategory struct {
+// extensionCategory maps a display label to a getter for that category's extensions.
+type extensionCategory struct {
 	label  string
-	getter func(*profile.LocalItemSettings) []string
+	getter func(*profile.ExtensionSettings) []string
 }
 
-// localItemCategories defines the display order and accessors for local item categories.
-var localItemCategories = []localItemCategory{
-	{"Agents", func(l *profile.LocalItemSettings) []string { return l.Agents }},
-	{"Commands", func(l *profile.LocalItemSettings) []string { return l.Commands }},
-	{"Skills", func(l *profile.LocalItemSettings) []string { return l.Skills }},
-	{"Hooks", func(l *profile.LocalItemSettings) []string { return l.Hooks }},
-	{"Rules", func(l *profile.LocalItemSettings) []string { return l.Rules }},
-	{"Output Styles", func(l *profile.LocalItemSettings) []string { return l.OutputStyles }},
+// extensionCategories defines the display order and accessors for extension categories.
+var extensionCategories = []extensionCategory{
+	{"Agents", func(l *profile.ExtensionSettings) []string { return l.Agents }},
+	{"Commands", func(l *profile.ExtensionSettings) []string { return l.Commands }},
+	{"Skills", func(l *profile.ExtensionSettings) []string { return l.Skills }},
+	{"Hooks", func(l *profile.ExtensionSettings) []string { return l.Hooks }},
+	{"Rules", func(l *profile.ExtensionSettings) []string { return l.Rules }},
+	{"Output Styles", func(l *profile.ExtensionSettings) []string { return l.OutputStyles }},
 }
 
-func showLocalItems(items *profile.LocalItemSettings) {
+func showExtensions(items *profile.ExtensionSettings) {
 	var hasItems bool
-	for _, c := range localItemCategories {
+	for _, c := range extensionCategories {
 		if len(c.getter(items)) > 0 {
 			hasItems = true
 			break
@@ -1581,8 +1581,8 @@ func showLocalItems(items *profile.LocalItemSettings) {
 		return
 	}
 
-	fmt.Println("Local Items:")
-	for _, c := range localItemCategories {
+	fmt.Println("Extensions:")
+	for _, c := range extensionCategories {
 		catItems := c.getter(items)
 		if len(catItems) == 0 {
 			continue
@@ -1595,11 +1595,11 @@ func showLocalItems(items *profile.LocalItemSettings) {
 	fmt.Println()
 }
 
-// showScopedLocalItems displays local items grouped by category, with scope labels.
-func showScopedLocalItems(scopes []scopeEntry) {
+// showScopedExtensions displays extensions grouped by category, with scope labels.
+func showScopedExtensions(scopes []scopeEntry) {
 	var hasAny bool
 	for _, s := range scopes {
-		if s.settings != nil && s.settings.LocalItems != nil {
+		if s.settings != nil && s.settings.Extensions != nil {
 			hasAny = true
 			break
 		}
@@ -1608,14 +1608,14 @@ func showScopedLocalItems(scopes []scopeEntry) {
 		return
 	}
 
-	fmt.Println("Local Items:")
-	for _, cat := range localItemCategories {
+	fmt.Println("Extensions:")
+	for _, cat := range extensionCategories {
 		var printed bool
 		for _, s := range scopes {
-			if s.settings == nil || s.settings.LocalItems == nil {
+			if s.settings == nil || s.settings.Extensions == nil {
 				continue
 			}
-			items := cat.getter(s.settings.LocalItems)
+			items := cat.getter(s.settings.Extensions)
 			for _, item := range items {
 				if !printed {
 					fmt.Printf("  %s:\n", cat.label)
@@ -1628,13 +1628,13 @@ func showScopedLocalItems(scopes []scopeEntry) {
 	fmt.Println()
 }
 
-// countLocalItems returns the total number of items across all categories.
-func countLocalItems(items *profile.LocalItemSettings) int {
+// countExtensions returns the total number of extensions across all categories.
+func countExtensions(items *profile.ExtensionSettings) int {
 	if items == nil {
 		return 0
 	}
 	count := 0
-	for _, c := range localItemCategories {
+	for _, c := range extensionCategories {
 		count += len(c.getter(items))
 	}
 	return count
@@ -1838,10 +1838,10 @@ func showMultiScopeSummary(p *profile.Profile) {
 		if len(s.settings.Plugins) > 0 {
 			parts = append(parts, fmt.Sprintf("%d plugins", len(s.settings.Plugins)))
 		}
-		if s.settings.LocalItems != nil {
-			n := countLocalItems(s.settings.LocalItems)
+		if s.settings.Extensions != nil {
+			n := countExtensions(s.settings.Extensions)
 			if n > 0 {
-				parts = append(parts, fmt.Sprintf("%d local items", n))
+				parts = append(parts, fmt.Sprintf("%d extensions", n))
 			}
 		}
 		if len(parts) > 0 {
