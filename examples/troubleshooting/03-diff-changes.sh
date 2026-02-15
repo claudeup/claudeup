@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ABOUTME: Example showing how to see detailed file changes
-# ABOUTME: Demonstrates events diff command
+# ABOUTME: Demonstrates events diff command with before/after data
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment
@@ -18,46 +19,75 @@ Essential for understanding why something broke.
 EOF
 pause
 
-section "1. Find a Change to Inspect"
+# ===================================================================
+section "1. Create Two Profiles"
+# ===================================================================
 
-step "List recent events to find an interesting change"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" events --limit 5
+step "Create the first profile"
+cat > "$CLAUDEUP_HOME/profiles/starter-kit.json" <<'PROFILE'
+{
+  "name": "starter-kit",
+  "description": "Basic starter plugins",
+  "plugins": [
+    "superpowers@superpowers-marketplace"
+  ]
+}
+PROFILE
+success "Created starter-kit.json"
+echo
+
+step "Create a second profile with different plugins"
+cat > "$CLAUDEUP_HOME/profiles/full-kit.json" <<'PROFILE'
+{
+  "name": "full-kit",
+  "description": "Extended plugin set",
+  "plugins": [
+    "superpowers@superpowers-marketplace",
+    "elements-of-style@superpowers-marketplace",
+    "tdd-workflows@claude-code-workflows"
+  ]
+}
+PROFILE
+success "Created full-kit.json"
 pause
 
-section "2. View the Diff"
+# ===================================================================
+section "2. Apply Profiles Sequentially"
+# ===================================================================
 
-step "See what changed in a specific file"
-info "The diff command shows before/after comparison"
+step "Apply starter-kit first (creates the baseline)"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply starter-kit --user --yes
 echo
 
-info "Command syntax:"
-echo -e "${YELLOW}\$ claudeup events diff --file ~/.claude/settings.json${NC}"
-echo
-
-info "This shows the most recent change to that file"
+step "Apply full-kit to overwrite (creates the change)"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply full-kit --user --yes
 pause
 
-section "3. Full Diff Mode"
+# ===================================================================
+section "3. View the Diff"
+# ===================================================================
 
-step "Get detailed nested changes"
-info "Use --full for complete recursive diff of nested objects"
+step "See what changed in settings.json (default mode)"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" events diff --file "$CLAUDE_CONFIG_DIR/settings.json"
 echo
 
-info "Example output:"
-cat <<'EXAMPLE'
-~ plugins:
-  ~ superpowers@superpowers-marketplace:
-    ~ scope: "project" → "user"
-    ~ installedAt: "2025-12-26T05:14:20Z" → "2025-12-28T10:30:00Z"
-  + newplugin@marketplace:
-    + scope: "user" (added)
-EXAMPLE
+info "Default mode truncates nested objects as {...} for readability."
+pause
+
+# ===================================================================
+section "4. Full Diff Mode"
+# ===================================================================
+
+step "See detailed nested changes with --full"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" events diff --file "$CLAUDE_CONFIG_DIR/settings.json" --full
 echo
 
 info "Symbols: + added, - removed, ~ modified"
 pause
 
-section "4. Practical Use Case"
+# ===================================================================
+section "5. Practical Use Case"
+# ===================================================================
 
 info "Common debugging workflow:"
 echo
@@ -69,13 +99,15 @@ info "  5. See exactly what changed"
 info "  6. Decide: revert or fix forward"
 pause
 
+# ===================================================================
 section "Summary"
+# ===================================================================
 
 success "You can see exactly what changed and when"
 echo
 info "Key commands:"
 info "  claudeup events diff --file <path>        Basic diff"
-info "  claudeup events diff --file <path> --full Detailed diff"
+info "  claudeup events diff --file <path> --full  Detailed diff"
 echo
 
 prompt_cleanup
