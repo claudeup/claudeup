@@ -285,6 +285,17 @@ claudeup status --project # Filter to project scope
 
 Shows marketplaces, plugin counts, MCP servers, and any detected issues.
 
+Without a scope flag, `status` shows all scopes. With a scope flag, only that scope's items are shown:
+
+```bash
+claudeup status           # All scopes combined (user + project + local)
+claudeup status --user    # Only user-scope plugins, MCP servers, marketplaces
+claudeup status --project # Only project-scope plugins for current directory
+claudeup status --local   # Only local-scope plugins for current directory
+```
+
+This is useful when you want to understand what a specific scope contributes. For example, `--project` shows only what the team shares via git, while `--user` shows your personal configuration.
+
 **Flags:**
 
 | Flag        | Description                              |

@@ -65,7 +65,7 @@ Local Items:
     - golang
 ```
 
-Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Local items are grouped by category.
+Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Local items (user-scope extensions from `~/.claudeup/local/`) are grouped by category.
 
 ## Profile Scopes
 
@@ -584,9 +584,11 @@ claudeup profile save my-work
 
 **What gets captured:**
 
-- Plugins and MCP servers from all scopes (user, project, local)
+- Plugins and MCP servers from all scopes (user, project, local), stored with their scope in the `perScope` structure
 - Marketplaces referenced by at least one enabled plugin (unreferenced marketplaces are excluded)
 - Local items (agents, commands, skills, hooks, rules, output styles) that exist in the active directory
+
+The profile is saved once to `~/.claudeup/profiles/<name>.json`, but internally it records which scope each item came from. When you later run `profile apply`, each item is restored to its original scope.
 
 **When re-saving an existing profile:**
 
@@ -700,6 +702,32 @@ Profiles capture settings from all scopes (user, project, local) using the `perS
 ```
 
 When you run `profile save`, all three scopes are captured automatically. When you run `profile apply`, settings are restored to the correct scope.
+
+### Project-Scoped Local Items
+
+Profiles can also install local items at project scope by placing them in `perScope.project.localItems`:
+
+```json
+{
+  "perScope": {
+    "user": {
+      "plugins": ["superpowers@superpowers-marketplace"]
+    },
+    "project": {
+      "localItems": {
+        "rules": ["golang"],
+        "agents": ["reviewer"]
+      }
+    }
+  }
+}
+```
+
+When applied, project-scoped local items are **copied** (not symlinked) into the project's `.claude/` directory. This makes them portable, git-committable, and available to the whole team.
+
+**Supported categories at project scope:** `agents`, `rules`
+
+Other categories (commands, skills, hooks, output-styles) are only supported at user scope because Claude Code does not read them from project directories.
 
 **Marketplace filtering:** Only marketplaces referenced by at least one enabled plugin are included. Marketplaces installed by other tools (e.g., mpm) that have no corresponding plugins in the profile are excluded.
 
