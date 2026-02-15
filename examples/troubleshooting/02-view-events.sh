@@ -50,9 +50,9 @@ run_cmd "$EXAMPLE_CLAUDEUP_BIN" events --limit 10
 echo
 
 info "Events show:"
-info "  - When changes happened"
-info "  - What files were modified"
-info "  - What operation caused the change"
+info "  • When changes happened"
+info "  • What files were modified"
+info "  • What operation caused the change"
 pause
 
 # ===================================================================
