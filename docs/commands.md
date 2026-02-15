@@ -82,7 +82,7 @@ claudeup profile save [name]                 # Save current setup as profile (al
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope)
-claudeup profile suggest                     # Suggest profile for current project
+claudeup profile suggest                     # Suggest profile based on project files
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
 claudeup profile reset <name>                # Remove everything a profile installed
@@ -245,6 +245,32 @@ Use this to see:
 | "What did I change from the original?"       | `profile diff`   |
 | "Why does `profile list` show (customized)?" | `profile diff`   |
 
+#### Profile Suggest
+
+Suggests a profile based on files in the current directory. Profiles with `detect` rules are matched against the project:
+
+```bash
+# In a Go project directory
+claudeup profile suggest
+# => Suggested profile: go-backend
+#    Shared Go backend team configuration
+#    Apply this profile? [Y/n]
+```
+
+Detection rules in a profile match by file existence and/or file content:
+
+```json
+{
+  "name": "go-backend",
+  "detect": {
+    "files": ["go.mod"],
+    "contains": { "go.mod": "module" }
+  }
+}
+```
+
+If multiple profiles match, the first is suggested. If none match, available profiles are listed.
+
 ## Status & Discovery
 
 ### status
@@ -389,6 +415,7 @@ claudeup local sync                          # Recreate symlinks from enabled.js
 claudeup local import <category> <items...>  # Move items from active dir to local storage
 claudeup local import-all [patterns...]      # Import items from all categories
 claudeup local install <category> <path>     # Install items from an external path
+claudeup local uninstall <category> <items...> # Remove items from local storage
 ```
 
 **Categories:** `agents`, `commands`, `skills`, `hooks`, `rules`, `output-styles`
@@ -415,6 +442,8 @@ claudeup local install <category> <path>     # Install items from an external pa
 `import-all` scans all categories at once. Without patterns, imports everything. With patterns, only matching items.
 
 `install` copies items from an external path (git repos, downloads) to local storage and enables them.
+
+`uninstall` removes items from local storage entirely -- disables the item, removes its symlink from `~/.claude/<category>/`, deletes the file from `~/.claudeup/local/<category>/`, and removes the config entry. Supports the same wildcards as enable/disable.
 
 ## Event Tracking
 
@@ -498,17 +527,23 @@ claudeup update --check-only # Check for updates without applying
 Update marketplaces and plugins.
 
 ```bash
-claudeup upgrade              # Update all marketplaces and plugins
+claudeup upgrade              # Update marketplaces and plugins for current context
+claudeup upgrade --all        # Update across all scopes and projects
 claudeup upgrade --check-only # Preview updates without applying
 ```
+
+By default, `upgrade` is scope-aware: it only processes user-scope plugins and plugins scoped to the current project directory. Use `--all` to upgrade plugins across all scopes and projects.
 
 ### outdated
 
 Show available updates for the CLI, marketplaces, and plugins.
 
 ```bash
-claudeup outdated  # List what has updates available
+claudeup outdated        # Check plugins for current context
+claudeup outdated --all  # Check across all scopes and projects
 ```
+
+By default, `outdated` is scope-aware: it only checks user-scope plugins and plugins scoped to the current project directory. Use `--all` to check all plugins regardless of scope or project.
 
 ## Configuration
 
