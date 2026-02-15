@@ -351,6 +351,104 @@ var _ = Describe("profile list", func() {
 			Expect(result.Stdout).To(ContainSubstring("No profile is active at user scope"))
 		})
 	})
+
+	Describe("untracked scope hints", func() {
+		var projectDir string
+
+		BeforeEach(func() {
+			projectDir = env.ProjectDir("hint-test")
+			env.SetActiveProfile("default")
+		})
+
+		Context("with untracked project-scope settings", func() {
+			BeforeEach(func() {
+				env.CreateProjectScopeSettings(projectDir, map[string]bool{
+					"plugin-a@marketplace": true,
+					"plugin-b@marketplace": true,
+					"plugin-c@marketplace": true,
+				})
+			})
+
+			It("shows warning about untracked project scope", func() {
+				result := env.RunInDir(projectDir, "profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("project"))
+				Expect(result.Stdout).To(ContainSubstring("3 plugins"))
+				Expect(result.Stdout).To(ContainSubstring("no profile tracked"))
+			})
+
+			It("shows suggested save command", func() {
+				result := env.RunInDir(projectDir, "profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("profile save"))
+				Expect(result.Stdout).To(ContainSubstring("profile apply"))
+				Expect(result.Stdout).To(ContainSubstring("--project"))
+			})
+		})
+
+		Context("with untracked local-scope settings", func() {
+			BeforeEach(func() {
+				env.CreateLocalScopeSettings(projectDir, map[string]bool{
+					"plugin-x@marketplace": true,
+				})
+			})
+
+			It("shows warning about untracked local scope", func() {
+				result := env.RunInDir(projectDir, "profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("local"))
+				Expect(result.Stdout).To(ContainSubstring("1 plugin"))
+				Expect(result.Stdout).To(ContainSubstring("no profile tracked"))
+			})
+		})
+
+		Context("when profile is tracked at project scope", func() {
+			BeforeEach(func() {
+				env.CreateProjectScopeSettings(projectDir, map[string]bool{
+					"plugin-a@marketplace": true,
+				})
+				env.CreateProfile(&profile.Profile{
+					Name:        "team-profile",
+					Description: "Team config",
+				})
+				env.RegisterProjectScope(projectDir, "team-profile")
+			})
+
+			It("does not show untracked hint for project scope", func() {
+				result := env.RunInDir(projectDir, "profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("no profile tracked"))
+			})
+		})
+
+		Context("when filtering by scope", func() {
+			BeforeEach(func() {
+				env.CreateProjectScopeSettings(projectDir, map[string]bool{
+					"plugin-a@marketplace": true,
+				})
+			})
+
+			It("does not show untracked hints when --user is specified", func() {
+				result := env.RunInDir(projectDir, "profile", "list", "--user")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("no profile tracked"))
+			})
+		})
+
+		Context("with no project-scope settings", func() {
+			It("does not show any untracked hints", func() {
+				result := env.RunInDir(projectDir, "profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("no profile tracked"))
+			})
+		})
+	})
 })
 
 var _ = Describe("profile delete", func() {

@@ -856,6 +856,11 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
+	// Show untracked scope hints (only when not filtering by scope)
+	if profileListScope == "" {
+		renderUntrackedScopeHints(getUntrackedScopes(cwd, claudeDir, allActiveProfiles))
+	}
+
 	// Warn if user has a profile named "current" (now reserved)
 	if profileOnDisk["current"] && profileListScope == "" {
 		ui.PrintWarning("Profile \"current\" uses a reserved name. Rename it with:")
@@ -1779,6 +1784,9 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s\n", ui.Muted("[not currently active]"))
 	}
 	fmt.Println()
+
+	// Show untracked scope hints
+	renderUntrackedScopeHints(getUntrackedScopes(cwd, claudeDir, allActiveProfiles))
 
 	// Show profile contents
 	combinedProfile := savedProfile.CombinedScopes()
