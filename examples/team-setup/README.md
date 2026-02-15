@@ -52,9 +52,12 @@ The `02-isolated-workspace-demo.sh` script demonstrates this pattern:
 - `02-isolated-workspace-demo.sh` runs real `claudeup` commands against isolated
   temp directories. It demonstrates project-scoped extensions (rules and agents
   copied into `.claude/`) and how project configuration travels through git.
+  The `--real` flag is not supported because each simulated team member needs
+  their own isolated config directory.
 - `04-devcontainer-demo.sh` requires Docker and `claudeup-lab` installed.
   Run `claudeup-lab doctor` to check prerequisites. It creates real containers
-  that take a few minutes to start.
+  that take a few minutes to start. The `--real` flag is not supported because
+  containers provide their own isolation.
 
 ## Next steps
 

@@ -19,7 +19,7 @@ Users who want to:
 | Script                     | What it does                                                                                                                         |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `01-save-current-state.sh` | Snapshots your current plugins, MCP servers, and settings into a named profile with `profile save`                                   |
-| `02-create-custom.sh`      | Shows the interactive profile creation wizard (only works in `--real` interactive mode) and the clone-and-modify alternative         |
+| `02-create-custom.sh`      | Creates a profile by writing JSON directly, inspects it with `profile show`, applies it, and captures state with `profile save`      |
 | `03-switch-profiles.sh`    | Previews differences with `profile status`, applies a different profile, and verifies the switch                                     |
 | `04-clone-and-modify.sh`   | Clones an existing profile with `profile clone`, then walks through the modify-and-save workflow                                     |
 | `05-composable-stacks.sh`  | Creates building-block profiles in category subdirectories, composes them into stacks via `includes`, and demonstrates nested stacks |
@@ -46,8 +46,8 @@ your needs:
 
 ## Important details
 
-- `02-create-custom.sh` requires both `--real` and interactive mode to run the wizard.
-  In temp mode it shows the commands and workflow as text instead.
+- `02-create-custom.sh` writes profile JSON directly to demonstrate the file format.
+  For guided creation, use the interactive wizard: `claudeup profile create`.
 - `05-composable-stacks.sh` creates real profile files in the temp environment to
   demonstrate stacks. This is the most comprehensive example in the set.
 - Profiles are stored as JSON in `~/.claudeup/profiles/`
