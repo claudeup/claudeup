@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# ABOUTME: Example showing the interactive profile creation wizard
-# ABOUTME: Demonstrates profile create command
+# ABOUTME: Example showing how to create custom profiles from scratch
+# ABOUTME: Demonstrates writing profile JSON, showing, applying, and saving profiles
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment
@@ -12,59 +13,92 @@ cat <<'EOF'
 ║         Profile Management: Create Custom Profile              ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Create a new profile from scratch using the interactive wizard.
-You can select which plugins and settings to include.
+Create a custom profile by writing JSON directly, inspect it,
+apply it, and then capture the current state as a new profile.
 
 EOF
 pause
 
-section "1. Understanding Profile Creation"
+# ===================================================================
+section "1. Create a Custom Profile"
+# ===================================================================
 
-info "The profile create command launches an interactive wizard that lets you:"
-info "  • Name your profile"
-info "  • Select plugins from installed marketplaces"
-info "  • Configure MCP servers"
-info "  • Set custom settings"
+step "Write a profile JSON file to the profiles directory"
+info "Profiles live in \$CLAUDEUP_HOME/profiles/ as JSON files."
+info "The interactive wizard (profile create) builds these for you,"
+info "but you can also write them directly."
 echo
-info "In non-interactive mode, this example shows the command syntax."
+
+cat > "$CLAUDEUP_HOME/profiles/go-backend.json" <<'PROFILE'
+{
+  "name": "go-backend",
+  "description": "Go backend development with TDD workflows",
+  "plugins": [
+    "backend-development@claude-code-workflows",
+    "tdd-workflows@claude-code-workflows"
+  ]
+}
+PROFILE
+success "Created go-backend.json"
 pause
 
-section "2. Create Command"
+# ===================================================================
+section "2. Inspect the Profile"
+# ===================================================================
 
-step "Create a new profile interactively"
+step "Show the profile contents"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile show go-backend
 echo
-if [[ "$EXAMPLE_INTERACTIVE" == "true" && "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "Running the interactive wizard..."
-    echo
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile create
-else
-    info "To create a profile interactively, run:"
-    echo -e "${YELLOW}\$ claudeup profile create${NC}"
-    echo
-    info "The wizard will guide you through:"
-    info "  1. Naming the profile"
-    info "  2. Selecting plugins"
-    info "  3. Configuring options"
-fi
+
+step "Confirm it appears in the profile list"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 pause
 
-section "3. Alternative: Clone and Modify"
+# ===================================================================
+section "3. Apply the Profile"
+# ===================================================================
 
-info "Another approach is to clone an existing profile:"
-echo -e "${YELLOW}\$ claudeup profile clone my-custom-profile --from default${NC}"
+step "Apply go-backend at user scope"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply go-backend --user --yes
 echo
-info "This copies all settings from the source profile,"
-info "which you can then modify."
+
+step "Verify it is now active"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 pause
 
+# ===================================================================
+section "4. Save Current State as a New Profile"
+# ===================================================================
+
+step "Capture the current configuration as a new profile"
+info "profile save snapshots whatever is currently configured"
+info "and writes it to a new (or existing) profile file."
+echo
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile save my-snapshot --yes
+echo
+
+step "Verify the saved profile exists"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
+echo
+
+step "Show the saved profile contents"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile show my-snapshot
+pause
+
+# ===================================================================
 section "Summary"
+# ===================================================================
 
-success "You know how to create custom profiles"
+success "Created, applied, and saved custom profiles"
 echo
-info "Key commands:"
-info "  claudeup profile create                    Interactive wizard"
-info "  claudeup profile clone <name> --from <src> Copy existing profile"
-info "  claudeup profile save <name>               Save current state"
+info "What we demonstrated:"
+info "  1. Write a profile JSON to \$CLAUDEUP_HOME/profiles/"
+info "  2. Inspect it with: claudeup profile show <name>"
+info "  3. Apply it with:   claudeup profile apply <name> --user"
+info "  4. Capture state:   claudeup profile save <name>"
+echo
+info "For guided creation, use the interactive wizard:"
+info "  claudeup profile create"
 echo
 
 prompt_cleanup
