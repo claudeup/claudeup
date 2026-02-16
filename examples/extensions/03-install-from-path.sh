@@ -49,8 +49,9 @@ info "If you've already downloaded or created extensions locally:"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    # Create a sample local extension structure
-    DEMO_PATH="$EXAMPLE_TEMP_DIR/my-extensions"
+    # Create a sample local extension structure in a temp directory
+    DEMO_TEMP=$(mktemp -d "/tmp/claudeup-demo-ext-XXXXXXXXXX")
+    DEMO_PATH="$DEMO_TEMP/my-extensions"
     mkdir -p "$DEMO_PATH/rules"
     cat > "$DEMO_PATH/rules/example-rule.md" <<'RULE'
 # Example Rule
@@ -129,9 +130,10 @@ pause
 section "5. Verify Installation"
 
 step "Check that extensions were installed"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list --full
 
 info "Newly installed extensions are automatically enabled."
+info "Use 'ext list' without --full for a summary, or specify a category."
 pause
 
 section "6. Manage Installed Extensions"
@@ -171,5 +173,10 @@ info "  • Keep team repos updated and reinstall periodically"
 echo
 info "Next: Combine with profiles to apply extensions at different scopes!"
 echo
+
+# Clean up demo temp directory if created in real mode
+if [[ -n "${DEMO_TEMP:-}" && -d "$DEMO_TEMP" ]]; then
+    rm -rf "$DEMO_TEMP"
+fi
 
 prompt_cleanup

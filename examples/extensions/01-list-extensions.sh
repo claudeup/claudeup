@@ -14,8 +14,8 @@ cat <<'EOF'
 
 View all installed Claude Code extensions and their enabled status.
 
-Extensions are files (not marketplace plugins) that extend Claude with
-custom agents, commands, skills, hooks, rules, and output-styles.
+Extensions (not marketplace plugins) extend Claude with custom agents,
+commands, skills, hooks, rules, and output-styles.
 
 EOF
 pause
@@ -54,16 +54,14 @@ step "View extensions in a specific category"
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
     info "List just the rules:"
-    run_cmd ls -la "$HOME/.claudeup/ext/rules/" 2>/dev/null || \
-        info "(No rules installed yet)"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list rules
     echo
     info "List just the agents:"
-    run_cmd ls -la "$HOME/.claudeup/ext/agents/" 2>/dev/null || \
-        info "(No agents installed yet)"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list agents
 else
-    info "Example: ls ~/.claudeup/ext/rules/"
-    info "Example: ls ~/.claudeup/ext/agents/"
-    info "(Skipped in temp mode)"
+    echo -e "${YELLOW}\$ claudeup ext list rules${NC}"
+    echo -e "${YELLOW}\$ claudeup ext list agents${NC}"
+    info "(Examples - specify a category to see individual items)"
 fi
 pause
 
@@ -75,9 +73,9 @@ echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
     info "Example command:"
-    echo -e "${YELLOW}\$ claudeup ext view rules my-coding-standards.md${NC}"
+    echo -e "${YELLOW}\$ claudeup ext view rules my-coding-standards${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext view rules golang-style.md${NC}"
+    echo -e "${YELLOW}\$ claudeup ext view rules golang-style${NC}"
     info "(Example - no real extensions in temp mode)"
 fi
 

@@ -1,6 +1,6 @@
 # Extension Management
 
-Manage Claude Code extensions - custom agents, rules, commands, skills, hooks, and output-styles stored as files in `~/.claudeup/ext/`.
+Manage Claude Code extensions -- custom agents, rules, commands, skills, hooks, and output-styles stored in `~/.claudeup/ext/`.
 
 ## Who is this for?
 
@@ -13,19 +13,19 @@ Users who want to:
 
 ## Scripts
 
-| Script                      | What it does                                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `01-list-extensions.sh`     | Lists all installed extensions across all categories and shows their enabled/disabled status          |
-| `02-enable-disable.sh`      | Demonstrates enabling and disabling extensions individually, in bulk, or using wildcard patterns      |
-| `03-install-from-path.sh`   | Shows how to install extensions from local directories (clone git repos first, then install per category) |
+| Script                    | What it does                                                                                              |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `01-list-extensions.sh`   | Lists all installed extensions across all categories and shows their enabled/disabled status              |
+| `02-enable-disable.sh`    | Demonstrates enabling and disabling extensions individually, in bulk, or using wildcard patterns          |
+| `03-install-from-path.sh` | Shows how to install extensions from local directories (clone git repos first, then install per category) |
 
 ## What you'll learn
 
-- Extensions are files (not marketplace plugins) stored in `~/.claudeup/ext/`
+- Extensions are files or directories (not marketplace plugins) stored in `~/.claudeup/ext/`
 - Each extension has a category: agents, commands, skills, hooks, rules, or output-styles
-- `ext list` shows all extensions and their enabled/disabled state
+- `ext list` shows a summary by category; use `--full` or specify a category to see individual items
 - `ext enable` and `ext disable` control which extensions are active
-- Wildcard patterns allow bulk enable/disable operations (e.g., `rules/*`)
+- Wildcard patterns allow bulk enable/disable operations (e.g., `claudeup ext enable rules '*'`)
 - `ext install <category> <path>` copies extensions from local paths into storage
 - Enabled extensions are symlinked into `~/.claude/<category>/`
 - Extensions can be shared across teams via git repositories
@@ -33,7 +33,7 @@ Users who want to:
 ## Extension vs Plugin
 
 - **Plugins** come from marketplaces (repositories of pre-built packages)
-- **Extensions** are individual files you manage directly
+- **Extensions** are individual files or directories you manage directly
 - Profiles can reference both plugins and extensions
 - Extensions are great for team-specific customizations
 
