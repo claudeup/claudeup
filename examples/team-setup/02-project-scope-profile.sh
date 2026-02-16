@@ -22,7 +22,9 @@ in a single project directory.
 EOF
 pause
 
+# ===================================================================
 section "1. Create a Team Profile"
+# ===================================================================
 
 step "Create a profile for your team's shared configuration"
 
@@ -53,7 +55,9 @@ info "This profile specifies project-scoped plugins and extensions."
 info "The perScope.project section controls what goes in .claude/"
 pause
 
+# ===================================================================
 section "2. Create Team Extensions"
+# ===================================================================
 
 step "Create the extension files referenced in the profile"
 
@@ -101,7 +105,9 @@ info "  • rules/error-handling.md"
 info "  • agents/reviewer.md"
 pause
 
+# ===================================================================
 section "3. Create a Project Directory"
+# ===================================================================
 
 step "Set up a project workspace"
 
@@ -115,7 +121,9 @@ info "This simulates a git repository for a team project."
 info "In real usage, this would be your actual git working directory."
 pause
 
+# ===================================================================
 section "4. Apply Profile at Project Scope"
+# ===================================================================
 
 step "Apply the team profile to this project"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile apply backend-team --project --yes
@@ -124,7 +132,9 @@ echo
 info "This created .claude/ directory with team configuration."
 pause
 
+# ===================================================================
 section "5. Examine Project Configuration"
+# ===================================================================
 
 step "Explore what was created in .claude/"
 
@@ -164,7 +174,9 @@ else
 fi
 pause
 
+# ===================================================================
 section "6. Understanding Project Scope Files"
+# ===================================================================
 
 info "The .claude/ directory contains:"
 echo
@@ -177,7 +189,9 @@ info "Files in .claude/ (except .local.json) should be committed to git."
 info "This way, everyone on the team gets the same configuration."
 pause
 
+# ===================================================================
 section "7. Commit to Git (Simulated)"
+# ===================================================================
 
 step "In a real project, you would commit .claude/ and .claudeup/ to git"
 
@@ -193,7 +207,9 @@ info "Team members clone the repo and get both directories automatically."
 info "No need for them to re-apply the profile!"
 pause
 
+# ===================================================================
 section "8. Personal Overrides with Local Scope"
+# ===================================================================
 
 step "Team members can add personal overrides without affecting git"
 
@@ -208,7 +224,9 @@ info "Or apply a personal profile to local scope:"
 echo -e "${YELLOW}\$ claudeup profile apply my-personal-tools --local${NC}"
 pause
 
+# ===================================================================
 section "9. Verify Profile Application"
+# ===================================================================
 
 step "Check which profiles are active"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
@@ -217,7 +235,9 @@ echo
 info "Look for 'backend-team' with scope=project"
 pause
 
+# ===================================================================
 section "10. Compare Scopes"
+# ===================================================================
 
 step "Understand where settings are stored"
 
@@ -239,7 +259,9 @@ echo
 info "Precedence: user → project → local (highest)"
 pause
 
+# ===================================================================
 section "Summary"
+# ===================================================================
 
 success "You've applied a team profile at project scope"
 echo
