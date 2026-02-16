@@ -179,14 +179,17 @@ pause
 
 section "7. Commit to Git (Simulated)"
 
-step "In a real project, you would commit .claude/ to git"
+step "In a real project, you would commit .claude/ and .claudeup/ to git"
 
 info "Typical workflow:"
-echo -e "${YELLOW}\$ git add .claude/${NC}"
+echo -e "${YELLOW}\$ git add .claude/ .claudeup/${NC}"
 echo -e "${YELLOW}\$ git commit -m 'Add team Claude Code configuration'${NC}"
 echo -e "${YELLOW}\$ git push${NC}"
 echo
-info "Team members clone the repo and get .claude/ automatically."
+info ".claude/          - Applied settings, rules, and agents"
+info ".claudeup/profiles/ - Profile definition for team sharing"
+echo
+info "Team members clone the repo and get both directories automatically."
 info "No need for them to re-apply the profile!"
 pause
 
