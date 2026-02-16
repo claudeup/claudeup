@@ -47,16 +47,12 @@ section "3. Understanding Scopes"
 
 info "Claude Code has three configuration scopes:"
 echo
-info "  user    (~/.claude/settings.json)"
-info "          └─ Your personal defaults, apply everywhere"
-echo
-info "  project (.claude/settings.json)"
-info "          └─ Shared team settings, checked into git"
-echo
-info "  local   (.claude/settings.local.json)"
-info "          └─ Your local overrides, git-ignored"
+info "  user     Your personal defaults, apply everywhere"
+info "  project  Shared team settings, checked into git"
+info "  local    Your local overrides, git-ignored"
 echo
 info "Later scopes override earlier ones: local > project > user"
+info "See the team-setup examples for a detailed walkthrough of scope layering."
 pause
 
 section "Summary"
