@@ -1301,6 +1301,11 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if resolvedScope != "" {
+		if err := claude.ValidateScope(resolvedScope); err != nil {
+			return err
+		}
+	}
 
 	// Determine profile name
 	var name string
@@ -1384,7 +1389,11 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 	}
 
-	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (all scopes)", name))
+	scopeLabel := "all scopes"
+	if resolvedScope != "" {
+		scopeLabel = resolvedScope + " scope"
+	}
+	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
 	fmt.Println()
 
 	// Show per-scope plugin counts for multi-scope profiles

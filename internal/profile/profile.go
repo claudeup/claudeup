@@ -244,6 +244,8 @@ func (p *Profile) FilterToScope(scope string) {
 	case "user":
 		p.PerScope.Project = nil
 		p.PerScope.Local = nil
+		// Only keep marketplaces referenced by remaining user-scope plugins
+		p.filterMarketplacesToPlugins()
 	case "project":
 		p.PerScope.User = nil
 		p.PerScope.Local = nil
