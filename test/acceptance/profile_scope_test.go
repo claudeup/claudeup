@@ -71,6 +71,7 @@ var _ = Describe("profile apply --scope", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("git add"))
+			Expect(result.Stdout).To(ContainSubstring(".claude/settings.json"))
 			Expect(result.Stdout).To(ContainSubstring(".mcp.json"))
 			Expect(result.Stdout).NotTo(ContainSubstring(".claudeup/"))
 		})

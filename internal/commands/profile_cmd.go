@@ -1219,17 +1219,17 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		fmt.Println()
 		ui.PrintInfo("Project files created:")
 
-		var filesToAdd []string
+		filesToAdd := []string{".claude/settings.json"}
+		fmt.Printf("  %s %s (project plugins)\n", ui.Success(ui.SymbolSuccess), ".claude/settings.json")
+
 		if profile.MCPJSONExists(cwd) {
 			fmt.Printf("  %s %s (MCP servers - Claude auto-loads)\n", ui.Success(ui.SymbolSuccess), profile.MCPConfigFile)
 			filesToAdd = append(filesToAdd, profile.MCPConfigFile)
 		}
 
-		if len(filesToAdd) > 0 {
-			fmt.Println()
-			fmt.Printf("%s Consider adding these to git:\n", ui.Muted(ui.SymbolArrow))
-			fmt.Printf("  git add %s\n", strings.Join(filesToAdd, " "))
-		}
+		fmt.Println()
+		fmt.Printf("%s Consider adding these to git:\n", ui.Muted(ui.SymbolArrow))
+		fmt.Printf("  git add %s\n", strings.Join(filesToAdd, " "))
 	}
 
 	// Run post-apply hook if applicable (decision was made before apply)

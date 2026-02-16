@@ -10,7 +10,9 @@ Share Claude Code configurations with your team by applying profiles at project 
 
 claudeup profiles capture your Claude Code setup (plugins, MCP servers, settings) and apply them to projects. When applied at project scope, the resulting configuration files can be committed to git for team sharing.
 
-Profiles themselves are stored locally at `~/.claudeup/profiles/` and are not committed to the project repository. Only the resulting configuration files are shared.
+Profiles themselves are stored in your user directory at `~/.claudeup/profiles/` and are not committed to the project repository. Only the resulting configuration files are shared.
+
+> **Note:** If your project already has a `.claudeup/profiles/` directory from an earlier version of claudeup, those profiles are still recognized but this path is no longer written to.
 
 ## Quick Start
 
@@ -35,11 +37,18 @@ git commit -m "Add team Claude configuration"
 git push
 ```
 
-**Team member applies after clone:**
+**Team member gets configuration after clone:**
 
 ```bash
 git clone <repo-url>
 cd your-project
+# Settings are already in .claude/settings.json from git
+# Claude Code picks them up automatically
+```
+
+If a team member also has the profile (e.g., shared via dotfiles), they can re-apply it to reinstall plugins:
+
+```bash
 claudeup profile apply team-config --project
 ```
 
@@ -96,7 +105,7 @@ This installs any missing marketplaces and plugins defined in the profile.
 
 ### Viewing Active Profiles
 
-See which profiles are active and at what scope:
+See which profiles are active:
 
 ```bash
 claudeup profile list
@@ -105,16 +114,17 @@ claudeup profile list
 Output:
 
 ```text
-Your profiles (3)
+Your profiles
 
-  base-tools        Personal toolkit [user]
-* team-config       Team configuration [local]
-  frontend-dev      Frontend setup [user]
+* team-config       Team configuration
+○ base-tools        Personal toolkit
+  frontend-dev      Frontend setup
 ```
 
-- `[user]` = active at user scope
-- `[local]` = active at local/project scope
-- `*` = highest precedence active profile
+- `*` = highest precedence active profile (what Claude Code uses)
+- `○` = active at a lower-precedence scope (overridden)
+
+Use `claudeup profile status` to see scope details for the active profile.
 
 ### Layering User and Project Profiles
 

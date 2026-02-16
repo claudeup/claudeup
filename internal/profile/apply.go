@@ -398,12 +398,12 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 		}
 	}
 
-	// 7. Apply extensions if present
+	// 6. Apply extensions if present
 	if err := applyExtensions(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
-	// 8. Apply settings hooks if present
+	// 7. Apply settings hooks if present
 	if err := applySettingsHooks(profile, claudeDir); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
