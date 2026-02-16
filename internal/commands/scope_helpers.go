@@ -81,12 +81,12 @@ func getAllActiveProfiles(cwd string) []ActiveProfileInfo {
 
 // UntrackedScopeInfo describes a scope that has settings but no tracked profile
 type UntrackedScopeInfo struct {
-	Scope        string // "project" or "local"
+	Scope        string // "user", "project", or "local"
 	PluginCount  int
 	SettingsFile string // relative path like ".claude/settings.json"
 }
 
-// getUntrackedScopes checks project and local scopes for settings files with
+// getUntrackedScopes checks user, project, and local scopes for settings files with
 // enabled plugins that have no corresponding tracked profile.
 func getUntrackedScopes(cwd, claudeDir string, trackedProfiles []ActiveProfileInfo) []UntrackedScopeInfo {
 	trackedScopes := make(map[string]bool)
@@ -95,7 +95,7 @@ func getUntrackedScopes(cwd, claudeDir string, trackedProfiles []ActiveProfileIn
 	}
 
 	var untracked []UntrackedScopeInfo
-	for _, scope := range []string{"project", "local"} {
+	for _, scope := range []string{"user", "project", "local"} {
 		if trackedScopes[scope] {
 			continue
 		}
@@ -115,9 +115,14 @@ func getUntrackedScopes(cwd, claudeDir string, trackedProfiles []ActiveProfileIn
 			continue
 		}
 
-		settingsFile := ".claude/settings.json"
-		if scope == "local" {
+		var settingsFile string
+		switch scope {
+		case "user":
+			settingsFile = config.ClaudeDirDisplay() + "/settings.json"
+		case "local":
 			settingsFile = ".claude/settings.local.json"
+		default:
+			settingsFile = ".claude/settings.json"
 		}
 
 		untracked = append(untracked, UntrackedScopeInfo{
@@ -140,8 +145,13 @@ func renderUntrackedScopeHints(untrackedScopes []UntrackedScopeInfo) {
 		fmt.Printf("  %s %d %s in %s (no profile tracked)\n",
 			ui.Warning(us.Scope+":"),
 			us.PluginCount, pluginWord, us.SettingsFile)
-		fmt.Printf("    %s Save with: claudeup profile save <name> --%s && claudeup profile apply <name> --%s\n",
-			ui.Muted(ui.SymbolArrow), us.Scope, us.Scope)
+		if us.Scope == "user" {
+			fmt.Printf("    %s Save with: claudeup profile save <name> --apply\n",
+				ui.Muted(ui.SymbolArrow))
+		} else {
+			fmt.Printf("    %s Save with: claudeup profile save <name> --%s --apply\n",
+				ui.Muted(ui.SymbolArrow), us.Scope)
+		}
 	}
 	if len(untrackedScopes) > 0 {
 		fmt.Println()
