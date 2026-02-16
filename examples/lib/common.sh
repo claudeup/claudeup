@@ -233,20 +233,24 @@ JSON
 }
 JSON
 
-    # Known marketplaces registry
+    # Known marketplaces registry (unquoted heredoc for $CLAUDE_CONFIG_DIR expansion)
     cat > "$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json" <<JSON
 {
   "superpowers-marketplace": {
     "source": {
+      "source": "github",
       "repo": "https://github.com/anthropics/superpowers-marketplace"
     },
-    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/superpowers-marketplace"
+    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/superpowers-marketplace",
+    "lastUpdated": "2026-01-15T14:30:00Z"
   },
   "claude-plugins-official": {
     "source": {
+      "source": "github",
       "repo": "https://github.com/anthropics/claude-plugins-official"
     },
-    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/claude-plugins-official"
+    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/claude-plugins-official",
+    "lastUpdated": "2026-01-20T08:00:00Z"
   }
 }
 JSON
