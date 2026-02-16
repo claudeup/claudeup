@@ -3,7 +3,6 @@
 # ABOUTME: Demonstrates claudeup's read-only plugin management features
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment
@@ -19,25 +18,19 @@ installing, and manage installed plugins with claudeup and the claude CLI.
 EOF
 pause
 
-section "1. List Currently Installed Plugins"
+section "1. Check Your Current Plugins"
 
-step "View all installed plugins and their status"
+step "Quick look at what's installed"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" plugin list || \
-    info "Shows plugins with name, version, status, enabled scope, and source"
-
-echo
-info "The list shows which plugins are installed and where they're enabled."
-info "Use --format detail for more information about each plugin."
+    info "(No plugins installed yet)"
 pause
 
 section "2. Browse Available Plugins in a Marketplace"
 
-step "Discover plugins before installing them"
-info "First, make sure you have a marketplace installed:"
-echo -e "${YELLOW}\$ claudeup marketplace list${NC}"
-echo
-
 step "Browse plugins available in a marketplace"
+info "You need a marketplace installed first. Use 'claudeup status' to check:"
+echo -e "${YELLOW}\$ claudeup status${NC}"
+echo
 info "Example command:"
 echo -e "${YELLOW}\$ claudeup plugin browse claude-code-workflows${NC}"
 echo
@@ -51,8 +44,8 @@ echo -e "${YELLOW}\$ claudeup plugin browse wshobson/agents${NC}"
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
     echo
-    step "Try browsing a marketplace now"
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" marketplace list
+    step "See your installed marketplaces"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" status
     echo
     info "Pick a marketplace from above and browse its plugins:"
     echo -e "${YELLOW}\$ claudeup plugin browse <marketplace-name>${NC}"
