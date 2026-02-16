@@ -15,17 +15,19 @@ Team leads and developers who want to:
 | Script                          | What it does                                                                                                                                          |
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `01-scoped-profiles.sh`         | Explains the three configuration scopes (user, project, local), their precedence, and how to apply profiles to each scope                             |
-| `02-isolated-workspace-demo.sh` | End-to-end demo simulating three team members (Alice, Bob, Charlie) with isolated environments, project-scoped extensions, and git-based sharing      |
-| `03-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
-| `04-devcontainer-demo.sh`       | End-to-end demo using claudeup-lab to create real Docker containers for three team members with profile stacking via `--base-profile`                 |
-| `05-scope-apply-demo.sh`        | Applies profiles at all three scopes (user, project, local) and shows how `profile list` markers change as scopes accumulate                          |
+| `02-project-scope-profile.sh`   | Demonstrates applying a profile at project scope in a single directory, creating team configuration to commit to git                                  |
+| `03-isolated-workspace-demo.sh` | End-to-end demo simulating three team members (Alice, Bob, Charlie) with isolated environments, project-scoped extensions, and git-based sharing      |
+| `04-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
+| `05-devcontainer-demo.sh`       | End-to-end demo using claudeup-lab to create real Docker containers for three team members with profile stacking via `--base-profile`                 |
+| `06-scope-apply-demo.sh`        | Applies profiles at all three scopes (user, project, local) and shows how `profile list` markers change as scopes accumulate                          |
 
 ## Suggested order
 
-Read `01-scoped-profiles.sh` first to understand scopes, then `02-isolated-workspace-demo.sh`
-to see a realistic team workflow in action, then `03-profile-layering.sh` for profile
-layering details. Finally, `04-devcontainer-demo.sh` shows the same team pattern using real
-Docker containers instead of environment variable isolation.
+Read `01-scoped-profiles.sh` first to understand scopes, then `02-project-scope-profile.sh`
+to see project-scoped profile application in a simple single-directory workflow, then
+`03-isolated-workspace-demo.sh` to see a realistic multi-member team workflow, and
+`04-profile-layering.sh` for profile layering details. Finally, `05-devcontainer-demo.sh`
+shows the same team pattern using real Docker containers instead of environment variable isolation.
 
 ## What you'll learn
 
@@ -38,7 +40,7 @@ Docker containers instead of environment variable isolation.
 
 ## Recommended team workflow
 
-The `02-isolated-workspace-demo.sh` script demonstrates this pattern:
+The `02-project-scope-profile.sh` and `03-isolated-workspace-demo.sh` scripts demonstrate this pattern:
 
 1. **Team lead** creates and applies a project-scope profile (plugins, rules, agents)
 2. **Team lead** commits `.claude/` to git so settings and extensions travel with the repo
@@ -47,14 +49,19 @@ The `02-isolated-workspace-demo.sh` script demonstrates this pattern:
 
 ## Important details
 
-- `01-scoped-profiles.sh` and `03-profile-layering.sh` are mostly informational --
-  they explain concepts with example output rather than making changes.
-- `02-isolated-workspace-demo.sh` runs real `claudeup` commands against isolated
+- `01-scoped-profiles.sh` is mostly informational -- it explains concepts with
+  example output rather than making changes.
+- `04-profile-layering.sh` demonstrates real profile layering by applying profiles
+  at user and project scopes and updating your Claude Code configuration.
+- `02-project-scope-profile.sh` demonstrates project-scoped profile application in
+  a simple single-directory workflow. It creates team configuration files to commit
+  to git without simulating multiple team members.
+- `03-isolated-workspace-demo.sh` runs real `claudeup` commands against isolated
   temp directories. It demonstrates project-scoped extensions (rules and agents
   copied into `.claude/`) and how project configuration travels through git.
   The `--real` flag is not supported because each simulated team member needs
   their own isolated config directory.
-- `04-devcontainer-demo.sh` requires Docker and `claudeup-lab` installed.
+- `05-devcontainer-demo.sh` requires Docker and `claudeup-lab` installed.
   Run `claudeup-lab doctor` to check prerequisites. It creates real containers
   that take a few minutes to start. The `--real` flag is not supported because
   containers provide their own isolation.
