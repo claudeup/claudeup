@@ -1,125 +1,144 @@
 #!/usr/bin/env bash
-# ABOUTME: Example showing how to enable, disable, and install plugins
-# ABOUTME: Demonstrates plugin enable, disable, and install commands
+# ABOUTME: Example showing how to browse and inspect plugins
+# ABOUTME: Demonstrates claudeup's read-only plugin management features
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# shellcheck disable=SC1091
 source "$SCRIPT_DIR/../lib/common.sh"
 parse_common_args "$@"
 setup_environment
 
 cat <<'EOF'
 ╔════════════════════════════════════════════════════════════════╗
-║           Plugin Management: Manage Plugins                    ║
+║        Plugin Management: Browse and Inspect Plugins           ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Learn how to enable, disable, and install plugins to customize your
-Claude Code environment.
+Learn how to discover available plugins, inspect their contents before
+installing, and manage installed plugins with claudeup and the claude CLI.
 
 EOF
 pause
 
-section "1. Install a New Plugin"
+section "1. List Currently Installed Plugins"
 
-step "Search for available plugins in a marketplace"
-info "First, you need a marketplace installed. Check with 'claudeup status'"
-echo
-
-step "Install a plugin from a marketplace"
-info "Example command:"
-echo -e "${YELLOW}\$ claudeup plugin install superpowers@superpowers-marketplace${NC}"
-echo
-info "Format: claudeup plugin install <plugin-name>@<marketplace-name>"
-info ""
-info "If this is your first plugin from a marketplace, claudeup will:"
-info "  1. Clone the marketplace repository"
-info "  2. Install the requested plugin"
-info "  3. Enable it automatically"
-pause
-
-section "2. Disable a Plugin"
-
-step "Disable a plugin without removing it"
-info "When you want to keep a plugin installed but temporarily turn it off:"
-echo
-
-if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    # In real mode, try to disable a common plugin if it exists
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" plugin list
-    echo
-    info "To disable a plugin:"
-    echo -e "${YELLOW}\$ claudeup plugin disable <plugin-name>${NC}"
-else
-    echo -e "${YELLOW}\$ claudeup plugin disable backend-development${NC}"
-    info "(Example - no real plugins in temp mode)"
-fi
-
-echo
-info "Disabled plugins remain installed but won't load in Claude Code."
-info "Their files stay on disk for quick re-enabling."
-pause
-
-section "3. Enable a Previously Disabled Plugin"
-
-step "Re-enable a disabled plugin"
-info "Bring back a disabled plugin without reinstalling:"
-echo
-
-if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "To enable a plugin:"
-    echo -e "${YELLOW}\$ claudeup plugin enable <plugin-name>${NC}"
-else
-    echo -e "${YELLOW}\$ claudeup plugin enable backend-development${NC}"
-    info "(Example - no real plugins in temp mode)"
-fi
-
-echo
-info "This is instant - just updates the enabled state."
-pause
-
-section "4. View Current Plugin State"
-
-step "Check which plugins are enabled vs disabled"
+step "View all installed plugins and their status"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" plugin list || \
-    info "Plugin list shows enabled/disabled state for each plugin"
+    info "Shows plugins with name, version, status, enabled scope, and source"
 
 echo
-info "Look for the status column to see which plugins are active."
+info "The list shows which plugins are installed and where they're enabled."
+info "Use --format detail for more information about each plugin."
 pause
 
-section "5. Uninstall a Plugin"
+section "2. Browse Available Plugins in a Marketplace"
 
-step "Completely remove a plugin"
-info "When you no longer need a plugin at all:"
+step "Discover plugins before installing them"
+info "First, make sure you have a marketplace installed:"
+echo -e "${YELLOW}\$ claudeup marketplace list${NC}"
 echo
+
+step "Browse plugins available in a marketplace"
+info "Example command:"
+echo -e "${YELLOW}\$ claudeup plugin browse claude-code-workflows${NC}"
+echo
+info "This shows all plugins available in the marketplace with:"
+info "  • Plugin name and description"
+info "  • Version number"
+info "  • Installation status (if already installed)"
+echo
+info "You can also browse using the repo format:"
+echo -e "${YELLOW}\$ claudeup plugin browse wshobson/agents${NC}"
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "To uninstall a plugin:"
-    echo -e "${YELLOW}\$ claudeup plugin uninstall <plugin-name>${NC}"
-else
-    echo -e "${YELLOW}\$ claudeup plugin uninstall old-plugin${NC}"
-    info "(Example - no real plugins in temp mode)"
+    echo
+    step "Try browsing a marketplace now"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" marketplace list
+    echo
+    info "Pick a marketplace from above and browse its plugins:"
+    echo -e "${YELLOW}\$ claudeup plugin browse <marketplace-name>${NC}"
 fi
 
+pause
+
+section "3. Inspect Plugin Contents Before Installing"
+
+step "View what's inside a plugin"
+info "Use the 'plugin show' command to inspect a plugin's structure:"
 echo
-info "This removes the plugin files from disk."
-info "You'll need to reinstall if you want it back later."
+echo -e "${YELLOW}\$ claudeup plugin show <plugin>@<marketplace>${NC}"
+echo
+info "This displays the plugin's directory tree - all agents, skills, and files."
+info "Example:"
+echo -e "${YELLOW}\$ claudeup plugin show observability-monitoring@claude-code-workflows${NC}"
+echo
+
+step "View specific files within a plugin"
+info "You can also inspect individual files:"
+echo
+echo -e "${YELLOW}\$ claudeup plugin show my-plugin@marketplace agents/architect${NC}"
+echo -e "${YELLOW}\$ claudeup plugin show my-plugin@marketplace skills/database${NC}"
+echo
+info "This helps you understand what the plugin does before installing it."
+info "Markdown files are rendered; use --raw for unformatted output."
+
+if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
+    echo
+    step "Try inspecting a plugin"
+    info "Format: claudeup plugin show <plugin>@<marketplace>"
+fi
+
+pause
+
+section "4. Install and Uninstall Plugins with the Claude CLI"
+
+step "Installing plugins requires the claude CLI"
+info "claudeup provides read-only plugin management (browse, inspect, list)."
+info "To actually install or uninstall plugins, use the 'claude' CLI:"
+echo
+info "Install a plugin:"
+echo -e "${YELLOW}\$ claude plugin install <plugin>@<marketplace>${NC}"
+echo
+info "Uninstall a plugin:"
+echo -e "${YELLOW}\$ claude plugin uninstall <plugin>${NC}"
+echo
+info "The 'claude' CLI is the main Claude Code CLI that manages installations."
+info "claudeup helps you discover and inspect plugins before installing them."
+pause
+
+section "5. Check Plugin Status After Installation"
+
+step "Verify plugins were installed correctly"
+info "After installing with 'claude plugin install', verify with claudeup:"
+echo
+echo -e "${YELLOW}\$ claudeup plugin list${NC}"
+echo
+info "The list will show the newly installed plugin with its enabled scope."
+echo
+info "Use additional flags for filtered views:"
+info "  --enabled          Show only enabled plugins"
+info "  --disabled         Show only disabled plugins"
+info "  --format detail    Verbose per-plugin information"
+info "  --by-scope         Group enabled plugins by scope"
 pause
 
 section "Summary"
 
-success "You know how to manage your plugins"
+success "You know how to discover and inspect plugins"
 echo
-info "Key commands:"
-info "  claudeup plugin install <name>@<marketplace>    Install new plugin"
-info "  claudeup plugin disable <name>                  Disable temporarily"
-info "  claudeup plugin enable <name>                   Re-enable plugin"
-info "  claudeup plugin uninstall <name>                Remove completely"
-info "  claudeup plugin list                            View all plugins"
+info "claudeup read-only commands:"
+info "  claudeup plugin list                            View installed plugins"
+info "  claudeup plugin browse <marketplace>            Browse available plugins"
+info "  claudeup plugin show <plugin>@<marketplace>     Inspect plugin contents"
 echo
-info "Best practices:"
-info "  • Use disable/enable for temporary changes"
-info "  • Use uninstall only when you're sure you won't need it"
-info "  • Keep plugins updated with 'claudeup upgrade'"
+info "claude CLI commands for installation:"
+info "  claude plugin install <plugin>@<marketplace>    Install a plugin"
+info "  claude plugin uninstall <plugin>                Remove a plugin"
+echo
+info "Workflow:"
+info "  1. Browse available plugins with 'claudeup plugin browse'"
+info "  2. Inspect interesting plugins with 'claudeup plugin show'"
+info "  3. Install plugins you want with 'claude plugin install'"
+info "  4. Verify installation with 'claudeup plugin list'"
 echo
 
 prompt_cleanup
