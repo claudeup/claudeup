@@ -89,6 +89,9 @@ getting-started/  -->  profile-management/  -->  team-setup/
 | `--non-interactive` | No pauses, for CI/scripting                       |
 | `--help`            | Show usage for the specific example               |
 
+> **Note:** `--real` and `--non-interactive` cannot be combined. Real mode
+> requires interactive confirmation to protect your configuration.
+
 ## Temp mode vs real mode
 
 Most examples work in **temp mode** (the default), which creates an isolated
