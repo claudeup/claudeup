@@ -86,7 +86,7 @@ useful for syncing after pulling changes or reinstalling plugins.
 SCOPES:
   --project        Apply to current project (.claude/settings.json)
   --local          Apply to current project, but not shared (personal overrides)
-  --user           Apply globally to ~/.claude/ (default, affects all projects)
+  --user           Apply globally (default, affects all projects)
 
 REPLACE MODE:
   --replace        Replace user-scope settings instead of adding to them.
@@ -136,7 +136,7 @@ MULTI-SCOPE CAPTURE:
   in a structured format. When the profile is applied, each scope's settings are
   restored to the correct location.
 
-  Profiles are always saved to ~/.claudeup/profiles/ (user profiles directory).
+  Profiles are always saved to the user profiles directory.
   For team sharing, use 'profile apply <name> --project' to apply the
   profile at project scope, which creates .claude/settings.json for version control.
 
@@ -650,7 +650,7 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoInteractive, "no-interactive", false, "Skip post-apply setup wizard (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVarP(&profileApplyForce, "force", "f", false, "Force reapply even with unsaved changes")
 	profileApplyCmd.Flags().StringVar(&profileApplyScope, "scope", "", "Apply scope: user, project, or local (default: user)")
-	profileApplyCmd.Flags().BoolVar(&profileApplyUser, "user", false, "Apply to user scope (~/.claude/)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyUser, "user", false, fmt.Sprintf("Apply to user scope (%s/)", config.ClaudeDirDisplay()))
 	profileApplyCmd.Flags().BoolVar(&profileApplyProject, "project", false, "Apply to project scope (.claude/settings.json)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyLocal, "local", false, "Apply to local scope (.claude/settings.local.json)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")

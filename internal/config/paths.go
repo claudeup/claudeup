@@ -44,3 +44,21 @@ func MustClaudeDir() string {
 	}
 	return filepath.Join(homeDir, ".claude")
 }
+
+// ClaudeDirDisplay returns a user-friendly display path for the Claude config directory.
+// Shows the CLAUDE_CONFIG_DIR value when set, otherwise shows ~/.claude.
+func ClaudeDirDisplay() string {
+	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
+		return dir
+	}
+	return "~/.claude"
+}
+
+// ClaudeupHomeDisplay returns a user-friendly display path for the claudeup home directory.
+// Shows the CLAUDEUP_HOME value when set, otherwise shows ~/.claudeup.
+func ClaudeupHomeDisplay() string {
+	if home := os.Getenv("CLAUDEUP_HOME"); home != "" {
+		return strings.TrimSpace(home)
+	}
+	return "~/.claudeup"
+}

@@ -46,6 +46,8 @@ Examples:
 func init() {
 	rootCmd.AddCommand(eventsCmd)
 
+	eventsCmd.Long = strings.ReplaceAll(eventsCmd.Long, "~/.claude/", config.ClaudeDirDisplay()+"/")
+
 	eventsCmd.Flags().StringVar(&eventsFile, "file", "", "Filter by file path")
 	eventsCmd.Flags().StringVar(&eventsOperation, "operation", "", "Filter by operation name")
 	eventsCmd.Flags().StringVar(&eventsScope, "scope", "", "Filter by scope (user/project/local)")
