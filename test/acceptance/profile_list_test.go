@@ -669,6 +669,17 @@ var _ = Describe("profile restore", func() {
 			Expect(env.ProfileExists("default")).To(BeFalse())
 		})
 	})
+
+	Describe("footer hints", func() {
+		It("shows profile status command in footer", func() {
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile status"))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile show <name>"))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile apply <name>"))
+		})
+	})
 })
 
 // Helper functions for parsing output

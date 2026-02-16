@@ -873,7 +873,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	fmt.Printf("%s Use 'claudeup profile show <name>' for details\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile status' to see effective configuration\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile show <name>' for profile details\n", ui.Muted(ui.SymbolArrow))
 	fmt.Printf("%s Use 'claudeup profile apply <name>' to apply a profile\n", ui.Muted(ui.SymbolArrow))
 
 	return nil
