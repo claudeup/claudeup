@@ -20,22 +20,25 @@ pause
 
 section "1. Install from a Git Repository"
 
-step "Clone and install extensions from a git repo"
-info "Install directly from a GitHub (or other git) repository:"
+step "Clone a repo, then install extensions per category"
+info "The ext install command works with local paths, so clone first:"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "Example command:"
-    echo -e "${YELLOW}\$ claudeup ext install https://github.com/myteam/claude-extensions${NC}"
+    info "Step 1: Clone the repository"
+    echo -e "${YELLOW}\$ git clone https://github.com/myteam/claude-extensions ~/team-ext${NC}"
     echo
-    info "This will:"
-    info "  1. Clone the repository to a temp location"
-    info "  2. Find all valid extension categories (agents/, rules/, etc.)"
-    info "  3. Copy them to ~/.claudeup/ext/"
-    info "  4. Prompt you to enable them"
+    info "Step 2: Install each category from the cloned directory"
+    echo -e "${YELLOW}\$ claudeup ext install agents ~/team-ext/agents${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install rules ~/team-ext/rules${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install hooks ~/team-ext/hooks${NC}"
+    echo
+    info "Files are copied to ~/.claudeup/ext/<category>/ and automatically enabled."
 else
-    echo -e "${YELLOW}\$ claudeup ext install https://github.com/example/team-extensions${NC}"
-    info "(Example - no real git clone in temp mode)"
+    echo -e "${YELLOW}\$ git clone https://github.com/example/team-extensions ~/team-ext${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install agents ~/team-ext/agents${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install rules ~/team-ext/rules${NC}"
+    info "(Example - clone first, then install per category)"
 fi
 pause
 
@@ -59,11 +62,11 @@ RULE
     run_cmd ls -la "$DEMO_PATH/rules/"
     echo
     
-    step "Install from local path"
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext install "$DEMO_PATH"
+    step "Install from local path (one category at a time)"
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext install rules "$DEMO_PATH/rules"
 else
-    echo -e "${YELLOW}\$ claudeup ext install ~/Downloads/my-extensions${NC}"
-    echo -e "${YELLOW}\$ claudeup ext install /path/to/team-shared/extensions${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install rules ~/Downloads/my-extensions/rules${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install agents /path/to/team-shared/agents${NC}"
     info "(Examples - no real paths in temp mode)"
 fi
 
@@ -81,20 +84,21 @@ pause
 section "3. Install Specific Categories"
 
 step "Choose which categories to install"
-info "You can limit what gets installed:"
+info "Since install takes one category at a time, just run it for the ones you want:"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "Install only specific categories:"
-    echo -e "${YELLOW}\$ claudeup ext install ~/team-ext --category rules${NC}"
-    echo -e "${YELLOW}\$ claudeup ext install https://github.com/team/ext --category agents,rules${NC}"
+    info "Install only specific categories (run once per category):"
+    echo -e "${YELLOW}\$ claudeup ext install rules ~/team-ext/rules${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install agents ~/team-ext/agents${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext install <path> --category rules,agents${NC}"
-    info "(Example - category filtering during install)"
+    echo -e "${YELLOW}\$ claudeup ext install rules <path>${NC}"
+    echo -e "${YELLOW}\$ claudeup ext install agents <path>${NC}"
+    info "(Example - install specific categories by passing them positionally)"
 fi
 
 echo
-info "This ignores other categories in the source."
+info "Skip categories you don't need — just don't run install for them."
 pause
 
 section "4. Team Workflow Example"
@@ -105,18 +109,21 @@ info "1. Team creates a shared git repository:"
 info "   git clone https://github.com/myteam/claude-extensions"
 echo
 
-info "2. Each team member installs from the repo:"
-info "   claudeup ext install https://github.com/myteam/claude-extensions"
+info "2. Each team member clones and installs per category:"
+info "   git clone https://github.com/myteam/claude-extensions ~/team-ext"
+info "   claudeup ext install rules ~/team-ext/rules"
+info "   claudeup ext install agents ~/team-ext/agents"
 echo
 
-info "3. Team members enable the extensions they need:"
-info "   claudeup ext enable 'rules/*'           # Enable all team rules"
-info "   claudeup ext enable agents/code-reviewer  # Enable specific agent"
+info "3. Extensions are enabled automatically on install."
+info "   Disable what you don't need:"
+info "   claudeup ext disable rules 'unwanted-*'    # Disable specific rules"
+info "   claudeup ext disable agents code-reviewer   # Disable specific agent"
 echo
 
 info "4. When the team updates the repo:"
-info "   git pull                                 # Update local clone"
-info "   claudeup ext install ./claude-extensions # Reinstall"
+info "   cd ~/team-ext && git pull                      # Update local clone"
+info "   claudeup ext install rules ~/team-ext/rules    # Reinstall categories"
 pause
 
 section "5. Verify Installation"
@@ -124,25 +131,25 @@ section "5. Verify Installation"
 step "Check that extensions were installed"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list
 
-info "New extensions appear in the list (initially disabled)."
+info "Newly installed extensions are automatically enabled."
 pause
 
-section "6. Enable Newly Installed Extensions"
+section "6. Manage Installed Extensions"
 
-step "Activate the extensions you want to use"
+step "Disable extensions you don't need"
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "Enable all newly installed rules:"
-    echo -e "${YELLOW}\$ claudeup ext enable 'rules/*'${NC}"
+    info "Extensions are enabled on install. Disable what you don't need:"
+    echo -e "${YELLOW}\$ claudeup ext disable rules 'unwanted-*'${NC}"
     echo
-    info "Or enable selectively:"
-    echo -e "${YELLOW}\$ claudeup ext enable rules/team-standards${NC}"
+    info "Re-enable later:"
+    echo -e "${YELLOW}\$ claudeup ext enable rules team-standards${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext enable 'rules/*'${NC}"
-    info "Enable all rules at once"
+    echo -e "${YELLOW}\$ claudeup ext disable rules 'unwanted-*'${NC}"
+    info "Disable rules you don't need"
     echo
-    echo -e "${YELLOW}\$ claudeup ext enable agents/reviewer${NC}"
-    info "Enable a specific agent"
+    echo -e "${YELLOW}\$ claudeup ext enable agents reviewer${NC}"
+    info "Re-enable a specific agent"
     info "(Examples - no real extensions in temp mode)"
 fi
 pause
@@ -152,14 +159,14 @@ section "Summary"
 success "You can install extensions from external sources"
 echo
 info "Key commands:"
-info "  claudeup ext install <git-url>              Install from git repo"
-info "  claudeup ext install <local-path>           Install from local directory"
-info "  claudeup ext install <path> --category <c>  Install specific categories"
+info "  claudeup ext install <category> <path>      Install from local directory"
+info "  claudeup ext view <category> <name>         View extension contents"
 echo
 info "Best practices:"
 info "  • Use a team git repo for shared extensions"
-info "  • Install first, then selectively enable what you need"
-info "  • Review extension contents before enabling (claudeup ext view)"
+info "  • Clone the repo locally, then install per category"
+info "  • Extensions are auto-enabled on install; disable what you don't need"
+info "  • Review extension contents with: claudeup ext view <category> <name>"
 info "  • Keep team repos updated and reinstall periodically"
 echo
 info "Next: Combine with profiles to apply extensions at different scopes!"

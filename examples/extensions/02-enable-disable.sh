@@ -25,12 +25,12 @@ info "When you want to keep an extension installed but temporarily inactive:"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list
+    run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list --full
     echo
-    info "To disable an extension:"
-    echo -e "${YELLOW}\$ claudeup ext disable rules/my-coding-standards${NC}"
+    info "To disable an extension (category + item name):"
+    echo -e "${YELLOW}\$ claudeup ext disable rules my-coding-standards.md${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext disable rules/golang-style${NC}"
+    echo -e "${YELLOW}\$ claudeup ext disable rules golang-style.md${NC}"
     info "(Example - no real extensions in temp mode)"
 fi
 
@@ -46,10 +46,10 @@ info "Bring back a disabled extension:"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
-    info "To enable an extension:"
-    echo -e "${YELLOW}\$ claudeup ext enable rules/my-coding-standards${NC}"
+    info "To enable an extension (category + item name):"
+    echo -e "${YELLOW}\$ claudeup ext enable rules my-coding-standards.md${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext enable rules/golang-style${NC}"
+    echo -e "${YELLOW}\$ claudeup ext enable rules golang-style.md${NC}"
     info "(Example - no real extensions in temp mode)"
 fi
 
@@ -66,11 +66,11 @@ echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
     info "Examples:"
-    echo -e "${YELLOW}\$ claudeup ext enable rules/python-style rules/testing-standards${NC}"
-    echo -e "${YELLOW}\$ claudeup ext disable agents/reviewer agents/writer${NC}"
+    echo -e "${YELLOW}\$ claudeup ext enable rules python-style.md testing-standards.md${NC}"
+    echo -e "${YELLOW}\$ claudeup ext disable agents reviewer.md writer.md${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext enable rules/python rules/go rules/typescript${NC}"
-    echo -e "${YELLOW}\$ claudeup ext disable agents/creative agents/formal${NC}"
+    echo -e "${YELLOW}\$ claudeup ext enable rules python.md go.md typescript.md${NC}"
+    echo -e "${YELLOW}\$ claudeup ext disable agents creative.md formal.md${NC}"
     info "(Examples - no real extensions in temp mode)"
 fi
 
@@ -86,17 +86,17 @@ echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
     info "Examples:"
-    echo -e "${YELLOW}\$ claudeup ext enable 'rules/*'           ${NC}# Enable all rules"
-    echo -e "${YELLOW}\$ claudeup ext disable 'agents/test-*'    ${NC}# Disable test agents"
-    echo -e "${YELLOW}\$ claudeup ext enable '*-style'           ${NC}# Enable all *-style items"
+    echo -e "${YELLOW}\$ claudeup ext enable rules '*'              ${NC}# Enable all rules"
+    echo -e "${YELLOW}\$ claudeup ext disable agents 'test-*'       ${NC}# Disable test agents"
+    echo -e "${YELLOW}\$ claudeup ext enable rules '*-style.md'     ${NC}# Enable all *-style rules"
 else
-    echo -e "${YELLOW}\$ claudeup ext enable 'rules/*'${NC}"
+    echo -e "${YELLOW}\$ claudeup ext enable rules '*'${NC}"
     info "Enables all rule extensions at once"
     echo
-    echo -e "${YELLOW}\$ claudeup ext disable 'agents/draft-*'${NC}"
+    echo -e "${YELLOW}\$ claudeup ext disable agents 'draft-*'${NC}"
     info "Disables all agents starting with 'draft-'"
     echo
-    echo -e "${YELLOW}\$ claudeup ext enable 'commands/dev-*'${NC}"
+    echo -e "${YELLOW}\$ claudeup ext enable commands 'dev-*'${NC}"
     info "Enables all development commands"
     info "(Examples - no real extensions in temp mode)"
 fi
@@ -108,9 +108,9 @@ pause
 section "5. Verify Changes"
 
 step "Check the updated status"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list --full
 
-info "Look for the ✓ (enabled) and ✗ (disabled) indicators."
+info "Look for the ✓ (enabled) and · (disabled) indicators."
 pause
 
 section "6. Sync Enabled State"
@@ -136,10 +136,10 @@ section "Summary"
 success "You can control which extensions are active"
 echo
 info "Key commands:"
-info "  claudeup ext enable <category>/<name>     Enable an extension"
-info "  claudeup ext disable <category>/<name>    Disable an extension"
-info "  claudeup ext enable 'pattern/*'           Enable by wildcard"
-info "  claudeup ext disable 'pattern/*'          Disable by wildcard"
+info "  claudeup ext enable <category> <name>      Enable an extension"
+info "  claudeup ext disable <category> <name>     Disable an extension"
+info "  claudeup ext enable <category> '*'         Enable all in category"
+info "  claudeup ext disable <category> 'pattern*' Disable by wildcard"
 info "  claudeup ext sync                         Rebuild symlinks"
 echo
 info "Best practices:"

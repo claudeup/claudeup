@@ -53,7 +53,7 @@ Start with **Getting Started**, then explore based on what you need.
 | [`getting-started/`](getting-started/)       | Verify installation, explore profiles, apply your first profile | [README](getting-started/README.md)    |
 | [`profile-management/`](profile-management/) | Save, create, switch, clone, and compose profiles               | [README](profile-management/README.md) |
 | [`plugin-management/`](plugin-management/)   | List, install, enable, disable plugins; check for updates       | [README](plugin-management/README.md)  |
-| [`extensions/`](extensions/)                 | Manage custom agents, rules, and commands; install from git     | [README](extensions/README.md)         |
+| [`extensions/`](extensions/)                 | Manage custom agents, rules, and commands; install from local paths | [README](extensions/README.md)         |
 | [`team-setup/`](team-setup/)                 | Understand scopes, layer personal and team profiles             | [README](team-setup/README.md)         |
 | [`troubleshooting/`](troubleshooting/)       | Diagnose issues, view event history, diff configuration changes | [README](troubleshooting/README.md)    |
 

@@ -22,9 +22,12 @@ pause
 
 section "1. List All Extensions"
 
-step "View all installed extensions across all categories"
+step "View extension summary across all categories"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" ext list
 
+info "Without arguments, 'ext list' shows summary counts by category."
+info "Use 'ext list --full' to see individual items, or specify a category."
+echo
 info "Extensions are organized by category:"
 info "  • agents          - Custom agent personalities"
 info "  • commands        - Custom slash commands"
@@ -36,10 +39,10 @@ pause
 
 section "2. Understanding Extension Status"
 
-info "Each extension shows its enabled status:"
+info "When listing individual extensions, each shows its enabled status:"
 echo
 info "  ✓ enabled   - Active and available in Claude Code"
-info "  ✗ disabled  - Installed but not currently active"
+info "  · disabled  - Installed but not currently active"
 echo
 info "Extensions are stored in ~/.claudeup/ext/<category>/"
 info "Enabled extensions are symlinked to ~/.claude/<category>/"
@@ -67,14 +70,14 @@ pause
 section "4. View Extension Details"
 
 step "Examine the contents of an extension"
-info "Use 'claudeup ext view' to see what's in an extension:"
+info "Use 'claudeup ext view <category> <item>' to see what's in an extension:"
 echo
 
 if [[ "$EXAMPLE_REAL_MODE" == "true" ]]; then
     info "Example command:"
-    echo -e "${YELLOW}\$ claudeup ext view rules/my-coding-standards${NC}"
+    echo -e "${YELLOW}\$ claudeup ext view rules my-coding-standards.md${NC}"
 else
-    echo -e "${YELLOW}\$ claudeup ext view rules/golang-style${NC}"
+    echo -e "${YELLOW}\$ claudeup ext view rules golang-style.md${NC}"
     info "(Example - no real extensions in temp mode)"
 fi
 
@@ -88,7 +91,7 @@ success "You can view all your extensions and their status"
 echo
 info "Key commands:"
 info "  claudeup ext list                List all extensions"
-info "  claudeup ext view <category>/<name>  View extension contents"
+info "  claudeup ext view <category> <name>  View extension contents"
 echo
 info "Next steps:"
 info "  • Learn to enable/disable extensions (02-enable-disable.sh)"
