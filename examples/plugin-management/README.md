@@ -15,18 +15,18 @@ Users who already have claudeup set up and want to:
 | Script                 | What it does                                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
 | `01-list-plugins.sh`   | Lists all installed plugins with their enabled/disabled state and shows plugin details via `status` |
+| `02-manage-plugins.sh` | Browse and inspect plugins with claudeup before installing via the claude CLI                       |
 | `03-check-upgrades.sh` | Runs `outdated` to find available updates, then `upgrade` to apply them                             |
-
-> **Note:** Script numbering has a gap (no `02-*`). This is a known issue and does
-> not affect functionality.
 
 ## What you'll learn
 
 - `plugin list` shows all plugins and whether they're enabled or disabled
+- `plugin browse <marketplace>` discovers available plugins before installing
+- `plugin show <plugin>@<marketplace>` inspects plugin contents (agents, skills, files)
 - `status` groups plugins by their source marketplace
 - `outdated` checks all marketplaces for available updates
 - `upgrade` fetches and applies updates from all marketplaces
-- Plugins are installed from marketplaces (plugin repositories), not individually
+- Plugins are installed from marketplaces (plugin repositories) via the `claude` CLI
 
 ## Important details
 
