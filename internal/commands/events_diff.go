@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/config"
 	"github.com/claudeup/claudeup/v5/internal/events"
@@ -35,6 +36,8 @@ Examples:
 
 func init() {
 	eventsCmd.AddCommand(eventsDiffCmd)
+
+	eventsDiffCmd.Long = strings.ReplaceAll(eventsDiffCmd.Long, "~/.claude/", config.ClaudeDirDisplay()+"/")
 
 	eventsDiffCmd.Flags().StringVar(&diffFile, "file", "", "File path to show diff for (required)")
 	eventsDiffCmd.Flags().BoolVar(&diffFull, "full", false, "Show complete nested objects without truncation")

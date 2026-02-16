@@ -4,22 +4,19 @@ title: Team Workflows
 
 # Team Workflows
 
-Share Claude Code configurations with your team by storing profiles in your project repository.
+Share Claude Code configurations with your team by applying profiles at project scope.
 
 ## Overview
 
-claudeup supports two locations for profile storage:
+claudeup profiles capture your Claude Code setup (plugins, MCP servers, settings) and apply them to projects. When applied at project scope, the resulting configuration files can be committed to git for team sharing.
 
-| Location                | Purpose           | Shared                     |
-| ----------------------- | ----------------- | -------------------------- |
-| `~/.claudeup/profiles/` | Personal profiles | No (local to your machine) |
-| `.claudeup/profiles/`   | Project profiles  | Yes (committed to git)     |
+Profiles themselves are stored in your user directory at `~/.claudeup/profiles/` and are not committed to the project repository. Only the resulting configuration files are shared.
 
-When loading a profile, claudeup checks the project directory first, then falls back to user profiles.
+> **Note:** If your project already has a `.claudeup/profiles/` directory from an earlier version of claudeup, those profiles are still recognized but this path is no longer written to.
 
 ## Quick Start
 
-**Team lead creates a shared profile:**
+**Team lead creates a shared configuration:**
 
 ```bash
 cd your-project
@@ -31,32 +28,36 @@ claude plugin install backend-development@claude-code-workflows --project
 # Save current state as a profile (captures all scopes)
 claudeup profile save team-config
 
-# Apply at project scope
+# Apply at project scope (creates committable config files)
 claudeup profile apply team-config --project
 
-# Commit profile and settings to git
-git add .claudeup/profiles/ .claude/settings.json .mcp.json
-git commit -m "Add team Claude profile"
+# Commit configuration to git
+git add .claude/settings.json .mcp.json
+git commit -m "Add team Claude configuration"
 git push
 ```
 
-**Team member applies after clone:**
+**Team member gets configuration after clone:**
 
 ```bash
 git clone <repo-url>
 cd your-project
+# Settings are already in .claude/settings.json from git
+# Claude Code picks them up automatically
+```
+
+If a team member also has the profile (e.g., shared via dotfiles), they can re-apply it to reinstall plugins:
+
+```bash
 claudeup profile apply team-config --project
 ```
 
 ## Project Structure
 
-After saving a profile to project scope, your repo will have:
+After applying a profile at project scope, your repo will have:
 
 ```text
 your-project/
-├── .claudeup/
-│   └── profiles/
-│       └── team-config.json    # Shared profile definition
 ├── .claude/
 │   └── settings.json           # Claude Code settings (plugins)
 ├── .mcp.json                   # MCP server configuration
@@ -65,7 +66,6 @@ your-project/
 
 **What to commit:**
 
-- `.claudeup/profiles/` - Profile definitions (commit this)
 - `.claude/settings.json` - Project Claude settings (commit this)
 - `.mcp.json` - MCP server configuration (commit this)
 - `.claude/settings.local.json` - Personal overrides (add to .gitignore)
@@ -101,11 +101,11 @@ claudeup profile apply backend-go --project
 
 This installs any missing marketplaces and plugins defined in the profile.
 
-**Philosophy:** Profiles are for bootstrapping - apply once, then manage settings directly. After initial setup, team members can customize their local scope without affecting others.
+**Philosophy:** Profiles are for bootstrapping -- apply once, then manage settings directly. After initial setup, team members can customize their local scope without affecting others.
 
-### Viewing Profile Sources
+### Viewing Active Profiles
 
-See where each profile comes from:
+See which profiles are active:
 
 ```bash
 claudeup profile list
@@ -114,16 +114,17 @@ claudeup profile list
 Output:
 
 ```text
-Your profiles (3)
+Your profiles
 
-  base-tools        Personal toolkit [user]
-* team-config       Team configuration [project]
-  frontend-dev      Frontend setup [project]
+* team-config       Team configuration
+○ base-tools        Personal toolkit
+  frontend-dev      Frontend setup
 ```
 
-- `[user]` = from `~/.claudeup/profiles/`
-- `[project]` = from `.claudeup/profiles/`
-- `*` = currently active profile
+- `*` = highest precedence active profile (what Claude Code uses)
+- `○` = active at a lower-precedence scope (overridden)
+
+Use `claudeup profile status` to see scope details for the active profile.
 
 ### Layering User and Project Profiles
 
@@ -138,16 +139,6 @@ claudeup profile apply team-config --project
 ```
 
 Both profiles are active simultaneously. Claude Code merges them with project settings taking precedence on conflicts.
-
-**Example setup:**
-
-```text
-~/.claudeup/profiles/
-└── my-tools.json           # Your personal: superpowers, writing tools
-
-your-project/.claudeup/profiles/
-└── backend-go.json         # Team: Go-specific plugins
-```
 
 ## Complete Example
 
@@ -165,9 +156,9 @@ claude plugin install backend-development@claude-code-workflows --project
 claudeup profile save backend-go
 claudeup profile apply backend-go --project
 
-# Commit to git
-git add .claudeup/profiles/ .claude/settings.json .mcp.json
-git commit -m "Add Claude Code team profile"
+# Commit configuration to git
+git add .claude/settings.json .mcp.json
+git commit -m "Add Claude Code team configuration"
 git push
 ```
 
@@ -199,7 +190,7 @@ claude plugin install debugging-toolkit@claude-code-workflows --project
 claudeup profile save backend-go
 
 # Commit changes
-git add .claude/settings.json .claudeup/profiles/
+git add .claude/settings.json
 git commit -m "Add debugging toolkit"
 git push
 ```
@@ -214,19 +205,6 @@ git pull
 
 **Note:** After initial bootstrap, team members get plugin changes through git. The profile is primarily for onboarding new team members.
 
-## Resolution Order
-
-When loading a profile by name:
-
-1. Check `.claudeup/profiles/<name>.json` (project)
-2. If not found, check `~/.claudeup/profiles/<name>.json` (user)
-
-This means:
-
-- Project profiles override user profiles of the same name
-- Teams can customize shared profiles without affecting each member's personal setup
-- No external dependencies - everything lives in your git repo
-
 ## Best Practices
 
 ### What to Put Where
@@ -237,12 +215,11 @@ This means:
 - Writing and style plugins
 - Tools you use across all projects
 
-**Project profiles (`.claudeup/profiles/`):**
+**Project configuration (committed to git):**
 
-- Language/framework specific plugins
-- Security scanning tools
-- Required team plugins
-- Project-specific MCP servers
+- Language/framework specific plugins in `.claude/settings.json`
+- Project-specific MCP servers in `.mcp.json`
+- Shared via `profile apply --project`
 
 ### Git Configuration
 
@@ -255,7 +232,6 @@ Add to your project's `.gitignore`:
 
 Keep tracked:
 
-- `.claudeup/profiles/` - Shared profile definitions
 - `.claude/settings.json` - Project-level Claude settings
 - `.mcp.json` - MCP server configuration
 

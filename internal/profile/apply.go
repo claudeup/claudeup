@@ -291,11 +291,6 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 		return fmt.Errorf("failed to write project settings.json: %w", err)
 	}
 
-	// Save profile to project profiles directory for team sharing
-	if err := SaveToProject(projectDir, profile); err != nil {
-		return fmt.Errorf("failed to save profile to project: %w", err)
-	}
-
 	// Update projects registry with project scope tracking
 	registry, err := config.LoadProjectsRegistry()
 	if err == nil {
@@ -392,12 +387,7 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 		return nil, fmt.Errorf("failed to write project settings.json: %w", err)
 	}
 
-	// 5. Save profile to project profiles directory for team sharing
-	if err := SaveToProject(opts.ProjectDir, profile); err != nil {
-		return nil, fmt.Errorf("failed to save profile to project: %w", err)
-	}
-
-	// 6. Update projects registry with project scope tracking
+	// 5. Update projects registry with project scope tracking
 	registry, err := config.LoadProjectsRegistry()
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Errorf("load registry: %w", err))
@@ -408,12 +398,12 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 		}
 	}
 
-	// 7. Apply extensions if present
+	// 6. Apply extensions if present
 	if err := applyExtensions(profile, claudeDir, claudeupHome); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
 
-	// 8. Apply settings hooks if present
+	// 7. Apply settings hooks if present
 	if err := applySettingsHooks(profile, claudeDir); err != nil {
 		result.Errors = append(result.Errors, err)
 	}

@@ -48,16 +48,11 @@ var _ = Describe("profile apply --scope", func() {
 			Expect(env.MCPJSONExists(projectDir)).To(BeTrue())
 		})
 
-		It("saves profile to .claudeup/profiles/ for team sharing", func() {
+		It("does not save profile to project-local .claudeup/profiles/", func() {
 			result := env.RunInDir(projectDir, "profile", "apply", "test-profile", "--scope", "project", "-y")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(env.ProjectProfileExists(projectDir, "test-profile")).To(BeTrue())
-
-			// Verify the profile content matches the original
-			projectProfile := env.LoadProjectProfile(projectDir, "test-profile")
-			Expect(projectProfile["name"]).To(Equal("test-profile"))
-			Expect(projectProfile["description"]).To(Equal("Test profile for scope testing"))
+			Expect(env.ProjectProfileExists(projectDir, "test-profile")).To(BeFalse())
 		})
 
 		It("writes MCP servers to .mcp.json", func() {
@@ -76,7 +71,9 @@ var _ = Describe("profile apply --scope", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("git add"))
-			Expect(result.Stdout).To(ContainSubstring(".claudeup/"))
+			Expect(result.Stdout).To(ContainSubstring(".claude/settings.json"))
+			Expect(result.Stdout).To(ContainSubstring(".mcp.json"))
+			Expect(result.Stdout).NotTo(ContainSubstring(".claudeup/"))
 		})
 
 		Context("team member apply workflow", func() {

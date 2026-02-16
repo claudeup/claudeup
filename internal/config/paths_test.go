@@ -76,3 +76,39 @@ func TestMustClaudeDir(t *testing.T) {
 		}
 	})
 }
+
+func TestClaudeDirDisplay(t *testing.T) {
+	t.Run("shows CLAUDE_CONFIG_DIR when set", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", "/custom/claude/path")
+		got := ClaudeDirDisplay()
+		if got != "/custom/claude/path" {
+			t.Errorf("got %q, want /custom/claude/path", got)
+		}
+	})
+
+	t.Run("shows ~/.claude when not set", func(t *testing.T) {
+		t.Setenv("CLAUDE_CONFIG_DIR", "")
+		got := ClaudeDirDisplay()
+		if got != "~/.claude" {
+			t.Errorf("got %q, want ~/.claude", got)
+		}
+	})
+}
+
+func TestClaudeupHomeDisplay(t *testing.T) {
+	t.Run("shows CLAUDEUP_HOME when set", func(t *testing.T) {
+		t.Setenv("CLAUDEUP_HOME", "/custom/claudeup")
+		got := ClaudeupHomeDisplay()
+		if got != "/custom/claudeup" {
+			t.Errorf("got %q, want /custom/claudeup", got)
+		}
+	})
+
+	t.Run("shows ~/.claudeup when not set", func(t *testing.T) {
+		t.Setenv("CLAUDEUP_HOME", "")
+		got := ClaudeupHomeDisplay()
+		if got != "~/.claudeup" {
+			t.Errorf("got %q, want ~/.claudeup", got)
+		}
+	})
+}

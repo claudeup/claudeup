@@ -32,7 +32,7 @@ var extensionsCmd = &cobra.Command{
 	Use:     "extensions",
 	Aliases: []string{"ext"},
 	Short:   "Manage extensions (agents, commands, skills, hooks, rules, output-styles)",
-	Long: `Manage Claude Code extensions stored in ~/.claudeup/ext.
+	Long: `Manage Claude Code extensions stored in extension storage.
 
 These are files (not marketplace plugins) that extend Claude Code
 with custom agents, commands, skills, hooks, rules, and output-styles.
@@ -121,7 +121,7 @@ var extensionsImportCmd = &cobra.Command{
 	Short: "Import items from active directory to extension storage",
 	Long: `Import items that were installed directly to active directories (like GSD).
 
-This command moves files from ~/.claude/<category>/ to ~/.claudeup/ext/<category>/
+This command moves files from the active directory to extension storage
 and creates symlinks back, enabling management via claudeup.
 
 This is useful when tools install directly to active directories instead of extension storage.

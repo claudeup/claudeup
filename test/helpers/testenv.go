@@ -379,16 +379,6 @@ func (e *TestEnv) ProjectProfileExists(dir, profileName string) bool {
 	return err == nil
 }
 
-// LoadProjectProfile loads a profile from the project's .claudeup/profiles/ directory
-func (e *TestEnv) LoadProjectProfile(dir, profileName string) map[string]interface{} {
-	data, err := os.ReadFile(filepath.Join(dir, ".claudeup", "profiles", profileName+".json"))
-	Expect(err).NotTo(HaveOccurred())
-
-	var profile map[string]interface{}
-	Expect(json.Unmarshal(data, &profile)).To(Succeed())
-	return profile
-}
-
 // LoadMCPJSON loads .mcp.json from the given directory
 func (e *TestEnv) LoadMCPJSON(dir string) map[string]interface{} {
 	data, err := os.ReadFile(filepath.Join(dir, ".mcp.json"))
