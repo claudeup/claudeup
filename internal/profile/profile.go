@@ -1030,10 +1030,38 @@ func (p *Profile) GenerateDescription() string {
 
 	var parts []string
 
-	marketplaceCount := len(p.Marketplaces)
-	pluginCount := len(p.Plugins)
-	mcpCount := len(p.MCPServers)
+	// Multi-scope: count plugins per scope
+	if p.IsMultiScope() {
+		for _, s := range []struct {
+			label    string
+			settings *ScopeSettings
+		}{
+			{"user", p.PerScope.User},
+			{"project", p.PerScope.Project},
+			{"local", p.PerScope.Local},
+		} {
+			if s.settings == nil || len(s.settings.Plugins) == 0 {
+				continue
+			}
+			n := len(s.settings.Plugins)
+			word := "plugins"
+			if n == 1 {
+				word = "plugin"
+			}
+			parts = append(parts, fmt.Sprintf("%d %s %s", n, s.label, word))
+		}
+	} else {
+		pluginCount := len(p.Plugins)
+		if pluginCount > 0 {
+			if pluginCount == 1 {
+				parts = append(parts, "1 plugin")
+			} else {
+				parts = append(parts, fmt.Sprintf("%d plugins", pluginCount))
+			}
+		}
+	}
 
+	marketplaceCount := len(p.Marketplaces)
 	if marketplaceCount > 0 {
 		if marketplaceCount == 1 {
 			parts = append(parts, "1 marketplace")
@@ -1042,19 +1070,14 @@ func (p *Profile) GenerateDescription() string {
 		}
 	}
 
-	if pluginCount > 0 {
-		if pluginCount == 1 {
-			parts = append(parts, "1 plugin")
-		} else {
-			parts = append(parts, fmt.Sprintf("%d plugins", pluginCount))
-		}
-	}
-
-	if mcpCount > 0 {
-		if mcpCount == 1 {
-			parts = append(parts, "1 MCP server")
-		} else {
-			parts = append(parts, fmt.Sprintf("%d MCP servers", mcpCount))
+	if !p.IsMultiScope() {
+		mcpCount := len(p.MCPServers)
+		if mcpCount > 0 {
+			if mcpCount == 1 {
+				parts = append(parts, "1 MCP server")
+			} else {
+				parts = append(parts, fmt.Sprintf("%d MCP servers", mcpCount))
+			}
 		}
 	}
 
@@ -1062,12 +1085,7 @@ func (p *Profile) GenerateDescription() string {
 		return "Empty profile"
 	}
 
-	// Join with commas: "1 marketplace, 3 plugins, 2 MCP servers"
-	result := parts[0]
-	for i := 1; i < len(parts); i++ {
-		result += ", " + parts[i]
-	}
-	return result
+	return strings.Join(parts, ", ")
 }
 
 // cloneScopeSettings deep-copies a ScopeSettings
