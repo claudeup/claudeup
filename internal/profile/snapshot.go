@@ -139,6 +139,11 @@ func readUsedMarketplaces(claudeDir string, plugins []string) ([]Marketplace, er
 	return readMarketplaces(claudeDir, plugins)
 }
 
+// UsedMarketplaces returns marketplaces referenced by the given plugins.
+func UsedMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error) {
+	return readUsedMarketplaces(claudeDir, plugins)
+}
+
 // readMarketplaces reads the marketplace registry. When plugins is nil, all
 // marketplaces are returned. When plugins is non-nil, only marketplaces
 // referenced by at least one plugin are included (empty slice returns none).

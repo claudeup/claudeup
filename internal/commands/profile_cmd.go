@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -69,7 +70,7 @@ active at local scope in ~/claudeup/, you'll see:
   * claudeup    [local]   ← This is what Claude Code uses
   ○ base-tools  [user]    ← Overridden, not in effect
 
-Use 'claudeup profile status <name>' to see profile contents.`,
+Use 'claudeup profile status' to see effective configuration across all scopes.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
@@ -202,23 +203,18 @@ var profileShowCmd = &cobra.Command{
 }
 
 var profileStatusCmd = &cobra.Command{
-	Use:   "status [name]",
-	Short: "Show profile contents and activation status",
-	Long: `Display the contents of a profile.
+	Use:   "status",
+	Short: "Show effective configuration across all scopes",
+	Long: `Display the live effective configuration by reading settings files directly.
 
-Shows:
-  - Which scope the profile is active in (if any)
-  - Plugins in the profile
-  - MCP servers in the profile
-  - Marketplaces in the profile
-
-If no name is given, uses the currently active profile.`,
-	Example: `  # Show status for active profile
-  claudeup profile status
-
-  # Show status for specific profile
-  claudeup profile status backend-stack`,
-	Args: cobra.MaximumNArgs(1),
+Shows plugins from all active scopes (user, project, local) with:
+  - Scope grouping and tracking annotations
+  - Which profile is tracked at each scope (if any)
+  - Hints for untracked scopes with enabled plugins
+  - Marketplace summary`,
+	Example: `  # Show what Claude is actually running
+  claudeup profile status`,
+	Args: cobra.NoArgs,
 	RunE: runProfileStatus,
 }
 
@@ -1756,82 +1752,103 @@ func showResolvedSummary(p *profile.Profile) {
 }
 
 func runProfileStatus(cmd *cobra.Command, args []string) error {
-	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
-	// Determine profile name
-	var name string
-	if len(args) > 0 {
-		name = args[0]
-	} else {
-		// Use active profile
-		activeProfile, _ := getActiveProfile(cwd)
-		if activeProfile == "" {
-			return fmt.Errorf("no active profile set. Specify a profile name or use 'claudeup profile apply <name>' first")
-		}
-		name = activeProfile
-	}
-
-	// Load the profile
-	savedProfile, err := loadProfileWithFallback(profilesDir, name)
-	if err != nil {
-		return fmt.Errorf("profile %q not found: %w", name, err)
-	}
-
-	// Get all active profiles to determine which scope this profile is active in
-	allActiveProfiles := getAllActiveProfiles(cwd)
-	var activeScope string
-	for _, ap := range allActiveProfiles {
-		if ap.Name == name {
-			activeScope = ap.Scope
-			break
-		}
+	// Get tracked profiles for annotation
+	allActive := getAllActiveProfiles(cwd)
+	trackedByScope := make(map[string]string) // scope -> profile name
+	for _, ap := range allActive {
+		trackedByScope[ap.Scope] = ap.Name
 	}
 
 	// Header
-	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
-	if activeScope != "" {
-		fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("[active at %s scope]", activeScope)))
-	} else {
-		fmt.Printf("  %s\n", ui.Muted("[not currently active]"))
-	}
-	fmt.Println()
+	fmt.Printf("Effective configuration for %s\n\n", ui.Bold(cwd))
 
-	// Show untracked scope hints
-	renderUntrackedScopeHints(getUntrackedScopes(cwd, claudeDir, allActiveProfiles))
+	anyPlugins := false
+	var allPluginNames []string
 
-	// Show profile contents
-	combinedProfile := savedProfile.CombinedScopes()
+	for _, scope := range []string{"user", "project", "local"} {
+		// Skip project/local if not in project directory
+		if scope != "user" {
+			if _, err := os.Stat(filepath.Join(cwd, ".claude")); os.IsNotExist(err) {
+				continue
+			}
+		}
 
-	// Plugins
-	fmt.Println(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(combinedProfile.Plugins))))
-	for _, p := range combinedProfile.Plugins {
-		fmt.Printf("  • %s\n", p)
-	}
-	if len(combinedProfile.Plugins) == 0 {
-		fmt.Printf("  %s\n", ui.Muted("(none)"))
-	}
-	fmt.Println()
+		settings, err := claude.LoadSettingsForScope(scope, claudeDir, cwd)
+		if err != nil {
+			continue
+		}
 
-	// MCP Servers
-	fmt.Println(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(combinedProfile.MCPServers))))
-	for _, s := range combinedProfile.MCPServers {
-		fmt.Printf("  • %s\n", s.Name)
-	}
-	if len(combinedProfile.MCPServers) == 0 {
-		fmt.Printf("  %s\n", ui.Muted("(none)"))
-	}
-	fmt.Println()
+		var enabled, disabled []string
+		for name, isEnabled := range settings.EnabledPlugins {
+			if isEnabled {
+				enabled = append(enabled, name)
+			} else {
+				disabled = append(disabled, name)
+			}
+		}
+		sort.Strings(enabled)
+		sort.Strings(disabled)
 
-	// Marketplaces
-	fmt.Println(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(savedProfile.Marketplaces))))
-	for _, m := range savedProfile.Marketplaces {
-		fmt.Printf("  • %s\n", m.DisplayName())
+		if len(enabled) == 0 && len(disabled) == 0 {
+			continue
+		}
+
+		anyPlugins = true
+		allPluginNames = append(allPluginNames, enabled...)
+
+		// Scope header with tracking annotation
+		scopeLabel := formatScopeName(scope)
+		if profileName, ok := trackedByScope[scope]; ok {
+			fmt.Printf("  %s (profile: %s)\n", ui.Bold(scopeLabel+" scope"), profileName)
+		} else {
+			fmt.Printf("  %s (%s)\n", ui.Bold(scopeLabel+" scope"), ui.Warning("untracked"))
+		}
+
+		// Enabled plugins
+		if len(enabled) > 0 {
+			fmt.Println("    Plugins:")
+			for _, name := range enabled {
+				fmt.Printf("      - %s\n", name)
+			}
+		}
+
+		// Disabled plugins
+		if len(disabled) > 0 {
+			fmt.Println("    Disabled:")
+			for _, name := range disabled {
+				fmt.Printf("      - %s\n", name)
+			}
+		}
+
+		// Hint for untracked scopes
+		if _, ok := trackedByScope[scope]; !ok && len(enabled) > 0 {
+			if scope == "user" {
+				fmt.Printf("    %s Save with: claudeup profile save <name> --apply\n",
+					ui.Muted(ui.SymbolArrow))
+			} else {
+				fmt.Printf("    %s Save with: claudeup profile save <name> --%s --apply\n",
+					ui.Muted(ui.SymbolArrow), scope)
+			}
+		}
+
+		fmt.Println()
 	}
-	if len(savedProfile.Marketplaces) == 0 {
-		fmt.Printf("  %s\n", ui.Muted("(none)"))
+
+	if !anyPlugins {
+		fmt.Printf("  %s\n\n", ui.Muted("No plugins configured at any scope."))
 	}
-	fmt.Println()
+
+	// Marketplaces section
+	marketplaces, err := profile.UsedMarketplaces(claudeDir, allPluginNames)
+	if err == nil && len(marketplaces) > 0 {
+		fmt.Println("  Marketplaces:")
+		for _, m := range marketplaces {
+			fmt.Printf("    - %s\n", m.DisplayName())
+		}
+		fmt.Println()
+	}
 
 	return nil
 }
