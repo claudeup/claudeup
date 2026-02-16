@@ -1376,22 +1376,23 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	}
 
 	// Track at project/local scope via projects registry when --apply is set
+	trackingSucceeded := true
 	if profileSaveApply {
 		if resolvedScope == "project" || resolvedScope == "local" {
 			registry, regErr := config.LoadProjectsRegistry()
 			if regErr != nil {
-				registry = &config.ProjectsRegistry{
-					Version:  "1",
-					Projects: make(map[string]config.ProjectEntry),
-				}
-			}
-			if resolvedScope == "project" {
-				registry.SetProjectScope(cwd, name)
+				ui.PrintWarning(fmt.Sprintf("Could not load projects registry; skipping %s-scope tracking: %v", resolvedScope, regErr))
+				trackingSucceeded = false
 			} else {
-				registry.SetProject(cwd, name)
-			}
-			if saveErr := config.SaveProjectsRegistry(registry); saveErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Could not track profile at %s scope: %v", resolvedScope, saveErr))
+				if resolvedScope == "project" {
+					registry.SetProjectScope(cwd, name)
+				} else {
+					registry.SetProject(cwd, name)
+				}
+				if saveErr := config.SaveProjectsRegistry(registry); saveErr != nil {
+					ui.PrintWarning(fmt.Sprintf("Could not track profile at %s scope: %v", resolvedScope, saveErr))
+					trackingSucceeded = false
+				}
 			}
 		}
 		// User scope tracking is already handled above (cfg.Preferences.ActiveProfile = name)
@@ -1401,8 +1402,10 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	if resolvedScope != "" {
 		scopeLabel = resolvedScope + " scope"
 	}
-	if profileSaveApply {
+	if profileSaveApply && trackingSucceeded {
 		ui.PrintSuccess(fmt.Sprintf("Saved and applied profile %q (%s)", name, scopeLabel))
+	} else if profileSaveApply {
+		ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s) — tracking failed, see warning above", name, scopeLabel))
 	} else {
 		ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
 	}
@@ -1784,6 +1787,8 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, cwd)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s Failed to load %s scope settings: %v\n",
+				ui.Warning("Warning:"), scope, err)
 			continue
 		}
 

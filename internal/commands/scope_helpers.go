@@ -83,7 +83,7 @@ func getAllActiveProfiles(cwd string) []ActiveProfileInfo {
 type UntrackedScopeInfo struct {
 	Scope        string // "user", "project", or "local"
 	PluginCount  int
-	SettingsFile string // relative path like ".claude/settings.json"
+	SettingsFile string // display path: project-relative for project/local, home-relative for user
 }
 
 // getUntrackedScopes checks user, project, and local scopes for settings files with
