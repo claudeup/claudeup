@@ -1411,31 +1411,9 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
-	// Handle "current" as a special keyword for the active profile
-	// Check scopes in precedence order: local > user
+	// "show current" delegates to live effective config view
 	if name == "current" {
-		cwd, _ := os.Getwd()
-
-		// Check local scope in registry first (highest precedence)
-		registry, err := config.LoadProjectsRegistry()
-		if err == nil {
-			if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
-				name = entry.Profile
-			}
-		}
-
-		// If not found at local scope, fall back to user-level profile
-		if name == "current" {
-			cfg, _ := config.Load()
-			if cfg != nil && cfg.Preferences.ActiveProfile != "" {
-				name = cfg.Preferences.ActiveProfile
-			}
-		}
-
-		// If still "current", no active profile found at any scope
-		if name == "current" {
-			return fmt.Errorf("no active profile set. Use 'claudeup profile apply <name>' to apply a profile")
-		}
+		return runProfileStatus(cmd, nil)
 	}
 
 	// Load the profile (try disk first, then embedded)
