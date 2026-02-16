@@ -71,7 +71,8 @@ var _ = Describe("profile apply --scope", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("git add"))
-			Expect(result.Stdout).To(ContainSubstring(".claudeup/"))
+			Expect(result.Stdout).To(ContainSubstring(".mcp.json"))
+			Expect(result.Stdout).NotTo(ContainSubstring(".claudeup/"))
 		})
 
 		Context("team member apply workflow", func() {

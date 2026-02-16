@@ -1225,13 +1225,6 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			filesToAdd = append(filesToAdd, profile.MCPConfigFile)
 		}
 
-		// Check for project profiles directory
-		projectProfilesDir := filepath.Join(cwd, ".claudeup", "profiles")
-		if _, err := os.Stat(projectProfilesDir); err == nil {
-			fmt.Printf("  %s %s (profile for team sharing)\n", ui.Success(ui.SymbolSuccess), ".claudeup/profiles/")
-			filesToAdd = append(filesToAdd, ".claudeup/")
-		}
-
 		if len(filesToAdd) > 0 {
 			fmt.Println()
 			fmt.Printf("%s Consider adding these to git:\n", ui.Muted(ui.SymbolArrow))
