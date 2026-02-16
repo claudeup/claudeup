@@ -15,10 +15,8 @@ Users who already have claudeup set up and want to:
 | Script                 | What it does                                                                                        |
 | ---------------------- | --------------------------------------------------------------------------------------------------- |
 | `01-list-plugins.sh`   | Lists all installed plugins with their enabled/disabled state and shows plugin details via `status` |
+| `02-manage-plugins.sh` | Demonstrates how to install, enable, disable, and uninstall plugins                                 |
 | `03-check-upgrades.sh` | Runs `outdated` to find available updates, then `upgrade` to apply them                             |
-
-> **Note:** Script numbering has a gap (no `02-*`). This is a known issue and does
-> not affect functionality.
 
 ## What you'll learn
 
