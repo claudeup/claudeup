@@ -1164,12 +1164,6 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			return fmt.Errorf("failed to apply profile: %w", err)
 		}
 
-		// For project scope, save profile for team sharing
-		if scope == profile.ScopeProject {
-			if err := profile.SaveToProject(cwd, p); err != nil {
-				return fmt.Errorf("failed to save profile to project: %w", err)
-			}
-		}
 	} else {
 		ui.PrintInfo(fmt.Sprintf("Applying profile (%s scope)...", scope))
 
