@@ -376,6 +376,33 @@ func TestSaveToProject(t *testing.T) {
 	}
 }
 
+func TestSave_NestedProfileName(t *testing.T) {
+	tmpDir := t.TempDir()
+	profilesDir := filepath.Join(tmpDir, "profiles")
+
+	p := &Profile{Name: "projects/claudeup", Description: "Nested profile"}
+
+	err := Save(profilesDir, p)
+	if err != nil {
+		t.Fatalf("Save with nested name failed: %v", err)
+	}
+
+	// Verify file exists in nested location
+	expectedPath := filepath.Join(profilesDir, "projects", "claudeup.json")
+	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+		t.Errorf("Nested profile not saved to expected path: %s", expectedPath)
+	}
+
+	// Verify it can be loaded by name
+	loaded, err := Load(profilesDir, "projects/claudeup")
+	if err != nil {
+		t.Fatalf("Failed to load nested profile: %v", err)
+	}
+	if loaded.Description != "Nested profile" {
+		t.Errorf("Description mismatch: got %q", loaded.Description)
+	}
+}
+
 func TestListAll(t *testing.T) {
 	tmpDir := t.TempDir()
 	userProfilesDir := filepath.Join(tmpDir, "user-profiles")

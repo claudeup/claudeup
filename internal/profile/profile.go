@@ -474,11 +474,11 @@ func (p *Profile) PreserveFrom(existing *Profile) {
 
 // Save writes a profile to the profiles directory
 func Save(profilesDir string, p *Profile) error {
-	if err := os.MkdirAll(profilesDir, 0755); err != nil {
+	profilePath := filepath.Join(profilesDir, p.Name+".json")
+
+	if err := os.MkdirAll(filepath.Dir(profilePath), 0755); err != nil {
 		return err
 	}
-
-	profilePath := filepath.Join(profilesDir, p.Name+".json")
 
 	data, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
