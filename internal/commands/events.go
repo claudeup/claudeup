@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/config"
 	"github.com/claudeup/claudeup/v5/internal/events"
 	"github.com/claudeup/claudeup/v5/internal/ui"
@@ -62,6 +63,11 @@ func runEvents(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	eventsScope = resolvedScope
+	if eventsScope != "" {
+		if err := claude.ValidateScope(eventsScope); err != nil {
+			return err
+		}
+	}
 
 	// Get event log path
 	eventsDir := filepath.Join(config.MustClaudeupHome(), "events")
