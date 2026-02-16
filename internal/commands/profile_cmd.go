@@ -1070,20 +1070,26 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
-		// Update active profile in config even when no changes needed
-		cfg, err = config.Load()
-		if err != nil {
-			cfg = config.DefaultConfig()
-		}
-		cfg.Preferences.ActiveProfile = name
-		if err := config.Save(cfg); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+		// Update active profile in config (only for user scope or multi-scope profiles)
+		if scope == profile.ScopeUser || p.IsMultiScope() {
+			cfg, err = config.Load()
+			if err != nil {
+				cfg = config.DefaultConfig()
+			}
+			cfg.Preferences.ActiveProfile = name
+			if err := config.Save(cfg); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+			}
 		}
 
-		// Track project scope in registry when no changes needed
-		if scope == profile.ScopeProject || p.IsMultiScope() {
+		// Track in projects registry when no changes needed
+		if scope == profile.ScopeProject || scope == profile.ScopeLocal || p.IsMultiScope() {
 			if registry, regErr := config.LoadProjectsRegistry(); regErr == nil {
-				registry.SetProjectScope(cwd, name)
+				if scope == profile.ScopeLocal {
+					registry.SetProject(cwd, name)
+				} else {
+					registry.SetProjectScope(cwd, name)
+				}
 				_ = config.SaveProjectsRegistry(registry)
 			}
 		}
@@ -1365,14 +1371,16 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	// Update active profile in config
-	cfg, err := config.Load()
-	if err != nil {
-		cfg = config.DefaultConfig()
-	}
-	cfg.Preferences.ActiveProfile = name
-	if err := config.Save(cfg); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+	// Update active profile in config (only for user scope or unscoped saves)
+	if resolvedScope == "" || resolvedScope == "user" {
+		cfg, err := config.Load()
+		if err != nil {
+			cfg = config.DefaultConfig()
+		}
+		cfg.Preferences.ActiveProfile = name
+		if err := config.Save(cfg); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+		}
 	}
 
 	// Track at project/local scope via projects registry when --apply is set
@@ -1395,7 +1403,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-		// User scope tracking is already handled above (cfg.Preferences.ActiveProfile = name)
+		// User scope: tracked via cfg.Preferences.ActiveProfile (set above when scope is user/empty)
 	}
 
 	scopeLabel := "all scopes"

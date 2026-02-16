@@ -136,6 +136,35 @@ var _ = Describe("profile apply --scope", func() {
 		})
 	})
 
+	Describe("user-scope active profile isolation", func() {
+		It("does not set user-scope active profile when applying at project scope", func() {
+			projectDir := env.ProjectDir("apply-no-user-project")
+			env.CreateProfile(&profile.Profile{
+				Name:    "proj-profile",
+				Plugins: []string{"test-plugin@test"},
+			})
+
+			result := env.RunInDir(projectDir, "profile", "apply", "proj-profile", "--scope", "project", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
+
+		It("does not set user-scope active profile when applying at local scope", func() {
+			localDir := env.ProjectDir("apply-no-user-local")
+			env.CreateProfile(&profile.Profile{
+				Name:    "local-only-prof",
+				Plugins: []string{"test-plugin@test"},
+			})
+
+			result := env.RunInDir(localDir, "profile", "apply", "local-only-prof", "--scope", "local", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
+
+	})
+
 	Describe("scope validation", func() {
 		It("rejects invalid scope value", func() {
 			projectDir := env.ProjectDir("invalid-scope")

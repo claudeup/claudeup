@@ -357,5 +357,29 @@ var _ = Describe("profile save", func() {
 			Expect(result.Stdout).To(ContainSubstring("Saved profile"))
 			Expect(result.Stdout).NotTo(ContainSubstring("Saved and applied"))
 		})
+
+		It("does not set user-scope active profile when saving at project scope", func() {
+			projectDir := env.ProjectDir("save-apply-no-user-project")
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
+				"plugin-a@marketplace": true,
+			})
+
+			result := env.RunInDir(projectDir, "profile", "save", "proj-only", "--project", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
+
+		It("does not set user-scope active profile when saving at local scope", func() {
+			localDir := env.ProjectDir("save-apply-no-user-local")
+			env.CreateLocalScopeSettings(localDir, map[string]bool{
+				"local-plugin@marketplace": true,
+			})
+
+			result := env.RunInDir(localDir, "profile", "save", "local-only", "--local", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
 	})
 })
