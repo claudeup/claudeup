@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       directory:
-        description: 'Example directory to run'
+        description: "Example directory to run"
         type: choice
         options:
           - all
@@ -16,9 +16,9 @@ on:
           - plugin-management
           - team-setup
           - troubleshooting
-        default: 'all'
+        default: "all"
       fail_fast:
-        description: 'Stop all jobs on first failure'
+        description: "Stop all jobs on first failure"
         type: boolean
         default: false
   issue_comment:
@@ -116,7 +116,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25.1'
+          go-version-file: go.mod
           cache: true
 
       - name: Build claudeup
