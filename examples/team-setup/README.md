@@ -49,8 +49,10 @@ The `02-project-scope-profile.sh` and `03-isolated-workspace-demo.sh` scripts de
 
 ## Important details
 
-- `01-scoped-profiles.sh` and `04-profile-layering.sh` are mostly informational --
-  they explain concepts with example output rather than making changes.
+- `01-scoped-profiles.sh` is mostly informational -- it explains concepts with
+  example output rather than making changes.
+- `04-profile-layering.sh` demonstrates real profile layering by applying profiles
+  at user and project scopes and updating your Claude Code configuration.
 - `02-project-scope-profile.sh` demonstrates project-scoped profile application in
   a simple single-directory workflow. It creates team configuration files to commit
   to git without simulating multiple team members.

@@ -142,7 +142,7 @@ echo
 
 step "Check project rules"
 if [[ -d .claude/rules ]]; then
-    info "Project rules (symlinked from extensions):"
+    info "Project rules (copied from extensions into .claude/):"
     run_cmd ls -la .claude/rules/
     echo
     info "Content of api-design.md:"
@@ -169,8 +169,8 @@ section "6. Understanding Project Scope Files"
 info "The .claude/ directory contains:"
 echo
 info "  settings.json        - Team plugin configuration"
-info "  rules/               - Symlinks to team rules"
-info "  agents/              - Symlinks to team agents"
+info "  rules/               - Copies of team rules"
+info "  agents/              - Copies of team agents"
 info "  settings.local.json  - Personal overrides (git-ignored)"
 echo
 info "Files in .claude/ (except .local.json) should be committed to git."

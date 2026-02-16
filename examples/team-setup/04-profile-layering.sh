@@ -157,7 +157,7 @@ echo
 info "LOCAL scope (--local): personal overrides for this project"
 info "  - Override team settings with your own preferences"
 info "  - Temporary experiments or debugging config"
-info "  - See 05-scope-apply-demo.sh for a full three-scope example"
+info "  - See 06-scope-apply-demo.sh for a full three-scope example"
 echo
 info "profile list shows * for highest precedence and ○ for overridden."
 info "All scopes are active simultaneously -- they accumulate, not replace."
