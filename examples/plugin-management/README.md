@@ -21,10 +21,12 @@ Users who already have claudeup set up and want to:
 ## What you'll learn
 
 - `plugin list` shows all plugins and whether they're enabled or disabled
+- `plugin browse <marketplace>` discovers available plugins before installing
+- `plugin show <plugin>@<marketplace>` inspects plugin contents (agents, skills, files)
 - `status` groups plugins by their source marketplace
 - `outdated` checks all marketplaces for available updates
 - `upgrade` fetches and applies updates from all marketplaces
-- Plugins are installed from marketplaces (plugin repositories), not individually
+- Plugins are installed from marketplaces (plugin repositories) via the `claude` CLI
 
 ## Important details
 
