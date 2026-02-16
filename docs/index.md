@@ -41,4 +41,4 @@ claudeup profile apply <name>
 
 **File Operations** - Reference catalog of all files claudeup reads, writes, and modifies, organized by ownership.
 
-**Team Sharing** - Share profile definitions via `.claudeup/profiles/` in your project repository.
+**Team Sharing** - Share Claude Code configurations by applying profiles at project scope.
