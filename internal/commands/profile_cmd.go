@@ -1340,19 +1340,13 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	// Use the global claudeDir from root.go (set via --claude-dir flag)
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
-	// Create snapshot -- either all scopes or a specific one
-	var p *profile.Profile
+	// Create snapshot, optionally filtered to a single scope
+	p, err := profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot current state: %w", err)
+	}
 	if resolvedScope != "" {
-		p, err = profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
-		if err != nil {
-			return fmt.Errorf("failed to snapshot current state: %w", err)
-		}
 		p.FilterToScope(resolvedScope)
-	} else {
-		p, err = profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
-		if err != nil {
-			return fmt.Errorf("failed to snapshot current state: %w", err)
-		}
 	}
 
 	// When overwriting, preserve localItems from the existing profile.

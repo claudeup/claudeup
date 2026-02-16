@@ -280,8 +280,14 @@ func (p *Profile) filterMarketplacesToPlugins() {
 	}
 	var filtered []Marketplace
 	for _, m := range p.Marketplaces {
-		if refs[m.DisplayName()] {
-			filtered = append(filtered, m)
+		// Plugin refs are short names (e.g., "claude-plugins-official") while
+		// Marketplace.Repo is "owner/repo" (e.g., "anthropics/claude-plugins-official").
+		// Match if any ref equals the repo or its last path segment.
+		for ref := range refs {
+			if m.Repo == ref || strings.HasSuffix(m.Repo, "/"+ref) {
+				filtered = append(filtered, m)
+				break
+			}
 		}
 	}
 	p.Marketplaces = filtered
