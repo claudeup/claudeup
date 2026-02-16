@@ -906,7 +906,7 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 
 	// "current" is reserved as a keyword for the active profile
 	if name == "current" {
-		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile show current' to see the active profile")
+		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile status' to see the effective configuration")
 	}
 	var scope profile.Scope
 
