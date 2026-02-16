@@ -336,6 +336,7 @@ var (
 	profileSaveUser    bool
 	profileSaveProject bool
 	profileSaveLocal   bool
+	profileSaveApply   bool
 )
 
 // Flags for profile list command
@@ -640,6 +641,7 @@ func init() {
 	profileSaveCmd.Flags().BoolVar(&profileSaveUser, "user", false, "Save only user scope settings")
 	profileSaveCmd.Flags().BoolVar(&profileSaveProject, "project", false, "Save only project scope settings")
 	profileSaveCmd.Flags().BoolVar(&profileSaveLocal, "local", false, "Save only local scope settings")
+	profileSaveCmd.Flags().BoolVar(&profileSaveApply, "apply", false, "Also track this profile at the saved scope (save + apply in one step)")
 
 	// Add flags to profile apply command
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
@@ -1372,11 +1374,37 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
 	}
 
+	// Track at project/local scope via projects registry when --apply is set
+	if profileSaveApply {
+		if resolvedScope == "project" || resolvedScope == "local" {
+			registry, regErr := config.LoadProjectsRegistry()
+			if regErr != nil {
+				registry = &config.ProjectsRegistry{
+					Version:  "1",
+					Projects: make(map[string]config.ProjectEntry),
+				}
+			}
+			if resolvedScope == "project" {
+				registry.SetProjectScope(cwd, name)
+			} else {
+				registry.SetProject(cwd, name)
+			}
+			if saveErr := config.SaveProjectsRegistry(registry); saveErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not track profile at %s scope: %v", resolvedScope, saveErr))
+			}
+		}
+		// User scope tracking is already handled above (cfg.Preferences.ActiveProfile = name)
+	}
+
 	scopeLabel := "all scopes"
 	if resolvedScope != "" {
 		scopeLabel = resolvedScope + " scope"
 	}
-	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
+	if profileSaveApply {
+		ui.PrintSuccess(fmt.Sprintf("Saved and applied profile %q (%s)", name, scopeLabel))
+	} else {
+		ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
+	}
 	fmt.Println()
 
 	// Show per-scope plugin counts for multi-scope profiles
