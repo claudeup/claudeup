@@ -145,16 +145,16 @@ var _ = Describe("profile save", func() {
 				data, err := os.ReadFile(profilePath)
 				Expect(err).NotTo(HaveOccurred())
 
-				var p map[string]interface{}
+				var p map[string]any
 				Expect(json.Unmarshal(data, &p)).To(Succeed())
 
-				perScope, ok := p["perScope"].(map[string]interface{})
+				perScope, ok := p["perScope"].(map[string]any)
 				Expect(ok).To(BeTrue(), "expected perScope field in profile")
 
 				// Project scope should exist with plugins
-				projectScope, ok := perScope["project"].(map[string]interface{})
+				projectScope, ok := perScope["project"].(map[string]any)
 				Expect(ok).To(BeTrue(), "expected project scope in perScope")
-				projectPlugins := projectScope["plugins"].([]interface{})
+				projectPlugins := projectScope["plugins"].([]any)
 				Expect(projectPlugins).To(HaveLen(2))
 
 				// User scope should NOT exist
@@ -194,10 +194,10 @@ var _ = Describe("profile save", func() {
 				data, err := os.ReadFile(profilePath)
 				Expect(err).NotTo(HaveOccurred())
 
-				var p map[string]interface{}
+				var p map[string]any
 				Expect(json.Unmarshal(data, &p)).To(Succeed())
 
-				perScope, ok := p["perScope"].(map[string]interface{})
+				perScope, ok := p["perScope"].(map[string]any)
 				Expect(ok).To(BeTrue(), "expected perScope field in profile")
 
 				// User scope should exist
@@ -238,10 +238,10 @@ var _ = Describe("profile save", func() {
 				data, err := os.ReadFile(profilePath)
 				Expect(err).NotTo(HaveOccurred())
 
-				var p map[string]interface{}
+				var p map[string]any
 				Expect(json.Unmarshal(data, &p)).To(Succeed())
 
-				perScope, ok := p["perScope"].(map[string]interface{})
+				perScope, ok := p["perScope"].(map[string]any)
 				Expect(ok).To(BeTrue(), "expected perScope field in profile")
 
 				// Both user and project scopes should exist
