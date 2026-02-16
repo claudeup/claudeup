@@ -179,6 +179,79 @@ resolve_claudeup_bin() {
     fi
 }
 
+seed_fixture_data() {
+    # Settings with enabled plugins
+    cat > "$CLAUDE_CONFIG_DIR/settings.json" <<'JSON'
+{
+  "enabledPlugins": {
+    "superpowers@superpowers-marketplace": true,
+    "elements-of-style@superpowers-marketplace": true,
+    "tdd-workflows@claude-plugins-official": true
+  }
+}
+JSON
+
+    # Installed plugins registry (V2 format)
+    cat > "$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json" <<'JSON'
+{
+  "version": 2,
+  "plugins": {
+    "superpowers@superpowers-marketplace": [
+      {
+        "scope": "user",
+        "version": "4.3.0",
+        "installedAt": "2025-12-01T10:00:00Z",
+        "lastUpdated": "2026-01-15T14:30:00Z",
+        "installPath": "",
+        "gitCommitSha": "a1b2c3d",
+        "isLocal": false
+      }
+    ],
+    "elements-of-style@superpowers-marketplace": [
+      {
+        "scope": "user",
+        "version": "1.1.0",
+        "installedAt": "2025-12-01T10:05:00Z",
+        "lastUpdated": "2026-01-10T09:00:00Z",
+        "installPath": "",
+        "gitCommitSha": "e4f5g6h",
+        "isLocal": false
+      }
+    ],
+    "tdd-workflows@claude-plugins-official": [
+      {
+        "scope": "user",
+        "version": "2.0.0",
+        "installedAt": "2026-01-20T08:00:00Z",
+        "lastUpdated": "2026-01-20T08:00:00Z",
+        "installPath": "",
+        "gitCommitSha": "i7j8k9l",
+        "isLocal": false
+      }
+    ]
+  }
+}
+JSON
+
+    # Known marketplaces registry
+    cat > "$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json" <<JSON
+{
+  "superpowers-marketplace": {
+    "source": {
+      "repo": "https://github.com/anthropics/superpowers-marketplace"
+    },
+    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/superpowers-marketplace"
+  },
+  "claude-plugins-official": {
+    "source": {
+      "repo": "https://github.com/anthropics/claude-plugins-official"
+    },
+    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/claude-plugins-official"
+  }
+}
+JSON
+}
+
 setup_temp_claude_dir() {
     resolve_claudeup_bin
 
@@ -191,6 +264,9 @@ setup_temp_claude_dir() {
     # Create directory structure that claudeup expects
     mkdir -p "$CLAUDE_CONFIG_DIR/plugins"
     mkdir -p "$CLAUDEUP_HOME/profiles"
+
+    # Seed fixture data so commands produce meaningful output
+    seed_fixture_data
 
     # Change to temp directory to avoid project-scope contamination
     cd "$EXAMPLE_TEMP_DIR" || exit 1
