@@ -378,12 +378,11 @@ var _ = Describe("profile list", func() {
 				Expect(result.Stdout).To(ContainSubstring("no profile tracked"))
 			})
 
-			It("shows suggested save command with scope flag", func() {
+			It("shows suggested save command with --apply flag", func() {
 				result := env.RunInDir(projectDir, "profile", "list")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("profile save <name> --project"))
-				Expect(result.Stdout).To(ContainSubstring("profile apply <name> --project"))
+				Expect(result.Stdout).To(ContainSubstring("profile save <name> --project --apply"))
 			})
 		})
 
@@ -445,6 +444,41 @@ var _ = Describe("profile list", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).NotTo(ContainSubstring("no profile tracked"))
+			})
+		})
+	})
+
+	Describe("untracked user-scope hints", func() {
+		var freshEnv *helpers.TestEnv
+
+		BeforeEach(func() {
+			freshEnv = helpers.NewTestEnv(binaryPath)
+		})
+
+		Context("with untracked user-scope settings", func() {
+			BeforeEach(func() {
+				freshEnv.CreateSettings(map[string]bool{
+					"plugin-x@marketplace": true,
+					"plugin-y@marketplace": true,
+					"plugin-z@marketplace": true,
+				})
+				// No active profile set at user scope
+			})
+
+			It("shows warning about untracked user scope", func() {
+				result := freshEnv.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("user:"))
+				Expect(result.Stdout).To(ContainSubstring("3 plugins"))
+				Expect(result.Stdout).To(ContainSubstring("no profile tracked"))
+			})
+
+			It("suggests save with --apply flag", func() {
+				result := freshEnv.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("profile save <name> --apply"))
 			})
 		})
 	})
@@ -633,6 +667,17 @@ var _ = Describe("profile restore", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Restored built-in profile"))
 			Expect(env.ProfileExists("default")).To(BeFalse())
+		})
+	})
+
+	Describe("footer hints", func() {
+		It("shows profile status command in footer", func() {
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile status"))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile show <name>"))
+			Expect(result.Stdout).To(ContainSubstring("claudeup profile apply <name>"))
 		})
 	})
 })

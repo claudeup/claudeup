@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for profile status untracked scope hints
-// ABOUTME: Verifies hints appear for scopes with settings but no tracked profile
+// ABOUTME: Acceptance tests for profile status live effective configuration
+// ABOUTME: Verifies status shows live settings across all scopes with tracking annotations
 package acceptance
 
 import (
@@ -16,51 +16,106 @@ var _ = Describe("profile status", func() {
 		env = helpers.NewTestEnv(binaryPath)
 	})
 
-	Describe("untracked scope hints", func() {
-		var projectDir string
-
-		BeforeEach(func() {
-			projectDir = env.ProjectDir("status-hint-test")
-			env.CreateProfile(&profile.Profile{
-				Name:        "my-profile",
-				Description: "Test profile",
-				Plugins:     []string{"some-plugin@marketplace"},
-			})
-			env.SetActiveProfile("my-profile")
-		})
-
-		Context("with untracked project-scope settings", func() {
+	Describe("live effective configuration", func() {
+		Context("with user-scope plugins only", func() {
 			BeforeEach(func() {
-				env.CreateProjectScopeSettings(projectDir, map[string]bool{
-					"plugin-a@marketplace": true,
-					"plugin-b@marketplace": true,
+				env.CreateSettings(map[string]bool{
+					"plugin-a@marketplace":        true,
+					"plugin-b@marketplace":        true,
+					"disabled-plugin@marketplace": false,
 				})
 			})
 
-			It("shows warning about untracked project scope", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
+			It("shows user-scope plugins", func() {
+				result := env.Run("profile", "status")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("project"))
-				Expect(result.Stdout).To(ContainSubstring("2 plugins"))
-				Expect(result.Stdout).To(ContainSubstring("no profile tracked"))
+				Expect(result.Stdout).To(ContainSubstring("User scope"))
+				Expect(result.Stdout).To(ContainSubstring("plugin-a@marketplace"))
+				Expect(result.Stdout).To(ContainSubstring("plugin-b@marketplace"))
 			})
 
-			It("shows suggested save command with scope flag", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
+			It("shows disabled plugins", func() {
+				result := env.Run("profile", "status")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("profile save <name> --project"))
-				Expect(result.Stdout).To(ContainSubstring("profile apply <name> --project"))
+				Expect(result.Stdout).To(ContainSubstring("Disabled"))
+				Expect(result.Stdout).To(ContainSubstring("disabled-plugin@marketplace"))
+			})
+
+			Context("with tracked user profile", func() {
+				BeforeEach(func() {
+					env.CreateProfile(&profile.Profile{
+						Name:    "my-profile",
+						Plugins: []string{"plugin-a@marketplace"},
+					})
+					env.SetActiveProfile("my-profile")
+				})
+
+				It("shows profile name annotation", func() {
+					result := env.Run("profile", "status")
+
+					Expect(result.ExitCode).To(Equal(0))
+					Expect(result.Stdout).To(ContainSubstring("profile: my-profile"))
+				})
+			})
+
+			Context("without tracked profile", func() {
+				It("shows untracked annotation", func() {
+					result := env.Run("profile", "status")
+
+					Expect(result.ExitCode).To(Equal(0))
+					Expect(result.Stdout).To(ContainSubstring("untracked"))
+				})
 			})
 		})
 
-		Context("with no untracked settings", func() {
-			It("does not show untracked hints", func() {
+		Context("with multi-scope plugins", func() {
+			var projectDir string
+
+			BeforeEach(func() {
+				projectDir = env.ProjectDir("multi-scope-test")
+
+				// User scope
+				env.CreateSettings(map[string]bool{
+					"user-plugin@marketplace": true,
+				})
+				env.SetActiveProfile("user-prof")
+				env.CreateProfile(&profile.Profile{
+					Name:    "user-prof",
+					Plugins: []string{"user-plugin@marketplace"},
+				})
+
+				// Project scope
+				env.CreateProjectScopeSettings(projectDir, map[string]bool{
+					"proj-plugin@marketplace": true,
+				})
+			})
+
+			It("shows plugins from both scopes", func() {
 				result := env.RunInDir(projectDir, "profile", "status")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).NotTo(ContainSubstring("no profile tracked"))
+				Expect(result.Stdout).To(ContainSubstring("User scope"))
+				Expect(result.Stdout).To(ContainSubstring("user-plugin@marketplace"))
+				Expect(result.Stdout).To(ContainSubstring("Project scope"))
+				Expect(result.Stdout).To(ContainSubstring("proj-plugin@marketplace"))
+			})
+
+			It("shows untracked for project scope without profile", func() {
+				result := env.RunInDir(projectDir, "profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(MatchRegexp(`Project scope.*untracked`))
+			})
+		})
+
+		Context("with no plugins at any scope", func() {
+			It("shows empty configuration message", func() {
+				result := env.Run("profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("No plugins"))
 			})
 		})
 	})

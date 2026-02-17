@@ -304,7 +304,7 @@ func TestProfile_GenerateDescription(t *testing.T) {
 				Plugins:      []string{"plugin1", "plugin2", "plugin3"},
 				MCPServers:   []MCPServer{{Name: "server1"}, {Name: "server2"}},
 			},
-			expected: "1 marketplace, 3 plugins, 2 MCP servers",
+			expected: "3 plugins, 1 marketplace, 2 MCP servers",
 		},
 		{
 			name: "multiple marketplaces",
@@ -314,7 +314,7 @@ func TestProfile_GenerateDescription(t *testing.T) {
 				Plugins:      []string{"plugin1"},
 				MCPServers:   []MCPServer{{Name: "server1"}},
 			},
-			expected: "2 marketplaces, 1 plugin, 1 MCP server",
+			expected: "1 plugin, 2 marketplaces, 1 MCP server",
 		},
 		{
 			name: "only plugins",
@@ -336,6 +336,76 @@ func TestProfile_GenerateDescription(t *testing.T) {
 			name:     "empty profile",
 			profile:  &Profile{Name: "test"},
 			expected: "Empty profile",
+		},
+		{
+			name: "multi-scope with user and project plugins",
+			profile: &Profile{
+				Name: "test",
+				PerScope: &PerScopeSettings{
+					User: &ScopeSettings{
+						Plugins: []string{"a@m", "b@m", "c@m", "d@m", "e@m"},
+					},
+					Project: &ScopeSettings{
+						Plugins: []string{"f@m", "g@m", "h@m"},
+					},
+				},
+				Marketplaces: []Marketplace{
+					{Source: "github", Repo: "test/marketplace"},
+				},
+			},
+			expected: "5 user plugins, 3 project plugins, 1 marketplace",
+		},
+		{
+			name: "multi-scope single plugin per scope",
+			profile: &Profile{
+				Name: "test",
+				PerScope: &PerScopeSettings{
+					User: &ScopeSettings{
+						Plugins: []string{"a@m"},
+					},
+					Project: &ScopeSettings{
+						Plugins: []string{"b@m"},
+					},
+				},
+				Marketplaces: []Marketplace{
+					{Source: "github", Repo: "test/m1"},
+					{Source: "github", Repo: "test/m2"},
+				},
+			},
+			expected: "1 user plugin, 1 project plugin, 2 marketplaces",
+		},
+		{
+			name: "multi-scope project-only",
+			profile: &Profile{
+				Name: "test",
+				PerScope: &PerScopeSettings{
+					Project: &ScopeSettings{
+						Plugins: []string{"a@m", "b@m", "c@m"},
+					},
+				},
+				Marketplaces: []Marketplace{
+					{Source: "github", Repo: "test/marketplace"},
+				},
+			},
+			expected: "3 project plugins, 1 marketplace",
+		},
+		{
+			name: "multi-scope with all three scopes",
+			profile: &Profile{
+				Name: "test",
+				PerScope: &PerScopeSettings{
+					User: &ScopeSettings{
+						Plugins: []string{"a@m", "b@m"},
+					},
+					Project: &ScopeSettings{
+						Plugins: []string{"c@m"},
+					},
+					Local: &ScopeSettings{
+						Plugins: []string{"d@m", "e@m", "f@m"},
+					},
+				},
+			},
+			expected: "2 user plugins, 1 project plugin, 3 local plugins",
 		},
 	}
 

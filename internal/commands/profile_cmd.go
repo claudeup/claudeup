@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -69,7 +70,7 @@ active at local scope in ~/claudeup/, you'll see:
   * claudeup    [local]   ← This is what Claude Code uses
   ○ base-tools  [user]    ← Overridden, not in effect
 
-Use 'claudeup profile status <name>' to see profile contents.`,
+Use 'claudeup profile status' to see effective configuration across all scopes.`,
 	Args: cobra.NoArgs,
 	RunE: runProfileList,
 }
@@ -202,23 +203,18 @@ var profileShowCmd = &cobra.Command{
 }
 
 var profileStatusCmd = &cobra.Command{
-	Use:   "status [name]",
-	Short: "Show profile contents and activation status",
-	Long: `Display the contents of a profile.
+	Use:   "status",
+	Short: "Show effective configuration across all scopes",
+	Long: `Display the live effective configuration by reading settings files directly.
 
-Shows:
-  - Which scope the profile is active in (if any)
-  - Plugins in the profile
-  - MCP servers in the profile
-  - Marketplaces in the profile
-
-If no name is given, uses the currently active profile.`,
-	Example: `  # Show status for active profile
-  claudeup profile status
-
-  # Show status for specific profile
-  claudeup profile status backend-stack`,
-	Args: cobra.MaximumNArgs(1),
+Shows plugins from all active scopes (user, project, local) with:
+  - Scope grouping and tracking annotations
+  - Which profile is tracked at each scope (if any)
+  - Hints for untracked scopes with enabled plugins
+  - Marketplace summary`,
+	Example: `  # Show what Claude is actually running
+  claudeup profile status`,
+	Args: cobra.NoArgs,
 	RunE: runProfileStatus,
 }
 
@@ -340,6 +336,7 @@ var (
 	profileSaveUser    bool
 	profileSaveProject bool
 	profileSaveLocal   bool
+	profileSaveApply   bool
 )
 
 // Flags for profile list command
@@ -644,6 +641,7 @@ func init() {
 	profileSaveCmd.Flags().BoolVar(&profileSaveUser, "user", false, "Save only user scope settings")
 	profileSaveCmd.Flags().BoolVar(&profileSaveProject, "project", false, "Save only project scope settings")
 	profileSaveCmd.Flags().BoolVar(&profileSaveLocal, "local", false, "Save only local scope settings")
+	profileSaveCmd.Flags().BoolVar(&profileSaveApply, "apply", false, "Also track this profile at the saved scope (save + apply in one step)")
 
 	// Add flags to profile apply command
 	profileApplyCmd.Flags().BoolVar(&profileApplySetup, "setup", false, "Force post-apply setup wizard to run")
@@ -875,7 +873,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	fmt.Printf("%s Use 'claudeup profile show <name>' for details\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile status' to see effective configuration\n", ui.Muted(ui.SymbolArrow))
+	fmt.Printf("%s Use 'claudeup profile show <name>' for profile details\n", ui.Muted(ui.SymbolArrow))
 	fmt.Printf("%s Use 'claudeup profile apply <name>' to apply a profile\n", ui.Muted(ui.SymbolArrow))
 
 	return nil
@@ -907,7 +906,7 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 
 	// "current" is reserved as a keyword for the active profile
 	if name == "current" {
-		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile show current' to see the active profile")
+		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile status' to see the effective configuration")
 	}
 	var scope profile.Scope
 
@@ -1071,20 +1070,26 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
-		// Update active profile in config even when no changes needed
-		cfg, err = config.Load()
-		if err != nil {
-			cfg = config.DefaultConfig()
-		}
-		cfg.Preferences.ActiveProfile = name
-		if err := config.Save(cfg); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+		// Update active profile in config (only for user scope or multi-scope profiles)
+		if scope == profile.ScopeUser || p.IsMultiScope() {
+			cfg, err = config.Load()
+			if err != nil {
+				cfg = config.DefaultConfig()
+			}
+			cfg.Preferences.ActiveProfile = name
+			if err := config.Save(cfg); err != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+			}
 		}
 
-		// Track project scope in registry when no changes needed
-		if scope == profile.ScopeProject || p.IsMultiScope() {
+		// Track in projects registry when no changes needed
+		if scope == profile.ScopeProject || scope == profile.ScopeLocal || p.IsMultiScope() {
 			if registry, regErr := config.LoadProjectsRegistry(); regErr == nil {
-				registry.SetProjectScope(cwd, name)
+				if scope == profile.ScopeLocal {
+					registry.SetProject(cwd, name)
+				} else {
+					registry.SetProjectScope(cwd, name)
+				}
 				_ = config.SaveProjectsRegistry(registry)
 			}
 		}
@@ -1366,21 +1371,52 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	// Update active profile in config
-	cfg, err := config.Load()
-	if err != nil {
-		cfg = config.DefaultConfig()
+	// Update active profile in config (only for user scope or unscoped saves)
+	if resolvedScope == "" || resolvedScope == "user" {
+		cfg, err := config.Load()
+		if err != nil {
+			cfg = config.DefaultConfig()
+		}
+		cfg.Preferences.ActiveProfile = name
+		if err := config.Save(cfg); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+		}
 	}
-	cfg.Preferences.ActiveProfile = name
-	if err := config.Save(cfg); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Could not save active profile: %v", err))
+
+	// Track at project/local scope via projects registry when --apply is set
+	trackingSucceeded := true
+	if profileSaveApply {
+		if resolvedScope == "project" || resolvedScope == "local" {
+			registry, regErr := config.LoadProjectsRegistry()
+			if regErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not load projects registry; skipping %s-scope tracking: %v", resolvedScope, regErr))
+				trackingSucceeded = false
+			} else {
+				if resolvedScope == "project" {
+					registry.SetProjectScope(cwd, name)
+				} else {
+					registry.SetProject(cwd, name)
+				}
+				if saveErr := config.SaveProjectsRegistry(registry); saveErr != nil {
+					ui.PrintWarning(fmt.Sprintf("Could not track profile at %s scope: %v", resolvedScope, saveErr))
+					trackingSucceeded = false
+				}
+			}
+		}
+		// User scope: tracked via cfg.Preferences.ActiveProfile (set above when scope is user/empty)
 	}
 
 	scopeLabel := "all scopes"
 	if resolvedScope != "" {
 		scopeLabel = resolvedScope + " scope"
 	}
-	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
+	if profileSaveApply && trackingSucceeded {
+		ui.PrintSuccess(fmt.Sprintf("Saved and applied profile %q (%s)", name, scopeLabel))
+	} else if profileSaveApply {
+		ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s) — tracking failed, see warning above", name, scopeLabel))
+	} else {
+		ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
+	}
 	fmt.Println()
 
 	// Show per-scope plugin counts for multi-scope profiles
@@ -1415,31 +1451,9 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
-	// Handle "current" as a special keyword for the active profile
-	// Check scopes in precedence order: local > user
+	// "show current" delegates to live effective config view
 	if name == "current" {
-		cwd, _ := os.Getwd()
-
-		// Check local scope in registry first (highest precedence)
-		registry, err := config.LoadProjectsRegistry()
-		if err == nil {
-			if entry, ok := registry.GetProject(cwd); ok && entry.Profile != "" {
-				name = entry.Profile
-			}
-		}
-
-		// If not found at local scope, fall back to user-level profile
-		if name == "current" {
-			cfg, _ := config.Load()
-			if cfg != nil && cfg.Preferences.ActiveProfile != "" {
-				name = cfg.Preferences.ActiveProfile
-			}
-		}
-
-		// If still "current", no active profile found at any scope
-		if name == "current" {
-			return fmt.Errorf("no active profile set. Use 'claudeup profile apply <name>' to apply a profile")
-		}
+		return runProfileStatus(cmd, nil)
 	}
 
 	// Load the profile (try disk first, then embedded)
@@ -1756,82 +1770,105 @@ func showResolvedSummary(p *profile.Profile) {
 }
 
 func runProfileStatus(cmd *cobra.Command, args []string) error {
-	profilesDir := getProfilesDir()
 	cwd, _ := os.Getwd()
 
-	// Determine profile name
-	var name string
-	if len(args) > 0 {
-		name = args[0]
-	} else {
-		// Use active profile
-		activeProfile, _ := getActiveProfile(cwd)
-		if activeProfile == "" {
-			return fmt.Errorf("no active profile set. Specify a profile name or use 'claudeup profile apply <name>' first")
-		}
-		name = activeProfile
-	}
-
-	// Load the profile
-	savedProfile, err := loadProfileWithFallback(profilesDir, name)
-	if err != nil {
-		return fmt.Errorf("profile %q not found: %w", name, err)
-	}
-
-	// Get all active profiles to determine which scope this profile is active in
-	allActiveProfiles := getAllActiveProfiles(cwd)
-	var activeScope string
-	for _, ap := range allActiveProfiles {
-		if ap.Name == name {
-			activeScope = ap.Scope
-			break
-		}
+	// Get tracked profiles for annotation
+	allActive := getAllActiveProfiles(cwd)
+	trackedByScope := make(map[string]string) // scope -> profile name
+	for _, ap := range allActive {
+		trackedByScope[ap.Scope] = ap.Name
 	}
 
 	// Header
-	fmt.Println(ui.RenderDetail("Profile", ui.Bold(name)))
-	if activeScope != "" {
-		fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("[active at %s scope]", activeScope)))
-	} else {
-		fmt.Printf("  %s\n", ui.Muted("[not currently active]"))
-	}
-	fmt.Println()
+	fmt.Printf("Effective configuration for %s\n\n", ui.Bold(cwd))
 
-	// Show untracked scope hints
-	renderUntrackedScopeHints(getUntrackedScopes(cwd, claudeDir, allActiveProfiles))
+	anyPlugins := false
+	var allPluginNames []string
 
-	// Show profile contents
-	combinedProfile := savedProfile.CombinedScopes()
+	for _, scope := range []string{"user", "project", "local"} {
+		// Skip project/local if not in project directory
+		if scope != "user" {
+			if _, err := os.Stat(filepath.Join(cwd, ".claude")); os.IsNotExist(err) {
+				continue
+			}
+		}
 
-	// Plugins
-	fmt.Println(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(combinedProfile.Plugins))))
-	for _, p := range combinedProfile.Plugins {
-		fmt.Printf("  • %s\n", p)
-	}
-	if len(combinedProfile.Plugins) == 0 {
-		fmt.Printf("  %s\n", ui.Muted("(none)"))
-	}
-	fmt.Println()
+		settings, err := claude.LoadSettingsForScope(scope, claudeDir, cwd)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s Failed to load %s scope settings: %v\n",
+				ui.Warning("Warning:"), scope, err)
+			continue
+		}
 
-	// MCP Servers
-	fmt.Println(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(combinedProfile.MCPServers))))
-	for _, s := range combinedProfile.MCPServers {
-		fmt.Printf("  • %s\n", s.Name)
-	}
-	if len(combinedProfile.MCPServers) == 0 {
-		fmt.Printf("  %s\n", ui.Muted("(none)"))
-	}
-	fmt.Println()
+		var enabled, disabled []string
+		for name, isEnabled := range settings.EnabledPlugins {
+			if isEnabled {
+				enabled = append(enabled, name)
+			} else {
+				disabled = append(disabled, name)
+			}
+		}
+		sort.Strings(enabled)
+		sort.Strings(disabled)
 
-	// Marketplaces
-	fmt.Println(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(savedProfile.Marketplaces))))
-	for _, m := range savedProfile.Marketplaces {
-		fmt.Printf("  • %s\n", m.DisplayName())
+		if len(enabled) == 0 && len(disabled) == 0 {
+			continue
+		}
+
+		anyPlugins = true
+		allPluginNames = append(allPluginNames, enabled...)
+
+		// Scope header with tracking annotation
+		scopeLabel := formatScopeName(scope)
+		if profileName, ok := trackedByScope[scope]; ok {
+			fmt.Printf("  %s (profile: %s)\n", ui.Bold(scopeLabel+" scope"), profileName)
+		} else {
+			fmt.Printf("  %s (%s)\n", ui.Bold(scopeLabel+" scope"), ui.Warning("untracked"))
+		}
+
+		// Enabled plugins
+		if len(enabled) > 0 {
+			fmt.Println("    Plugins:")
+			for _, name := range enabled {
+				fmt.Printf("      - %s\n", name)
+			}
+		}
+
+		// Disabled plugins
+		if len(disabled) > 0 {
+			fmt.Println("    Disabled:")
+			for _, name := range disabled {
+				fmt.Printf("      - %s\n", name)
+			}
+		}
+
+		// Hint for untracked scopes
+		if _, ok := trackedByScope[scope]; !ok && len(enabled) > 0 {
+			if scope == "user" {
+				fmt.Printf("    %s Save with: claudeup profile save <name> --apply\n",
+					ui.Muted(ui.SymbolArrow))
+			} else {
+				fmt.Printf("    %s Save with: claudeup profile save <name> --%s --apply\n",
+					ui.Muted(ui.SymbolArrow), scope)
+			}
+		}
+
+		fmt.Println()
 	}
-	if len(savedProfile.Marketplaces) == 0 {
-		fmt.Printf("  %s\n", ui.Muted("(none)"))
+
+	if !anyPlugins {
+		fmt.Printf("  %s\n\n", ui.Muted("No plugins configured at any scope."))
 	}
-	fmt.Println()
+
+	// Marketplaces section
+	marketplaces, err := profile.UsedMarketplaces(claudeDir, allPluginNames)
+	if err == nil && len(marketplaces) > 0 {
+		fmt.Println("  Marketplaces:")
+		for _, m := range marketplaces {
+			fmt.Printf("    - %s\n", m.DisplayName())
+		}
+		fmt.Println()
+	}
 
 	return nil
 }

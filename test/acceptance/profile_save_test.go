@@ -262,4 +262,124 @@ var _ = Describe("profile save", func() {
 			})
 		})
 	})
+
+	Describe("--apply flag", func() {
+		It("saves and tracks the profile at project scope", func() {
+			projectDir := env.ProjectDir("save-apply-project")
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
+				"plugin-a@marketplace": true,
+				"plugin-b@marketplace": true,
+			})
+
+			result := env.RunInDir(projectDir, "profile", "save", "my-proj", "--project", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Saved and applied"))
+			Expect(result.Stdout).To(ContainSubstring("my-proj"))
+
+			// Verify the profile is tracked in the projects registry at project scope
+			registry := env.LoadProjectsRegistry()
+			Expect(registry).NotTo(BeNil())
+			projects := registry["projects"].(map[string]any)
+			// Normalize path to handle macOS /var -> /private/var symlinks
+			normalizedDir := projectDir
+			if resolved, err := filepath.EvalSymlinks(projectDir); err == nil {
+				normalizedDir = resolved
+			}
+			entry := projects[normalizedDir].(map[string]any)
+			Expect(entry["projectProfile"]).To(Equal("my-proj"))
+		})
+
+		It("shows profile as active in list after save --apply", func() {
+			projectDir := env.ProjectDir("save-apply-list")
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
+				"plugin-a@marketplace": true,
+			})
+
+			result := env.RunInDir(projectDir, "profile", "save", "my-proj", "--project", "--apply")
+			Expect(result.ExitCode).To(Equal(0))
+
+			listResult := env.RunInDir(projectDir, "profile", "list")
+			Expect(listResult.ExitCode).To(Equal(0))
+			Expect(listResult.Stdout).To(ContainSubstring("my-proj"))
+		})
+
+		It("composes with --yes flag for non-interactive operation", func() {
+			projectDir := env.ProjectDir("save-apply-yes")
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
+				"plugin-a@marketplace": true,
+			})
+
+			// Create profile first so overwrite prompt would trigger
+			env.RunInDir(projectDir, "profile", "save", "my-proj", "--project")
+
+			result := env.RunInDir(projectDir, "profile", "save", "my-proj", "--project", "--apply", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Saved and applied"))
+		})
+
+		It("tracks at local scope when --local --apply is used", func() {
+			localDir := env.ProjectDir("save-apply-local")
+			env.CreateLocalScopeSettings(localDir, map[string]bool{
+				"local-plugin@marketplace": true,
+			})
+
+			result := env.RunInDir(localDir, "profile", "save", "my-local", "--local", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Saved and applied"))
+
+			// Verify the profile is tracked in the projects registry at local scope
+			registry := env.LoadProjectsRegistry()
+			Expect(registry).NotTo(BeNil())
+			projects := registry["projects"].(map[string]any)
+			normalizedDir := localDir
+			if resolved, err := filepath.EvalSymlinks(localDir); err == nil {
+				normalizedDir = resolved
+			}
+			entry := projects[normalizedDir].(map[string]any)
+			Expect(entry["profile"]).To(Equal("my-local"))
+		})
+
+		It("works for user scope without explicit scope flag", func() {
+			result := env.Run("profile", "save", "my-user", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Saved and applied"))
+			Expect(env.GetActiveProfile()).To(Equal("my-user"))
+		})
+
+		It("does not say applied when --apply is not used", func() {
+			result := env.Run("profile", "save", "plain-save")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Saved profile"))
+			Expect(result.Stdout).NotTo(ContainSubstring("Saved and applied"))
+		})
+
+		It("does not set user-scope active profile when saving at project scope", func() {
+			projectDir := env.ProjectDir("save-apply-no-user-project")
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
+				"plugin-a@marketplace": true,
+			})
+
+			result := env.RunInDir(projectDir, "profile", "save", "proj-only", "--project", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
+
+		It("does not set user-scope active profile when saving at local scope", func() {
+			localDir := env.ProjectDir("save-apply-no-user-local")
+			env.CreateLocalScopeSettings(localDir, map[string]bool{
+				"local-plugin@marketplace": true,
+			})
+
+			result := env.RunInDir(localDir, "profile", "save", "local-only", "--local", "--apply")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.GetActiveProfile()).To(BeEmpty())
+		})
+	})
 })
