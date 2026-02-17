@@ -16,14 +16,12 @@ Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use
 ```bash
 claudeup profile list              # List available profiles
 claudeup profile show <name>       # Show profile contents
-claudeup profile current           # Show currently active profile
-claudeup profile status [name]     # Show differences from current Claude state
+claudeup profile status            # Show effective configuration across all scopes
 claudeup profile diff <name>       # Compare customized built-in to original
-claudeup profile save [name]       # Save current setup as a profile
+claudeup profile save <name>       # Save current setup as a profile
 claudeup profile create <name>     # Create a new profile with interactive wizard
 claudeup profile clone <name>      # Clone an existing profile
 claudeup profile apply <name>      # Apply a profile
-claudeup profile apply             # Re-apply active profile
 claudeup profile reset <name>      # Remove everything a profile installed
 claudeup profile clean <plugin>    # Remove orphaned plugin from config
 claudeup profile delete <name>     # Delete a custom user profile
@@ -168,36 +166,15 @@ claudeup profile apply <name> --project
 
 MCP servers from `.mcp.json` are loaded automatically by Claude Code.
 
-### Local Scope Registry
-
-Local scope profiles are tracked in `~/.claudeup/projects.json`:
-
-```json
-{
-  "projects": {
-    "/Users/you/projects/my-app": {
-      "profile": "laptop-dev-tools",
-      "lastUsed": "2025-01-15T10:30:00Z"
-    }
-  }
-}
-```
-
-This allows claudeup to remember which local profile applies to each project directory.
-
 ### Viewing Active Configuration
 
-To see which profile is active at each scope:
+To see what's actually running across all scopes:
 
 ```bash
-# Show current profile (checks local → project → user)
-claudeup profile current
-
-# Example output for project with local profile:
-# Current profile: dev-tools (local scope)
-#   Marketplaces: 2
-#   Plugins: 8
+claudeup profile status
 ```
+
+This reads settings files directly and shows plugins grouped by scope.
 
 ### When to Use Each Scope
 
@@ -560,7 +537,7 @@ Built-in profiles:
 
 Your profiles:
 
-* my-setup             Custom configuration for my workflow
+  my-setup             Custom configuration for my workflow
   backend              Backend development profile
 ```
 
@@ -613,8 +590,8 @@ claudeup profile clone home-setup --from work
 # Clone with custom description
 claudeup profile clone home-setup --from work --description "Personal development"
 
-# Clone from active profile (with -y flag)
-claudeup profile clone backup -y
+# Clone non-interactively (requires --from with -y)
+claudeup profile clone backup --from work -y
 ```
 
 Like `profile save`, cloned profiles inherit the source's description (if custom) or get an auto-generated one (if the source had the old generic description).
@@ -947,8 +924,6 @@ claudeup profile rename old-name new-name
 ```
 
 This only works on custom profiles you've created. Built-in profiles cannot be renamed.
-
-If the profile being renamed is currently active, the active profile config is updated to point to the new name.
 
 ### Restoring Built-in Profiles
 

@@ -103,28 +103,19 @@ This installs any missing marketplaces and plugins defined in the profile.
 
 **Philosophy:** Profiles are for bootstrapping -- apply once, then manage settings directly. After initial setup, team members can customize their local scope without affecting others.
 
-### Viewing Active Profiles
+### Viewing Available Profiles
 
-See which profiles are active:
+See which profiles are available:
 
 ```bash
 claudeup profile list
 ```
 
-Output:
+To see what's actually running across all scopes:
 
-```text
-Your profiles
-
-* team-config       Team configuration
-○ base-tools        Personal toolkit
-  frontend-dev      Frontend setup
+```bash
+claudeup profile status
 ```
-
-- `*` = highest precedence active profile (what Claude Code uses)
-- `○` = active at a lower-precedence scope (overridden)
-
-Use `claudeup profile status` to see scope details for the active profile.
 
 ### Layering User and Project Profiles
 

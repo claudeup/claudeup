@@ -149,12 +149,9 @@ var profileCloneCmd = &cobra.Command{
 	Long: `Creates a new profile by copying an existing one.
 
 Use --from to specify the source profile, or select interactively.
-With -y flag, uses the currently active profile as the source.`,
+With -y flag, --from is required (no interactive selection).`,
 	Example: `  # Clone from specific profile
   claudeup profile clone new-profile --from existing-profile
-
-  # Clone from active profile
-  claudeup profile clone new-profile -y
 
   # Interactive selection
   claudeup profile clone new-profile`,
@@ -175,9 +172,8 @@ var profileStatusCmd = &cobra.Command{
 	Long: `Display the live effective configuration by reading settings files directly.
 
 Shows plugins from all active scopes (user, project, local) with:
-  - Scope grouping and tracking annotations
-  - Which profile is tracked at each scope (if any)
-  - Hints for untracked scopes with enabled plugins
+  - Scope grouping (user, project, local)
+  - Enabled/disabled status
   - Marketplace summary`,
 	Example: `  # Show what Claude is actually running
   claudeup profile status`,
@@ -2097,7 +2093,7 @@ func runProfileClone(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
-	// "current" is reserved as a keyword for the active profile
+	// "current" is reserved as a keyword for live status view
 	if name == "current" {
 		return fmt.Errorf("'current' is a reserved name. Use a different profile name")
 	}

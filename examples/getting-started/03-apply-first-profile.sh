@@ -20,8 +20,8 @@ pause
 
 section "1. Current State (Before)"
 
-step "Check the current profile status"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile current || info "No profile currently active"
+step "Check the current configuration"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile status || info "No plugins configured yet"
 pause
 
 section "2. Apply a Profile"
@@ -43,8 +43,8 @@ pause
 
 section "3. Verify the Change"
 
-step "Check that the profile is now active"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile current || info "Profile status updated"
+step "Check the updated configuration"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile status || info "Profile applied"
 
 step "View the updated status"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" status

@@ -75,10 +75,9 @@ Manage configuration profiles.
 ```bash
 claudeup profile list                        # List available profiles
 claudeup profile show <name>                 # Display profile contents (with scope labels)
-claudeup profile current                     # Show active profile (with scope)
-claudeup profile status [name]               # Show differences from current Claude state
+claudeup profile status                      # Show effective configuration across all scopes
 claudeup profile diff <name>                 # Compare customized built-in to original
-claudeup profile save [name]                 # Save current setup as profile (all scopes)
+claudeup profile save <name>                 # Save current setup as profile (all scopes)
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope)
@@ -93,15 +92,6 @@ claudeup profile clean <plugin>              # Remove orphaned plugin from confi
 claudeup profile save my-work --description "My work setup"
 claudeup profile clone home --from work --description "Home setup"
 ```
-
-**`profile list` flags:**
-
-| Flag        | Description              |
-| ----------- | ------------------------ |
-| `--scope`   | Filter to specific scope |
-| `--user`    | Show only user scope     |
-| `--project` | Show only project scope  |
-| `--local`   | Show only local scope    |
 
 #### Project-Level Profiles
 
@@ -165,15 +155,6 @@ Backups are stored in `~/.claudeup/backups/`.
 3. Other team members clone/pull and run `claudeup profile apply <name> --project`
 4. MCP servers load automatically; plugins are configured by apply
 
-**Scope precedence:**
-
-When determining the active profile, `profile current` checks in order:
-
-1. **Local scope** - Entry in `~/.claudeup/projects.json` for current directory
-2. **User scope** - Global profile from `~/.claudeup/config.json`
-
-Local scope takes precedence over user scope when you're in a project directory.
-
 **Secrets and project scope:**
 
 MCP servers often require secrets (API keys, tokens). When using `--project`:
@@ -205,20 +186,17 @@ Team members set `GITHUB_TOKEN` in their environment before using Claude.
 
 Two commands for understanding profile differences:
 
-**`profile status [name]`** - Shows profile contents and activation status:
+**`profile status`** - Shows the live effective configuration by reading settings files directly:
 
 ```bash
-# Show status for active profile
 claudeup profile status
-
-# Show status for specific profile
-claudeup profile status backend-stack
 ```
 
 Use this to see:
 
-- Which profile is active and at what scope
-- Plugins, MCP servers, and marketplaces in the profile
+- Plugins grouped by scope (user, project, local)
+- Enabled/disabled status
+- Marketplace summary
 
 **`profile diff <name>`** - Compares a customized built-in profile to its original:
 
@@ -564,9 +542,8 @@ Configuration is stored in `~/.claudeup/`:
 
 ```text
 ~/.claudeup/
-├── config.json       # Disabled plugins/servers, preferences
+├── config.json       # Preferences
 ├── enabled.json      # Tracks which extensions are enabled per category
-├── projects.json     # Local-scope project-to-profile mappings
 ├── events/           # Operation event logs
 ├── ext/              # Storage for extensions
 │   ├── agents/

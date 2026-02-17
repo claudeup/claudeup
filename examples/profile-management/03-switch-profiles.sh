@@ -59,8 +59,8 @@ pause
 
 section "4. Verify the Switch"
 
-step "Confirm the new profile is active"
-run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile current || true
+step "Confirm the configuration changed"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile status || true
 pause
 
 section "Summary"

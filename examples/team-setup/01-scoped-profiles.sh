@@ -52,7 +52,7 @@ pause
 
 section "3. Apply to Different Scopes"
 
-step "See which scopes have active profiles"
+step "See available profiles"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 
 step "Apply a profile to a specific scope"
