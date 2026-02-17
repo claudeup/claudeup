@@ -292,6 +292,26 @@ var _ = Describe("profile current with scopes", func() {
 			})
 		})
 
+		Context("local scope takes precedence over project", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{Name: "project-base"})
+				result := env.RunInDir(projectDir, "profile", "apply", "project-base", "--scope", "project", "-y")
+				Expect(result.ExitCode).To(Equal(0))
+
+				env.CreateProfile(&profile.Profile{Name: "local-override"})
+				result = env.RunInDir(projectDir, "profile", "apply", "local-override", "--scope", "local", "-y")
+				Expect(result.ExitCode).To(Equal(0))
+			})
+
+			It("shows local profile instead of project profile", func() {
+				result := env.RunInDir(projectDir, "profile", "current")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("local-override"))
+				Expect(result.Stdout).To(ContainSubstring("local scope"))
+			})
+		})
+
 		Context("project scope takes precedence over user", func() {
 			BeforeEach(func() {
 				env.CreateProfile(&profile.Profile{
