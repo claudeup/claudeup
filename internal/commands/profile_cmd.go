@@ -651,6 +651,12 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 	profileApplyScope = resolvedScope
 
 	name := args[0]
+
+	// "current" is reserved for the live status view (profile show current)
+	if name == "current" {
+		return fmt.Errorf("'current' is a reserved name. Use 'claudeup profile status' to view current configuration")
+	}
+
 	var scope profile.Scope
 
 	if profileApplyScope != "" {

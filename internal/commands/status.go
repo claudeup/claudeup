@@ -29,7 +29,7 @@ Shows:
   - Plugin counts and status
   - Any detected issues
 
-For detailed plugin information, use 'claudeup plugins'.
+For detailed plugin information, use 'claudeup plugin list'.
 For diagnostics, use 'claudeup doctor'.`,
 	Args: cobra.NoArgs,
 	RunE: runStatus,
