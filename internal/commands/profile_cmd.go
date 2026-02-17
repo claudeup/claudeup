@@ -45,8 +45,7 @@ var profileListCmd = &cobra.Command{
 	Short: "List available profiles",
 	Long: `List all available profiles.
 
-INDICATORS:
-  (customized) Built-in profile has been modified and saved locally
+Profiles marked (customized) are built-in profiles that have been modified and saved locally.
 
 Use 'claudeup profile status' to see effective configuration across all scopes.`,
 	Args: cobra.NoArgs,
@@ -2344,6 +2343,11 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 	oldName := args[0]
 	newName := args[1]
 	profilesDir := getProfilesDir()
+
+	// "current" is reserved as a keyword for live status view
+	if newName == "current" {
+		return fmt.Errorf("'current' is a reserved name. Use a different profile name")
+	}
 
 	// Check if it's a built-in profile
 	if profile.IsEmbeddedProfile(oldName) {

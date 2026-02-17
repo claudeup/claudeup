@@ -378,7 +378,7 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 		result.Errors = append(result.Errors, err)
 	}
 
-	// 7. Apply settings hooks if present
+	// 6. Apply settings hooks if present
 	if err := applySettingsHooks(profile, claudeDir); err != nil {
 		result.Errors = append(result.Errors, err)
 	}
@@ -487,7 +487,7 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome s
 		result.Errors = append(result.Errors, err)
 	}
 
-	// 8. Apply settings hooks if present
+	// 7. Apply settings hooks if present
 	if err := applySettingsHooks(profile, claudeDir); err != nil {
 		result.Errors = append(result.Errors, err)
 	}

@@ -68,6 +68,7 @@ var _ = Describe("profile save", func() {
 			result := env.Run("profile", "save")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("accepts 1 arg"))
 		})
 	})
 
