@@ -46,34 +46,12 @@ var _ = Describe("profile clone", func() {
 		})
 	})
 
-	Context("with -y flag", func() {
-		Context("when active profile is set", func() {
-			BeforeEach(func() {
-				env.CreateProfile(&profile.Profile{
-					Name:    "active-source",
-					Plugins: []string{"active-plugin"},
-				})
-				env.SetActiveProfile("active-source")
-			})
+	Context("with -y flag without --from", func() {
+		It("returns an error requiring --from flag", func() {
+			result := env.Run("profile", "clone", "new-profile", "-y")
 
-			It("uses the active profile as source", func() {
-				result := env.Run("profile", "clone", "new-from-active", "-y")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Using active profile"))
-
-				created := env.LoadProfile("new-from-active")
-				Expect(created.Plugins).To(Equal([]string{"active-plugin"}))
-			})
-		})
-
-		Context("when no active profile is set", func() {
-			It("returns an error", func() {
-				result := env.Run("profile", "clone", "new-profile", "-y")
-
-				Expect(result.ExitCode).NotTo(Equal(0))
-				Expect(result.Stderr).To(ContainSubstring("no active profile"))
-			})
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("--from"))
 		})
 	})
 

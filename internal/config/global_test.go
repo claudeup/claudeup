@@ -11,9 +11,8 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
-
-	if cfg.Preferences.ActiveProfile != "" {
-		t.Error("ActiveProfile should default to empty string")
+	if cfg == nil {
+		t.Fatal("DefaultConfig should not return nil")
 	}
 }
 
@@ -27,7 +26,6 @@ func TestSaveAndLoad(t *testing.T) {
 
 	// Create config
 	cfg := DefaultConfig()
-	cfg.Preferences.ActiveProfile = "test-profile"
 
 	// Save to temp file
 	configFile := filepath.Join(tempDir, "config.json")
@@ -49,10 +47,5 @@ func TestSaveAndLoad(t *testing.T) {
 	var loadedCfg GlobalConfig
 	if err := json.Unmarshal(loadedData, &loadedCfg); err != nil {
 		t.Fatal(err)
-	}
-
-	// Verify loaded config matches
-	if loadedCfg.Preferences.ActiveProfile != "test-profile" {
-		t.Error("Loaded config should have test-profile as active profile")
 	}
 }

@@ -15,7 +15,6 @@ type GlobalConfig struct {
 
 // Preferences represents user preferences
 type Preferences struct {
-	ActiveProfile string `json:"activeProfile,omitempty"`
 }
 
 // DefaultConfig returns a new config with default values

@@ -5,12 +5,9 @@ package commands
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
-	"github.com/claudeup/claudeup/v5/internal/config"
-	"github.com/claudeup/claudeup/v5/internal/profile"
 	"github.com/claudeup/claudeup/v5/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -28,7 +25,6 @@ var statusCmd = &cobra.Command{
 	Long: `Display the current state of your Claude Code installation.
 
 Shows:
-  - Active profile
   - Installed marketplaces
   - Plugin counts and status
   - Any detected issues
@@ -82,33 +78,6 @@ func runStatus(cmd *cobra.Command, args []string) error {
 
 	// Print header
 	fmt.Println(ui.RenderSection("claudeup Status", -1))
-
-	// Determine active profile using scope hierarchy: project > local > user
-	activeProfile, profileScope := getActiveProfile(projectDir)
-	if activeProfile == "" {
-		activeProfile = "none"
-	}
-
-	fmt.Println()
-	if profileScope != "" {
-		fmt.Println(ui.RenderDetail("Active Profile", fmt.Sprintf("%s %s", ui.Bold(activeProfile), ui.Muted(fmt.Sprintf("(%s scope)", profileScope)))))
-	} else {
-		fmt.Println(ui.RenderDetail("Active Profile", ui.Bold(activeProfile)))
-	}
-
-	// Check if active profile exists
-	if activeProfile != "none" && activeProfile != "" {
-		profilesDir := filepath.Join(config.MustClaudeupHome(), "profiles")
-
-		// Check if profile file exists (both disk and embedded)
-		_, diskErr := profile.Load(profilesDir, activeProfile)
-		_, embeddedErr := profile.GetEmbeddedProfile(activeProfile)
-
-		if diskErr != nil && embeddedErr != nil {
-			// Profile doesn't exist anywhere - show warning
-			ui.PrintWarning(fmt.Sprintf("Active profile '%s' not found.", activeProfile))
-		}
-	}
 
 	// Print marketplaces
 	fmt.Println()
@@ -253,13 +222,8 @@ func runStatus(cmd *cobra.Command, args []string) error {
 				fmt.Printf("    - %s\n", name)
 			}
 			fmt.Println()
-			if activeProfile != "" && activeProfile != "none" {
-				fmt.Printf("  %s Reinstall from profile: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
-			} else {
-				fmt.Printf("  %s Reinstall manually: %s\n",
-					ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin install <name> --reinstall"))
-			}
+			fmt.Printf("  %s Reinstall manually: %s\n",
+				ui.Muted(ui.SymbolArrow), ui.Bold("claude plugin install <name> --reinstall"))
 			fmt.Printf("  %s Run %s for full diagnostics\n",
 				ui.Muted(ui.SymbolArrow), ui.Bold("claudeup doctor"))
 		}
