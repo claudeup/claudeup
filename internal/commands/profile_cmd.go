@@ -2547,63 +2547,31 @@ func runProfileCurrent(cmd *cobra.Command, args []string) error {
 	cwd, _ := os.Getwd()
 	profilesDir := getProfilesDir()
 
-	// Check for local-scope profile in registry (highest precedence)
-	registry, err := config.LoadProjectsRegistry()
-	if err == nil {
-		if entry, ok := registry.GetProject(cwd); ok {
-			p, err := loadProfileWithFallback(profilesDir, entry.Profile)
+	// Use the centralized scope hierarchy: local > project > user
+	name, scope := getActiveProfile(cwd)
 
-			fmt.Println(ui.RenderDetail("Current profile", ui.Bold(entry.Profile)))
-			fmt.Printf("  %s\n", ui.Info("(local scope)"))
-
-			if err != nil {
-				// Profile doesn't exist, show warning but don't fail
-				fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("Profile definition not found: %v", err)))
-			} else {
-				// Profile exists, show full details
-				if p.Description != "" {
-					fmt.Printf("  %s\n", ui.Muted(p.Description))
-				}
-				fmt.Println()
-				fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-				fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
-				fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
-			}
-			return nil
-		}
-	}
-
-	// Fall back to user-level profile
-	cfg, _ := config.Load()
-	activeProfile := ""
-	if cfg != nil {
-		activeProfile = cfg.Preferences.ActiveProfile
-	}
-
-	if activeProfile == "" {
+	if name == "" {
 		ui.PrintInfo("No profile is currently active.")
 		fmt.Printf("  %s Use 'claudeup profile apply <name>' to apply a profile.\n", ui.Muted(ui.SymbolArrow))
 		return nil
 	}
 
-	// Load the profile to show details
-	p, err := loadProfileWithFallback(profilesDir, activeProfile)
+	p, err := loadProfileWithFallback(profilesDir, name)
+
+	fmt.Println(ui.RenderDetail("Current profile", ui.Bold(name)))
+	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("(%s scope)", scope)))
+
 	if err != nil {
-		// Profile was set but can't be loaded - show name and error
-		ui.PrintWarning(fmt.Sprintf("Current profile: %s (details unavailable: %v)", activeProfile, err))
-		return nil
+		fmt.Printf("  %s\n", ui.Warning(fmt.Sprintf("Profile definition not found: %v", err)))
+	} else {
+		if p.Description != "" {
+			fmt.Printf("  %s\n", ui.Muted(p.Description))
+		}
+		fmt.Println()
+		fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
+		fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
 	}
-
-	fmt.Println(ui.RenderDetail("Current profile", ui.Bold(p.Name)))
-	fmt.Printf("  %s\n", ui.Info("(user scope)"))
-	if p.Description != "" {
-		fmt.Printf("  %s\n", ui.Muted(p.Description))
-	}
-	fmt.Println()
-	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
-	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(p.Plugins))), 1))
-	fmt.Println(ui.Indent(ui.RenderDetail("MCP Servers", fmt.Sprintf("%d", len(p.MCPServers))), 1))
-
 	return nil
 }
 

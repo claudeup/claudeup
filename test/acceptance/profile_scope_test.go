@@ -233,6 +233,37 @@ var _ = Describe("profile current with scopes", func() {
 		})
 	})
 
+	Describe("with project-level profile", func() {
+		var projectDir string
+
+		BeforeEach(func() {
+			projectDir = env.ProjectDir("current-project-test")
+
+			env.CreateProfile(&profile.Profile{
+				Name:        "project-profile",
+				Description: "Test project profile",
+			})
+
+			// Apply at project scope to register in projects.json
+			result := env.RunInDir(projectDir, "profile", "apply", "project-profile", "--scope", "project", "-y")
+			Expect(result.ExitCode).To(Equal(0))
+		})
+
+		It("shows project scope profile", func() {
+			result := env.RunInDir(projectDir, "profile", "current")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("project-profile"))
+		})
+
+		It("indicates project scope", func() {
+			result := env.RunInDir(projectDir, "profile", "current")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("project scope"))
+		})
+	})
+
 	Describe("scope precedence", func() {
 		var projectDir string
 
@@ -258,6 +289,23 @@ var _ = Describe("profile current with scopes", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("local-wins"))
+			})
+		})
+
+		Context("project scope takes precedence over user", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{
+					Name: "project-wins",
+				})
+				result := env.RunInDir(projectDir, "profile", "apply", "project-wins", "--scope", "project", "-y")
+				Expect(result.ExitCode).To(Equal(0))
+			})
+
+			It("shows project profile instead of user profile", func() {
+				result := env.RunInDir(projectDir, "profile", "current")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("project-wins"))
 			})
 		})
 
