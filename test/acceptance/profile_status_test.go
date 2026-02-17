@@ -3,7 +3,6 @@
 package acceptance
 
 import (
-	"github.com/claudeup/claudeup/v5/internal/profile"
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -43,31 +42,6 @@ var _ = Describe("profile status", func() {
 				Expect(result.Stdout).To(ContainSubstring("disabled-plugin@marketplace"))
 			})
 
-			Context("with tracked user profile", func() {
-				BeforeEach(func() {
-					env.CreateProfile(&profile.Profile{
-						Name:    "my-profile",
-						Plugins: []string{"plugin-a@marketplace"},
-					})
-					env.SetActiveProfile("my-profile")
-				})
-
-				It("shows profile name annotation", func() {
-					result := env.Run("profile", "status")
-
-					Expect(result.ExitCode).To(Equal(0))
-					Expect(result.Stdout).To(ContainSubstring("profile: my-profile"))
-				})
-			})
-
-			Context("without tracked profile", func() {
-				It("shows untracked annotation", func() {
-					result := env.Run("profile", "status")
-
-					Expect(result.ExitCode).To(Equal(0))
-					Expect(result.Stdout).To(ContainSubstring("untracked"))
-				})
-			})
 		})
 
 		Context("with multi-scope plugins", func() {
@@ -79,11 +53,6 @@ var _ = Describe("profile status", func() {
 				// User scope
 				env.CreateSettings(map[string]bool{
 					"user-plugin@marketplace": true,
-				})
-				env.SetActiveProfile("user-prof")
-				env.CreateProfile(&profile.Profile{
-					Name:    "user-prof",
-					Plugins: []string{"user-plugin@marketplace"},
 				})
 
 				// Project scope
@@ -100,13 +69,6 @@ var _ = Describe("profile status", func() {
 				Expect(result.Stdout).To(ContainSubstring("user-plugin@marketplace"))
 				Expect(result.Stdout).To(ContainSubstring("Project scope"))
 				Expect(result.Stdout).To(ContainSubstring("proj-plugin@marketplace"))
-			})
-
-			It("shows untracked for project scope without profile", func() {
-				result := env.RunInDir(projectDir, "profile", "status")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(MatchRegexp(`Project scope.*untracked`))
 			})
 		})
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ABOUTME: End-to-end demo applying profiles at all three scopes (user, project, local)
-# ABOUTME: Shows how profile list markers change as scopes accumulate
+# ABOUTME: Shows how settings accumulate across scopes
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck disable=SC1091
@@ -14,7 +14,7 @@ cat <<'EOF'
 ╚════════════════════════════════════════════════════════════════╝
 
 This demo applies profiles at each scope (user, project, local)
-and shows how `profile list` reflects the active scope hierarchy.
+and shows how settings accumulate across scopes.
 
 EOF
 pause
@@ -100,7 +100,7 @@ info "File: $CLAUDE_CONFIG_DIR/settings.json"
 cat "$CLAUDE_CONFIG_DIR/settings.json" 2>/dev/null || info "(not found)"
 echo
 
-info "base-tools is the only active profile, so it gets the * marker."
+info "base-tools is applied at user scope -- these settings apply to all projects."
 pause
 
 # ===================================================================
@@ -120,9 +120,9 @@ info "File: $PROJECT_DIR/.claude/settings.json"
 cat "$PROJECT_DIR/.claude/settings.json" 2>/dev/null || info "(not found)"
 echo
 
-info "Expected: two profiles active with team-backend taking precedence."
-info "  * team-backend [project] -- highest precedence"
-info "  ○ base-tools [user]      -- overridden"
+info "Both profiles are now applied. Project scope takes precedence over user."
+info "  team-backend [project] -- higher precedence"
+info "  base-tools [user]      -- lower precedence"
 pause
 
 # ===================================================================
@@ -143,10 +143,10 @@ cat "$PROJECT_DIR/.claude/settings.local.json" 2>/dev/null || info "(not found)"
 echo
 
 info "Local scope overlays on top of both user and project settings."
-info "All three scopes are now active simultaneously:"
-info "  * my-overrides [local]   -- highest precedence"
-info "  ○ team-backend [project] -- overridden"
-info "  ○ base-tools [user]      -- overridden"
+info "All three scopes are now applied simultaneously:"
+info "  my-overrides [local]   -- highest precedence"
+info "  team-backend [project] -- middle precedence"
+info "  base-tools [user]      -- lowest precedence"
 info ""
 info "Claude sees all plugins from every scope. If the same setting"
 info "appears at multiple scopes, the highest scope wins."
@@ -172,9 +172,8 @@ info "Project: $PROJECT_DIR/.claude/settings.json"
 info "Local:   $PROJECT_DIR/.claude/settings.local.json"
 echo
 
-step "Project and local scopes record profiles in the registry"
-info "File: $CLAUDEUP_HOME/projects.json"
-cat "$CLAUDEUP_HOME/projects.json" 2>/dev/null || info "(not found)"
+step "Use profile status to see the effective configuration"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile status || info "(no profile status available)"
 pause
 
 # ===================================================================
@@ -188,8 +187,8 @@ info "  1. --user    writes to ~/.claude/settings.json (personal defaults)"
 info "  2. --project writes to .claude/settings.json (team, git-tracked)"
 info "  3. --local   writes to .claude/settings.local.json (personal, git-ignored)"
 info ""
-info "  profile list shows * for highest-precedence and ○ for overridden"
-info "  All scopes are active simultaneously -- they accumulate, not replace"
+info "  Use 'profile status' to see the effective configuration across all scopes"
+info "  All scopes are applied simultaneously -- they accumulate, not replace"
 echo
 
 prompt_cleanup

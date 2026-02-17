@@ -19,7 +19,7 @@ Team leads and developers who want to:
 | `03-isolated-workspace-demo.sh` | End-to-end demo simulating three team members (Alice, Bob, Charlie) with isolated environments, project-scoped extensions, and git-based sharing      |
 | `04-profile-layering.sh`        | Demonstrates combining personal (user scope) and team (project scope) profiles, shows precedence rules, and walks through a recommended team workflow |
 | `05-devcontainer-demo.sh`       | End-to-end demo using claudeup-lab to create real Docker containers for three team members with profile stacking via `--base-profile`                 |
-| `06-scope-apply-demo.sh`        | Applies profiles at all three scopes (user, project, local) and shows how `profile list` markers change as scopes accumulate                          |
+| `06-scope-apply-demo.sh`        | Applies profiles at all three scopes (user, project, local) and shows how settings accumulate across scopes                                           |
 
 ## Suggested order
 
@@ -35,8 +35,8 @@ shows the same team pattern using real Docker containers instead of environment 
 - **Project scope** (`.claude/settings.json`) holds team settings checked into git
 - **Local scope** (`.claude/settings.local.json`) holds personal overrides, git-ignored
 - Later scopes override earlier ones: local > project > user
-- User and project profiles can be active simultaneously -- they combine
-- `profile list` shows which profiles are active at each scope with `*` (active) and `○` (overridden) markers
+- User and project profiles can be applied simultaneously -- they combine
+- Use `profile status` to see the effective configuration across all scopes
 
 ## Recommended team workflow
 

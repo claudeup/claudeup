@@ -222,29 +222,10 @@ func runCleanup(cmd *cobra.Command, args []string) error {
 
 	// Handle missing plugins (enabled but not installed)
 	if len(missingPlugins) > 0 && !cleanupDryRun {
-		// Get active profile for smarter recommendations
-		activeProfile, _ := getActiveProfile(projectDir)
-
 		fmt.Println()
-		if activeProfile != "" && activeProfile != "none" {
-			// Use profile to reinstall
-			ui.PrintInfo(fmt.Sprintf("Reinstall %d missing plugin%s from profile '%s'?", len(missingPlugins), pluralS(len(missingPlugins)), activeProfile))
-			confirm, err := ui.ConfirmYesNo(fmt.Sprintf("Run 'claudeup profile apply %s --reinstall'?", activeProfile))
-			if err != nil {
-				return err
-			}
-			if confirm {
-				ui.PrintInfo("To reinstall missing plugins, run:")
-				fmt.Printf("  %s\n", ui.Bold(fmt.Sprintf("claudeup profile apply %s --reinstall", activeProfile)))
-				fmt.Println()
-				ui.PrintMuted("(This will be automated in a future version)")
-			}
-		} else {
-			// No active profile - show manual install commands
-			ui.PrintInfo("To reinstall missing plugins, run:")
-			for _, name := range missingPlugins {
-				fmt.Printf("  %s\n", ui.Muted("claude plugin install "+name))
-			}
+		ui.PrintInfo("To reinstall missing plugins, run:")
+		for _, name := range missingPlugins {
+			fmt.Printf("  %s\n", ui.Muted("claude plugin install "+name))
 		}
 	}
 

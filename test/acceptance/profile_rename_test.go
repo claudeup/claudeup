@@ -45,23 +45,6 @@ var _ = Describe("profile rename", func() {
 		})
 	})
 
-	Context("when old-name is the active profile", func() {
-		BeforeEach(func() {
-			env.CreateProfile(&profile.Profile{Name: "active-profile"})
-			env.SetActiveProfile("active-profile")
-		})
-
-		It("updates the active profile config", func() {
-			result := env.Run("profile", "rename", "active-profile", "renamed-profile")
-
-			Expect(result.ExitCode).To(Equal(0))
-
-			// Verify active profile was updated by checking profile current
-			currentResult := env.Run("profile", "current")
-			Expect(currentResult.Stdout).To(ContainSubstring("renamed-profile"))
-		})
-	})
-
 	Context("when new-name already exists", func() {
 		BeforeEach(func() {
 			env.CreateProfile(&profile.Profile{Name: "source"})
@@ -81,19 +64,6 @@ var _ = Describe("profile rename", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(env.ProfileExists("target")).To(BeTrue())
 			Expect(env.ProfileExists("source")).To(BeFalse())
-		})
-	})
-
-	Context("when new-name is 'current'", func() {
-		BeforeEach(func() {
-			env.CreateProfile(&profile.Profile{Name: "my-profile"})
-		})
-
-		It("rejects the reserved name", func() {
-			result := env.Run("profile", "rename", "my-profile", "current")
-
-			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("reserved"))
 		})
 	})
 

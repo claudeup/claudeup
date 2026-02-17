@@ -153,7 +153,7 @@ These files are created and managed exclusively by `claudeup`.
 
 **Owner:** claudeup
 **Format:** JSON
-**Purpose:** Global configuration (preferences, active profile)
+**Purpose:** Global configuration (preferences)
 
 **Read by:**
 
@@ -166,25 +166,6 @@ These files are created and managed exclusively by `claudeup`.
 - Triggered by:
   - First run (creates with defaults)
   - Any command that modifies global config
-
----
-
-### `~/.claudeup/projects.json`
-
-**Owner:** claudeup
-**Format:** JSON
-**Purpose:** Maps project directories to profiles for local scope
-
-**Read by:**
-
-- `internal/config/projects.go:LoadProjectsRegistry()`
-- Used by: status, profile operations
-
-**Written by:**
-
-- `internal/config/projects.go:SaveProjectsRegistry()`
-- Triggered by:
-  - `profile apply --local` - records which profile is active
 
 ---
 
@@ -299,7 +280,6 @@ These files are created and managed exclusively by `claudeup`.
 | `profile apply` (project)  | `./.claude/settings.json` (enabledPlugins replaced)               | WRITE      |
 | `profile apply` (project)  | `./.mcp.json` (MCP servers written)                               | WRITE      |
 | `profile apply` (local)    | `./.claude/settings.local.json` (enabledPlugins replaced)         | WRITE      |
-| `profile apply` (local)    | `~/.claudeup/projects.json` (project mapping updated)             | WRITE      |
 | `profile apply` (local)    | `~/.claudeup/backups/local-scope-{hash}.json` (backup)            | WRITE      |
 | `profile save`             | `~/.claudeup/profiles/{name}.json`                                | WRITE      |
 | `plugin install/uninstall` | Via claude CLI - may update registry                              | INDIRECT   |

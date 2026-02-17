@@ -136,39 +136,6 @@ func (e *TestEnv) DeleteProfile(name string) {
 	_ = os.Remove(path) // Ignore error if file doesn't exist
 }
 
-// SetActiveProfile sets the active profile in config
-func (e *TestEnv) SetActiveProfile(name string) {
-	config := map[string]interface{}{
-		"preferences": map[string]interface{}{
-			"activeProfile": name,
-		},
-	}
-	data, err := json.MarshalIndent(config, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(os.WriteFile(e.ConfigFile, data, 0644)).To(Succeed())
-}
-
-// GetActiveProfile returns the active profile name from config
-func (e *TestEnv) GetActiveProfile() string {
-	data, err := os.ReadFile(e.ConfigFile)
-	if err != nil {
-		return ""
-	}
-
-	var config map[string]interface{}
-	if err := json.Unmarshal(data, &config); err != nil {
-		return ""
-	}
-
-	if prefs, ok := config["preferences"].(map[string]interface{}); ok {
-		if activeProfile, ok := prefs["activeProfile"].(string); ok {
-			return activeProfile
-		}
-	}
-
-	return ""
-}
-
 // CreateClaudeSettings creates a fake claude.json settings file
 func (e *TestEnv) CreateClaudeSettings() {
 	settingsPath := filepath.Join(e.TempDir, ".claude.json")
@@ -303,42 +270,6 @@ func (e *TestEnv) CreateLocalScopeSettings(projectDir string, enabledPlugins map
 	Expect(os.WriteFile(filepath.Join(claudeDir, "settings.local.json"), jsonData, 0644)).To(Succeed())
 }
 
-// RegisterProjectScope registers a profile at project scope for a directory in projects.json.
-// Unlike RegisterProject (which sets local scope), this sets the projectProfile field.
-func (e *TestEnv) RegisterProjectScope(projectDir, profileName string) {
-	path := filepath.Join(e.ClaudeupDir, "projects.json")
-
-	normalizedDir := projectDir
-	if resolved, err := filepath.EvalSymlinks(projectDir); err == nil {
-		normalizedDir = resolved
-	}
-
-	// Read existing registry or create new
-	var registry map[string]interface{}
-	if data, err := os.ReadFile(path); err == nil {
-		json.Unmarshal(data, &registry)
-	}
-	if registry == nil {
-		registry = map[string]interface{}{
-			"version":  "1",
-			"projects": map[string]interface{}{},
-		}
-	}
-
-	projects := registry["projects"].(map[string]interface{})
-	entry, ok := projects[normalizedDir].(map[string]interface{})
-	if !ok {
-		entry = map[string]interface{}{}
-	}
-	entry["projectProfile"] = profileName
-	entry["projectAppliedAt"] = "2025-01-01T00:00:00Z"
-	projects[normalizedDir] = entry
-
-	data, err := json.MarshalIndent(registry, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(os.WriteFile(path, data, 0644)).To(Succeed())
-}
-
 // IsPluginEnabled checks if a plugin is enabled in settings.json
 func (e *TestEnv) IsPluginEnabled(pluginName string) bool {
 	data, err := os.ReadFile(filepath.Join(e.ClaudeDir, "settings.json"))
@@ -392,46 +323,6 @@ func (e *TestEnv) LoadMCPJSON(dir string) map[string]interface{} {
 // WriteFile writes arbitrary content to a file in the given directory
 func (e *TestEnv) WriteFile(dir, filename, content string) {
 	Expect(os.WriteFile(filepath.Join(dir, filename), []byte(content), 0644)).To(Succeed())
-}
-
-// LoadProjectsRegistry loads the projects.json registry
-func (e *TestEnv) LoadProjectsRegistry() map[string]interface{} {
-	path := filepath.Join(e.ClaudeupDir, "projects.json")
-	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	Expect(err).NotTo(HaveOccurred())
-
-	var registry map[string]interface{}
-	Expect(json.Unmarshal(data, &registry)).To(Succeed())
-	return registry
-}
-
-// RegisterProject adds a project to the projects.json registry (local scope)
-func (e *TestEnv) RegisterProject(projectDir, profileName string) {
-	path := filepath.Join(e.ClaudeupDir, "projects.json")
-
-	// Normalize path to handle macOS /var -> /private/var symlinks
-	// This matches what os.Getwd() returns when CLI runs from the directory
-	normalizedDir := projectDir
-	if resolved, err := filepath.EvalSymlinks(projectDir); err == nil {
-		normalizedDir = resolved
-	}
-
-	registry := map[string]interface{}{
-		"version": "1",
-		"projects": map[string]interface{}{
-			normalizedDir: map[string]interface{}{
-				"profile":   profileName,
-				"appliedAt": "2025-01-01T00:00:00Z",
-			},
-		},
-	}
-
-	data, err := json.MarshalIndent(registry, "", "  ")
-	Expect(err).NotTo(HaveOccurred())
-	Expect(os.WriteFile(path, data, 0644)).To(Succeed())
 }
 
 // RunInDir executes the CLI with a specific working directory

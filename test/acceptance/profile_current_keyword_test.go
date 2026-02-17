@@ -71,6 +71,15 @@ var _ = Describe("'current' keyword handling", func() {
 		})
 	})
 
+	Describe("profile apply current", func() {
+		It("rejects 'current' as a reserved name", func() {
+			result := env.Run("profile", "apply", "current", "--user")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("reserved"))
+		})
+	})
+
 	Describe("profile save current", func() {
 		It("rejects 'current' as a reserved name", func() {
 			result := env.Run("profile", "save", "current")
@@ -89,12 +98,4 @@ var _ = Describe("'current' keyword handling", func() {
 		})
 	})
 
-	Describe("profile apply current", func() {
-		It("rejects 'current' as a reserved name", func() {
-			result := env.Run("profile", "apply", "current")
-
-			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("reserved"))
-		})
-	})
 })

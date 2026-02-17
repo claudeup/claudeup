@@ -87,7 +87,7 @@ info "File: $CLAUDE_CONFIG_DIR/settings.json"
 cat "$CLAUDE_CONFIG_DIR/settings.json" 2>/dev/null || info "(not found)"
 echo
 
-info "personal-tools is the only active profile, so it gets the * marker."
+info "personal-tools is applied at user scope."
 info "These settings live in ~/.claude/settings.json and apply to all projects."
 pause
 
@@ -108,9 +108,9 @@ info "File: $PROJECT_DIR/.claude/settings.json"
 cat "$PROJECT_DIR/.claude/settings.json" 2>/dev/null || info "(not found)"
 echo
 
-info "Both profiles are now active simultaneously:"
-info "  * go-team [project]          -- highest precedence"
-info "  ○ personal-tools [user]      -- overridden on conflicts"
+info "Both profiles are now applied simultaneously:"
+info "  go-team [project]          -- higher precedence"
+info "  personal-tools [user]      -- lower precedence on conflicts"
 echo
 info "Claude sees plugins from BOTH scopes. If the same setting"
 info "appears at both scopes, project wins."
@@ -135,9 +135,8 @@ info "User:    $CLAUDE_CONFIG_DIR/settings.json"
 info "Project: $PROJECT_DIR/.claude/settings.json"
 echo
 
-step "The project registry tracks applied profiles"
-info "File: $CLAUDEUP_HOME/projects.json"
-cat "$CLAUDEUP_HOME/projects.json" 2>/dev/null || info "(not found)"
+step "Use profile status to see the effective configuration"
+run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile status || info "(no profile status available)"
 pause
 
 # ===================================================================
@@ -159,8 +158,8 @@ info "  - Override team settings with your own preferences"
 info "  - Temporary experiments or debugging config"
 info "  - See 06-scope-apply-demo.sh for a full three-scope example"
 echo
-info "profile list shows * for highest precedence and ○ for overridden."
-info "All scopes are active simultaneously -- they accumulate, not replace."
+info "Use 'profile status' to see the effective configuration across all scopes."
+info "All scopes are applied simultaneously -- they accumulate, not replace."
 pause
 
 # ===================================================================
@@ -173,8 +172,8 @@ info "What we demonstrated:"
 info "  1. --user    writes to ~/.claude/settings.json (tools for all projects)"
 info "  2. --project writes to .claude/settings.json (team config, git-tracked)"
 info ""
-info "  profile list shows * for highest-precedence and ○ for overridden"
-info "  Both scopes are active simultaneously -- they accumulate, not replace"
+info "  Use 'profile status' to see the effective configuration across all scopes"
+info "  Both scopes are applied simultaneously -- they accumulate, not replace"
 info ""
 info "New to a team? Apply your personal tools at user scope, then use"
 info "local scope (--local) to override any team project settings you"

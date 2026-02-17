@@ -23,9 +23,7 @@ section "1. List Available Profiles"
 step "See all profiles (built-in and custom)"
 run_cmd "$EXAMPLE_CLAUDEUP_BIN" profile list
 
-info "Profile markers:"
-info "  • * = currently active (highest precedence)"
-info "  • ○ = active but overridden by higher scope"
+info "Profiles marked (customized) are built-in profiles you've modified."
 pause
 
 section "2. View Profile Contents"

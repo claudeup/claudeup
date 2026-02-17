@@ -3,7 +3,6 @@
 package acceptance
 
 import (
-	"github.com/claudeup/claudeup/v5/internal/profile"
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -25,14 +24,6 @@ var _ = Describe("status", func() {
 				Expect(result.Stdout).To(ContainSubstring("claudeup Status"))
 			})
 
-			It("shows active profile as none", func() {
-				result := env.Run("status")
-
-				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("Active Profile"))
-				Expect(result.Stdout).To(ContainSubstring("none"))
-			})
-
 			It("shows marketplaces section with zero count", func() {
 				result := env.Run("status")
 
@@ -46,24 +37,6 @@ var _ = Describe("status", func() {
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).To(ContainSubstring("Plugins"))
 			})
-		})
-	})
-
-	Describe("with active profile", func() {
-		BeforeEach(func() {
-			env.CreateProfile(&profile.Profile{
-				Name:        "my-profile",
-				Description: "Test profile",
-			})
-			env.SetActiveProfile("my-profile")
-		})
-
-		It("displays the active profile name", func() {
-			result := env.Run("status")
-
-			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("Active Profile"))
-			Expect(result.Stdout).To(ContainSubstring("my-profile"))
 		})
 	})
 
