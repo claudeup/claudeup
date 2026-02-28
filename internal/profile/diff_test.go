@@ -26,6 +26,28 @@ func TestAsPerScope_AlreadyPerScope(t *testing.T) {
 	}
 }
 
+func TestAsPerScope_CopiesPerScope(t *testing.T) {
+	p := &Profile{
+		Name: "test",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{"a@market"},
+			},
+		},
+	}
+
+	result := p.AsPerScope()
+
+	// PerScope should be a different pointer
+	if result.PerScope == p.PerScope {
+		t.Error("expected AsPerScope to copy PerScope, got same pointer")
+	}
+	// But content should match
+	if len(result.PerScope.User.Plugins) != 1 || result.PerScope.User.Plugins[0] != "a@market" {
+		t.Errorf("expected user plugins [a@market], got %v", result.PerScope.User.Plugins)
+	}
+}
+
 func TestAsPerScope_LegacyProfile(t *testing.T) {
 	p := &Profile{
 		Name:        "test",
@@ -267,12 +289,64 @@ func TestComputeProfileDiff_MCPServerModified(t *testing.T) {
 			for _, item := range sd.Items {
 				if item.Op == DiffModified && item.Kind == DiffMCP && item.Name == "srv" {
 					found = true
+					if item.Detail != "command changed" {
+						t.Errorf("expected detail 'command changed', got %q", item.Detail)
+					}
 				}
 			}
 		}
 	}
 	if !found {
 		t.Error("expected modified MCP server 'srv' in user scope")
+	}
+}
+
+func TestMcpDiffDetail(t *testing.T) {
+	tests := []struct {
+		name   string
+		saved  MCPServer
+		live   MCPServer
+		expect string
+	}{
+		{
+			name:   "command changed",
+			saved:  MCPServer{Name: "s", Command: "old"},
+			live:   MCPServer{Name: "s", Command: "new"},
+			expect: "command changed",
+		},
+		{
+			name:   "args changed",
+			saved:  MCPServer{Name: "s", Command: "cmd", Args: []string{"a"}},
+			live:   MCPServer{Name: "s", Command: "cmd", Args: []string{"b"}},
+			expect: "args changed",
+		},
+		{
+			name:   "scope changed",
+			saved:  MCPServer{Name: "s", Command: "cmd", Scope: "user"},
+			live:   MCPServer{Name: "s", Command: "cmd", Scope: "project"},
+			expect: "scope changed",
+		},
+		{
+			name:   "multiple fields changed",
+			saved:  MCPServer{Name: "s", Command: "old", Scope: "user"},
+			live:   MCPServer{Name: "s", Command: "new", Scope: "project"},
+			expect: "command, scope changed",
+		},
+		{
+			name:   "secrets changed falls back to generic",
+			saved:  MCPServer{Name: "s", Command: "cmd", Secrets: map[string]SecretRef{"k": {}}},
+			live:   MCPServer{Name: "s", Command: "cmd"},
+			expect: "config changed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mcpDiffDetail(tt.saved, tt.live)
+			if got != tt.expect {
+				t.Errorf("expected %q, got %q", tt.expect, got)
+			}
+		})
 	}
 }
 

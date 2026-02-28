@@ -40,11 +40,11 @@ var _ = Describe("Profile diff vs live", func() {
 
 	Describe("profile matches live state", func() {
 		BeforeEach(func() {
-			// Save a profile whose description matches the auto-generated one
-			// SnapshotAllScopes generates "Empty profile" for an empty snapshot
+			// Description is intentionally different from live snapshot's auto-generated
+			// description -- live diffs skip description comparison
 			env.CreateProfile(&profile.Profile{
 				Name:        "empty-match",
-				Description: "Empty profile",
+				Description: "My custom description",
 			})
 		})
 
@@ -138,6 +138,8 @@ var _ = Describe("Profile diff vs live", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("User"))
 			Expect(result.Stdout).To(ContainSubstring("user-plugin@marketplace"))
+			Expect(result.Stdout).To(ContainSubstring("Project"))
+			Expect(result.Stdout).To(ContainSubstring("project-plugin@marketplace"))
 		})
 	})
 

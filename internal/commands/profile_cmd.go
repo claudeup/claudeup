@@ -1598,6 +1598,10 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	// Load saved profile (disk first, fallback to embedded)
 	saved, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(err, &ambigErr) {
+			return ambigErr
+		}
 		return fmt.Errorf("profile '%s' not found", name)
 	}
 
@@ -1616,9 +1620,9 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	savedNorm := saved.AsPerScope()
 	liveNorm := live.AsPerScope()
 
-	// Compute and display diff
+	// Compute and display diff (skip description -- live snapshots auto-generate descriptions)
 	diff := profile.ComputeProfileDiff(savedNorm, liveNorm)
-	diff.ProfileName = name
+	diff.DescriptionChange = nil
 	if diff.IsEmpty() {
 		fmt.Printf("Profile '%s' matches live state. No differences.\n", name)
 		return nil

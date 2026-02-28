@@ -2,6 +2,8 @@
 // ABOUTME: Types and functions for scope-aware profile comparison
 package profile
 
+import "strings"
+
 // DiffOp represents the type of difference
 type DiffOp string
 
@@ -26,7 +28,7 @@ type DiffItem struct {
 	Op     DiffOp
 	Kind   DiffItemKind
 	Name   string
-	Detail string // extension subcategory or MCP config change summary
+	Detail string // optional context (e.g., extension category, changed MCP field)
 }
 
 // ScopeDiff contains all differences for a single scope
@@ -86,7 +88,11 @@ func (p *Profile) AsPerScope() *Profile {
 	}
 
 	if p.PerScope != nil {
-		result.PerScope = p.PerScope
+		result.PerScope = &PerScopeSettings{
+			User:    p.PerScope.User,
+			Project: p.PerScope.Project,
+			Local:   p.PerScope.Local,
+		}
 		return result
 	}
 
@@ -238,7 +244,7 @@ func diffMCPServers(saved, live []MCPServer) []DiffItem {
 		if !exists {
 			items = append(items, DiffItem{Op: DiffAdded, Kind: DiffMCP, Name: l.Name})
 		} else if !mcpServersEqual(s, l) {
-			items = append(items, DiffItem{Op: DiffModified, Kind: DiffMCP, Name: l.Name})
+			items = append(items, DiffItem{Op: DiffModified, Kind: DiffMCP, Name: l.Name, Detail: mcpDiffDetail(s, l)})
 		}
 	}
 
@@ -250,6 +256,31 @@ func diffMCPServers(saved, live []MCPServer) []DiffItem {
 	}
 
 	return items
+}
+
+// mcpDiffDetail returns a summary of what changed between two MCP servers
+func mcpDiffDetail(saved, live MCPServer) string {
+	var changes []string
+	if saved.Command != live.Command {
+		changes = append(changes, "command")
+	}
+	if len(saved.Args) != len(live.Args) {
+		changes = append(changes, "args")
+	} else {
+		for i := range saved.Args {
+			if saved.Args[i] != live.Args[i] {
+				changes = append(changes, "args")
+				break
+			}
+		}
+	}
+	if saved.Scope != live.Scope {
+		changes = append(changes, "scope")
+	}
+	if len(changes) == 0 {
+		return "config changed"
+	}
+	return strings.Join(changes, ", ") + " changed"
 }
 
 // diffExtensions computes added/removed extensions per category
