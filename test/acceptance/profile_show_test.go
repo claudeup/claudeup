@@ -65,21 +65,26 @@ var _ = Describe("profile show", func() {
 			Expect(result.Stdout).To(ContainSubstring("user-mcp"))
 		})
 
-		It("shows extensions", func() {
+		It("shows extensions under scope section", func() {
 			result := env.Run("profile", "show", "multi-scope")
 
 			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Extensions:"))
 			Expect(result.Stdout).To(ContainSubstring("test-runner/test-runner.md"))
 			Expect(result.Stdout).To(ContainSubstring("commit.md"))
 			Expect(result.Stdout).To(ContainSubstring("golang"))
 		})
 
-		It("shows scope labels for plugins", func() {
+		It("shows scope headers instead of inline scope tags", func() {
 			result := env.Run("profile", "show", "multi-scope")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("user"))
-			Expect(result.Stdout).To(ContainSubstring("project"))
+			// Scope-grouped format uses scope headers
+			Expect(result.Stdout).To(ContainSubstring("User scope"))
+			Expect(result.Stdout).To(ContainSubstring("Project scope"))
+			// Should NOT have inline [scope] tags
+			Expect(result.Stdout).NotTo(ContainSubstring("[user]"))
+			Expect(result.Stdout).NotTo(ContainSubstring("[project]"))
 		})
 	})
 
