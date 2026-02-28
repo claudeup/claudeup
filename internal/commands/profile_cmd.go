@@ -1294,9 +1294,9 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	scopeLabel := "all scopes"
-	if resolvedScope != "" {
-		scopeLabel = resolvedScope + " scope"
+	scopeLabel := resolvedScope + " scope"
+	if resolvedScope == "" {
+		scopeLabel = scopeLabelFromProfile(p)
 	}
 	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
 	fmt.Println()
@@ -1327,6 +1327,32 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
 
 	return nil
+}
+
+// scopeLabelFromProfile returns a human-readable label describing which
+// scopes a profile contains (e.g. "user scope", "all scopes").
+func scopeLabelFromProfile(p *profile.Profile) string {
+	if p == nil || p.PerScope == nil {
+		return "all scopes"
+	}
+	var scopes []string
+	if p.PerScope.User != nil {
+		scopes = append(scopes, "user")
+	}
+	if p.PerScope.Project != nil {
+		scopes = append(scopes, "project")
+	}
+	if p.PerScope.Local != nil {
+		scopes = append(scopes, "local")
+	}
+	switch len(scopes) {
+	case 0:
+		return "all scopes"
+	case 1:
+		return scopes[0] + " scope"
+	default:
+		return "all scopes"
+	}
 }
 
 func runProfileShow(cmd *cobra.Command, args []string) error {
