@@ -9,6 +9,7 @@
     "claude-mem@thedotmack": true,
     "code-documentation@claude-code-workflows": true,
     "elements-of-style@superpowers-marketplace": true,
+    "gopls-lsp@claude-plugins-official": true,
     "superpowers@superpowers-marketplace": true,
     "tdd-workflows@claude-code-workflows": true,
     "unit-testing@claude-code-workflows": true
