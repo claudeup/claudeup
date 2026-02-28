@@ -141,6 +141,180 @@ var _ = Describe("profile list", func() {
 		})
 	})
 
+	Describe("path prefix grouping", func() {
+		Context("with nested profiles under path prefixes", func() {
+			BeforeEach(func() {
+				// Ungrouped profile (no prefix)
+				env.CreateProfile(&profile.Profile{
+					Name:        "base",
+					Description: "base marketplaces and plugins",
+				})
+				// Profiles under languages/ prefix
+				env.CreateNestedProfile("languages", &profile.Profile{
+					Name:        "go",
+					Description: "Go language development",
+				})
+				env.CreateNestedProfile("languages", &profile.Profile{
+					Name:        "python",
+					Description: "Python development",
+				})
+				// Profiles under tools/ prefix
+				env.CreateNestedProfile("tools", &profile.Profile{
+					Name:        "conductor",
+					Description: "my conductor settings",
+				})
+			})
+
+			It("shows group headers for prefixed profiles", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("languages/"))
+				Expect(result.Stdout).To(ContainSubstring("tools/"))
+			})
+
+			It("shows short names under group headers", func() {
+				result := env.Run("profile", "list")
+
+				lines := splitLines(result.Stdout)
+				langIdx := findLineContaining(lines, "languages/")
+				Expect(langIdx).To(BeNumerically(">=", 0), "languages/ header not found")
+
+				// "go" and "python" should appear after the languages/ header
+				goIdx := findLineContainingAfter(lines, langIdx+1, "go")
+				Expect(goIdx).To(BeNumerically(">", langIdx))
+
+				pythonIdx := findLineContainingAfter(lines, langIdx+1, "python")
+				Expect(pythonIdx).To(BeNumerically(">", langIdx))
+			})
+
+			It("shows ungrouped profiles before grouped sections", func() {
+				result := env.Run("profile", "list")
+
+				lines := splitLines(result.Stdout)
+				yourIdx := findLineContaining(lines, "Your profiles")
+				Expect(yourIdx).To(BeNumerically(">=", 0))
+
+				baseIdx := findLineContainingAfter(lines, yourIdx, "base")
+				langIdx := findLineContaining(lines, "languages/")
+				toolsIdx := findLineContaining(lines, "tools/")
+
+				Expect(baseIdx).To(BeNumerically("<", langIdx),
+					"ungrouped profile 'base' should appear before 'languages/' group")
+				Expect(baseIdx).To(BeNumerically("<", toolsIdx),
+					"ungrouped profile 'base' should appear before 'tools/' group")
+			})
+
+			It("sorts groups alphabetically", func() {
+				result := env.Run("profile", "list")
+
+				lines := splitLines(result.Stdout)
+				langIdx := findLineContaining(lines, "languages/")
+				toolsIdx := findLineContaining(lines, "tools/")
+
+				Expect(langIdx).To(BeNumerically("<", toolsIdx),
+					"'languages/' group should appear before 'tools/' group")
+			})
+		})
+	})
+
+	Describe("hidden profile filtering", func() {
+		Context("with underscore-prefixed profiles", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{
+					Name:        "my-visible",
+					Description: "A visible profile",
+				})
+				env.CreateProfile(&profile.Profile{
+					Name:        "_lab-snapshot-1",
+					Description: "Lab snapshot",
+				})
+				env.CreateProfile(&profile.Profile{
+					Name:        "_lab-snapshot-2",
+					Description: "Another lab snapshot",
+				})
+			})
+
+			It("hides underscore-prefixed profiles by default", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("my-visible"))
+				Expect(result.Stdout).NotTo(ContainSubstring("_lab-snapshot-1"))
+				Expect(result.Stdout).NotTo(ContainSubstring("_lab-snapshot-2"))
+			})
+
+			It("shows hidden profile count", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("2 hidden"))
+				Expect(result.Stdout).To(ContainSubstring("--all"))
+			})
+
+			It("shows all profiles with --all flag", func() {
+				result := env.Run("profile", "list", "--all")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("my-visible"))
+				Expect(result.Stdout).To(ContainSubstring("_lab-snapshot-1"))
+				Expect(result.Stdout).To(ContainSubstring("_lab-snapshot-2"))
+			})
+
+			It("does not show hidden count with --all flag", func() {
+				result := env.Run("profile", "list", "--all")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("hidden"))
+			})
+		})
+
+		Context("with no hidden profiles", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{
+					Name:        "visible-only",
+					Description: "A regular profile",
+				})
+			})
+
+			It("does not show hidden count message", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).NotTo(ContainSubstring("hidden"))
+			})
+		})
+
+		Context("with underscore-prefixed nested profiles", func() {
+			BeforeEach(func() {
+				env.CreateNestedProfile("tools", &profile.Profile{
+					Name:        "_internal-tool",
+					Description: "Hidden nested tool",
+				})
+				env.CreateNestedProfile("tools", &profile.Profile{
+					Name:        "visible-tool",
+					Description: "Visible tool",
+				})
+			})
+
+			It("hides nested underscore-prefixed profiles by default", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("visible-tool"))
+				Expect(result.Stdout).NotTo(ContainSubstring("_internal-tool"))
+			})
+
+			It("shows nested hidden profiles with --all", func() {
+				result := env.Run("profile", "list", "--all")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("_internal-tool"))
+				Expect(result.Stdout).To(ContainSubstring("visible-tool"))
+			})
+		})
+	})
+
 })
 
 var _ = Describe("profile delete", func() {
@@ -332,6 +506,16 @@ func contains(s, substr string) bool {
 func findSubstring(s, substr string) int {
 	for i := 0; i <= len(s)-len(substr); i++ {
 		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+// findLineContainingAfter finds the first line containing substr starting from startIdx
+func findLineContainingAfter(lines []string, startIdx int, substr string) int {
+	for i := startIdx; i < len(lines); i++ {
+		if contains(lines[i], substr) {
 			return i
 		}
 	}

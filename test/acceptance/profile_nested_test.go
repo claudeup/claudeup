@@ -20,7 +20,7 @@ var _ = Describe("nested profile discovery", func() {
 	})
 
 	Describe("profile list", func() {
-		It("shows nested profiles with their relative path", func() {
+		It("shows nested profiles grouped by prefix", func() {
 			env.CreateNestedProfile("backend", &profile.Profile{
 				Name:        "api",
 				Description: "Backend API service",
@@ -30,7 +30,8 @@ var _ = Describe("nested profile discovery", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Your profiles"))
-			Expect(result.Stdout).To(ContainSubstring("backend/api"))
+			Expect(result.Stdout).To(ContainSubstring("backend/"))
+			Expect(result.Stdout).To(ContainSubstring("api"))
 			Expect(result.Stdout).To(ContainSubstring("Backend API service"))
 		})
 
@@ -48,10 +49,11 @@ var _ = Describe("nested profile discovery", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("mobile"))
-			Expect(result.Stdout).To(ContainSubstring("backend/worker"))
+			Expect(result.Stdout).To(ContainSubstring("backend/"))
+			Expect(result.Stdout).To(ContainSubstring("worker"))
 		})
 
-		It("shows deeply nested profiles", func() {
+		It("shows deeply nested profiles under top-level group", func() {
 			env.CreateNestedProfile("team/backend", &profile.Profile{
 				Name:        "worker",
 				Description: "Team worker profile",
@@ -60,7 +62,9 @@ var _ = Describe("nested profile discovery", func() {
 			result := env.Run("profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			Expect(result.Stdout).To(ContainSubstring("team/backend/worker"))
+			// Grouped by first path component; short name includes remaining path
+			Expect(result.Stdout).To(ContainSubstring("team/"))
+			Expect(result.Stdout).To(ContainSubstring("backend/worker"))
 		})
 	})
 
@@ -99,9 +103,9 @@ var _ = Describe("nested profile discovery", func() {
 			result := env.Run("profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			// Both should appear with paths since they share a name
+			// Root "api" appears ungrouped, nested "api" appears under backend/ group
 			Expect(result.Stdout).To(ContainSubstring("api"))
-			Expect(result.Stdout).To(ContainSubstring("backend/api"))
+			Expect(result.Stdout).To(ContainSubstring("backend/"))
 		})
 	})
 

@@ -291,6 +291,9 @@ var (
 	profileSaveLocal   bool
 )
 
+// Flags for profile list command
+var profileListAll bool
+
 // Flags for profile clean command
 var (
 	profileCleanScope   string
@@ -500,6 +503,8 @@ func resolveProfileArg(profilesDir, nameOrPath string) (string, error) {
 func init() {
 	rootCmd.AddCommand(profileCmd)
 	profileCmd.AddCommand(profileListCmd)
+	profileListCmd.Flags().BoolVarP(&profileListAll, "all", "a", false, "Show all profiles including hidden ones (prefixed with _)")
+
 	profileCmd.AddCommand(profileApplyCmd)
 	profileCmd.AddCommand(profileSaveCmd)
 	profileCmd.AddCommand(profileCreateCmd)
@@ -615,21 +620,107 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 	}
 
-	// Show user profiles section
-	if len(customProfiles) > 0 {
+	// Filter and group user profiles
+	var visibleProfiles []*profile.ProfileWithSource
+	hiddenCount := 0
+	for _, p := range customProfiles {
+		displayName := p.DisplayName()
+		baseName := displayName
+		if idx := strings.LastIndex(displayName, "/"); idx >= 0 {
+			baseName = displayName[idx+1:]
+		}
+		if !profileListAll && strings.HasPrefix(baseName, "_") {
+			hiddenCount++
+			continue
+		}
+		visibleProfiles = append(visibleProfiles, p)
+	}
+
+	if len(visibleProfiles) > 0 {
 		fmt.Println(ui.Bold("Your profiles"))
 		fmt.Println()
-		for _, p := range customProfiles {
+
+		// Separate into ungrouped and grouped by path prefix
+		type groupedProfile struct {
+			shortName string
+			profile   *profile.ProfileWithSource
+		}
+		ungrouped := []groupedProfile{}
+		groups := map[string][]groupedProfile{}
+		var groupNames []string
+
+		for _, p := range visibleProfiles {
 			displayName := p.DisplayName()
-			desc := p.Description
+			if idx := strings.Index(displayName, "/"); idx >= 0 {
+				groupName := displayName[:idx]
+				shortName := displayName[idx+1:]
+				if _, exists := groups[groupName]; !exists {
+					groupNames = append(groupNames, groupName)
+				}
+				groups[groupName] = append(groups[groupName], groupedProfile{shortName, p})
+			} else {
+				ungrouped = append(ungrouped, groupedProfile{displayName, p})
+			}
+		}
+		sort.Strings(groupNames)
+
+		// Calculate column width from longest short name across all profiles
+		maxNameLen := 0
+		for _, gp := range ungrouped {
+			if len(gp.shortName) > maxNameLen {
+				maxNameLen = len(gp.shortName)
+			}
+		}
+		for _, name := range groupNames {
+			for _, gp := range groups[name] {
+				if len(gp.shortName) > maxNameLen {
+					maxNameLen = len(gp.shortName)
+				}
+			}
+		}
+		if maxNameLen < 20 {
+			maxNameLen = 20
+		}
+		colFmt := fmt.Sprintf("%%-%ds %%s\n", maxNameLen)
+
+		// Render ungrouped profiles first
+		for _, gp := range ungrouped {
+			desc := gp.profile.Description
 			if desc == "" {
 				desc = ui.Muted("(no description)")
 			}
-			if p.IsStack() {
+			if gp.profile.IsStack() {
 				desc += " " + ui.Muted("[stack]")
 			}
-			fmt.Printf("  %-20s %s\n", displayName, desc)
+			fmt.Printf("  "+colFmt, gp.shortName, desc)
 		}
+
+		// Render grouped profiles
+		for _, groupName := range groupNames {
+			if len(ungrouped) > 0 || groupName != groupNames[0] {
+				fmt.Println()
+			}
+			fmt.Printf("  %s/\n", groupName)
+			for _, gp := range groups[groupName] {
+				desc := gp.profile.Description
+				if desc == "" {
+					desc = ui.Muted("(no description)")
+				}
+				if gp.profile.IsStack() {
+					desc += " " + ui.Muted("[stack]")
+				}
+				fmt.Printf("    "+colFmt, gp.shortName, desc)
+			}
+		}
+		fmt.Println()
+
+		if hiddenCount > 0 {
+			fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("(%d hidden profiles — use --all to show)", hiddenCount)))
+			fmt.Println()
+		}
+	} else if hiddenCount > 0 {
+		// All custom profiles are hidden
+		fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("(%d hidden profiles — use --all to show)", hiddenCount)))
 		fmt.Println()
 	}
 
