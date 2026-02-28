@@ -8,15 +8,15 @@
     { "source": "github", "repo": "davila7/claude-code-templates" }
   ],
   "plugins": [
-    "frontend-design@claude-code-plugins",
+    "frontend-design@claude-plugins-official",
     "nextjs-vercel-pro@claude-code-templates",
     "testing-suite@claude-code-templates",
     "performance-optimizer@claude-code-templates",
     "superpowers@superpowers-marketplace",
     "superpowers-chrome@superpowers-marketplace",
     "episodic-memory@superpowers-marketplace",
-    "commit-commands@claude-code-plugins",
-    "code-review@claude-code-plugins"
+    "commit-commands@claude-plugins-official",
+    "code-review@claude-plugins-official"
   ],
   "detect": {
     "files": [

@@ -450,11 +450,11 @@ claudeup setup --profile frontend
 
 **Plugins:**
 
-- `frontend-design@claude-code-plugins` - Distinctive UI/UX implementation
+- `frontend-design@claude-plugins-official` - Distinctive UI/UX implementation
 - `nextjs-vercel-pro@claude-code-templates` - Next.js scaffolding, components, Vercel deployment
 - `superpowers@superpowers-marketplace` - TDD, debugging, collaboration patterns
 - `episodic-memory@superpowers-marketplace` - Memory across sessions
-- `commit-commands@claude-code-plugins` - Git workflow automation
+- `commit-commands@claude-plugins-official` - Git workflow automation
 
 **Auto-detects:** `next.config.*`, `tailwind.config.*`, `components.json`
 
@@ -477,7 +477,7 @@ claudeup setup --profile frontend-full
 - `testing-suite@claude-code-templates` - Playwright E2E testing (adds Playwright MCP)
 - `performance-optimizer@claude-code-templates` - Bundle analysis, profiling
 - `superpowers-chrome@superpowers-marketplace` - Chrome DevTools Protocol access
-- `code-review@claude-code-plugins` - PR review automation
+- `code-review@claude-plugins-official` - PR review automation
 
 **Auto-detects:** Everything in `frontend`, plus `playwright.config.*`
 

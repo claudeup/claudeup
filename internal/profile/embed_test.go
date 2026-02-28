@@ -49,16 +49,21 @@ func TestGetEmbeddedFrontendProfile(t *testing.T) {
 		t.Errorf("Expected 3 marketplaces, got %d", len(p.Marketplaces))
 	}
 
-	// Verify plugins
+	// Verify plugins match exactly (order and values)
 	expectedPlugins := []string{
-		"frontend-design@claude-code-plugins",
+		"frontend-design@claude-plugins-official",
 		"nextjs-vercel-pro@claude-code-templates",
 		"superpowers@superpowers-marketplace",
 		"episodic-memory@superpowers-marketplace",
-		"commit-commands@claude-code-plugins",
+		"commit-commands@claude-plugins-official",
 	}
 	if len(p.Plugins) != len(expectedPlugins) {
-		t.Errorf("Expected %d plugins, got %d", len(expectedPlugins), len(p.Plugins))
+		t.Fatalf("Expected %d plugins, got %d: %v", len(expectedPlugins), len(p.Plugins), p.Plugins)
+	}
+	for i, expected := range expectedPlugins {
+		if p.Plugins[i] != expected {
+			t.Errorf("Plugin %d: expected %q, got %q", i, expected, p.Plugins[i])
+		}
 	}
 
 	// Verify detect rules
@@ -77,21 +82,25 @@ func TestGetEmbeddedFrontendFullProfile(t *testing.T) {
 		t.Errorf("Expected name 'frontend-full', got %q", p.Name)
 	}
 
-	// Should have more plugins than frontend (lean)
-	if len(p.Plugins) < 7 {
-		t.Errorf("Expected at least 7 plugins for frontend-full, got %d", len(p.Plugins))
+	// Verify plugins match exactly (order and values)
+	expectedPlugins := []string{
+		"frontend-design@claude-plugins-official",
+		"nextjs-vercel-pro@claude-code-templates",
+		"testing-suite@claude-code-templates",
+		"performance-optimizer@claude-code-templates",
+		"superpowers@superpowers-marketplace",
+		"superpowers-chrome@superpowers-marketplace",
+		"episodic-memory@superpowers-marketplace",
+		"commit-commands@claude-plugins-official",
+		"code-review@claude-plugins-official",
 	}
-
-	// Should include testing-suite
-	hasTestingSuite := false
-	for _, plugin := range p.Plugins {
-		if plugin == "testing-suite@claude-code-templates" {
-			hasTestingSuite = true
-			break
+	if len(p.Plugins) != len(expectedPlugins) {
+		t.Fatalf("Expected %d plugins, got %d: %v", len(expectedPlugins), len(p.Plugins), p.Plugins)
+	}
+	for i, expected := range expectedPlugins {
+		if p.Plugins[i] != expected {
+			t.Errorf("Plugin %d: expected %q, got %q", i, expected, p.Plugins[i])
 		}
-	}
-	if !hasTestingSuite {
-		t.Error("Expected frontend-full to include testing-suite@claude-code-templates")
 	}
 }
 
