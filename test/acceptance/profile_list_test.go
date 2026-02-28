@@ -196,6 +196,7 @@ var _ = Describe("profile list", func() {
 				Expect(yourIdx).To(BeNumerically(">=", 0))
 
 				baseIdx := findLineContainingAfter(lines, yourIdx, "base")
+				Expect(baseIdx).To(BeNumerically(">=", 0), "base profile not found in output")
 				langIdx := findLineContaining(lines, "languages/")
 				toolsIdx := findLineContaining(lines, "tools/")
 
@@ -282,6 +283,36 @@ var _ = Describe("profile list", func() {
 
 				Expect(result.ExitCode).To(Equal(0))
 				Expect(result.Stdout).NotTo(ContainSubstring("hidden"))
+			})
+		})
+
+		Context("with only underscore-prefixed profiles", func() {
+			BeforeEach(func() {
+				env.CreateProfile(&profile.Profile{
+					Name:        "_snap-1",
+					Description: "Snapshot one",
+				})
+				env.CreateProfile(&profile.Profile{
+					Name:        "_snap-2",
+					Description: "Snapshot two",
+				})
+			})
+
+			It("shows hidden count without Your profiles header", func() {
+				result := env.Run("profile", "list")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("2 hidden"))
+				Expect(result.Stdout).NotTo(ContainSubstring("Your profiles"))
+			})
+
+			It("shows all profiles with -a short flag", func() {
+				result := env.Run("profile", "list", "-a")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("_snap-1"))
+				Expect(result.Stdout).To(ContainSubstring("_snap-2"))
+				Expect(result.Stdout).To(ContainSubstring("Your profiles"))
 			})
 		})
 

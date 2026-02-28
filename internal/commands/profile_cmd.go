@@ -628,6 +628,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		if displayName == "" {
 			continue
 		}
+		// Use the leaf segment for hidden-prefix detection (e.g. "team/backend/_internal" → "_internal")
 		baseName := displayName
 		if idx := strings.LastIndex(displayName, "/"); idx >= 0 {
 			baseName = displayName[idx+1:]
@@ -654,6 +655,7 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 		for _, p := range visibleProfiles {
 			displayName := p.DisplayName()
+			// Split on first "/" to group by top-level directory
 			if idx := strings.Index(displayName, "/"); idx >= 0 {
 				groupName := displayName[:idx]
 				shortName := displayName[idx+1:]
@@ -700,6 +702,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 
 		// Render grouped profiles
 		for _, groupName := range groupNames {
+			// Blank line before first group only when ungrouped profiles precede it,
+			// and always before subsequent groups
 			if len(ungrouped) > 0 || groupName != groupNames[0] {
 				fmt.Println()
 			}
