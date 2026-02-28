@@ -1488,8 +1488,9 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	// Header
 	fmt.Printf("Effective configuration for %s\n\n", ui.Bold(cwd))
 
-	anyPlugins := false
+	anyContent := false
 	var allPluginNames []string
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	for _, scope := range []string{"user", "project", "local"} {
 		// Skip project/local if not in project directory
@@ -1517,11 +1518,22 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 		sort.Strings(enabled)
 		sort.Strings(disabled)
 
-		if len(enabled) == 0 && len(disabled) == 0 {
+		// Read MCP servers for this scope
+		mcpServers, _ := profile.ReadMCPServersForScope(claudeJSONPath, cwd, scope)
+
+		// Read extensions for this scope
+		var extensions *profile.ExtensionSettings
+		if scope == "user" {
+			extensions, _ = profile.ReadExtensions(claudeDir, claudeupHome)
+		} else if scope == "project" {
+			extensions = profile.ReadProjectExtensions(cwd)
+		}
+
+		if len(enabled) == 0 && len(disabled) == 0 && len(mcpServers) == 0 && countExtensions(extensions) == 0 {
 			continue
 		}
 
-		anyPlugins = true
+		anyContent = true
 		allPluginNames = append(allPluginNames, enabled...)
 
 		// Scope header
@@ -1544,11 +1556,17 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		// MCP Servers
+		displayMCPServers(mcpServers, "    ")
+
+		// Extensions
+		displayExtensionCategories(extensions, "    ")
+
 		fmt.Println()
 	}
 
-	if !anyPlugins {
-		fmt.Printf("  %s\n\n", ui.Muted("No plugins configured at any scope."))
+	if !anyContent {
+		fmt.Printf("  %s\n\n", ui.Muted("No configuration found at any scope."))
 	}
 
 	// Marketplaces section

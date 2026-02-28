@@ -3,6 +3,10 @@
 package acceptance
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -72,12 +76,130 @@ var _ = Describe("profile status", func() {
 			})
 		})
 
-		Context("with no plugins at any scope", func() {
+		Context("with user-scope MCP servers", func() {
+			BeforeEach(func() {
+				claudeJSON := map[string]interface{}{
+					"mcpServers": map[string]interface{}{
+						"test-server": map[string]interface{}{
+							"command": "npx",
+							"args":    []string{"test-server"},
+						},
+					},
+				}
+				data, err := json.MarshalIndent(claudeJSON, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), data, 0644)).To(Succeed())
+			})
+
+			It("shows MCP servers in user scope", func() {
+				result := env.Run("profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("User scope"))
+				Expect(result.Stdout).To(ContainSubstring("MCP Servers:"))
+				Expect(result.Stdout).To(ContainSubstring("test-server"))
+			})
+		})
+
+		Context("with project-scope MCP servers", func() {
+			var projectDir string
+
+			BeforeEach(func() {
+				projectDir = env.ProjectDir("mcp-project-test")
+
+				// Create .claude dir so project scope is checked
+				Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
+
+				mcpJSON := map[string]interface{}{
+					"mcpServers": map[string]interface{}{
+						"project-server": map[string]interface{}{
+							"command": "node",
+							"args":    []string{"server.js"},
+						},
+					},
+				}
+				data, err := json.MarshalIndent(mcpJSON, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(projectDir, ".mcp.json"), data, 0644)).To(Succeed())
+			})
+
+			It("shows MCP servers in project scope", func() {
+				result := env.RunInDir(projectDir, "profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Project scope"))
+				Expect(result.Stdout).To(ContainSubstring("MCP Servers:"))
+				Expect(result.Stdout).To(ContainSubstring("project-server"))
+			})
+		})
+
+		Context("with user-scope extensions", func() {
+			BeforeEach(func() {
+				// Create extension source file in claudeupHome
+				extAgentsDir := filepath.Join(env.ClaudeupDir, "ext", "agents")
+				Expect(os.MkdirAll(extAgentsDir, 0755)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(extAgentsDir, "test-agent.md"), []byte("# Test Agent"), 0644)).To(Succeed())
+
+				// Create symlink in active directory
+				activeAgentsDir := filepath.Join(env.ClaudeDir, "agents")
+				Expect(os.MkdirAll(activeAgentsDir, 0755)).To(Succeed())
+				Expect(os.Symlink(
+					filepath.Join(extAgentsDir, "test-agent.md"),
+					filepath.Join(activeAgentsDir, "test-agent.md"),
+				)).To(Succeed())
+
+				// Create enabled.json
+				enabledConfig := map[string]map[string]bool{
+					"agents": {"test-agent.md": true},
+				}
+				data, err := json.MarshalIndent(enabledConfig, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), data, 0644)).To(Succeed())
+			})
+
+			It("shows extensions in user scope", func() {
+				result := env.Run("profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("User scope"))
+				Expect(result.Stdout).To(ContainSubstring("Extensions:"))
+				Expect(result.Stdout).To(ContainSubstring("Agents:"))
+				Expect(result.Stdout).To(ContainSubstring("test-agent.md"))
+			})
+		})
+
+		Context("with MCP servers but no plugins", func() {
+			BeforeEach(func() {
+				claudeJSON := map[string]interface{}{
+					"mcpServers": map[string]interface{}{
+						"mcp-only-server": map[string]interface{}{
+							"command": "npx",
+							"args":    []string{"mcp-server"},
+						},
+					},
+				}
+				data, err := json.MarshalIndent(claudeJSON, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), data, 0644)).To(Succeed())
+			})
+
+			It("shows scope section for MCP-only scope", func() {
+				result := env.Run("profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("User scope"))
+				Expect(result.Stdout).To(ContainSubstring("MCP Servers:"))
+				Expect(result.Stdout).To(ContainSubstring("mcp-only-server"))
+				Expect(result.Stdout).NotTo(ContainSubstring("No configuration"))
+			})
+		})
+
+		Context("with no configuration at any scope", func() {
 			It("shows empty configuration message", func() {
 				result := env.Run("profile", "status")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("No plugins"))
+				Expect(result.Stdout).To(ContainSubstring("No configuration"))
 			})
 		})
 	})

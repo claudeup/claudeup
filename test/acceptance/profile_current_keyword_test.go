@@ -66,7 +66,7 @@ var _ = Describe("'current' keyword handling", func() {
 				result := env.Run("profile", "show", "current")
 
 				Expect(result.ExitCode).To(Equal(0))
-				Expect(result.Stdout).To(ContainSubstring("No plugins"))
+				Expect(result.Stdout).To(ContainSubstring("No configuration"))
 			})
 		})
 	})
