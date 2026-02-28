@@ -1892,7 +1892,27 @@ func validateNewProfileName(name, profilesDir string) error {
 }
 
 // saveAndPrintNewProfile saves a new profile and prints a success message
+// registryKeysFromInstalled loads marketplace registry keys from the user's
+// Claude installation. Returns nil if the registry cannot be loaded (e.g.,
+// no plugins directory or fresh install).
+func registryKeysFromInstalled() []string {
+	registry, err := claude.LoadMarketplaces(claudeDir)
+	if err != nil {
+		return nil
+	}
+	keys := make([]string, 0, len(registry))
+	for key := range registry {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
 func saveAndPrintNewProfile(p *profile.Profile, profilesDir string) error {
+	// Validate plugin marketplace refs before saving
+	if err := p.ValidateMarketplaceRefs(registryKeysFromInstalled()); err != nil {
+		return fmt.Errorf("invalid profile: %w", err)
+	}
+
 	if err := profile.Save(profilesDir, p); err != nil {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}

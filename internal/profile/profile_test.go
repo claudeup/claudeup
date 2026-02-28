@@ -1988,3 +1988,95 @@ func TestNewFieldTakesPrecedenceOverLegacy(t *testing.T) {
 		t.Errorf("Agents = %v, want [new-agent.md] (new field should take precedence)", p.Extensions.Agents)
 	}
 }
+
+func TestValidateMarketplaceRefs(t *testing.T) {
+	t.Run("flat profile with matching marketplace passes", func(t *testing.T) {
+		p := &Profile{
+			Plugins: []string{"my-tool@claude-code-plugins"},
+			Marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+		}
+		err := p.ValidateMarketplaceRefs(nil)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("flat profile with unresolvable plugin fails", func(t *testing.T) {
+		p := &Profile{
+			Plugins: []string{"my-tool@nonexistent"},
+			Marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+		}
+		err := p.ValidateMarketplaceRefs(nil)
+		if err == nil {
+			t.Error("expected error, got nil")
+		}
+		if !strings.Contains(err.Error(), "my-tool@nonexistent") {
+			t.Errorf("error should mention the plugin, got: %v", err)
+		}
+	})
+
+	t.Run("scoped profile aggregates plugins from all scopes", func(t *testing.T) {
+		p := &Profile{
+			Marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"user-tool@claude-code-plugins"},
+				},
+				Project: &ScopeSettings{
+					Plugins: []string{"proj-tool@nonexistent"},
+				},
+			},
+		}
+		err := p.ValidateMarketplaceRefs(nil)
+		if err == nil {
+			t.Error("expected error for scoped profile with unresolvable project plugin")
+		}
+		if !strings.Contains(err.Error(), "proj-tool@nonexistent") {
+			t.Errorf("error should mention the unresolvable plugin, got: %v", err)
+		}
+	})
+
+	t.Run("scoped profile with all matching passes", func(t *testing.T) {
+		p := &Profile{
+			Marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"user-tool@claude-code-plugins"},
+				},
+				Local: &ScopeSettings{
+					Plugins: []string{"local-tool@claude-code-plugins"},
+				},
+			},
+		}
+		err := p.ValidateMarketplaceRefs(nil)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("registry key resolves plugin ref", func(t *testing.T) {
+		p := &Profile{
+			Plugins: []string{"my-tool@custom-marketplace"},
+		}
+		err := p.ValidateMarketplaceRefs([]string{"custom-marketplace"})
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("nil profile returns no error", func(t *testing.T) {
+		var p *Profile
+		err := p.ValidateMarketplaceRefs(nil)
+		if err != nil {
+			t.Errorf("unexpected error for nil profile: %v", err)
+		}
+	})
+}

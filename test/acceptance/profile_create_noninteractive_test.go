@@ -24,7 +24,7 @@ var _ = Describe("profile create non-interactive", func() {
 		It("creates profile with all flags", func() {
 			result := env.Run("profile", "create", "test-profile",
 				"--description", "Test description",
-				"--marketplace", "anthropics/claude-code",
+				"--marketplace", "anthropics/claude-code-plugins",
 				"--plugin", "plugin-dev@claude-code-plugins",
 			)
 			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
@@ -35,7 +35,7 @@ var _ = Describe("profile create non-interactive", func() {
 			p := env.LoadProfile("test-profile")
 			Expect(p.Description).To(Equal("Test description"))
 			Expect(p.Marketplaces).To(HaveLen(1))
-			Expect(p.Marketplaces[0].Repo).To(Equal("anthropics/claude-code"))
+			Expect(p.Marketplaces[0].Repo).To(Equal("anthropics/claude-code-plugins"))
 			Expect(p.Plugins).To(HaveLen(1))
 			Expect(p.Plugins[0]).To(Equal("plugin-dev@claude-code-plugins"))
 		})
@@ -56,14 +56,14 @@ var _ = Describe("profile create non-interactive", func() {
 			result := env.Run("profile", "create", "multi-plugin",
 				"--description", "Multi plugin profile",
 				"--marketplace", "anthropics/claude-code",
-				"--plugin", "plugin-a@marketplace-ref",
-				"--plugin", "plugin-b@marketplace-ref",
+				"--plugin", "plugin-a@claude-code",
+				"--plugin", "plugin-b@claude-code",
 			)
 			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
 
 			p := env.LoadProfile("multi-plugin")
 			Expect(p.Plugins).To(HaveLen(2))
-			Expect(p.Plugins).To(ContainElements("plugin-a@marketplace-ref", "plugin-b@marketplace-ref"))
+			Expect(p.Plugins).To(ContainElements("plugin-a@claude-code", "plugin-b@claude-code"))
 		})
 
 		It("creates profile with description and marketplace only (no plugins)", func() {
@@ -114,6 +114,26 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.Stderr).To(ContainSubstring("invalid plugin format"))
 		})
 
+		It("fails when plugin references unresolvable marketplace", func() {
+			result := env.Run("profile", "create", "bad-ref",
+				"--description", "Test",
+				"--marketplace", "anthropics/claude-code-plugins",
+				"--plugin", "my-tool@nonexistent-marketplace",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("my-tool@nonexistent-marketplace"))
+		})
+
+		It("succeeds when plugin matches provided marketplace", func() {
+			result := env.Run("profile", "create", "good-ref",
+				"--description", "Test",
+				"--marketplace", "anthropics/claude-code-plugins",
+				"--plugin", "my-tool@claude-code-plugins",
+			)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+			Expect(env.ProfileExists("good-ref")).To(BeTrue())
+		})
+
 		It("fails when profile already exists", func() {
 			// Create existing profile first
 			env.CreateProfile(&profile.Profile{Name: "existing-profile"})
@@ -142,7 +162,7 @@ var _ = Describe("profile create non-interactive", func() {
 			spec := `{
 				"description": "From file",
 				"marketplaces": ["anthropics/claude-code"],
-				"plugins": ["plugin@ref"]
+				"plugins": ["plugin@claude-code"]
 			}`
 			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
 
@@ -157,8 +177,7 @@ var _ = Describe("profile create non-interactive", func() {
 		It("creates profile from stdin", func() {
 			spec := `{
 				"description": "From stdin",
-				"marketplaces": ["anthropics/claude-code"],
-				"plugins": []
+				"marketplaces": ["anthropics/claude-code"]
 			}`
 
 			result := env.RunWithInput(spec, "profile", "create", "from-stdin-profile", "--from-stdin")
@@ -207,6 +226,20 @@ var _ = Describe("profile create non-interactive", func() {
 			)
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("cannot combine"))
+		})
+
+		It("rejects plugin with unresolvable marketplace ref", func() {
+			specPath := filepath.Join(env.TempDir, "bad-ref.json")
+			spec := `{
+				"description": "Bad ref test",
+				"marketplaces": ["anthropics/claude-code-plugins"],
+				"plugins": ["my-tool@nonexistent-marketplace"]
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "bad-ref", "--from-file", specPath)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("my-tool@nonexistent-marketplace"))
 		})
 
 		It("rejects combining --from-file with --from-stdin", func() {
