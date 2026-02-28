@@ -261,8 +261,8 @@ This shows:
 - `profile diff` (no args) diffs against the highest-precedence breadcrumb
 - `profile save` (no args) saves to the breadcrumbed profile name
 - `profile delete` and `profile rename` maintain breadcrumb consistency
-- Scope flags (`--user`, `--project`, `--local`) select a specific scope's breadcrumb
-- Breadcrumb errors are non-fatal warnings -- the hint never blocks operations
+- Scope flags (`--user`, `--project`, `--local`, or `--scope <scope>`) select a specific scope's breadcrumb
+- Breadcrumb write errors are non-fatal warnings (apply/delete/rename). If the breadcrumb file is unreadable, no-arg `profile save` and `profile diff` will fail -- recover by passing an explicit profile name.
 
 ## Event Tracking & Privacy
 
