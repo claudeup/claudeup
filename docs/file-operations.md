@@ -248,6 +248,27 @@ These files are created and managed exclusively by `claudeup`.
 
 ---
 
+### `~/.claudeup/last-applied.json`
+
+**Owner:** claudeup
+**Format:** JSON
+**Purpose:** Tracks which profile was last applied at each scope (user, project, local)
+
+**Read by:**
+
+- `internal/breadcrumb/breadcrumb.go:Load()`
+- Used by: `profile diff` (no-arg default), `profile save` (no-arg default), `profile list` (applied markers), `profile status`
+
+**Written by:**
+
+- `internal/breadcrumb/breadcrumb.go:Record()`
+- Triggered by:
+  - `profile apply` - records profile name, scope(s), and timestamp
+  - `profile delete` - removes entries referencing the deleted profile
+  - `profile rename` - updates entries to the new name
+
+---
+
 ### `~/.claudeup/ext/<category>/`
 
 **Owner:** claudeup
@@ -281,6 +302,7 @@ These files are created and managed exclusively by `claudeup`.
 | `profile apply` (project)  | `./.mcp.json` (MCP servers written)                               | WRITE      |
 | `profile apply` (local)    | `./.claude/settings.local.json` (enabledPlugins replaced)         | WRITE      |
 | `profile apply` (local)    | `~/.claudeup/backups/local-scope-{hash}.json` (backup)            | WRITE      |
+| `profile apply` (any)      | `~/.claudeup/last-applied.json` (breadcrumb)                      | WRITE      |
 | `profile save`             | `~/.claudeup/profiles/{name}.json`                                | WRITE      |
 | `plugin install/uninstall` | Via claude CLI - may update registry                              | INDIRECT   |
 | `marketplace add/remove`   | Via claude CLI - updates `known_marketplaces.json`                | INDIRECT   |

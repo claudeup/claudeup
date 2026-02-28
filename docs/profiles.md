@@ -15,9 +15,12 @@ Profiles are saved configurations of plugins, MCP servers, and marketplaces. Use
 
 ```bash
 claudeup profile list              # List available profiles
+claudeup profile list --all        # Include hidden profiles (prefixed with _)
 claudeup profile show <name>       # Show profile contents
 claudeup profile status            # Show effective configuration across all scopes
-claudeup profile diff <name>       # Compare customized built-in to original
+claudeup profile diff              # Diff last-applied profile against live state
+claudeup profile diff <name>       # Diff a specific profile against live state
+claudeup profile diff <name> --original # Compare customized built-in to its original
 claudeup profile save <name>       # Save current setup as a profile
 claudeup profile create <name>     # Create a new profile with interactive wizard
 claudeup profile clone <name>      # Clone an existing profile
@@ -550,6 +553,9 @@ Your profiles:
 Use `profile save` to capture your current Claude Code configuration as a profile:
 
 ```bash
+# Save to last-applied profile name (no name needed)
+claudeup profile save
+
 # Save with auto-generated description
 claudeup profile save my-work
 # Description: "2 marketplaces, 5 plugins, 3 MCP servers"
@@ -557,9 +563,16 @@ claudeup profile save my-work
 # Save with custom description
 claudeup profile save my-work --description "TAS development setup"
 
+# Save only a specific scope
+claudeup profile save my-user-config --user
+claudeup profile save my-project-config --project
+claudeup profile save my-local-config --local
+
 # Update existing profile (preserves custom description)
 claudeup profile save my-work
 ```
+
+Without a name argument, `profile save` defaults to the last-applied profile name from the breadcrumb file. If no profile has been applied, you must provide a name.
 
 **What gets captured:**
 

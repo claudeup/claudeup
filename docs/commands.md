@@ -74,9 +74,13 @@ Manage configuration profiles.
 
 ```bash
 claudeup profile list                        # List available profiles
+claudeup profile list --all                  # Include hidden profiles (prefixed with _)
 claudeup profile show <name>                 # Display profile contents (with scope labels)
 claudeup profile status                      # Show effective configuration across all scopes
-claudeup profile diff <name>                 # Compare customized built-in to original
+claudeup profile diff                        # Diff last-applied profile against live state
+claudeup profile diff <name>                 # Diff a specific profile against live state
+claudeup profile diff <name> --original      # Compare customized built-in to its original
+claudeup profile save                        # Save to last-applied profile name
 claudeup profile save <name>                 # Save current setup as profile (all scopes)
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
@@ -88,8 +92,11 @@ claudeup profile reset <name>                # Remove everything a profile insta
 claudeup profile rename <old> <new>          # Rename a custom profile
 claudeup profile clean <plugin>              # Remove orphaned plugin from config
 
-# With description flag
+# With description and scope flags
 claudeup profile save my-work --description "My work setup"
+claudeup profile save my-user-config --user          # Save only user-scope settings
+claudeup profile save my-project-config --project    # Save only project-scope settings
+claudeup profile save my-local-config --local        # Save only local-scope settings
 claudeup profile clone home --from work --description "Home setup"
 ```
 
@@ -198,30 +205,49 @@ Use this to see:
 - Enabled/disabled status
 - Marketplace summary
 
-**`profile diff <name>`** - Compares a customized built-in profile to its original:
+**`profile diff [name]`** - Compares a profile against your live Claude Code configuration:
 
 ```bash
-# See what you changed in the default profile
-claudeup profile diff default
+# Diff last-applied profile against live state (no name needed)
+claudeup profile diff
 
-# See customizations to the frontend profile
-claudeup profile diff frontend
+# Diff a specific scope's last-applied profile
+claudeup profile diff --user
+claudeup profile diff --project
+claudeup profile diff --local
+
+# Diff a specific profile by name
+claudeup profile diff my-profile
+
+# Compare customized built-in against its embedded original
+claudeup profile diff frontend --original
 ```
 
 Use this to see:
 
-- What plugins you added to a built-in profile
-- What plugins you removed from a built-in profile
-- Description changes
-- Only works with built-in profiles that have been customized
+- What has changed since you last applied a profile
+- What plugins were added or removed from your live configuration
+- Differences between any profile and your current setup
+
+**`profile diff` flags:**
+
+| Flag         | Description                                                         |
+| ------------ | ------------------------------------------------------------------- |
+| `--user`     | Use the last-applied profile at user scope                          |
+| `--project`  | Use the last-applied profile at project scope                       |
+| `--local`    | Use the last-applied profile at local scope                         |
+| `--original` | Compare a customized built-in profile against its embedded original |
+
+Without a name argument, `profile diff` defaults to the highest-precedence last-applied profile (local > project > user). Scope flags select a specific scope's breadcrumb. Scope flags error when combined with an explicit profile name.
 
 **When to use each:**
 
-| Scenario                                     | Command          |
-| -------------------------------------------- | ---------------- |
-| "What's in this profile?"                    | `profile status` |
-| "What did I change from the original?"       | `profile diff`   |
-| "Why does `profile list` show (customized)?" | `profile diff`   |
+| Scenario                                     | Command                          |
+| -------------------------------------------- | -------------------------------- |
+| "What's in this profile?"                    | `profile status`                 |
+| "Has anything drifted since I applied?"      | `profile diff`                   |
+| "What did I change from the original?"       | `profile diff <name> --original` |
+| "Why does `profile list` show (customized)?" | `profile diff <name> --original` |
 
 #### Profile Suggest
 
@@ -413,10 +439,12 @@ claudeup extensions uninstall <category> <items...> # Remove items from storage
 
 **`extensions list` flags:**
 
-| Flag             | Description              |
-| ---------------- | ------------------------ |
-| `-e, --enabled`  | Show only enabled items  |
-| `-d, --disabled` | Show only disabled items |
+| Flag             | Description                              |
+| ---------------- | ---------------------------------------- |
+| `-e, --enabled`  | Show only enabled items                  |
+| `-d, --disabled` | Show only disabled items                 |
+| `--full`         | Show all items instead of summary counts |
+| `-l, --long`     | Show file type and path for each item    |
 
 **Wildcard support (enable, disable, import):**
 
@@ -510,7 +538,6 @@ Update the claudeup CLI to the latest version.
 
 ```bash
 claudeup update              # Update to latest version
-claudeup update --check-only # Check for updates without applying
 ```
 
 ### upgrade
@@ -520,7 +547,6 @@ Update marketplaces and plugins.
 ```bash
 claudeup upgrade              # Update marketplaces and plugins for current context
 claudeup upgrade --all        # Update across all scopes and projects
-claudeup upgrade --check-only # Preview updates without applying
 ```
 
 By default, `upgrade` is scope-aware: it only processes user-scope plugins and plugins scoped to the current project directory. Use `--all` to upgrade plugins across all scopes and projects.
