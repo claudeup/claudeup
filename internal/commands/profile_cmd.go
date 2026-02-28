@@ -2670,6 +2670,11 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to delete profile: %w", err)
 	}
 
+	// Clean breadcrumb entries referencing the deleted profile
+	if err := breadcrumb.Remove(claudeupHome, name); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not clean breadcrumb: %v", err))
+	}
+
 	ui.PrintSuccess(fmt.Sprintf("Deleted profile %q", name))
 
 	return nil

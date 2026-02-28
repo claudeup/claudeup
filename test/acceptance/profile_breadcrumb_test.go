@@ -83,6 +83,25 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 	})
 
+	Describe("delete cleans breadcrumb", func() {
+		It("removes breadcrumb entry for deleted profile", func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "to-delete",
+			})
+			env.WriteBreadcrumb("user", "to-delete")
+			env.WriteBreadcrumb("project", "keep-this")
+
+			result := env.RunWithInput("y\n", "profile", "delete", "to-delete")
+
+			Expect(result.ExitCode).To(Equal(0))
+
+			bc := env.ReadBreadcrumb()
+			Expect(bc).NotTo(HaveKey("user"))
+			Expect(bc).To(HaveKey("project"))
+			Expect(bc["project"].Profile).To(Equal("keep-this"))
+		})
+	})
+
 	Describe("diff with no args", func() {
 		BeforeEach(func() {
 			// Create a profile with a plugin at user scope
