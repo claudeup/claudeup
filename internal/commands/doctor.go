@@ -292,10 +292,10 @@ func getExpectedPath(currentPath string) string {
 	}
 	if strings.Contains(currentPath, "tanzu-cf-architect") {
 		// Remove duplicate directory name
-		parts := strings.Split(currentPath, string(filepath.Separator))
-		lastPart := parts[len(parts)-1]
-		if len(parts) >= 2 && parts[len(parts)-2] == lastPart {
-			return filepath.Join(parts[:len(parts)-1]...)
+		dir := filepath.Dir(currentPath)
+		base := filepath.Base(currentPath)
+		if filepath.Base(dir) == base {
+			return dir
 		}
 	}
 	return ""
