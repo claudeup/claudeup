@@ -1112,6 +1112,23 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	return nil
 }
 
+// dirExists returns true if path exists and is a directory.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// sameResolvedDir returns true if a and b resolve to the same directory
+// after cleaning paths and resolving symlinks.
+func sameResolvedDir(a, b string) bool {
+	ra, err1 := filepath.EvalSymlinks(a)
+	rb, err2 := filepath.EvalSymlinks(b)
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
+}
+
 // recordBreadcrumb writes a breadcrumb entry recording which profile was applied.
 // Errors are logged but do not fail the operation.
 func recordBreadcrumb(name, projectDir string, scopes []string) {
@@ -1620,12 +1637,18 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	var allPluginNames []string
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
+	// Determine whether cwd has a distinct project scope.
+	// When cwd/.claude is the same directory as claudeDir (e.g., running
+	// from ~), project/local settings overlap with user settings.
+	hasDistinctProjectScope := false
+	if projectClaudeDir := filepath.Join(cwd, ".claude"); dirExists(projectClaudeDir) {
+		hasDistinctProjectScope = !sameResolvedDir(projectClaudeDir, claudeDir)
+	}
+
 	for _, scope := range []string{"user", "project", "local"} {
-		// Skip project/local if not in project directory
-		if scope != "user" {
-			if _, err := os.Stat(filepath.Join(cwd, ".claude")); os.IsNotExist(err) {
-				continue
-			}
+		// Skip project/local if cwd has no distinct project scope
+		if scope != "user" && !hasDistinctProjectScope {
+			continue
 		}
 
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, cwd)
