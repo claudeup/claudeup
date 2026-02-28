@@ -651,6 +651,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.RunInDir(otherDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("proj-profile"))
 			lines := strings.Split(result.Stdout, "\n")
 			for _, line := range lines {
 				if strings.Contains(line, "proj-profile") {
@@ -667,12 +668,8 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.RunInDir(projectDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			lines := strings.Split(result.Stdout, "\n")
-			for _, line := range lines {
-				if strings.Contains(line, "proj-profile") {
-					Expect(line).To(ContainSubstring("(applied"))
-				}
-			}
+			Expect(result.Stdout).To(ContainSubstring("proj-profile"))
+			Expect(result.Stdout).To(ContainSubstring("(applied"))
 		})
 
 		It("shows user breadcrumb from any directory", func() {
@@ -686,12 +683,8 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.RunInDir(otherDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
-			lines := strings.Split(result.Stdout, "\n")
-			for _, line := range lines {
-				if strings.Contains(line, "user-profile") {
-					Expect(line).To(ContainSubstring("(applied"))
-				}
-			}
+			Expect(result.Stdout).To(ContainSubstring("user-profile"))
+			Expect(result.Stdout).To(ContainSubstring("(applied"))
 		})
 
 		It("does not show last-applied in status when project breadcrumb is for different directory", func() {
@@ -758,6 +751,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.RunInDir(projDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("mismatch-test"))
 			lines := strings.Split(result.Stdout, "\n")
 			for _, line := range lines {
 				if strings.Contains(line, "mismatch-test") {
@@ -799,6 +793,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.RunInDir(otherDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("multi-scope"))
 			lines := strings.Split(result.Stdout, "\n")
 			for _, line := range lines {
 				if strings.Contains(line, "multi-scope") {

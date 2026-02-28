@@ -2262,13 +2262,18 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		ui.PrintWarning(fmt.Sprintf("Could not determine current directory: %v", err))
-		return nil
-	}
-
-	bc = breadcrumb.FilterByDir(bc, cwd)
-	if len(bc) == 0 {
-		return nil
+		// Keep only user-scope breadcrumbs (directory-independent).
+		if userEntry, ok := bc["user"]; ok {
+			bc = breadcrumb.File{"user": userEntry}
+			cwd = ""
+		} else {
+			return nil
+		}
+	} else {
+		bc = breadcrumb.FilterByDir(bc, cwd)
+		if len(bc) == 0 {
+			return nil
+		}
 	}
 
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
