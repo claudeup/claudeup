@@ -26,10 +26,19 @@ CLI tool for managing Claude Code profiles and configurations.
 ## Project Structure
 
 - `cmd/claudeup/` - Main entry point
-- `internal/commands/` - Cobra command implementations
-- `internal/profile/` - Profile management (save, load, apply, snapshot)
+- `internal/backup/` - Backup and restore for configuration files
+- `internal/breadcrumb/` - Per-scope tracking of last-applied profile
 - `internal/claude/` - Claude Code configuration file handling
+- `internal/commands/` - Cobra command implementations
+- `internal/config/` - Path resolution and global configuration
+- `internal/events/` - Operation logging and event diffs
+- `internal/ext/` - Extension management (symlinks, install, list, resolve)
+- `internal/mcp/` - MCP server discovery
+- `internal/pluginsearch/` - Plugin search and filtering
+- `internal/profile/` - Profile management (save, load, apply, snapshot)
 - `internal/secrets/` - Secret resolution (env, 1Password, keychain)
+- `internal/selfupdate/` - Binary self-update
+- `internal/ui/` - Terminal output, styling, and prompts
 - `test/acceptance/` - Acceptance tests (CLI behavior, real binary execution)
 - `test/integration/` - Integration tests (internal packages with fake fixtures)
 - `test/helpers/` - Shared test utilities
@@ -50,6 +59,7 @@ claudeup operates across two distinct directory trees:
 - `ext/<category>/` stores the actual item files (agents, commands, skills, hooks, rules, output-styles)
 - `enabled.json` tracks which items are enabled per category
 - `profiles/` stores saved profiles
+- `last-applied.json` tracks which profile was last applied at each scope
 - `events/` stores operation logs
 - `config.json` stores claudeup configuration
 
@@ -236,6 +246,24 @@ This shows:
 - `base-tools` is active at user scope but overridden by `claudeup` at local scope
 - Claude Code is actually using `claudeup` (highest precedence)
 
+### Last-Applied Breadcrumb
+
+`profile diff` and `profile save` default to the last-applied profile when no name argument is given. The breadcrumb is stored in `~/.claudeup/last-applied.json` and records which profile was applied at each scope:
+
+```json
+{
+  "user": { "profile": "base-tools", "appliedAt": "2026-02-28T13:00:00Z" },
+  "project": { "profile": "claudeup", "appliedAt": "2026-02-28T14:00:00Z" }
+}
+```
+
+- `profile apply` writes breadcrumb entries for all scopes the profile touches
+- `profile diff` (no args) diffs against the highest-precedence breadcrumb
+- `profile save` (no args) saves to the breadcrumbed profile name
+- `profile delete` and `profile rename` maintain breadcrumb consistency
+- Scope flags (`--user`, `--project`, `--local`, or `--scope <scope>`) select a specific scope's breadcrumb
+- Breadcrumb write errors are non-fatal warnings (apply/delete/rename). If the breadcrumb file is unreadable, no-arg `profile save` and `profile diff` will fail -- recover by passing an explicit profile name.
+
 ## Event Tracking & Privacy
 
 claudeup tracks file operations in `~/.claudeup/events/operations.log` for audit trails and troubleshooting.
@@ -325,5 +353,3 @@ claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `set
 4. **Update migration** - Extend `LoadPlugins()` to handle new version
 
 5. **Update error messages** - Change supported version range in validation
-
-See `plans/2025-12-17-claude-format-resilience-design.md` for full architecture details.
