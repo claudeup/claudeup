@@ -107,4 +107,66 @@ var _ = Describe("profile show", func() {
 			Expect(result.Stdout).To(ContainSubstring("legacy-mcp"))
 		})
 	})
+
+	Context("with legacy profile having all section types", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name:    "legacy-full",
+				Plugins: []string{"full-plugin@marketplace"},
+				MCPServers: []profile.MCPServer{
+					{Name: "full-mcp", Command: "full-cmd"},
+				},
+				Extensions: &profile.ExtensionSettings{
+					Agents: []string{"full-agent.md"},
+					Rules:  []string{"full-rule.md"},
+				},
+			})
+		})
+
+		It("separates sections with blank lines", func() {
+			result := env.Run("profile", "show", "legacy-full")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Plugins:"))
+			Expect(result.Stdout).To(ContainSubstring("full-plugin@marketplace"))
+			Expect(result.Stdout).To(ContainSubstring("MCP Servers:"))
+			Expect(result.Stdout).To(ContainSubstring("full-mcp"))
+			Expect(result.Stdout).To(ContainSubstring("Extensions:"))
+			Expect(result.Stdout).To(ContainSubstring("full-agent.md"))
+			Expect(result.Stdout).To(ContainSubstring("full-rule.md"))
+		})
+	})
+
+	Context("with MCP server secrets", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "mcp-secrets",
+				MCPServers: []profile.MCPServer{
+					{
+						Name:    "secret-server",
+						Command: "npx",
+						Secrets: map[string]profile.SecretRef{
+							"API_KEY": {
+								Description: "API key for service",
+								Sources:     []profile.SecretSource{{Type: "env", Key: "API_KEY"}},
+							},
+							"DB_PASS": {
+								Description: "Database password",
+								Sources:     []profile.SecretSource{{Type: "env", Key: "DB_PASS"}},
+							},
+						},
+					},
+				},
+			})
+		})
+
+		It("renders requires lines for secrets in sorted order", func() {
+			result := env.Run("profile", "show", "mcp-secrets")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("secret-server (npx)"))
+			Expect(result.Stdout).To(ContainSubstring("requires: API_KEY"))
+			Expect(result.Stdout).To(ContainSubstring("requires: DB_PASS"))
+		})
+	})
 })

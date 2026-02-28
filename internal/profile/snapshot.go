@@ -273,6 +273,8 @@ func ReadExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) 
 }
 
 // ReadMCPServersForScope reads MCP servers from the appropriate config file for the given scope.
+// claudeJSONPath is the path to the user-level Claude config file (typically ~/.claude/.claude.json).
+// projectDir is the project root directory, used when scope is "project" to read .mcp.json.
 func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServer, error) {
 	var mcpPath string
 
@@ -434,6 +436,11 @@ func ReadProjectExtensions(projectDir string) *ExtensionSettings {
 
 			// Skip symlinks (user-scoped items managed by claudeup)
 			if info.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
+
+			// Skip directories and other non-regular files
+			if !info.Mode().IsRegular() {
 				continue
 			}
 

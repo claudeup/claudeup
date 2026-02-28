@@ -1266,7 +1266,7 @@ func showMultiScopeProfile(p *profile.Profile) {
 		{"Local", p.PerScope.Local},
 	}
 
-	// Top-level extensions are unscoped; merge into user scope display
+	// Top-level extensions are unscoped; use as fallback for user scope display
 	unscopedExt := p.Extensions
 
 	for _, s := range scopes {
@@ -1280,7 +1280,7 @@ func showMultiScopeProfile(p *profile.Profile) {
 			ext = s.settings.Extensions
 		}
 
-		// For user scope, merge top-level extensions if scope has none
+		// For user scope, fall back to top-level extensions if scope has none
 		if s.label == "User" && ext == nil && unscopedExt != nil {
 			ext = unscopedExt
 		}
@@ -1320,6 +1320,8 @@ func showLegacyProfile(p *profile.Profile) {
 	displayMCPServers(p.MCPServers, indent)
 
 	displayExtensionCategories(p.Extensions, indent)
+
+	fmt.Println()
 }
 
 // extensionCategory maps a display label to a getter for that category's extensions.
@@ -1346,7 +1348,12 @@ func displayMCPServers(servers []profile.MCPServer, indent string) {
 	fmt.Printf("%sMCP Servers:\n", indent)
 	for _, m := range servers {
 		fmt.Printf("%s  - %s (%s)\n", indent, m.Name, m.Command)
+		secretKeys := make([]string, 0, len(m.Secrets))
 		for envVar := range m.Secrets {
+			secretKeys = append(secretKeys, envVar)
+		}
+		sort.Strings(secretKeys)
+		for _, envVar := range secretKeys {
 			fmt.Printf("%s      requires: %s\n", indent, envVar)
 		}
 	}

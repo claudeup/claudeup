@@ -120,6 +120,28 @@ func TestReadProjectExtensionsSkipsHiddenAndCLAUDE(t *testing.T) {
 	}
 }
 
+func TestReadProjectExtensionsSkipsDirectories(t *testing.T) {
+	projectDir := t.TempDir()
+
+	agentsDir := filepath.Join(projectDir, ".claude", "agents")
+	mustMkdir(t, agentsDir)
+
+	// Create a regular file
+	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
+
+	// Create a subdirectory (should be skipped)
+	mustMkdir(t, filepath.Join(agentsDir, "subdir"))
+
+	items := ReadProjectExtensions(projectDir)
+	if items == nil {
+		t.Fatal("expected non-nil ExtensionSettings")
+	}
+
+	if len(items.Agents) != 1 || items.Agents[0] != "reviewer.md" {
+		t.Errorf("expected agents [reviewer.md], got %v", items.Agents)
+	}
+}
+
 func TestSnapshotAllScopesCapturesProjectExtensions(t *testing.T) {
 	tempDir := t.TempDir()
 	claudeDir := filepath.Join(tempDir, ".claude")
