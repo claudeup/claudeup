@@ -113,8 +113,7 @@ No expiry. The timestamp in output gives the user context to judge relevance.
 Project-scope breadcrumbs could collide across worktrees. Acceptable for v1
 because the breadcrumb is a convenience hint, not a source of truth.
 
-**Profile rename** -- No rename command exists. If added later, it should update
-breadcrumbs.
+**Profile rename** -- The rename command updates breadcrumb entries.
 
 ## Testing
 
