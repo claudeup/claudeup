@@ -21,7 +21,7 @@ func TestReadProjectExtensionsCapturesRegularFiles(t *testing.T) {
 	mustMkdir(t, agentsDir)
 	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
 
-	items := readProjectExtensions(projectDir)
+	items := ReadProjectExtensions(projectDir)
 	if items == nil {
 		t.Fatal("expected non-nil ExtensionSettings")
 	}
@@ -56,7 +56,7 @@ func TestReadProjectExtensionsSkipsSymlinks(t *testing.T) {
 	// Also create a regular file (project-scoped)
 	mustWriteFile(t, filepath.Join(projectRulesDir, "project-rule.md"), "# Project Rule")
 
-	items := readProjectExtensions(projectDir)
+	items := ReadProjectExtensions(projectDir)
 	if items == nil {
 		t.Fatal("expected non-nil ExtensionSettings")
 	}
@@ -71,7 +71,7 @@ func TestReadProjectExtensionsReturnsNilWhenEmpty(t *testing.T) {
 	projectDir := t.TempDir()
 
 	// No .claude directory at all
-	items := readProjectExtensions(projectDir)
+	items := ReadProjectExtensions(projectDir)
 	if items != nil {
 		t.Errorf("expected nil for empty project, got %v", items)
 	}
@@ -95,7 +95,7 @@ func TestReadProjectExtensionsReturnsNilWhenOnlySymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	items := readProjectExtensions(projectDir)
+	items := ReadProjectExtensions(projectDir)
 	if items != nil {
 		t.Errorf("expected nil when only symlinks present, got %v", items)
 	}
@@ -110,13 +110,35 @@ func TestReadProjectExtensionsSkipsHiddenAndCLAUDE(t *testing.T) {
 	mustWriteFile(t, filepath.Join(rulesDir, "CLAUDE.md"), "# Claude")
 	mustWriteFile(t, filepath.Join(rulesDir, "visible-rule.md"), "# Visible")
 
-	items := readProjectExtensions(projectDir)
+	items := ReadProjectExtensions(projectDir)
 	if items == nil {
 		t.Fatal("expected non-nil ExtensionSettings")
 	}
 
 	if len(items.Rules) != 1 || items.Rules[0] != "visible-rule.md" {
 		t.Errorf("expected rules [visible-rule.md], got %v", items.Rules)
+	}
+}
+
+func TestReadProjectExtensionsSkipsDirectories(t *testing.T) {
+	projectDir := t.TempDir()
+
+	agentsDir := filepath.Join(projectDir, ".claude", "agents")
+	mustMkdir(t, agentsDir)
+
+	// Create a regular file
+	mustWriteFile(t, filepath.Join(agentsDir, "reviewer.md"), "# Reviewer")
+
+	// Create a subdirectory (should be skipped)
+	mustMkdir(t, filepath.Join(agentsDir, "subdir"))
+
+	items := ReadProjectExtensions(projectDir)
+	if items == nil {
+		t.Fatal("expected non-nil ExtensionSettings")
+	}
+
+	if len(items.Agents) != 1 || items.Agents[0] != "reviewer.md" {
+		t.Errorf("expected agents [reviewer.md], got %v", items.Agents)
 	}
 }
 

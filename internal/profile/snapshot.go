@@ -77,13 +77,13 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 
 	// Read MCP servers
 	// For project scope, read from .mcp.json
-	mcpServers, err := readMCPServersForScope(claudeJSONPath, opts.ProjectDir, opts.Scope)
+	mcpServers, err := ReadMCPServersForScope(claudeJSONPath, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.MCPServers = mcpServers
 	}
 
 	// Read extensions from enabled.json
-	extensions, err := readExtensions(claudeDir, claudeupHome)
+	extensions, err := ReadExtensions(claudeDir, claudeupHome)
 	if err == nil && extensions != nil {
 		p.Extensions = extensions
 	}
@@ -199,8 +199,9 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 	return marketplaces, nil
 }
 
-// readExtensions reads enabled extensions from enabled.json
-func readExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) {
+// ReadExtensions reads enabled extensions from enabled.json, verifying each
+// item exists in the active directory. Stale entries are filtered out.
+func ReadExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) {
 	manager := ext.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
 	if err != nil {
@@ -271,7 +272,10 @@ func readExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) 
 	return settings, nil
 }
 
-func readMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServer, error) {
+// ReadMCPServersForScope reads MCP servers from the appropriate config file for the given scope.
+// claudeJSONPath is the path to the user-level Claude config file (typically ~/.claude/.claude.json).
+// projectDir is the project root directory, used when scope is "project" to read .mcp.json.
+func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServer, error) {
 	var mcpPath string
 
 	switch scope {
@@ -282,8 +286,7 @@ func readMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 		}
 		mcpPath = filepath.Join(projectDir, ".mcp.json")
 	case "local":
-		// Local scope reads from .claude-local/mcp.json (if we implement it)
-		// For now, return empty for local scope
+		// Local scope has no dedicated MCP config file
 		return nil, nil
 	default:
 		// User scope reads from ~/.claude.json
@@ -337,7 +340,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Capture user scope
 	userPlugins, _ := readPluginsForScope(claudeDir, projectDir, "user")
-	userMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "user")
+	userMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "user")
 	allPlugins = append(allPlugins, userPlugins...)
 	if len(userPlugins) > 0 || len(userMCP) > 0 {
 		p.PerScope.User = &ScopeSettings{
@@ -349,7 +352,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	// Capture project scope
 	if projectDir != "" {
 		projectPlugins, _ := readPluginsForScope(claudeDir, projectDir, "project")
-		projectMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "project")
+		projectMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "project")
 		allPlugins = append(allPlugins, projectPlugins...)
 		if len(projectPlugins) > 0 || len(projectMCP) > 0 {
 			p.PerScope.Project = &ScopeSettings{
@@ -362,7 +365,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	// Capture local scope
 	if projectDir != "" {
 		localPlugins, _ := readPluginsForScope(claudeDir, projectDir, "local")
-		localMCP, _ := readMCPServersForScope(claudeJSONPath, projectDir, "local")
+		localMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "local")
 		allPlugins = append(allPlugins, localPlugins...)
 		if len(localPlugins) > 0 || len(localMCP) > 0 {
 			p.PerScope.Local = &ScopeSettings{
@@ -379,7 +382,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	}
 
 	// Read user-scoped extensions from enabled.json into PerScope.User
-	userExtensions, err := readExtensions(claudeDir, claudeupHome)
+	userExtensions, err := ReadExtensions(claudeDir, claudeupHome)
 	if err == nil && userExtensions != nil {
 		if p.PerScope.User == nil {
 			p.PerScope.User = &ScopeSettings{}
@@ -389,7 +392,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Read project-scoped extensions from project .claude/{agents,rules}/
 	if projectDir != "" {
-		projectExtensions := readProjectExtensions(projectDir)
+		projectExtensions := ReadProjectExtensions(projectDir)
 		if projectExtensions != nil {
 			if p.PerScope.Project == nil {
 				p.PerScope.Project = &ScopeSettings{}
@@ -404,10 +407,10 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	return p, nil
 }
 
-// readProjectExtensions scans .claude/{agents,rules}/ in the project directory
+// ReadProjectExtensions scans .claude/{agents,rules}/ in the project directory
 // for regular files (not symlinks). Regular files are project-scoped extensions;
 // symlinks are user-scoped extensions managed by claudeup and should be skipped.
-func readProjectExtensions(projectDir string) *ExtensionSettings {
+func ReadProjectExtensions(projectDir string) *ExtensionSettings {
 	settings := &ExtensionSettings{}
 	hasItems := false
 
@@ -433,6 +436,11 @@ func readProjectExtensions(projectDir string) *ExtensionSettings {
 
 			// Skip symlinks (user-scoped items managed by claudeup)
 			if info.Mode()&os.ModeSymlink != 0 {
+				continue
+			}
+
+			// Skip directories and other non-regular files
+			if !info.Mode().IsRegular() {
 				continue
 			}
 

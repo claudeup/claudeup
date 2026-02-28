@@ -1243,15 +1243,11 @@ func runProfileShow(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(p.Marketplaces) > 0 {
-		fmt.Println("Marketplaces:")
+		fmt.Println("  Marketplaces:")
 		for _, m := range p.Marketplaces {
-			fmt.Printf("  - %s\n", m.DisplayName())
+			fmt.Printf("    - %s\n", m.DisplayName())
 		}
 		fmt.Println()
-	}
-
-	if p.Extensions != nil {
-		showExtensions(p.Extensions)
 	}
 
 	return nil
@@ -1265,88 +1261,67 @@ type scopeEntry struct {
 
 func showMultiScopeProfile(p *profile.Profile) {
 	scopes := []scopeEntry{
-		{"user", p.PerScope.User},
-		{"project", p.PerScope.Project},
-		{"local", p.PerScope.Local},
+		{"User", p.PerScope.User},
+		{"Project", p.PerScope.Project},
+		{"Local", p.PerScope.Local},
 	}
 
-	// Collect all plugins across scopes with labels
-	var hasPlugins bool
+	// Top-level extensions are unscoped; use as fallback for user scope display
+	unscopedExt := p.Extensions
+
 	for _, s := range scopes {
-		if s.settings != nil && len(s.settings.Plugins) > 0 {
-			hasPlugins = true
-			break
+		var plugins []string
+		var mcpServers []profile.MCPServer
+		var ext *profile.ExtensionSettings
+
+		if s.settings != nil {
+			plugins = s.settings.Plugins
+			mcpServers = s.settings.MCPServers
+			ext = s.settings.Extensions
 		}
-	}
-	if hasPlugins {
-		fmt.Println("Plugins:")
-		for _, s := range scopes {
-			if s.settings == nil || len(s.settings.Plugins) == 0 {
-				continue
-			}
-			for _, plug := range s.settings.Plugins {
-				fmt.Printf("  - %s [%s]\n", plug, s.label)
+
+		// For user scope, fall back to top-level extensions if scope has none
+		if s.label == "User" && ext == nil && unscopedExt != nil {
+			ext = unscopedExt
+		}
+
+		if len(plugins) == 0 && len(mcpServers) == 0 && countExtensions(ext) == 0 {
+			continue
+		}
+
+		fmt.Printf("  %s\n", ui.Bold(s.label+" scope"))
+
+		indent := "    "
+
+		if len(plugins) > 0 {
+			fmt.Printf("%sPlugins:\n", indent)
+			for _, plug := range plugins {
+				fmt.Printf("%s  - %s\n", indent, plug)
 			}
 		}
+
+		displayMCPServers(mcpServers, indent)
+		displayExtensionCategories(ext, indent)
+
 		fmt.Println()
-	}
-
-	// Collect all MCP servers across scopes with labels
-	var hasMCP bool
-	for _, s := range scopes {
-		if s.settings != nil && len(s.settings.MCPServers) > 0 {
-			hasMCP = true
-			break
-		}
-	}
-	if hasMCP {
-		fmt.Println("MCP Servers:")
-		for _, s := range scopes {
-			if s.settings == nil || len(s.settings.MCPServers) == 0 {
-				continue
-			}
-			for _, m := range s.settings.MCPServers {
-				fmt.Printf("  - %s (%s) [%s]\n", m.Name, m.Command, s.label)
-				for envVar := range m.Secrets {
-					fmt.Printf("      requires: %s\n", envVar)
-				}
-			}
-		}
-		fmt.Println()
-	}
-
-	// Collect extensions across scopes with labels
-	var hasExtensions bool
-	for _, s := range scopes {
-		if s.settings != nil && s.settings.Extensions != nil {
-			hasExtensions = true
-			break
-		}
-	}
-	if hasExtensions {
-		showScopedExtensions(scopes)
 	}
 }
 
 func showLegacyProfile(p *profile.Profile) {
-	if len(p.MCPServers) > 0 {
-		fmt.Println("MCP Servers:")
-		for _, m := range p.MCPServers {
-			fmt.Printf("  - %s (%s)\n", m.Name, m.Command)
-			for envVar := range m.Secrets {
-				fmt.Printf("      requires: %s\n", envVar)
-			}
-		}
-		fmt.Println()
-	}
+	indent := "  "
 
 	if len(p.Plugins) > 0 {
-		fmt.Println("Plugins:")
+		fmt.Printf("%sPlugins:\n", indent)
 		for _, plug := range p.Plugins {
-			fmt.Printf("  - %s\n", plug)
+			fmt.Printf("%s  - %s\n", indent, plug)
 		}
-		fmt.Println()
 	}
+
+	displayMCPServers(p.MCPServers, indent)
+
+	displayExtensionCategories(p.Extensions, indent)
+
+	fmt.Println()
 }
 
 // extensionCategory maps a display label to a getter for that category's extensions.
@@ -1365,10 +1340,33 @@ var extensionCategories = []extensionCategory{
 	{"Output Styles", func(l *profile.ExtensionSettings) []string { return l.OutputStyles }},
 }
 
-func showExtensions(items *profile.ExtensionSettings) {
-	var hasItems bool
+// displayMCPServers prints MCP server list at the given indent level.
+func displayMCPServers(servers []profile.MCPServer, indent string) {
+	if len(servers) == 0 {
+		return
+	}
+	fmt.Printf("%sMCP Servers:\n", indent)
+	for _, m := range servers {
+		fmt.Printf("%s  - %s (%s)\n", indent, m.Name, m.Command)
+		secretKeys := make([]string, 0, len(m.Secrets))
+		for envVar := range m.Secrets {
+			secretKeys = append(secretKeys, envVar)
+		}
+		sort.Strings(secretKeys)
+		for _, envVar := range secretKeys {
+			fmt.Printf("%s      requires: %s\n", indent, envVar)
+		}
+	}
+}
+
+// displayExtensionCategories prints extensions grouped by category at the given indent level.
+func displayExtensionCategories(ext *profile.ExtensionSettings, indent string) {
+	if ext == nil {
+		return
+	}
+	hasItems := false
 	for _, c := range extensionCategories {
-		if len(c.getter(items)) > 0 {
+		if len(c.getter(ext)) > 0 {
 			hasItems = true
 			break
 		}
@@ -1376,52 +1374,17 @@ func showExtensions(items *profile.ExtensionSettings) {
 	if !hasItems {
 		return
 	}
-
-	fmt.Println("Extensions:")
+	fmt.Printf("%sExtensions:\n", indent)
 	for _, c := range extensionCategories {
-		catItems := c.getter(items)
-		if len(catItems) == 0 {
+		items := c.getter(ext)
+		if len(items) == 0 {
 			continue
 		}
-		fmt.Printf("  %s:\n", c.label)
-		for _, item := range catItems {
-			fmt.Printf("    - %s\n", item)
+		fmt.Printf("%s  %s:\n", indent, c.label)
+		for _, item := range items {
+			fmt.Printf("%s    - %s\n", indent, item)
 		}
 	}
-	fmt.Println()
-}
-
-// showScopedExtensions displays extensions grouped by category, with scope labels.
-func showScopedExtensions(scopes []scopeEntry) {
-	var hasAny bool
-	for _, s := range scopes {
-		if s.settings != nil && s.settings.Extensions != nil {
-			hasAny = true
-			break
-		}
-	}
-	if !hasAny {
-		return
-	}
-
-	fmt.Println("Extensions:")
-	for _, cat := range extensionCategories {
-		var printed bool
-		for _, s := range scopes {
-			if s.settings == nil || s.settings.Extensions == nil {
-				continue
-			}
-			items := cat.getter(s.settings.Extensions)
-			for _, item := range items {
-				if !printed {
-					fmt.Printf("  %s:\n", cat.label)
-					printed = true
-				}
-				fmt.Printf("    - %s [%s]\n", item, s.label)
-			}
-		}
-	}
-	fmt.Println()
 }
 
 // countExtensions returns the total number of extensions across all categories.
@@ -1523,8 +1486,9 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	// Header
 	fmt.Printf("Effective configuration for %s\n\n", ui.Bold(cwd))
 
-	anyPlugins := false
+	anyContent := false
 	var allPluginNames []string
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	for _, scope := range []string{"user", "project", "local"} {
 		// Skip project/local if not in project directory
@@ -1552,11 +1516,29 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 		sort.Strings(enabled)
 		sort.Strings(disabled)
 
-		if len(enabled) == 0 && len(disabled) == 0 {
+		mcpServers, mcpErr := profile.ReadMCPServersForScope(claudeJSONPath, cwd, scope)
+		if mcpErr != nil {
+			fmt.Fprintf(os.Stderr, "%s Failed to load %s MCP servers: %v\n",
+				ui.Warning("Warning:"), scope, mcpErr)
+		}
+
+		var extensions *profile.ExtensionSettings
+		if scope == "user" {
+			ext, extErr := profile.ReadExtensions(claudeDir, claudeupHome)
+			if extErr != nil {
+				fmt.Fprintf(os.Stderr, "%s Failed to load user extensions: %v\n",
+					ui.Warning("Warning:"), extErr)
+			}
+			extensions = ext
+		} else if scope == "project" {
+			extensions = profile.ReadProjectExtensions(cwd)
+		}
+
+		if len(enabled) == 0 && len(disabled) == 0 && len(mcpServers) == 0 && countExtensions(extensions) == 0 {
 			continue
 		}
 
-		anyPlugins = true
+		anyContent = true
 		allPluginNames = append(allPluginNames, enabled...)
 
 		// Scope header
@@ -1579,11 +1561,14 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 
+		displayMCPServers(mcpServers, "    ")
+		displayExtensionCategories(extensions, "    ")
+
 		fmt.Println()
 	}
 
-	if !anyPlugins {
-		fmt.Printf("  %s\n\n", ui.Muted("No plugins configured at any scope."))
+	if !anyContent {
+		fmt.Printf("  %s\n\n", ui.Muted("No configuration found at any scope."))
 	}
 
 	// Marketplaces section
