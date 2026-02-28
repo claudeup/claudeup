@@ -1598,7 +1598,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	// Load saved profile (disk first, fallback to embedded)
 	saved, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
-		return fmt.Errorf("failed to load profile '%s': %w", name, err)
+		return fmt.Errorf("profile '%s' not found", name)
 	}
 
 	// Snapshot live state
