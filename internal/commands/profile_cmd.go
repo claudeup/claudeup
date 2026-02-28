@@ -27,6 +27,10 @@ var (
 	profileCloneFromFlag    string
 	profileCloneDescription string
 	profileDiffOriginal     bool
+	profileDiffScope        string
+	profileDiffUser         bool
+	profileDiffProject      bool
+	profileDiffLocal        bool
 )
 
 var profileCmd = &cobra.Command{
@@ -184,7 +188,7 @@ Shows plugins from all active scopes (user, project, local) with:
 }
 
 var profileDiffCmd = &cobra.Command{
-	Use:   "diff <name>",
+	Use:   "diff [name]",
 	Short: "Compare a profile against live Claude Code state",
 	Long: `Compare a saved profile against the live Claude Code configuration.
 
@@ -192,14 +196,19 @@ Shows what has changed between the profile and the current state across
 all scopes (user, project, local). Use this to see drift before running
 'profile save' to pull changes back into the profile.
 
+When called without arguments, diffs against the last-applied profile.
+
 Use --original to compare a customized built-in profile against its
 embedded original.`,
-	Example: `  # Diff a profile against live state
+	Example: `  # Diff against the last-applied profile
+  claudeup profile diff
+
+  # Diff a specific profile against live state
   claudeup profile diff my-setup
 
   # Compare a customized built-in profile to its original
   claudeup profile diff default --original`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileDiff,
 }
 
@@ -553,6 +562,10 @@ func init() {
 
 	// Add flags to profile diff command
 	profileDiffCmd.Flags().BoolVar(&profileDiffOriginal, "original", false, "Compare a customized built-in profile against its embedded original")
+	profileDiffCmd.Flags().StringVar(&profileDiffScope, "scope", "", "Diff against breadcrumb for specified scope: user, project, local")
+	profileDiffCmd.Flags().BoolVar(&profileDiffUser, "user", false, "Diff against breadcrumb for user scope")
+	profileDiffCmd.Flags().BoolVar(&profileDiffProject, "project", false, "Diff against breadcrumb for project scope")
+	profileDiffCmd.Flags().BoolVar(&profileDiffLocal, "local", false, "Diff against breadcrumb for local scope")
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
@@ -1720,10 +1733,48 @@ func showDiff(diff *profile.Diff) {
 
 func runProfileDiff(cmd *cobra.Command, args []string) error {
 	if profileDiffOriginal {
+		if len(args) != 1 {
+			return fmt.Errorf("--original requires exactly 1 profile name")
+		}
 		return runProfileDiffOriginal(cmd, args)
 	}
 
-	name := args[0]
+	var name string
+	var breadcrumbScope string
+
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		// Load breadcrumb for default profile
+		bc, err := breadcrumb.Load(claudeupHome)
+		if err != nil {
+			return fmt.Errorf("failed to read breadcrumb: %w", err)
+		}
+
+		// Resolve scope: explicit --scope flag or highest precedence
+		resolvedScope, err := resolveScopeFlags(profileDiffScope, profileDiffUser, profileDiffProject, profileDiffLocal)
+		if err != nil {
+			return err
+		}
+
+		if resolvedScope != "" {
+			profileName, appliedAt, ok := breadcrumb.ForScope(bc, resolvedScope)
+			if !ok {
+				return fmt.Errorf("no profile has been applied at %s scope. Run: claudeup profile diff <name>", resolvedScope)
+			}
+			name = profileName
+			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2"), resolvedScope)
+		} else {
+			profileName, scope := breadcrumb.HighestPrecedence(bc)
+			if profileName == "" {
+				return fmt.Errorf("No profile has been applied yet. Run: claudeup profile diff <name>")
+			}
+			name = profileName
+			entry := bc[scope]
+			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2"), scope)
+		}
+	}
+
 	profilesDir := getProfilesDir()
 
 	// Load saved profile (disk first, fallback to embedded)
@@ -1733,7 +1784,14 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		if errors.As(err, &ambigErr) {
 			return ambigErr
 		}
+		if breadcrumbScope != "" {
+			return fmt.Errorf("profile %q no longer exists. Run: claudeup profile diff <name>", name)
+		}
 		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	if breadcrumbScope != "" {
+		fmt.Printf("Comparing against %q (%s)\n\n", name, breadcrumbScope)
 	}
 
 	// Snapshot live state
