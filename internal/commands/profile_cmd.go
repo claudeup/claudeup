@@ -192,7 +192,7 @@ all scopes (user, project, local). Use this to see drift before running
 'profile save' to pull changes back into the profile.
 
 Use --original to compare a customized built-in profile against its
-embedded original (the previous default behavior).`,
+embedded original.`,
 	Example: `  # Diff a profile against live state
   claudeup profile diff my-setup
 
@@ -1598,7 +1598,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	// Load saved profile (disk first, fallback to embedded)
 	saved, err := loadProfileWithFallback(profilesDir, name)
 	if err != nil {
-		return fmt.Errorf("profile '%s' not found", name)
+		return fmt.Errorf("failed to load profile '%s': %w", name, err)
 	}
 
 	// Snapshot live state
