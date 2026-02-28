@@ -1,5 +1,5 @@
-// ABOUTME: Acceptance tests for profile diff command comparing customized to built-in
-// ABOUTME: Ensures profile diff shows differences between customized and original built-in profiles
+// ABOUTME: Acceptance tests for profile diff --original comparing customized to built-in
+// ABOUTME: Ensures profile diff --original shows differences between customized and original built-in profiles
 package acceptance
 
 import (
@@ -10,7 +10,7 @@ import (
 	"github.com/claudeup/claudeup/v5/test/helpers"
 )
 
-var _ = Describe("Profile diff builtin comparison", func() {
+var _ = Describe("Profile diff --original", func() {
 	var (
 		env        *helpers.TestEnv
 		binaryPath string
@@ -28,7 +28,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 
 	Describe("no arguments", func() {
 		It("returns error when no profile name given", func() {
-			result := env.Run("profile", "diff")
+			result := env.Run("profile", "diff", "--original")
 
 			// ExactArgs(1) rejects missing argument
 			Expect(result.ExitCode).To(Equal(1))
@@ -38,7 +38,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 
 	Describe("non-existent profile", func() {
 		It("returns error for unknown profile", func() {
-			result := env.Run("profile", "diff", "nonexistent-profile")
+			result := env.Run("profile", "diff", "--original", "nonexistent-profile")
 
 			Expect(result.ExitCode).To(Equal(1))
 			Expect(result.Stderr).To(ContainSubstring("not a built-in profile"))
@@ -56,7 +56,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 		})
 
 		It("returns error for non-builtin profile", func() {
-			result := env.Run("profile", "diff", "my-custom")
+			result := env.Run("profile", "diff", "--original", "my-custom")
 
 			Expect(result.ExitCode).To(Equal(1))
 			Expect(result.Stderr).To(ContainSubstring("not a built-in profile"))
@@ -65,7 +65,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 
 	Describe("unmodified built-in profile", func() {
 		It("shows no differences for unmodified built-in", func() {
-			result := env.Run("profile", "diff", "default")
+			result := env.Run("profile", "diff", "--original", "default")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("No differences"))
@@ -89,7 +89,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 		})
 
 		It("shows added plugin", func() {
-			result := env.Run("profile", "diff", "default")
+			result := env.Run("profile", "diff", "--original", "default")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show added plugin with + symbol
@@ -115,7 +115,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 		})
 
 		It("shows modified description", func() {
-			result := env.Run("profile", "diff", "default")
+			result := env.Run("profile", "diff", "--original", "default")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show modified description with ~ symbol
@@ -136,7 +136,7 @@ var _ = Describe("Profile diff builtin comparison", func() {
 		})
 
 		It("shows removed marketplace", func() {
-			result := env.Run("profile", "diff", "default")
+			result := env.Run("profile", "diff", "--original", "default")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show removed marketplace with - symbol
