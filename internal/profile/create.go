@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -112,6 +113,52 @@ func CreateFromFlags(name, description string, marketplaceArgs, plugins []string
 		Plugins:      plugins,
 		MCPServers:   []MCPServer{},
 	}, nil
+}
+
+// ValidatePluginMarketplaces checks that every plugin's marketplace ref resolves
+// to either a marketplace in the profile or an installed marketplace registry key.
+// Plugins without an @ separator are skipped (they're invalid format but that's
+// caught by ValidatePluginFormat).
+func ValidatePluginMarketplaces(plugins []string, marketplaces []Marketplace, registryKeys []string) error {
+	if len(plugins) == 0 {
+		return nil
+	}
+
+	var unresolvable []string
+	for _, plugin := range plugins {
+		atIdx := strings.LastIndex(plugin, "@")
+		if atIdx == -1 || atIdx == len(plugin)-1 {
+			continue // no ref to validate
+		}
+		ref := plugin[atIdx+1:]
+
+		if matchesMarketplace(ref, marketplaces) || matchesRegistryKey(ref, registryKeys) {
+			continue
+		}
+		unresolvable = append(unresolvable, plugin)
+	}
+
+	if len(unresolvable) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf("plugins reference unknown marketplaces: %s", strings.Join(unresolvable, ", "))
+}
+
+// matchesMarketplace checks if a plugin ref matches any marketplace in the list.
+// Uses the same logic as filterMarketplacesToPlugins: match full repo or last segment.
+func matchesMarketplace(ref string, marketplaces []Marketplace) bool {
+	for _, m := range marketplaces {
+		if m.Repo == ref || strings.HasSuffix(m.Repo, "/"+ref) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesRegistryKey checks if a plugin ref matches any key in the registry list.
+func matchesRegistryKey(ref string, registryKeys []string) bool {
+	return slices.Contains(registryKeys, ref)
 }
 
 // CreateSpec is the input format for file/stdin profile creation

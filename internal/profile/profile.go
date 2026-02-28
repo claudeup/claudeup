@@ -295,6 +295,17 @@ func (p *Profile) filterMarketplacesToPlugins() {
 	p.Marketplaces = filtered
 }
 
+// ValidateMarketplaceRefs checks that all plugin marketplace refs in this profile
+// resolve to either a marketplace in the profile or an installed registry key.
+// Uses CombinedScopes() to aggregate plugins from all scopes.
+func (p *Profile) ValidateMarketplaceRefs(registryKeys []string) error {
+	if p == nil {
+		return nil
+	}
+	combined := p.CombinedScopes()
+	return ValidatePluginMarketplaces(combined.Plugins, p.Marketplaces, registryKeys)
+}
+
 // PostApplyHook defines a hook to run after a profile is applied.
 //
 // Execution order: Script takes precedence over Command. If both are set,

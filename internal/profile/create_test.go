@@ -385,3 +385,121 @@ func TestCreateFromReaderNilSlices(t *testing.T) {
 		t.Errorf("CreateFromReader() MCPServers should be empty, got %v", p.MCPServers)
 	}
 }
+
+func TestValidatePluginMarketplaces(t *testing.T) {
+	tests := []struct {
+		name         string
+		plugins      []string
+		marketplaces []Marketplace
+		registryKeys []string
+		wantErrs     []string
+	}{
+		{
+			name:    "plugin matches marketplace in profile by suffix",
+			plugins: []string{"my-tool@claude-code-plugins"},
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			registryKeys: nil,
+		},
+		{
+			name:    "plugin matches marketplace in profile by full repo",
+			plugins: []string{"my-tool@anthropics/claude-code-plugins"},
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			registryKeys: nil,
+		},
+		{
+			name:         "plugin matches registry key",
+			plugins:      []string{"my-tool@claude-code-plugins"},
+			marketplaces: nil,
+			registryKeys: []string{"claude-code-plugins"},
+		},
+		{
+			name:         "plugin with no matching marketplace or registry key",
+			plugins:      []string{"my-tool@nonexistent-marketplace"},
+			marketplaces: nil,
+			registryKeys: nil,
+			wantErrs:     []string{"my-tool@nonexistent-marketplace"},
+		},
+		{
+			name: "multiple plugins some matching some not",
+			plugins: []string{
+				"good-tool@claude-code-plugins",
+				"bad-tool@fake-marketplace",
+				"other-bad@also-fake",
+			},
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			registryKeys: nil,
+			wantErrs:     []string{"bad-tool@fake-marketplace", "other-bad@also-fake"},
+		},
+		{
+			name:    "multiple unresolvable plugins listed in error",
+			plugins: []string{"bad1@fake1", "bad2@fake2"},
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			registryKeys: nil,
+			wantErrs:     []string{"bad1@fake1", "bad2@fake2"},
+		},
+		{
+			name:         "empty plugins passes",
+			plugins:      []string{},
+			marketplaces: nil,
+			registryKeys: nil,
+		},
+		{
+			name:         "nil plugins passes",
+			plugins:      nil,
+			marketplaces: nil,
+			registryKeys: nil,
+		},
+		{
+			name:         "empty marketplaces and empty registry fails if plugins exist",
+			plugins:      []string{"my-tool@some-marketplace"},
+			marketplaces: []Marketplace{},
+			registryKeys: []string{},
+			wantErrs:     []string{"my-tool@some-marketplace"},
+		},
+		{
+			name:    "plugin without @ separator is skipped",
+			plugins: []string{"no-at-sign"},
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			registryKeys: nil,
+		},
+		{
+			name:    "plugin with trailing @ is skipped",
+			plugins: []string{"trailing-at@"},
+			marketplaces: []Marketplace{
+				{Source: "github", Repo: "anthropics/claude-code-plugins"},
+			},
+			registryKeys: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidatePluginMarketplaces(tt.plugins, tt.marketplaces, tt.registryKeys)
+			if len(tt.wantErrs) == 0 {
+				if err != nil {
+					t.Errorf("ValidatePluginMarketplaces() unexpected error = %v", err)
+				}
+			} else {
+				if err == nil {
+					t.Errorf("ValidatePluginMarketplaces() expected error containing %v, got nil", tt.wantErrs)
+				} else {
+					for _, want := range tt.wantErrs {
+						if !strings.Contains(err.Error(), want) {
+							t.Errorf("ValidatePluginMarketplaces() error = %v, want containing %q", err, want)
+						}
+					}
+				}
+			}
+		})
+	}
+}
