@@ -51,11 +51,11 @@ func TestGetEmbeddedFrontendProfile(t *testing.T) {
 
 	// Verify plugins
 	expectedPlugins := []string{
-		"frontend-design@claude-code-plugins",
+		"frontend-design@claude-plugins-official",
 		"nextjs-vercel-pro@claude-code-templates",
 		"superpowers@superpowers-marketplace",
 		"episodic-memory@superpowers-marketplace",
-		"commit-commands@claude-code-plugins",
+		"commit-commands@claude-plugins-official",
 	}
 	if len(p.Plugins) != len(expectedPlugins) {
 		t.Errorf("Expected %d plugins, got %d", len(expectedPlugins), len(p.Plugins))
