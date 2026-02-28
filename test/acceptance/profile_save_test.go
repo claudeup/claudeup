@@ -68,7 +68,7 @@ var _ = Describe("profile save", func() {
 			result := env.Run("profile", "save")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("No profile has been applied"))
+			Expect(result.Stderr).To(ContainSubstring("no profile has been applied"))
 		})
 	})
 

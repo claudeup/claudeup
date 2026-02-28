@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-
 	"time"
 
 	"github.com/claudeup/claudeup/v5/internal/breadcrumb"

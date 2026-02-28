@@ -36,13 +36,10 @@ var _ = Describe("Profile breadcrumb", func() {
 		It("writes breadcrumb at user scope by default", func() {
 			result := env.RunWithInput("y\n", "profile", "apply", "test-profile", "-y")
 
-			// Apply may fail on plugin install, but breadcrumb is written on the
-			// "already matches" path since profile is empty and live is empty
-			if result.ExitCode == 0 {
-				bc := env.ReadBreadcrumb()
-				Expect(bc).To(HaveKey("user"))
-				Expect(bc["user"].Profile).To(Equal("test-profile"))
-			}
+			Expect(result.ExitCode).To(Equal(0))
+			bc := env.ReadBreadcrumb()
+			Expect(bc).To(HaveKey("user"))
+			Expect(bc["user"].Profile).To(Equal("test-profile"))
 		})
 	})
 
@@ -72,7 +69,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.Run("profile", "save")
 
 			Expect(result.ExitCode).To(Equal(1))
-			Expect(result.Stderr).To(ContainSubstring("No profile has been applied"))
+			Expect(result.Stderr).To(ContainSubstring("no profile has been applied"))
 		})
 
 		It("explicit name still works", func() {
@@ -158,7 +155,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.Run("profile", "diff")
 
 			Expect(result.ExitCode).To(Equal(1))
-			Expect(result.Stderr).To(ContainSubstring("No profile has been applied"))
+			Expect(result.Stderr).To(ContainSubstring("no profile has been applied"))
 		})
 
 		It("errors when breadcrumbed profile is deleted", func() {
@@ -177,6 +174,35 @@ var _ = Describe("Profile breadcrumb", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+		})
+
+		It("uses --user flag to select user scope breadcrumb", func() {
+			env.WriteBreadcrumb("user", "my-setup")
+			env.WriteBreadcrumb("project", "other-profile")
+			env.CreateProfile(&profile.Profile{Name: "other-profile"})
+
+			result := env.Run("profile", "diff", "--user")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+		})
+
+		It("errors when scope flag has no breadcrumb", func() {
+			env.WriteBreadcrumb("user", "my-setup")
+
+			result := env.Run("profile", "diff", "--project")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("no profile has been applied at project scope"))
+		})
+
+		It("errors when scope flag used with explicit name", func() {
+			env.WriteBreadcrumb("user", "my-setup")
+
+			result := env.Run("profile", "diff", "my-setup", "--user")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("cannot use --scope"))
 		})
 	})
 })

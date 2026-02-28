@@ -4,6 +4,7 @@ package breadcrumb
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -23,16 +24,17 @@ type File map[string]Entry
 // Load reads the breadcrumb file from claudeupHome.
 // Returns an empty File if the file does not exist.
 func Load(claudeupHome string) (File, error) {
-	data, err := os.ReadFile(filepath.Join(claudeupHome, filename))
+	path := filepath.Join(claudeupHome, filename)
+	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return File{}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("reading %s: %w", path, err)
 	}
 	var f File
 	if err := json.Unmarshal(data, &f); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return f, nil
 }
@@ -47,18 +49,27 @@ func Save(claudeupHome string, f File) error {
 	data = append(data, '\n')
 
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0644); err != nil {
+	if err := os.WriteFile(tmp, data, 0600); err != nil {
 		return err
 	}
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp) // best-effort cleanup
+		return fmt.Errorf("writing breadcrumb: %w", err)
+	}
+	return nil
 }
 
 // Record writes a breadcrumb entry for the given scopes.
-// Preserves existing entries for other scopes.
+// Preserves existing entries for other scopes. If the existing
+// breadcrumb file cannot be read, returns the error rather than
+// silently discarding existing entries.
 func Record(claudeupHome, profileName string, scopes []string) error {
+	if profileName == "" {
+		return fmt.Errorf("breadcrumb: profile name must not be empty")
+	}
 	f, err := Load(claudeupHome)
 	if err != nil {
-		f = File{}
+		return fmt.Errorf("loading existing breadcrumb: %w", err)
 	}
 	now := time.Now().UTC()
 	for _, scope := range scopes {
@@ -71,9 +82,13 @@ func Record(claudeupHome, profileName string, scopes []string) error {
 }
 
 // Remove deletes breadcrumb entries referencing the given profile name.
+// Deletes the breadcrumb file entirely when no entries remain.
 func Remove(claudeupHome, profileName string) error {
 	f, err := Load(claudeupHome)
-	if err != nil || len(f) == 0 {
+	if err != nil {
+		return fmt.Errorf("loading breadcrumb for removal: %w", err)
+	}
+	if len(f) == 0 {
 		return nil
 	}
 	changed := false
@@ -87,7 +102,11 @@ func Remove(claudeupHome, profileName string) error {
 		return nil
 	}
 	if len(f) == 0 {
-		return os.Remove(filepath.Join(claudeupHome, filename))
+		err := os.Remove(filepath.Join(claudeupHome, filename))
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("removing empty breadcrumb file: %w", err)
+		}
+		return nil
 	}
 	return Save(claudeupHome, f)
 }
@@ -95,7 +114,10 @@ func Remove(claudeupHome, profileName string) error {
 // Rename updates breadcrumb entries from oldName to newName.
 func Rename(claudeupHome, oldName, newName string) error {
 	f, err := Load(claudeupHome)
-	if err != nil || len(f) == 0 {
+	if err != nil {
+		return fmt.Errorf("loading breadcrumb for rename: %w", err)
+	}
+	if len(f) == 0 {
 		return nil
 	}
 	changed := false

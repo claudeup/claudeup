@@ -184,6 +184,96 @@ func TestHighestPrecedence(t *testing.T) {
 	}
 }
 
+func TestLoadCorruptJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "last-applied.json")
+	os.WriteFile(path, []byte("{invalid json"), 0600)
+
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatal("expected error for corrupt JSON")
+	}
+}
+
+func TestRecordWithCorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "last-applied.json")
+	os.WriteFile(path, []byte("{invalid json"), 0600)
+
+	// Record should propagate the load error, not silently overwrite
+	err := Record(dir, "my-profile", []string{"user"})
+	if err == nil {
+		t.Fatal("expected error when existing breadcrumb is corrupt")
+	}
+}
+
+func TestRecordEmptyScopes(t *testing.T) {
+	dir := t.TempDir()
+
+	// Record with empty scopes should still succeed (writes file with no entries)
+	if err := Record(dir, "my-profile", []string{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	f, _ := Load(dir)
+	if len(f) != 0 {
+		t.Fatalf("expected empty file, got %d entries", len(f))
+	}
+}
+
+func TestRecordEmptyProfileName(t *testing.T) {
+	dir := t.TempDir()
+
+	err := Record(dir, "", []string{"user"})
+	if err == nil {
+		t.Fatal("expected error for empty profile name")
+	}
+}
+
+func TestRemoveWithCorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "last-applied.json")
+	os.WriteFile(path, []byte("{invalid json"), 0600)
+
+	// Remove should propagate the load error
+	err := Remove(dir, "my-profile")
+	if err == nil {
+		t.Fatal("expected error when breadcrumb file is corrupt")
+	}
+}
+
+func TestRenameNonexistent(t *testing.T) {
+	dir := t.TempDir()
+
+	// Should not error when no file exists
+	if err := Rename(dir, "old", "new"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRenameWithCorruptFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "last-applied.json")
+	os.WriteFile(path, []byte("{invalid json"), 0600)
+
+	// Rename should propagate the load error
+	err := Rename(dir, "old", "new")
+	if err == nil {
+		t.Fatal("expected error when breadcrumb file is corrupt")
+	}
+}
+
+func TestHighestPrecedenceIgnoresUnknownKeys(t *testing.T) {
+	f := File{
+		"banana":  {Profile: "fruit"},
+		"unknown": {Profile: "mystery"},
+	}
+	name, scope := HighestPrecedence(f)
+	if name != "" || scope != "" {
+		t.Fatalf("expected empty result for unknown keys, got (%s, %s)", name, scope)
+	}
+}
+
 func TestForScope(t *testing.T) {
 	f := File{
 		"user": {Profile: "base-tools", AppliedAt: time.Date(2026, 2, 27, 21, 0, 0, 0, time.UTC)},
