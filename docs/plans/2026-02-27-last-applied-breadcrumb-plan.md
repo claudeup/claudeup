@@ -1,7 +1,5 @@
 # Last-Applied Breadcrumb Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-
 **Goal:** Record which profile was last applied at each scope so `profile diff` and `profile save` can default to it.
 
 **Architecture:** A new `internal/breadcrumb` package handles read/write of a per-scope JSON file at `~/.claudeup/last-applied.json`. Commands in `profile_cmd.go` write the breadcrumb on apply and read it when diff/save are invoked without arguments. Delete and rename commands maintain breadcrumb consistency.

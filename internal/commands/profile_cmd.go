@@ -1177,7 +1177,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("no profile has been applied at %s scope. Run: claudeup profile save <name>", resolvedScope)
 			}
 			name = profileName
-			bcScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2"), resolvedScope)
+			bcScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2, 2006"), resolvedScope)
 		} else {
 			profileName, scope := breadcrumb.HighestPrecedence(bc)
 			if profileName == "" {
@@ -1185,7 +1185,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 			}
 			name = profileName
 			entry := bc[scope]
-			bcScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2"), scope)
+			bcScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2, 2006"), scope)
 		}
 		fmt.Printf("Saving to %q (%s)\n\n", name, bcScope)
 	}
@@ -1811,7 +1811,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 				return fmt.Errorf("no profile has been applied at %s scope. Run: claudeup profile diff <name>", resolvedScope)
 			}
 			name = profileName
-			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2"), resolvedScope)
+			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2, 2006"), resolvedScope)
 		} else {
 			profileName, scope := breadcrumb.HighestPrecedence(bc)
 			if profileName == "" {
@@ -1819,7 +1819,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 			}
 			name = profileName
 			entry := bc[scope]
-			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2"), scope)
+			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2, 2006"), scope)
 		}
 	}
 
@@ -1833,7 +1833,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 			return ambigErr
 		}
 		if breadcrumbScope != "" {
-			return fmt.Errorf("profile %q no longer exists. Run: claudeup profile diff <name>", name)
+			return fmt.Errorf("profile %q not found (breadcrumb referenced it). Run: claudeup profile diff <name>", name)
 		}
 		return fmt.Errorf("profile '%s' not found", name)
 	}

@@ -1,6 +1,9 @@
 package acceptance
 
 import (
+	"os"
+	"path/filepath"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -47,6 +50,18 @@ var _ = Describe("Profile breadcrumb", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(env.BreadcrumbExists()).To(BeFalse())
+		})
+
+		It("warns but succeeds when breadcrumb file is corrupt", func() {
+			// Write garbage to the breadcrumb file
+			bcPath := filepath.Join(env.ClaudeupDir, "last-applied.json")
+			Expect(os.WriteFile(bcPath, []byte("{invalid json"), 0600)).To(Succeed())
+
+			result := env.RunWithInput("y\n", "profile", "apply", "test-profile", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			combined := result.Stdout + result.Stderr
+			Expect(combined).To(ContainSubstring("breadcrumb"))
 		})
 	})
 
@@ -171,7 +186,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			result := env.Run("profile", "diff")
 
 			Expect(result.ExitCode).To(Equal(1))
-			Expect(result.Stderr).To(ContainSubstring("no longer exists"))
+			Expect(result.Stderr).To(ContainSubstring("not found"))
 		})
 
 		It("explicit name still works", func() {

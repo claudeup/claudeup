@@ -39,7 +39,9 @@ func Load(claudeupHome string) (File, error) {
 	return f, nil
 }
 
-// Save writes the breadcrumb file atomically.
+// Save writes the breadcrumb file atomically (write-tmp + rename).
+// Concurrent writers produce a last-write-wins result, which is acceptable
+// since the breadcrumb is a convenience hint, not a source of truth.
 func Save(claudeupHome string, f File) error {
 	path := filepath.Join(claudeupHome, filename)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
