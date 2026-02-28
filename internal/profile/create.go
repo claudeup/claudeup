@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -155,14 +156,9 @@ func matchesMarketplace(ref string, marketplaces []Marketplace) bool {
 	return false
 }
 
-// matchesRegistryKey checks if a plugin ref matches any installed marketplace key.
+// matchesRegistryKey checks if a plugin ref matches any key in the registry list.
 func matchesRegistryKey(ref string, registryKeys []string) bool {
-	for _, key := range registryKeys {
-		if key == ref {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(registryKeys, ref)
 }
 
 // CreateSpec is the input format for file/stdin profile creation

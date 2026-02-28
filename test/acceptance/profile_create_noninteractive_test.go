@@ -242,6 +242,18 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.Stderr).To(ContainSubstring("my-tool@nonexistent-marketplace"))
 		})
 
+		It("rejects plugin with unresolvable marketplace ref from stdin", func() {
+			spec := `{
+				"description": "Bad ref stdin test",
+				"marketplaces": ["anthropics/claude-code-plugins"],
+				"plugins": ["my-tool@nonexistent-marketplace"]
+			}`
+
+			result := env.RunWithInput(spec, "profile", "create", "bad-ref-stdin", "--from-stdin")
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("my-tool@nonexistent-marketplace"))
+		})
+
 		It("rejects combining --from-file with --from-stdin", func() {
 			specPath := filepath.Join(env.TempDir, "spec.json")
 			spec := `{"description": "Test", "marketplaces": ["owner/repo"]}`
