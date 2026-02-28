@@ -78,9 +78,9 @@ var _ = Describe("profile status", func() {
 
 		Context("with user-scope MCP servers", func() {
 			BeforeEach(func() {
-				claudeJSON := map[string]interface{}{
-					"mcpServers": map[string]interface{}{
-						"test-server": map[string]interface{}{
+				claudeJSON := map[string]any{
+					"mcpServers": map[string]any{
+						"test-server": map[string]any{
 							"command": "npx",
 							"args":    []string{"test-server"},
 						},
@@ -110,9 +110,9 @@ var _ = Describe("profile status", func() {
 				// Create .claude dir so project scope is checked
 				Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
 
-				mcpJSON := map[string]interface{}{
-					"mcpServers": map[string]interface{}{
-						"project-server": map[string]interface{}{
+				mcpJSON := map[string]any{
+					"mcpServers": map[string]any{
+						"project-server": map[string]any{
 							"command": "node",
 							"args":    []string{"server.js"},
 						},
@@ -170,9 +170,9 @@ var _ = Describe("profile status", func() {
 
 		Context("with MCP servers but no plugins", func() {
 			BeforeEach(func() {
-				claudeJSON := map[string]interface{}{
-					"mcpServers": map[string]interface{}{
-						"mcp-only-server": map[string]interface{}{
+				claudeJSON := map[string]any{
+					"mcpServers": map[string]any{
+						"mcp-only-server": map[string]any{
 							"command": "npx",
 							"args":    []string{"mcp-server"},
 						},
