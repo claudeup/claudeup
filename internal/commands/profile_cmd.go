@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/backup"
+	"github.com/claudeup/claudeup/v5/internal/breadcrumb"
 	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/config"
 	"github.com/claudeup/claudeup/v5/internal/profile"
@@ -919,6 +920,9 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
+		// Record breadcrumb even when no changes needed -- user applied this profile
+		recordBreadcrumb(name, scopesForBreadcrumb(scope, p, wasStack))
+
 		if p.SkipPluginDiff {
 			ui.PrintSuccess("No configuration changes needed.")
 			fmt.Println()
@@ -1022,6 +1026,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	fmt.Println()
 	ui.PrintSuccess("Profile applied!")
+	recordBreadcrumb(name, scopesForBreadcrumb(scope, p, wasStack))
 
 	// Scope-specific post-apply messages
 	if scope == profile.ScopeProject {
@@ -1051,6 +1056,34 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	}
 
 	return nil
+}
+
+// recordBreadcrumb writes a breadcrumb entry recording which profile was applied.
+// Errors are logged but do not fail the operation.
+func recordBreadcrumb(name string, scopes []string) {
+	if err := breadcrumb.Record(claudeupHome, name, scopes); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not save breadcrumb: %v", err))
+	}
+}
+
+// scopesForBreadcrumb determines which scopes a profile apply touched.
+func scopesForBreadcrumb(scope profile.Scope, p *profile.Profile, wasStack bool) []string {
+	if p.IsMultiScope() || wasStack {
+		var scopes []string
+		if p.PerScope != nil {
+			if p.PerScope.User != nil {
+				scopes = append(scopes, "user")
+			}
+			if p.PerScope.Project != nil {
+				scopes = append(scopes, "project")
+			}
+			if p.PerScope.Local != nil {
+				scopes = append(scopes, "local")
+			}
+		}
+		return scopes
+	}
+	return []string{string(scope)}
 }
 
 // cleanupStalePlugins removes plugin entries with invalid paths

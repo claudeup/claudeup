@@ -11,6 +11,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"time"
+
+	"github.com/claudeup/claudeup/v5/internal/breadcrumb"
 	"github.com/claudeup/claudeup/v5/internal/profile"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -444,6 +447,29 @@ func LoadJSON(path string) map[string]interface{} {
 	var result map[string]interface{}
 	Expect(json.Unmarshal(data, &result)).To(Succeed())
 	return result
+}
+
+// WriteBreadcrumb creates a breadcrumb entry in the test environment
+func (e *TestEnv) WriteBreadcrumb(scope, profileName string) {
+	bc, _ := breadcrumb.Load(e.ClaudeupDir)
+	bc[scope] = breadcrumb.Entry{
+		Profile:   profileName,
+		AppliedAt: time.Now().UTC(),
+	}
+	Expect(breadcrumb.Save(e.ClaudeupDir, bc)).To(Succeed())
+}
+
+// ReadBreadcrumb loads the breadcrumb file from the test environment
+func (e *TestEnv) ReadBreadcrumb() breadcrumb.File {
+	f, err := breadcrumb.Load(e.ClaudeupDir)
+	Expect(err).NotTo(HaveOccurred())
+	return f
+}
+
+// BreadcrumbExists checks if the breadcrumb file exists
+func (e *TestEnv) BreadcrumbExists() bool {
+	_, err := os.Stat(filepath.Join(e.ClaudeupDir, "last-applied.json"))
+	return err == nil
 }
 
 // Cleanup removes the test environment (automatically called by GinkgoT().TempDir())
