@@ -108,6 +108,39 @@ func (p *Profile) AsPerScope() *Profile {
 	return result
 }
 
+// FilterToScopes returns a copy of the profile containing only the scopes
+// present in the given map (keyed by scope name). Marketplaces are included
+// only when user scope is active (they are always user-scoped).
+func FilterToScopes(p *Profile, scopes map[string]bool) *Profile {
+	if p == nil {
+		return nil
+	}
+	result := &Profile{
+		Name:        p.Name,
+		Description: p.Description,
+		PerScope:    &PerScopeSettings{},
+	}
+
+	if scopes["user"] && p.PerScope != nil && p.PerScope.User != nil {
+		result.PerScope.User = p.PerScope.User
+	}
+	if scopes["project"] && p.PerScope != nil && p.PerScope.Project != nil {
+		result.PerScope.Project = p.PerScope.Project
+	}
+	if scopes["local"] && p.PerScope != nil && p.PerScope.Local != nil {
+		result.PerScope.Local = p.PerScope.Local
+	}
+
+	// Marketplaces are always user-scoped. Keep all when user scope is active;
+	// drop all when it's not (prevents marketplace diffs when only project/local
+	// breadcrumbs are active).
+	if scopes["user"] {
+		result.Marketplaces = p.Marketplaces
+	}
+
+	return result
+}
+
 // ComputeProfileDiff compares a saved profile against a live snapshot.
 // Both inputs should already be in PerScope form (caller normalizes via AsPerScope).
 func ComputeProfileDiff(saved, live *Profile) *ProfileDiff {

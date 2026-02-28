@@ -308,6 +308,65 @@ func TestSnapshotFiltersInvalidMarketplaces(t *testing.T) {
 	}
 }
 
+func TestSnapshotAllScopesSkipsProjectWhenSameAsUser(t *testing.T) {
+	// When projectDir is the parent of claudeDir (e.g., running from ~),
+	// projectDir/.claude/settings.json is the same file as claudeDir/settings.json.
+	// SnapshotAllScopes should not capture project scope in this case.
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// User-scope settings with plugins
+	writeJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"superpowers@superpowers-marketplace": true,
+		},
+	})
+
+	// Marketplace registry
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{
+		"superpowers-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "obra/superpowers-marketplace",
+			},
+		},
+	})
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	// projectDir = tmpDir, so projectDir/.claude == claudeDir
+	p, err := SnapshotAllScopes("test-home", claudeDir, claudeJSONPath, tmpDir, claudeDir)
+	if err != nil {
+		t.Fatalf("SnapshotAllScopes failed: %v", err)
+	}
+
+	// User scope should have the plugin
+	if p.PerScope == nil || p.PerScope.User == nil {
+		t.Fatal("Expected user scope to be populated")
+	}
+	if len(p.PerScope.User.Plugins) != 1 {
+		t.Errorf("Expected 1 user plugin, got %d", len(p.PerScope.User.Plugins))
+	}
+
+	// Project scope should be nil -- same settings file as user
+	if p.PerScope.Project != nil {
+		t.Errorf("Expected project scope to be nil (same as user scope), got plugins=%v extensions=%+v",
+			p.PerScope.Project.Plugins, p.PerScope.Project.Extensions)
+	}
+
+	// Local scope should also be nil
+	if p.PerScope.Local != nil {
+		t.Errorf("Expected local scope to be nil, got %+v", p.PerScope.Local)
+	}
+}
+
 func writeJSON(t *testing.T, path string, data interface{}) {
 	t.Helper()
 	bytes, err := json.MarshalIndent(data, "", "  ")

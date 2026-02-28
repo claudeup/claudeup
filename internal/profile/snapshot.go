@@ -338,6 +338,12 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	// Non-nil empty slice means "filter strictly" (no marketplaces if no plugins).
 	allPlugins := []string{}
 
+	// Determine whether project/local scopes are distinct from user scope.
+	// When projectDir/.claude resolves to the same directory as claudeDir
+	// (e.g., running from ~), settings files overlap and capturing project/local
+	// would duplicate user-scope data.
+	hasDistinctProjectScope := projectDir != "" && !sameDir(filepath.Join(projectDir, ".claude"), claudeDir)
+
 	// Capture user scope
 	userPlugins, _ := readPluginsForScope(claudeDir, projectDir, "user")
 	userMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "user")
@@ -350,7 +356,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	}
 
 	// Capture project scope
-	if projectDir != "" {
+	if hasDistinctProjectScope {
 		projectPlugins, _ := readPluginsForScope(claudeDir, projectDir, "project")
 		projectMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "project")
 		allPlugins = append(allPlugins, projectPlugins...)
@@ -363,7 +369,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	}
 
 	// Capture local scope
-	if projectDir != "" {
+	if hasDistinctProjectScope {
 		localPlugins, _ := readPluginsForScope(claudeDir, projectDir, "local")
 		localMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "local")
 		allPlugins = append(allPlugins, localPlugins...)
@@ -391,7 +397,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	}
 
 	// Read project-scoped extensions from project .claude/{agents,rules}/
-	if projectDir != "" {
+	if hasDistinctProjectScope {
 		projectExtensions := ReadProjectExtensions(projectDir)
 		if projectExtensions != nil {
 			if p.PerScope.Project == nil {
@@ -405,6 +411,17 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	p.Description = p.GenerateDescription()
 
 	return p, nil
+}
+
+// sameDir returns true if a and b resolve to the same directory after
+// cleaning and resolving symlinks.
+func sameDir(a, b string) bool {
+	ra, err1 := filepath.EvalSymlinks(a)
+	rb, err2 := filepath.EvalSymlinks(b)
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
 }
 
 // ReadProjectExtensions scans .claude/{agents,rules}/ in the project directory

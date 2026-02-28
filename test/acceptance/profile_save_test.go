@@ -72,6 +72,36 @@ var _ = Describe("profile save", func() {
 		})
 	})
 
+	Context("scope label in output", func() {
+		It("says user scope when only user scope is captured", func() {
+			// No project-scope settings, so only user scope is captured
+			env.CreateSettings(map[string]bool{
+				"my-plugin@marketplace": true,
+			})
+
+			result := env.Run("profile", "save", "user-only-label")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("(user scope)"))
+			Expect(result.Stdout).NotTo(ContainSubstring("(all scopes)"))
+		})
+
+		It("says all scopes when multiple scopes are captured", func() {
+			projectDir := env.ProjectDir("scope-label-multi")
+			env.CreateSettings(map[string]bool{
+				"user-plugin@marketplace": true,
+			})
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
+				"project-plugin@marketplace": true,
+			})
+
+			result := env.RunInDir(projectDir, "profile", "save", "multi-label")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("(all scopes)"))
+		})
+	})
+
 	Describe("profile save --scope", func() {
 		Context("with --project flag", func() {
 			var projectDir string

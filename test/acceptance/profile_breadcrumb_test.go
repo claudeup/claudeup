@@ -162,13 +162,15 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 
 		It("prefers project breadcrumb over user", func() {
+			projectDir := env.ProjectDir("my-project")
+
 			env.WriteBreadcrumb("user", "some-other")
-			env.WriteBreadcrumb("project", "my-setup")
+			env.WriteBreadcrumbWithDir("project", "my-setup", projectDir)
 
 			// Create the other profile too
 			env.CreateProfile(&profile.Profile{Name: "some-other"})
 
-			result := env.Run("profile", "diff")
+			result := env.RunInDir(projectDir, "profile", "diff")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("my-setup"))
@@ -469,6 +471,8 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 
 		It("shows markers on multiple profiles at different scopes", func() {
+			projectDir := env.ProjectDir("multi-scope")
+
 			env.CreateProfile(&profile.Profile{
 				Name:        "user-profile",
 				Description: "at user scope",
@@ -478,9 +482,9 @@ var _ = Describe("Profile breadcrumb", func() {
 				Description: "at project scope",
 			})
 			env.WriteBreadcrumb("user", "user-profile")
-			env.WriteBreadcrumb("project", "project-profile")
+			env.WriteBreadcrumbWithDir("project", "project-profile", projectDir)
 
-			result := env.Run("profile", "list")
+			result := env.RunInDir(projectDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
 			// Both profiles should have applied markers
@@ -556,13 +560,15 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 
 		It("shows marker at project scope breadcrumb", func() {
+			projectDir := env.ProjectDir("proj-scope")
+
 			env.CreateProfile(&profile.Profile{
 				Name:        "proj-setup",
 				Description: "project profile",
 			})
-			env.WriteBreadcrumb("project", "proj-setup")
+			env.WriteBreadcrumbWithDir("project", "proj-setup", projectDir)
 
-			result := env.Run("profile", "list")
+			result := env.RunInDir(projectDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("proj-setup"))
@@ -572,13 +578,15 @@ var _ = Describe("Profile breadcrumb", func() {
 
 	Describe("status scope display", func() {
 		It("shows project scope when breadcrumbed at project scope", func() {
+			projectDir := env.ProjectDir("proj-scope-status")
+
 			env.CreateProfile(&profile.Profile{
 				Name:        "proj-setup",
 				Description: "project profile",
 			})
-			env.WriteBreadcrumb("project", "proj-setup")
+			env.WriteBreadcrumbWithDir("project", "proj-setup", projectDir)
 
-			result := env.Run("profile", "status")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Last applied"))
@@ -587,13 +595,15 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 
 		It("shows local scope when breadcrumbed at local scope", func() {
+			projectDir := env.ProjectDir("local-scope-status")
+
 			env.CreateProfile(&profile.Profile{
 				Name:        "local-setup",
 				Description: "local profile",
 			})
-			env.WriteBreadcrumb("local", "local-setup")
+			env.WriteBreadcrumbWithDir("local", "local-setup", projectDir)
 
-			result := env.Run("profile", "status")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Last applied"))
@@ -602,6 +612,8 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 
 		It("shows highest-precedence scope when multiple breadcrumbs exist", func() {
+			projectDir := env.ProjectDir("multi-scope-status")
+
 			env.CreateProfile(&profile.Profile{
 				Name:        "user-profile",
 				Description: "user",
@@ -611,14 +623,184 @@ var _ = Describe("Profile breadcrumb", func() {
 				Description: "local",
 			})
 			env.WriteBreadcrumb("user", "user-profile")
-			env.WriteBreadcrumb("local", "local-profile")
+			env.WriteBreadcrumbWithDir("local", "local-profile", projectDir)
 
-			result := env.Run("profile", "status")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Last applied"))
 			Expect(result.Stdout).To(ContainSubstring("local-profile"))
 			Expect(result.Stdout).To(ContainSubstring("local scope"))
+		})
+	})
+
+	Describe("directory-specific breadcrumbs", func() {
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "proj-profile",
+				Description: "project-scoped profile",
+			})
+		})
+
+		It("does not show project breadcrumb as applied from a different directory", func() {
+			origDir := env.ProjectDir("original")
+			otherDir := env.ProjectDir("other")
+
+			env.WriteBreadcrumbWithDir("project", "proj-profile", origDir)
+
+			result := env.RunInDir(otherDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("proj-profile"))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "proj-profile") {
+					Expect(line).NotTo(ContainSubstring("(applied"))
+				}
+			}
+		})
+
+		It("shows project breadcrumb as applied from the same directory", func() {
+			projectDir := env.ProjectDir("matching")
+
+			env.WriteBreadcrumbWithDir("project", "proj-profile", projectDir)
+
+			result := env.RunInDir(projectDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("proj-profile"))
+			Expect(result.Stdout).To(ContainSubstring("(applied"))
+		})
+
+		It("shows user breadcrumb from any directory", func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "user-profile",
+				Description: "user-scoped profile",
+			})
+			env.WriteBreadcrumb("user", "user-profile")
+
+			otherDir := env.ProjectDir("random-dir")
+			result := env.RunInDir(otherDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("user-profile"))
+			Expect(result.Stdout).To(ContainSubstring("(applied"))
+		})
+
+		It("does not show last-applied in status when project breadcrumb is for different directory", func() {
+			origDir := env.ProjectDir("original")
+			otherDir := env.ProjectDir("other")
+
+			env.WriteBreadcrumbWithDir("project", "proj-profile", origDir)
+
+			result := env.RunInDir(otherDir, "profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("Last applied"))
+		})
+
+		It("falls back to user breadcrumb when project breadcrumb is for different directory", func() {
+			origDir := env.ProjectDir("original")
+			otherDir := env.ProjectDir("other")
+
+			env.CreateProfile(&profile.Profile{
+				Name:        "user-base",
+				Description: "user-scoped",
+			})
+			env.WriteBreadcrumb("user", "user-base")
+			env.WriteBreadcrumbWithDir("project", "proj-profile", origDir)
+
+			result := env.RunInDir(otherDir, "profile", "diff")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// Should use user breadcrumb, not the project one from a different dir
+			Expect(result.Stdout).To(ContainSubstring("user-base"))
+		})
+
+		It("does not show modified when marketplace registry keys differ from display names", func() {
+			// Marketplace registry keys (e.g., "thedotmack") may not match
+			// the marketplace DisplayName (e.g., "thedotmack/claude-mem").
+			// This should not cause false "(modified)" drift detection.
+			projDir := env.ProjectDir("myproject")
+
+			// Registry key "mismatched-key" has repo "mismatched-key/some-tool"
+			// Plugin @suffix "mismatched-key" matches the registry key but NOT
+			// the DisplayName via HasSuffix.
+			env.CreateMarketplace("mismatched-key", "mismatched-key/some-tool")
+
+			// Settings have the plugin enabled
+			env.CreateSettings(map[string]bool{
+				"my-plugin@mismatched-key": true,
+			})
+
+			// Saved profile has the same plugin and marketplace
+			env.CreateProfile(&profile.Profile{
+				Name: "mismatch-test",
+				Marketplaces: []profile.Marketplace{
+					{Source: "github", Repo: "mismatched-key/some-tool"},
+				},
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"my-plugin@mismatched-key"},
+					},
+				},
+			})
+
+			env.WriteBreadcrumb("user", "mismatch-test")
+
+			result := env.RunInDir(projDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("mismatch-test"))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "mismatch-test") {
+					Expect(line).To(ContainSubstring("(applied)"))
+					Expect(line).NotTo(ContainSubstring("modified"))
+				}
+			}
+		})
+
+		It("does not show multi-scope profile as modified from a different directory", func() {
+			origDir := env.ProjectDir("original")
+			otherDir := env.ProjectDir("other")
+
+			// Create a multi-scope profile with both user and project settings
+			env.CreateProfile(&profile.Profile{
+				Name:        "multi-scope",
+				Description: "has user and project settings",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"some-plugin@some-marketplace"},
+					},
+					Project: &profile.ScopeSettings{
+						Plugins: []string{"project-plugin@some-marketplace"},
+					},
+				},
+			})
+
+			// Apply user settings so user-scope matches
+			env.CreateSettings(map[string]bool{
+				"some-plugin@some-marketplace": true,
+			})
+
+			// Breadcrumbs: user is global, project is directory-specific
+			env.WriteBreadcrumb("user", "multi-scope")
+			env.WriteBreadcrumbWithDir("project", "multi-scope", origDir)
+
+			// From a different directory, only user breadcrumb is active.
+			// Should not show modified due to missing project-scope settings.
+			result := env.RunInDir(otherDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("multi-scope"))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "multi-scope") {
+					Expect(line).To(ContainSubstring("(applied)"))
+					Expect(line).NotTo(ContainSubstring("modified"))
+				}
+			}
 		})
 	})
 })

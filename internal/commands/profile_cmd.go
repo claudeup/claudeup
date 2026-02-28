@@ -975,7 +975,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		}
 
 		// Record breadcrumb even when no changes needed -- user applied this profile
-		recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
+		recordBreadcrumb(name, cwd, scopesForBreadcrumb(scope, p))
 
 		if p.SkipPluginDiff {
 			ui.PrintSuccess("No configuration changes needed.")
@@ -1080,7 +1080,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	fmt.Println()
 	ui.PrintSuccess("Profile applied!")
-	recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
+	recordBreadcrumb(name, cwd, scopesForBreadcrumb(scope, p))
 
 	// Scope-specific post-apply messages
 	if scope == profile.ScopeProject {
@@ -1112,10 +1112,27 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	return nil
 }
 
+// dirExists returns true if path exists and is a directory.
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+// sameResolvedDir returns true if a and b resolve to the same directory
+// after cleaning paths and resolving symlinks.
+func sameResolvedDir(a, b string) bool {
+	ra, err1 := filepath.EvalSymlinks(a)
+	rb, err2 := filepath.EvalSymlinks(b)
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return ra == rb
+}
+
 // recordBreadcrumb writes a breadcrumb entry recording which profile was applied.
 // Errors are logged but do not fail the operation.
-func recordBreadcrumb(name string, scopes []string) {
-	if err := breadcrumb.Record(claudeupHome, name, scopes); err != nil {
+func recordBreadcrumb(name, projectDir string, scopes []string) {
+	if err := breadcrumb.Record(claudeupHome, name, projectDir, scopes); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Could not save breadcrumb: %v", err))
 	}
 }
@@ -1200,6 +1217,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to read breadcrumb: %w", err)
 		}
+		bc = breadcrumb.FilterByDir(bc, cwd)
 
 		var bcScope string
 		if resolvedScope != "" {
@@ -1276,9 +1294,9 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
 
-	scopeLabel := "all scopes"
-	if resolvedScope != "" {
-		scopeLabel = resolvedScope + " scope"
+	scopeLabel := resolvedScope + " scope"
+	if resolvedScope == "" {
+		scopeLabel = scopeLabelFromProfile(p)
 	}
 	ui.PrintSuccess(fmt.Sprintf("Saved profile %q (%s)", name, scopeLabel))
 	fmt.Println()
@@ -1309,6 +1327,32 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Marketplaces", fmt.Sprintf("%d", len(p.Marketplaces))), 1))
 
 	return nil
+}
+
+// scopeLabelFromProfile returns a human-readable label describing which
+// scopes a profile contains (e.g. "user scope", "all scopes").
+func scopeLabelFromProfile(p *profile.Profile) string {
+	if p == nil || p.PerScope == nil {
+		return "all scopes"
+	}
+	var scopes []string
+	if p.PerScope.User != nil {
+		scopes = append(scopes, "user")
+	}
+	if p.PerScope.Project != nil {
+		scopes = append(scopes, "project")
+	}
+	if p.PerScope.Local != nil {
+		scopes = append(scopes, "local")
+	}
+	switch len(scopes) {
+	case 0:
+		return "all scopes"
+	case 1:
+		return scopes[0] + " scope"
+	default:
+		return "all scopes"
+	}
 }
 
 func runProfileShow(cmd *cobra.Command, args []string) error {
@@ -1619,12 +1663,18 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	var allPluginNames []string
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
+	// Determine whether cwd has a distinct project scope.
+	// When cwd/.claude is the same directory as claudeDir (e.g., running
+	// from ~), project/local settings overlap with user settings.
+	hasDistinctProjectScope := false
+	if projectClaudeDir := filepath.Join(cwd, ".claude"); dirExists(projectClaudeDir) {
+		hasDistinctProjectScope = !sameResolvedDir(projectClaudeDir, claudeDir)
+	}
+
 	for _, scope := range []string{"user", "project", "local"} {
-		// Skip project/local if not in project directory
-		if scope != "user" {
-			if _, err := os.Stat(filepath.Join(cwd, ".claude")); os.IsNotExist(err) {
-				continue
-			}
+		// Skip project/local if cwd has no distinct project scope
+		if scope != "user" && !hasDistinctProjectScope {
+			continue
 		}
 
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, cwd)
@@ -1822,6 +1872,11 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	if len(args) > 0 {
 		if resolvedScope != "" {
 			return fmt.Errorf("cannot use --scope/--user/--project/--local with an explicit profile name")
@@ -1833,6 +1888,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to read breadcrumb: %w", err)
 		}
+		bc = breadcrumb.FilterByDir(bc, cwd)
 
 		if resolvedScope != "" {
 			profileName, appliedAt, ok := breadcrumb.ForScope(bc, resolvedScope)
@@ -1872,10 +1928,6 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	// Snapshot live state
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 	live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
 	if err != nil {
@@ -2210,7 +2262,18 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil
+		// Keep only user-scope breadcrumbs (directory-independent).
+		if userEntry, ok := bc["user"]; ok {
+			bc = breadcrumb.File{"user": userEntry}
+			cwd = ""
+		} else {
+			return nil
+		}
+	} else {
+		bc = breadcrumb.FilterByDir(bc, cwd)
+		if len(bc) == 0 {
+			return nil
+		}
 	}
 
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
@@ -2231,16 +2294,45 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 		}
 
 		savedPerScope := saved.AsPerScope()
-		diff := profile.ComputeProfileDiff(savedPerScope, live.AsPerScope())
+
+		// Narrow the saved profile to only scopes with active breadcrumbs.
+		// This prevents marketplace diffs caused by plugins at scopes whose
+		// breadcrumbs were filtered out (e.g., project plugins when the
+		// project breadcrumb is from a different directory).
+		activeScopes := make(map[string]bool, len(bc))
+		for s := range bc {
+			activeScopes[s] = true
+		}
+		savedForDiff := profile.FilterToScopes(savedPerScope, activeScopes)
+		diff := profile.ComputeProfileDiff(savedForDiff, live.AsPerScope())
 		// Snapshot descriptions are auto-generated and always differ from
 		// saved profile descriptions; exclude them from drift detection.
 		diff.DescriptionChange = nil
 
-		// Only check drift at scopes the saved profile defines settings for.
-		// This prevents false positives from unrelated config at other scopes
-		// (e.g., a user-scope profile appearing modified due to project-scope changes).
+		// Exclude marketplace diffs from drift detection. Marketplaces are
+		// infrastructure managed automatically with plugin installs -- they
+		// never change independently of plugins. Including them causes false
+		// positives due to mismatches between registry key matching (used by
+		// snapshots) and DisplayName matching (used by diff comparison).
+		for i := range diff.Scopes {
+			filtered := diff.Scopes[i].Items[:0]
+			for _, item := range diff.Scopes[i].Items {
+				if item.Kind != profile.DiffMarketplace {
+					filtered = append(filtered, item)
+				}
+			}
+			diff.Scopes[i].Items = filtered
+		}
+
+		// Only check drift at scopes where BOTH the saved profile defines
+		// settings AND a breadcrumb is active. This prevents false positives
+		// from scopes the profile covers but whose breadcrumbs were filtered
+		// out (e.g., project-scope breadcrumb from a different directory).
 		filtered := diff.Scopes[:0]
 		for _, sd := range diff.Scopes {
+			if _, hasBreadcrumb := bc[sd.Scope]; !hasBreadcrumb {
+				continue
+			}
 			switch sd.Scope {
 			case "user":
 				if savedPerScope.PerScope.User != nil {
