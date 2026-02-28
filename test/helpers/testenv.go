@@ -459,6 +459,28 @@ func (e *TestEnv) WriteBreadcrumb(scope, profileName string) {
 	Expect(breadcrumb.Save(e.ClaudeupDir, bc)).To(Succeed())
 }
 
+// WriteBreadcrumbWithDir creates a breadcrumb entry with an explicit project directory.
+// projectDir is resolved via filepath.EvalSymlinks for consistency with production code.
+func (e *TestEnv) WriteBreadcrumbWithDir(scope, profileName, projectDir string) {
+	bc, err := breadcrumb.Load(e.ClaudeupDir)
+	Expect(err).NotTo(HaveOccurred())
+	resolved := projectDir
+	if resolved != "" {
+		if r, evalErr := filepath.EvalSymlinks(resolved); evalErr == nil {
+			resolved = r
+		}
+	}
+	entry := breadcrumb.Entry{
+		Profile:   profileName,
+		AppliedAt: time.Now().UTC(),
+	}
+	if scope != "user" && resolved != "" {
+		entry.ProjectDir = resolved
+	}
+	bc[scope] = entry
+	Expect(breadcrumb.Save(e.ClaudeupDir, bc)).To(Succeed())
+}
+
 // ReadBreadcrumb loads the breadcrumb file from the test environment
 func (e *TestEnv) ReadBreadcrumb() breadcrumb.File {
 	f, err := breadcrumb.Load(e.ClaudeupDir)

@@ -975,7 +975,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		}
 
 		// Record breadcrumb even when no changes needed -- user applied this profile
-		recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
+		recordBreadcrumb(name, cwd, scopesForBreadcrumb(scope, p))
 
 		if p.SkipPluginDiff {
 			ui.PrintSuccess("No configuration changes needed.")
@@ -1080,7 +1080,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	fmt.Println()
 	ui.PrintSuccess("Profile applied!")
-	recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
+	recordBreadcrumb(name, cwd, scopesForBreadcrumb(scope, p))
 
 	// Scope-specific post-apply messages
 	if scope == profile.ScopeProject {
@@ -1114,8 +1114,8 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 // recordBreadcrumb writes a breadcrumb entry recording which profile was applied.
 // Errors are logged but do not fail the operation.
-func recordBreadcrumb(name string, scopes []string) {
-	if err := breadcrumb.Record(claudeupHome, name, scopes); err != nil {
+func recordBreadcrumb(name, projectDir string, scopes []string) {
+	if err := breadcrumb.Record(claudeupHome, name, projectDir, scopes); err != nil {
 		ui.PrintWarning(fmt.Sprintf("Could not save breadcrumb: %v", err))
 	}
 }
@@ -1200,6 +1200,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to read breadcrumb: %w", err)
 		}
+		bc = breadcrumb.FilterByDir(bc, cwd)
 
 		var bcScope string
 		if resolvedScope != "" {
@@ -1822,6 +1823,11 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
 	if len(args) > 0 {
 		if resolvedScope != "" {
 			return fmt.Errorf("cannot use --scope/--user/--project/--local with an explicit profile name")
@@ -1833,6 +1839,7 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to read breadcrumb: %w", err)
 		}
+		bc = breadcrumb.FilterByDir(bc, cwd)
 
 		if resolvedScope != "" {
 			profileName, appliedAt, ok := breadcrumb.ForScope(bc, resolvedScope)
@@ -1872,10 +1879,6 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	}
 
 	// Snapshot live state
-	cwd, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get current directory: %w", err)
-	}
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 	live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
 	if err != nil {
@@ -2210,6 +2213,12 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 
 	cwd, err := os.Getwd()
 	if err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not determine current directory: %v", err))
+		return nil
+	}
+
+	bc = breadcrumb.FilterByDir(bc, cwd)
+	if len(bc) == 0 {
 		return nil
 	}
 

@@ -169,7 +169,7 @@ func HighestPrecedence(f File) (profileName, scope string) {
 // FilterByDir returns a new File containing only entries relevant to cwd.
 // User-scope entries are always included. Project/local entries are included
 // only when their ProjectDir matches cwd (both normalized via EvalSymlinks).
-// Project/local entries with empty ProjectDir (pre-fix breadcrumbs) are excluded.
+// Project/local entries without a ProjectDir are excluded.
 func FilterByDir(f File, cwd string) File {
 	result := make(File, len(f))
 	if f == nil {
