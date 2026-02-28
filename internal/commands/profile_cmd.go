@@ -618,6 +618,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Load breadcrumb once and compute applied markers for all profiles
+	appliedMarkers := loadAppliedProfiles(profilesDir)
+
 	// Show built-in profiles section
 	if len(embeddedProfiles) > 0 {
 		fmt.Println(ui.Bold("Built-in profiles"))
@@ -638,10 +641,8 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			// Check if this built-in profile is the last-applied
-			if appliedScope, modified, ok := isProfileApplied(profilesDir, p.Name); ok {
-				_ = appliedScope
-				if modified {
+			if info, ok := appliedMarkers[p.Name]; ok {
+				if info.Modified {
 					desc += " " + ui.Muted("(applied, modified)")
 				} else {
 					desc += " " + ui.Muted("(applied)")
@@ -724,18 +725,6 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		}
 		colFmt := fmt.Sprintf("%%-%ds %%s\n", maxNameLen)
 
-		// Helper to append applied marker to a profile description
-		appendAppliedMarker := func(desc string, displayName string) string {
-			if _, modified, ok := isProfileApplied(profilesDir, displayName); ok {
-				if modified {
-					desc += " " + ui.Muted("(applied, modified)")
-				} else {
-					desc += " " + ui.Muted("(applied)")
-				}
-			}
-			return desc
-		}
-
 		// Render ungrouped profiles first
 		for _, gp := range ungrouped {
 			desc := gp.profile.Description
@@ -745,7 +734,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if gp.profile.IsStack() {
 				desc += " " + ui.Muted("[stack]")
 			}
-			desc = appendAppliedMarker(desc, gp.profile.DisplayName())
+			if info, ok := appliedMarkers[gp.profile.DisplayName()]; ok {
+				if info.Modified {
+					desc += " " + ui.Muted("(applied, modified)")
+				} else {
+					desc += " " + ui.Muted("(applied)")
+				}
+			}
 			fmt.Printf("  "+colFmt, gp.shortName, desc)
 		}
 
@@ -765,7 +760,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 				if gp.profile.IsStack() {
 					desc += " " + ui.Muted("[stack]")
 				}
-				desc = appendAppliedMarker(desc, gp.profile.DisplayName())
+				if info, ok := appliedMarkers[gp.profile.DisplayName()]; ok {
+					if info.Modified {
+						desc += " " + ui.Muted("(applied, modified)")
+					} else {
+						desc += " " + ui.Muted("(applied)")
+					}
+				}
 				fmt.Printf("    "+colFmt, gp.shortName, desc)
 			}
 		}
@@ -1596,17 +1597,17 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	// Header
 	fmt.Printf("Effective configuration for %s\n\n", ui.Bold(cwd))
 
-	// Show last-applied breadcrumb info
+	// Display the highest-precedence applied profile and its drift status
 	profilesDir := getProfilesDir()
-	bcInfo := checkBreadcrumbModified(profilesDir)
-	if bcInfo.Found {
+	applied := loadAppliedProfiles(profilesDir)
+	if info := highestPrecedenceApplied(applied); info != nil {
 		modifiedMarker := ""
-		if bcInfo.Modified {
+		if info.Modified {
 			modifiedMarker = " " + ui.Muted("(modified)")
 		}
-		fmt.Printf("  Last applied: %s%s\n", ui.Bold(bcInfo.Name), modifiedMarker)
+		fmt.Printf("  Last applied: %s%s\n", ui.Bold(info.Name), modifiedMarker)
 		fmt.Printf("                %s\n\n",
-			ui.Muted(fmt.Sprintf("applied %s, %s scope", bcInfo.AppliedAt.Format("Jan 2, 2006"), bcInfo.Scope)))
+			ui.Muted(fmt.Sprintf("applied %s, %s scope", info.AppliedAt.Format("Jan 2, 2006"), info.Scope)))
 	}
 
 	anyContent := false
@@ -2179,95 +2180,80 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 	return profile.GetEmbeddedProfile(name)
 }
 
-// breadcrumbInfo holds the result of checking a breadcrumb's modification status.
-type breadcrumbInfo struct {
+// appliedProfileInfo holds a breadcrumbed profile's name, scope, timestamp,
+// and whether live settings have drifted from the saved profile.
+type appliedProfileInfo struct {
 	Name      string
 	Scope     string
 	AppliedAt time.Time
 	Modified  bool
-	Found     bool
 }
 
-// checkBreadcrumbModified loads the breadcrumb and checks if the
-// highest-precedence applied profile has been modified since application.
-func checkBreadcrumbModified(profilesDir string) breadcrumbInfo {
+// loadAppliedProfiles loads the breadcrumb file once, then checks each
+// breadcrumbed profile for drift against the live configuration.
+// Returns a map from profile name to its applied info.
+// At most 3 entries exist (one per scope: user, project, local).
+func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 	bc, err := breadcrumb.Load(claudeupHome)
 	if err != nil {
-		return breadcrumbInfo{}
+		ui.PrintWarning(fmt.Sprintf("Could not read breadcrumb: %v", err))
+		return nil
 	}
-
-	name, scope := breadcrumb.HighestPrecedence(bc)
-	if name == "" {
-		return breadcrumbInfo{}
-	}
-
-	entry := bc[scope]
-
-	saved, err := loadProfileWithFallback(profilesDir, name)
-	if err != nil {
-		return breadcrumbInfo{}
+	if len(bc) == 0 {
+		return nil
 	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return breadcrumbInfo{Name: name, Scope: scope, AppliedAt: entry.AppliedAt, Found: true}
+		return nil
 	}
 
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 	live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
 	if err != nil {
-		return breadcrumbInfo{Name: name, Scope: scope, AppliedAt: entry.AppliedAt, Found: true}
+		return nil
 	}
 
-	diff := profile.ComputeProfileDiff(saved.AsPerScope(), live.AsPerScope())
-	diff.DescriptionChange = nil // descriptions always differ for snapshots
-
-	return breadcrumbInfo{
-		Name:      name,
-		Scope:     scope,
-		AppliedAt: entry.AppliedAt,
-		Modified:  !diff.IsEmpty(),
-		Found:     true,
-	}
-}
-
-// isProfileApplied checks whether a profile name appears in any breadcrumb entry
-// and whether it has been modified. Returns scope, modified, and found.
-func isProfileApplied(profilesDir, profileName string) (scope string, modified, found bool) {
-	bc, err := breadcrumb.Load(claudeupHome)
-	if err != nil {
-		return "", false, false
-	}
-
-	// Check breadcrumb entries in precedence order
-	for _, s := range []string{"local", "project", "user"} {
-		entry, ok := bc[s]
-		if !ok || entry.Profile != profileName {
+	result := make(map[string]appliedProfileInfo, len(bc))
+	for scope, entry := range bc {
+		if _, exists := result[entry.Profile]; exists {
 			continue
 		}
 
-		saved, err := loadProfileWithFallback(profilesDir, profileName)
+		saved, err := loadProfileWithFallback(profilesDir, entry.Profile)
 		if err != nil {
-			return s, false, true
-		}
-
-		cwd, err := os.Getwd()
-		if err != nil {
-			return s, false, true
-		}
-
-		claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
-		live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
-		if err != nil {
-			return s, false, true
+			continue
 		}
 
 		diff := profile.ComputeProfileDiff(saved.AsPerScope(), live.AsPerScope())
+		// Snapshot descriptions are auto-generated and always differ from
+		// saved profile descriptions; exclude them from drift detection.
 		diff.DescriptionChange = nil
-		return s, !diff.IsEmpty(), true
-	}
 
-	return "", false, false
+		result[entry.Profile] = appliedProfileInfo{
+			Name:      entry.Profile,
+			Scope:     scope,
+			AppliedAt: entry.AppliedAt,
+			Modified:  !diff.IsEmpty(),
+		}
+	}
+	return result
+}
+
+// highestPrecedenceApplied returns the applied profile info for the
+// highest-precedence scope (local > project > user), or nil if none.
+func highestPrecedenceApplied(applied map[string]appliedProfileInfo) *appliedProfileInfo {
+	if applied == nil {
+		return nil
+	}
+	for _, scope := range []string{"local", "project", "user"} {
+		for _, info := range applied {
+			if info.Scope == scope {
+				return &info
+			}
+		}
+	}
+	return nil
 }
 
 // getAllProfiles returns all available profiles (user + embedded), with user profiles taking precedence
