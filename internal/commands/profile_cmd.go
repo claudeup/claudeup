@@ -2775,6 +2775,11 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to remove old profile: %w", err)
 	}
 
+	// Update breadcrumb entries referencing the old name
+	if err := breadcrumb.Rename(claudeupHome, oldName, newName); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not update breadcrumb: %v", err))
+	}
+
 	ui.PrintSuccess(fmt.Sprintf("Renamed profile %q to %q", oldName, newName))
 
 	return nil

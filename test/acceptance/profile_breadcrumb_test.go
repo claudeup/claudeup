@@ -102,6 +102,23 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 	})
 
+	Describe("rename updates breadcrumb", func() {
+		It("updates breadcrumb entry to new name", func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "old-name",
+			})
+			env.WriteBreadcrumb("user", "old-name")
+
+			result := env.Run("profile", "rename", "old-name", "new-name")
+
+			Expect(result.ExitCode).To(Equal(0))
+
+			bc := env.ReadBreadcrumb()
+			Expect(bc).To(HaveKey("user"))
+			Expect(bc["user"].Profile).To(Equal("new-name"))
+		})
+	})
+
 	Describe("diff with no args", func() {
 		BeforeEach(func() {
 			// Create a profile with a plugin at user scope
