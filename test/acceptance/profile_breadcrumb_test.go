@@ -723,5 +723,46 @@ var _ = Describe("Profile breadcrumb", func() {
 			// Should use user breadcrumb, not the project one from a different dir
 			Expect(result.Stdout).To(ContainSubstring("user-base"))
 		})
+
+		It("does not show multi-scope profile as modified from a different directory", func() {
+			origDir := env.ProjectDir("original")
+			otherDir := env.ProjectDir("other")
+
+			// Create a multi-scope profile with both user and project settings
+			env.CreateProfile(&profile.Profile{
+				Name:        "multi-scope",
+				Description: "has user and project settings",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"some-plugin@some-marketplace"},
+					},
+					Project: &profile.ScopeSettings{
+						Plugins: []string{"project-plugin@some-marketplace"},
+					},
+				},
+			})
+
+			// Apply user settings so user-scope matches
+			env.CreateSettings(map[string]bool{
+				"some-plugin@some-marketplace": true,
+			})
+
+			// Breadcrumbs: user is global, project is directory-specific
+			env.WriteBreadcrumb("user", "multi-scope")
+			env.WriteBreadcrumbWithDir("project", "multi-scope", origDir)
+
+			// From a different directory, only user breadcrumb is active.
+			// Should not show modified due to missing project-scope settings.
+			result := env.RunInDir(otherDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "multi-scope") {
+					Expect(line).To(ContainSubstring("(applied)"))
+					Expect(line).NotTo(ContainSubstring("modified"))
+				}
+			}
+		})
 	})
 })

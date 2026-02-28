@@ -2245,11 +2245,15 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 		// saved profile descriptions; exclude them from drift detection.
 		diff.DescriptionChange = nil
 
-		// Only check drift at scopes the saved profile defines settings for.
-		// This prevents false positives from unrelated config at other scopes
-		// (e.g., a user-scope profile appearing modified due to project-scope changes).
+		// Only check drift at scopes where BOTH the saved profile defines
+		// settings AND a breadcrumb is active. This prevents false positives
+		// from scopes the profile covers but whose breadcrumbs were filtered
+		// out (e.g., project-scope breadcrumb from a different directory).
 		filtered := diff.Scopes[:0]
 		for _, sd := range diff.Scopes {
+			if _, hasBreadcrumb := bc[sd.Scope]; !hasBreadcrumb {
+				continue
+			}
 			switch sd.Scope {
 			case "user":
 				if savedPerScope.PerScope.User != nil {
