@@ -450,7 +450,8 @@ func LoadJSON(path string) map[string]interface{} {
 
 // WriteBreadcrumb creates a breadcrumb entry in the test environment
 func (e *TestEnv) WriteBreadcrumb(scope, profileName string) {
-	bc, _ := breadcrumb.Load(e.ClaudeupDir)
+	bc, err := breadcrumb.Load(e.ClaudeupDir)
+	Expect(err).NotTo(HaveOccurred())
 	bc[scope] = breadcrumb.Entry{
 		Profile:   profileName,
 		AppliedAt: time.Now().UTC(),

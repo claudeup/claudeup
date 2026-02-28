@@ -39,6 +39,25 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 }
 
+func TestSaveCreatesDirectory(t *testing.T) {
+	// Save should create the parent directory if it doesn't exist
+	dir := filepath.Join(t.TempDir(), "nonexistent", "subdir")
+	f := File{
+		"user": {Profile: "test", AppliedAt: time.Date(2026, 2, 27, 21, 0, 0, 0, time.UTC)},
+	}
+	if err := Save(dir, f); err != nil {
+		t.Fatalf("save to nonexistent dir failed: %v", err)
+	}
+
+	loaded, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load after save failed: %v", err)
+	}
+	if loaded["user"].Profile != "test" {
+		t.Fatalf("expected test, got %s", loaded["user"].Profile)
+	}
+}
+
 func TestRecord(t *testing.T) {
 	dir := t.TempDir()
 

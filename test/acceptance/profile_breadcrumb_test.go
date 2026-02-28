@@ -41,6 +41,13 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(bc).To(HaveKey("user"))
 			Expect(bc["user"].Profile).To(Equal("test-profile"))
 		})
+
+		It("does not write breadcrumb in dry-run mode", func() {
+			result := env.Run("profile", "apply", "test-profile", "--dry-run")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(env.BreadcrumbExists()).To(BeFalse())
+		})
 	})
 
 	Describe("save with no args", func() {
@@ -203,6 +210,13 @@ var _ = Describe("Profile breadcrumb", func() {
 
 			Expect(result.ExitCode).To(Equal(1))
 			Expect(result.Stderr).To(ContainSubstring("cannot use --scope"))
+		})
+
+		It("errors on invalid scope value", func() {
+			result := env.Run("profile", "diff", "--scope", "banana")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("invalid scope"))
 		})
 	})
 })

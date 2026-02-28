@@ -938,6 +938,11 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
+		if profileApplyDryRun {
+			ui.PrintInfo("Dry run: no changes would be applied.")
+			return nil
+		}
+
 		// Record breadcrumb even when no changes needed -- user applied this profile
 		recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
 
@@ -1780,6 +1785,12 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	resolvedScope, err := resolveScopeFlags(profileDiffScope, profileDiffUser, profileDiffProject, profileDiffLocal)
 	if err != nil {
 		return err
+	}
+
+	if resolvedScope != "" {
+		if err := claude.ValidateScope(resolvedScope); err != nil {
+			return err
+		}
 	}
 
 	if len(args) > 0 {

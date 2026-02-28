@@ -42,6 +42,9 @@ func Load(claudeupHome string) (File, error) {
 // Save writes the breadcrumb file atomically.
 func Save(claudeupHome string, f File) error {
 	path := filepath.Join(claudeupHome, filename)
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("creating breadcrumb directory: %w", err)
+	}
 	data, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return err
