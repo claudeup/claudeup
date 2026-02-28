@@ -2263,7 +2263,17 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 		}
 
 		savedPerScope := saved.AsPerScope()
-		diff := profile.ComputeProfileDiff(savedPerScope, live.AsPerScope())
+
+		// Narrow the saved profile to only scopes with active breadcrumbs.
+		// This prevents marketplace diffs caused by plugins at scopes whose
+		// breadcrumbs were filtered out (e.g., project plugins when the
+		// project breadcrumb is from a different directory).
+		activeScopes := make(map[string]bool, len(bc))
+		for s := range bc {
+			activeScopes[s] = true
+		}
+		savedForDiff := profile.FilterToScopes(savedPerScope, activeScopes)
+		diff := profile.ComputeProfileDiff(savedForDiff, live.AsPerScope())
 		// Snapshot descriptions are auto-generated and always differ from
 		// saved profile descriptions; exclude them from drift detection.
 		diff.DescriptionChange = nil

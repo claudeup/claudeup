@@ -108,6 +108,59 @@ func (p *Profile) AsPerScope() *Profile {
 	return result
 }
 
+// FilterToScopes returns a copy of the profile containing only the scopes
+// present in the given map (keyed by scope name). Marketplaces are filtered
+// to only those referenced by plugins in the retained scopes.
+func FilterToScopes(p *Profile, scopes map[string]bool) *Profile {
+	if p == nil {
+		return nil
+	}
+	result := &Profile{
+		Name:        p.Name,
+		Description: p.Description,
+		PerScope:    &PerScopeSettings{},
+	}
+
+	var allPlugins []string
+	if scopes["user"] && p.PerScope != nil && p.PerScope.User != nil {
+		result.PerScope.User = p.PerScope.User
+		allPlugins = append(allPlugins, p.PerScope.User.Plugins...)
+	}
+	if scopes["project"] && p.PerScope != nil && p.PerScope.Project != nil {
+		result.PerScope.Project = p.PerScope.Project
+		allPlugins = append(allPlugins, p.PerScope.Project.Plugins...)
+	}
+	if scopes["local"] && p.PerScope != nil && p.PerScope.Local != nil {
+		result.PerScope.Local = p.PerScope.Local
+		allPlugins = append(allPlugins, p.PerScope.Local.Plugins...)
+	}
+
+	// Only keep marketplaces referenced by plugins in retained scopes
+	pluginMarketplaces := make(map[string]bool)
+	for _, plugin := range allPlugins {
+		parts := strings.SplitN(plugin, "@", 2)
+		if len(parts) == 2 && parts[1] != "" {
+			pluginMarketplaces[parts[1]] = true
+		}
+	}
+	for _, m := range p.Marketplaces {
+		name := m.DisplayName()
+		// Match by repo suffix (marketplace key in plugin is the repo name part)
+		keep := false
+		for key := range pluginMarketplaces {
+			if key == name || strings.HasSuffix(name, "/"+key) {
+				keep = true
+				break
+			}
+		}
+		if keep {
+			result.Marketplaces = append(result.Marketplaces, m)
+		}
+	}
+
+	return result
+}
+
 // ComputeProfileDiff compares a saved profile against a live snapshot.
 // Both inputs should already be in PerScope form (caller normalizes via AsPerScope).
 func ComputeProfileDiff(saved, live *Profile) *ProfileDiff {
