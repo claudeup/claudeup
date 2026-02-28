@@ -21,7 +21,6 @@ CLI tool for managing Claude Code profiles and configurations.
 
 - Sandbox (devcontainers do this better)
 - `.claudeup.json` auto-detection (profiles should be explicit)
-- Drift detection / `(modified)` markers (noise, not signal)
 
 ## Project Structure
 

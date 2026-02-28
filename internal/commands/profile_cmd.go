@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/claudeup/claudeup/v5/internal/backup"
 	"github.com/claudeup/claudeup/v5/internal/breadcrumb"
@@ -617,6 +618,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Load breadcrumb once and compute applied markers for all profiles
+	appliedMarkers := loadAppliedProfiles(profilesDir)
+
 	// Show built-in profiles section
 	if len(embeddedProfiles) > 0 {
 		fmt.Println(ui.Bold("Built-in profiles"))
@@ -634,6 +638,14 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 						}
 						break
 					}
+				}
+			}
+
+			if info, ok := appliedMarkers[p.Name]; ok {
+				if info.Modified {
+					desc += " " + ui.Muted("(applied, modified)")
+				} else {
+					desc += " " + ui.Muted("(applied)")
 				}
 			}
 
@@ -722,6 +734,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 			if gp.profile.IsStack() {
 				desc += " " + ui.Muted("[stack]")
 			}
+			if info, ok := appliedMarkers[gp.profile.DisplayName()]; ok {
+				if info.Modified {
+					desc += " " + ui.Muted("(applied, modified)")
+				} else {
+					desc += " " + ui.Muted("(applied)")
+				}
+			}
 			fmt.Printf("  "+colFmt, gp.shortName, desc)
 		}
 
@@ -740,6 +759,13 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 				}
 				if gp.profile.IsStack() {
 					desc += " " + ui.Muted("[stack]")
+				}
+				if info, ok := appliedMarkers[gp.profile.DisplayName()]; ok {
+					if info.Modified {
+						desc += " " + ui.Muted("(applied, modified)")
+					} else {
+						desc += " " + ui.Muted("(applied)")
+					}
 				}
 				fmt.Printf("    "+colFmt, gp.shortName, desc)
 			}
@@ -856,6 +882,11 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		p, loadErr = profile.LoadFromPath(resolvedPath)
 		if loadErr != nil {
 			return fmt.Errorf("failed to load profile %q: %w", name, loadErr)
+		}
+		// Normalize name to the display name format (relative path without .json)
+		// so breadcrumbs match what profile list uses for lookups.
+		if relPath, err := filepath.Rel(profilesDir, resolvedPath); err == nil {
+			name = strings.TrimSuffix(relPath, ".json")
 		}
 	} else {
 		// Surface ambiguity and other non-not-found errors directly
@@ -1571,6 +1602,19 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 	// Header
 	fmt.Printf("Effective configuration for %s\n\n", ui.Bold(cwd))
 
+	// Display the highest-precedence applied profile and its drift status
+	profilesDir := getProfilesDir()
+	applied := loadAppliedProfiles(profilesDir)
+	if info := highestPrecedenceApplied(applied); info != nil {
+		modifiedMarker := ""
+		if info.Modified {
+			modifiedMarker = " " + ui.Muted("(modified)")
+		}
+		fmt.Printf("  Last applied: %s%s\n", ui.Bold(info.Name), modifiedMarker)
+		fmt.Printf("                %s\n\n",
+			ui.Muted(fmt.Sprintf("applied %s, %s scope", info.AppliedAt.Format("Jan 2, 2006"), info.Scope)))
+	}
+
 	anyContent := false
 	var allPluginNames []string
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
@@ -2139,6 +2183,105 @@ func loadProfileWithFallback(profilesDir, name string) (*profile.Profile, error)
 
 	// Fall back to embedded profiles
 	return profile.GetEmbeddedProfile(name)
+}
+
+// appliedProfileInfo holds a breadcrumbed profile's name, scope, timestamp,
+// and whether live settings have drifted from the saved profile.
+type appliedProfileInfo struct {
+	Name      string
+	Scope     string
+	AppliedAt time.Time
+	Modified  bool
+}
+
+// loadAppliedProfiles loads the breadcrumb file once, then checks each
+// breadcrumbed profile for drift against the live configuration.
+// Returns a map from profile name to its applied info.
+// At most 3 entries exist (one per scope: user, project, local).
+func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
+	bc, err := breadcrumb.Load(claudeupHome)
+	if err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not read breadcrumb: %v", err))
+		return nil
+	}
+	if len(bc) == 0 {
+		return nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+	live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
+	if err != nil {
+		return nil
+	}
+
+	result := make(map[string]appliedProfileInfo, len(bc))
+	for scope, entry := range bc {
+		if _, exists := result[entry.Profile]; exists {
+			continue
+		}
+
+		saved, err := loadProfileWithFallback(profilesDir, entry.Profile)
+		if err != nil {
+			continue
+		}
+
+		savedPerScope := saved.AsPerScope()
+		diff := profile.ComputeProfileDiff(savedPerScope, live.AsPerScope())
+		// Snapshot descriptions are auto-generated and always differ from
+		// saved profile descriptions; exclude them from drift detection.
+		diff.DescriptionChange = nil
+
+		// Only check drift at scopes the saved profile defines settings for.
+		// This prevents false positives from unrelated config at other scopes
+		// (e.g., a user-scope profile appearing modified due to project-scope changes).
+		filtered := diff.Scopes[:0]
+		for _, sd := range diff.Scopes {
+			switch sd.Scope {
+			case "user":
+				if savedPerScope.PerScope.User != nil {
+					filtered = append(filtered, sd)
+				}
+			case "project":
+				if savedPerScope.PerScope.Project != nil {
+					filtered = append(filtered, sd)
+				}
+			case "local":
+				if savedPerScope.PerScope.Local != nil {
+					filtered = append(filtered, sd)
+				}
+			}
+		}
+		diff.Scopes = filtered
+
+		result[entry.Profile] = appliedProfileInfo{
+			Name:      entry.Profile,
+			Scope:     scope,
+			AppliedAt: entry.AppliedAt,
+			Modified:  !diff.IsEmpty(),
+		}
+	}
+	return result
+}
+
+// highestPrecedenceApplied returns the applied profile info for the
+// highest-precedence scope (local > project > user), or nil if none.
+func highestPrecedenceApplied(applied map[string]appliedProfileInfo) *appliedProfileInfo {
+	if applied == nil {
+		return nil
+	}
+	for _, scope := range []string{"local", "project", "user"} {
+		for _, info := range applied {
+			if info.Scope == scope {
+				return &info
+			}
+		}
+	}
+	return nil
 }
 
 // getAllProfiles returns all available profiles (user + embedded), with user profiles taking precedence
