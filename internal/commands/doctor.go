@@ -264,7 +264,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 
 func getExpectedPath(currentPath string) string {
 	// Based on fix-plugin-paths.sh logic
-	if strings.Contains(currentPath, "claude-code-plugins") {
+	if strings.Contains(currentPath, "claude-code-plugins") || strings.Contains(currentPath, "claude-plugins-official") {
 		// Add /plugins/ subdirectory
 		base := filepath.Dir(currentPath)
 		plugin := filepath.Base(currentPath)
