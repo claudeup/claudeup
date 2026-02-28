@@ -5,6 +5,8 @@
 set -euo pipefail
 
 CLAUDEUP_BIN="${CLAUDEUP_BIN:-./bin/claudeup}"
+INTERACTIVE="${INTERACTIVE:-true}"
+[[ "${1:-}" == "--no-interactive" || "${1:-}" == "-n" ]] && INTERACTIVE=false
 
 # Colors
 GREEN='\033[0;32m'
@@ -29,9 +31,13 @@ demo() {
 }
 
 wait_for_enter() {
-    echo
-    echo -e "${GREEN}Press ENTER to continue...${NC}"
-    read -r
+    if [[ "$INTERACTIVE" == "true" ]]; then
+        echo
+        echo -e "${GREEN}Press ENTER to continue...${NC}"
+        read -r
+    else
+        echo
+    fi
 }
 
 cat <<EOF
