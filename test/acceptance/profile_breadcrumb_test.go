@@ -310,12 +310,15 @@ var _ = Describe("Profile breadcrumb", func() {
 			env.CreateSettings(map[string]bool{
 				"my-plugin@marketplace": true,
 			})
-			// AND an unrelated plugin at project scope
-			env.CreateProjectScopeSettings(env.TempDir, map[string]bool{
+			// Use a separate project directory so project-scope settings.json
+			// doesn't overwrite user-scope settings.json (they'd be the same
+			// path if projectDir == env.TempDir since ClaudeDir = TempDir/.claude).
+			projectDir := GinkgoT().TempDir()
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
 				"project-plugin@marketplace": true,
 			})
 
-			result := env.Run("profile", "status")
+			result := env.RunInDir(projectDir, "profile", "status")
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Last applied"))
@@ -396,12 +399,14 @@ var _ = Describe("Profile breadcrumb", func() {
 			env.CreateSettings(map[string]bool{
 				"my-plugin@marketplace": true,
 			})
-			// AND an unrelated plugin at project scope
-			env.CreateProjectScopeSettings(env.TempDir, map[string]bool{
+			// Use a separate project directory so project-scope settings.json
+			// doesn't overwrite user-scope settings.json.
+			projectDir := GinkgoT().TempDir()
+			env.CreateProjectScopeSettings(projectDir, map[string]bool{
 				"project-plugin@marketplace": true,
 			})
 
-			result := env.Run("profile", "list")
+			result := env.RunInDir(projectDir, "profile", "list")
 
 			Expect(result.ExitCode).To(Equal(0))
 			lines := strings.Split(result.Stdout, "\n")
