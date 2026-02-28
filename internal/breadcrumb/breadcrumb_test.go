@@ -62,12 +62,12 @@ func TestRecord(t *testing.T) {
 	dir := t.TempDir()
 
 	// Record user scope
-	if err := Record(dir, "base-tools", []string{"user"}); err != nil {
+	if err := Record(dir, "base-tools", "", []string{"user"}); err != nil {
 		t.Fatalf("record failed: %v", err)
 	}
 
 	// Record project scope (preserves user)
-	if err := Record(dir, "my-project", []string{"project"}); err != nil {
+	if err := Record(dir, "my-project", "/projects/foo", []string{"project"}); err != nil {
 		t.Fatalf("record failed: %v", err)
 	}
 
@@ -83,7 +83,7 @@ func TestRecord(t *testing.T) {
 func TestRecordMultiScope(t *testing.T) {
 	dir := t.TempDir()
 
-	if err := Record(dir, "my-stack", []string{"user", "project"}); err != nil {
+	if err := Record(dir, "my-stack", "/projects/foo", []string{"user", "project"}); err != nil {
 		t.Fatalf("record failed: %v", err)
 	}
 
@@ -100,8 +100,8 @@ func TestRemove(t *testing.T) {
 	dir := t.TempDir()
 
 	// Set up two entries
-	Record(dir, "base-tools", []string{"user"})
-	Record(dir, "my-project", []string{"project"})
+	Record(dir, "base-tools", "", []string{"user"})
+	Record(dir, "my-project", "/projects/foo", []string{"project"})
 
 	// Remove base-tools
 	if err := Remove(dir, "base-tools"); err != nil {
@@ -120,7 +120,7 @@ func TestRemove(t *testing.T) {
 func TestRemoveLastEntry(t *testing.T) {
 	dir := t.TempDir()
 
-	Record(dir, "only-one", []string{"user"})
+	Record(dir, "only-one", "", []string{"user"})
 	Remove(dir, "only-one")
 
 	// File should be deleted when empty
@@ -142,7 +142,7 @@ func TestRemoveNonexistent(t *testing.T) {
 func TestRename(t *testing.T) {
 	dir := t.TempDir()
 
-	Record(dir, "old-name", []string{"user", "project"})
+	Record(dir, "old-name", "/projects/foo", []string{"user", "project"})
 
 	if err := Rename(dir, "old-name", "new-name"); err != nil {
 		t.Fatalf("rename failed: %v", err)
@@ -160,8 +160,8 @@ func TestRename(t *testing.T) {
 func TestRenamePreservesOtherEntries(t *testing.T) {
 	dir := t.TempDir()
 
-	Record(dir, "rename-me", []string{"user"})
-	Record(dir, "keep-me", []string{"project"})
+	Record(dir, "rename-me", "", []string{"user"})
+	Record(dir, "keep-me", "/projects/foo", []string{"project"})
 
 	Rename(dir, "rename-me", "renamed")
 
@@ -220,7 +220,7 @@ func TestRecordWithCorruptFile(t *testing.T) {
 	os.WriteFile(path, []byte("{invalid json"), 0600)
 
 	// Record should propagate the load error, not silently overwrite
-	err := Record(dir, "my-profile", []string{"user"})
+	err := Record(dir, "my-profile", "", []string{"user"})
 	if err == nil {
 		t.Fatal("expected error when existing breadcrumb is corrupt")
 	}
@@ -230,7 +230,7 @@ func TestRecordEmptyScopes(t *testing.T) {
 	dir := t.TempDir()
 
 	// Record with empty scopes should still succeed (writes file with no entries)
-	if err := Record(dir, "my-profile", []string{}); err != nil {
+	if err := Record(dir, "my-profile", "", []string{}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -243,7 +243,7 @@ func TestRecordEmptyScopes(t *testing.T) {
 func TestRecordEmptyProfileName(t *testing.T) {
 	dir := t.TempDir()
 
-	err := Record(dir, "", []string{"user"})
+	err := Record(dir, "", "", []string{"user"})
 	if err == nil {
 		t.Fatal("expected error for empty profile name")
 	}
@@ -306,5 +306,122 @@ func TestForScope(t *testing.T) {
 	_, _, ok = ForScope(f, "project")
 	if ok {
 		t.Fatal("expected no project entry")
+	}
+}
+
+func TestRecordStoresProjectDir(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := t.TempDir()
+
+	if err := Record(dir, "my-project", projectDir, []string{"project", "user"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	f, _ := Load(dir)
+
+	// Project scope should have ProjectDir set
+	projectEntry := f["project"]
+	if projectEntry.ProjectDir == "" {
+		t.Fatal("expected ProjectDir to be set on project entry")
+	}
+
+	// User scope should never have ProjectDir
+	userEntry := f["user"]
+	if userEntry.ProjectDir != "" {
+		t.Fatalf("expected empty ProjectDir on user entry, got %s", userEntry.ProjectDir)
+	}
+}
+
+func TestRecordStoresProjectDirForLocal(t *testing.T) {
+	dir := t.TempDir()
+	projectDir := t.TempDir()
+
+	if err := Record(dir, "my-local", projectDir, []string{"local"}); err != nil {
+		t.Fatalf("record failed: %v", err)
+	}
+
+	f, _ := Load(dir)
+	localEntry := f["local"]
+	if localEntry.ProjectDir == "" {
+		t.Fatal("expected ProjectDir to be set on local entry")
+	}
+}
+
+func TestFilterByDirKeepsUserScope(t *testing.T) {
+	f := File{
+		"user": {Profile: "base-tools", ProjectDir: ""},
+	}
+	filtered := FilterByDir(f, "/some/dir")
+	if _, ok := filtered["user"]; !ok {
+		t.Fatal("expected user entry to be kept regardless of directory")
+	}
+}
+
+func TestFilterByDirKeepsMatchingProject(t *testing.T) {
+	projectDir := t.TempDir()
+	f := File{
+		"project": {Profile: "my-project", ProjectDir: projectDir},
+	}
+	filtered := FilterByDir(f, projectDir)
+	if _, ok := filtered["project"]; !ok {
+		t.Fatal("expected matching project entry to be kept")
+	}
+}
+
+func TestFilterByDirExcludesMismatchedProject(t *testing.T) {
+	f := File{
+		"project": {Profile: "my-project", ProjectDir: "/other/dir"},
+	}
+	filtered := FilterByDir(f, "/current/dir")
+	if _, ok := filtered["project"]; ok {
+		t.Fatal("expected mismatched project entry to be excluded")
+	}
+}
+
+func TestFilterByDirExcludesEmptyProjectDirOnProject(t *testing.T) {
+	// Old breadcrumbs without ProjectDir on project scope should be excluded
+	f := File{
+		"project": {Profile: "old-crumb", ProjectDir: ""},
+	}
+	filtered := FilterByDir(f, "/current/dir")
+	if _, ok := filtered["project"]; ok {
+		t.Fatal("expected project entry with empty ProjectDir to be excluded")
+	}
+}
+
+func TestFilterByDirMixed(t *testing.T) {
+	projectDir := t.TempDir()
+	f := File{
+		"user":    {Profile: "base", ProjectDir: ""},
+		"project": {Profile: "proj", ProjectDir: projectDir},
+		"local":   {Profile: "loc", ProjectDir: "/other/dir"},
+	}
+	filtered := FilterByDir(f, projectDir)
+
+	if _, ok := filtered["user"]; !ok {
+		t.Fatal("expected user entry to be kept")
+	}
+	if _, ok := filtered["project"]; !ok {
+		t.Fatal("expected matching project entry to be kept")
+	}
+	if _, ok := filtered["local"]; ok {
+		t.Fatal("expected mismatched local entry to be excluded")
+	}
+}
+
+func TestFilterByDirEmpty(t *testing.T) {
+	filtered := FilterByDir(File{}, "/some/dir")
+	if len(filtered) != 0 {
+		t.Fatalf("expected empty result, got %d entries", len(filtered))
+	}
+}
+
+func TestFilterByDirNil(t *testing.T) {
+	filtered := FilterByDir(nil, "/some/dir")
+	if filtered == nil {
+		t.Fatal("expected non-nil empty map")
+	}
+	if len(filtered) != 0 {
+		t.Fatalf("expected empty result, got %d entries", len(filtered))
 	}
 }
