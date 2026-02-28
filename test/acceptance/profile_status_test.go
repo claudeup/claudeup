@@ -194,6 +194,88 @@ var _ = Describe("profile status", func() {
 			})
 		})
 
+		Context("with project-scope extensions", func() {
+			var projectDir string
+
+			BeforeEach(func() {
+				projectDir = env.ProjectDir("ext-project-test")
+
+				// Create project-scoped agent (regular file, not symlink)
+				agentsDir := filepath.Join(projectDir, ".claude", "agents")
+				Expect(os.MkdirAll(agentsDir, 0755)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(agentsDir, "project-agent.md"), []byte("# Project Agent"), 0644)).To(Succeed())
+			})
+
+			It("shows extensions in project scope", func() {
+				result := env.RunInDir(projectDir, "profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("Project scope"))
+				Expect(result.Stdout).To(ContainSubstring("Extensions:"))
+				Expect(result.Stdout).To(ContainSubstring("Agents:"))
+				Expect(result.Stdout).To(ContainSubstring("project-agent.md"))
+			})
+		})
+
+		Context("with plugins, MCP servers, and extensions in one scope", func() {
+			BeforeEach(func() {
+				// User-scope plugin
+				settingsJSON := map[string]any{
+					"enabledPlugins": map[string]any{
+						"test-plugin@test-marketplace": true,
+					},
+				}
+				data, err := json.MarshalIndent(settingsJSON, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(env.ClaudeDir, "settings.json"), data, 0644)).To(Succeed())
+
+				// User-scope MCP server
+				claudeJSON := map[string]any{
+					"mcpServers": map[string]any{
+						"combo-server": map[string]any{
+							"command": "npx",
+							"args":    []string{"combo-mcp"},
+						},
+					},
+				}
+				data, err = json.MarshalIndent(claudeJSON, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), data, 0644)).To(Succeed())
+
+				// User-scope extension
+				extAgentsDir := filepath.Join(env.ClaudeupDir, "ext", "agents")
+				Expect(os.MkdirAll(extAgentsDir, 0755)).To(Succeed())
+				Expect(os.WriteFile(filepath.Join(extAgentsDir, "combo-agent.md"), []byte("# Combo"), 0644)).To(Succeed())
+
+				activeAgentsDir := filepath.Join(env.ClaudeDir, "agents")
+				Expect(os.MkdirAll(activeAgentsDir, 0755)).To(Succeed())
+				Expect(os.Symlink(
+					filepath.Join(extAgentsDir, "combo-agent.md"),
+					filepath.Join(activeAgentsDir, "combo-agent.md"),
+				)).To(Succeed())
+
+				enabledConfig := map[string]map[string]bool{
+					"agents": {"combo-agent.md": true},
+				}
+				data, err = json.MarshalIndent(enabledConfig, "", "  ")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), data, 0644)).To(Succeed())
+			})
+
+			It("shows all content types under user scope", func() {
+				result := env.Run("profile", "status")
+
+				Expect(result.ExitCode).To(Equal(0))
+				Expect(result.Stdout).To(ContainSubstring("User scope"))
+				Expect(result.Stdout).To(ContainSubstring("Plugins:"))
+				Expect(result.Stdout).To(ContainSubstring("test-plugin@test-marketplace"))
+				Expect(result.Stdout).To(ContainSubstring("MCP Servers:"))
+				Expect(result.Stdout).To(ContainSubstring("combo-server"))
+				Expect(result.Stdout).To(ContainSubstring("Extensions:"))
+				Expect(result.Stdout).To(ContainSubstring("combo-agent.md"))
+			})
+		})
+
 		Context("with no configuration at any scope", func() {
 			It("shows empty configuration message", func() {
 				result := env.Run("profile", "status")

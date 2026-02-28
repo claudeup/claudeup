@@ -199,7 +199,8 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 	return marketplaces, nil
 }
 
-// ReadExtensions reads enabled extensions from enabled.json
+// ReadExtensions reads enabled extensions from enabled.json, verifying each
+// item exists in the active directory. Stale entries are filtered out.
 func ReadExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) {
 	manager := ext.NewManager(claudeDir, claudeupHome)
 	config, err := manager.LoadConfig()
@@ -283,8 +284,7 @@ func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 		}
 		mcpPath = filepath.Join(projectDir, ".mcp.json")
 	case "local":
-		// Local scope reads from .claude-local/mcp.json (if we implement it)
-		// For now, return empty for local scope
+		// Local scope has no dedicated MCP config file
 		return nil, nil
 	default:
 		// User scope reads from ~/.claude.json

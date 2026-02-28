@@ -1266,11 +1266,10 @@ func showMultiScopeProfile(p *profile.Profile) {
 		{"Local", p.PerScope.Local},
 	}
 
-	// If profile has top-level Extensions (legacy), merge into user scope display
-	legacyExt := p.Extensions
+	// Top-level extensions are unscoped; merge into user scope display
+	unscopedExt := p.Extensions
 
 	for _, s := range scopes {
-		// Determine what's in this scope
 		var plugins []string
 		var mcpServers []profile.MCPServer
 		var ext *profile.ExtensionSettings
@@ -1281,22 +1280,19 @@ func showMultiScopeProfile(p *profile.Profile) {
 			ext = s.settings.Extensions
 		}
 
-		// For user scope, merge legacy top-level extensions if scope has none
-		if s.label == "User" && ext == nil && legacyExt != nil {
-			ext = legacyExt
+		// For user scope, merge top-level extensions if scope has none
+		if s.label == "User" && ext == nil && unscopedExt != nil {
+			ext = unscopedExt
 		}
 
-		// Skip empty scopes
 		if len(plugins) == 0 && len(mcpServers) == 0 && countExtensions(ext) == 0 {
 			continue
 		}
 
-		// Scope header
 		fmt.Printf("  %s\n", ui.Bold(s.label+" scope"))
 
 		indent := "    "
 
-		// Plugins
 		if len(plugins) > 0 {
 			fmt.Printf("%sPlugins:\n", indent)
 			for _, plug := range plugins {
@@ -1304,10 +1300,7 @@ func showMultiScopeProfile(p *profile.Profile) {
 			}
 		}
 
-		// MCP Servers
 		displayMCPServers(mcpServers, indent)
-
-		// Extensions
 		displayExtensionCategories(ext, indent)
 
 		fmt.Println()
@@ -1326,9 +1319,7 @@ func showLegacyProfile(p *profile.Profile) {
 
 	displayMCPServers(p.MCPServers, indent)
 
-	if p.Extensions != nil {
-		displayExtensionCategories(p.Extensions, indent)
-	}
+	displayExtensionCategories(p.Extensions, indent)
 }
 
 // extensionCategory maps a display label to a getter for that category's extensions.
@@ -1518,13 +1509,20 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 		sort.Strings(enabled)
 		sort.Strings(disabled)
 
-		// Read MCP servers for this scope
-		mcpServers, _ := profile.ReadMCPServersForScope(claudeJSONPath, cwd, scope)
+		mcpServers, mcpErr := profile.ReadMCPServersForScope(claudeJSONPath, cwd, scope)
+		if mcpErr != nil {
+			fmt.Fprintf(os.Stderr, "%s Failed to load %s MCP servers: %v\n",
+				ui.Warning("Warning:"), scope, mcpErr)
+		}
 
-		// Read extensions for this scope
 		var extensions *profile.ExtensionSettings
 		if scope == "user" {
-			extensions, _ = profile.ReadExtensions(claudeDir, claudeupHome)
+			ext, extErr := profile.ReadExtensions(claudeDir, claudeupHome)
+			if extErr != nil {
+				fmt.Fprintf(os.Stderr, "%s Failed to load user extensions: %v\n",
+					ui.Warning("Warning:"), extErr)
+			}
+			extensions = ext
 		} else if scope == "project" {
 			extensions = profile.ReadProjectExtensions(cwd)
 		}
@@ -1556,10 +1554,7 @@ func runProfileStatus(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		// MCP Servers
 		displayMCPServers(mcpServers, "    ")
-
-		// Extensions
 		displayExtensionCategories(extensions, "    ")
 
 		fmt.Println()

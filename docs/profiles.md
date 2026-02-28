@@ -42,28 +42,30 @@ claudeup profile show my-work
 Profile: my-work
 Description: 3 marketplaces, 5 plugins, 1 MCP server
 
-Plugins:
-  - feature-dev@claude-plugins-official [user]
-  - superpowers@superpowers-marketplace [user]
-  - backend-dev@claude-code-workflows [project]
+  User scope
+    Plugins:
+      - feature-dev@claude-plugins-official
+      - superpowers@superpowers-marketplace
+    MCP Servers:
+      - context7 (npx)
+    Extensions:
+      Agents:
+        - test-runner/test-runner.md
+      Commands:
+        - commit.md
+      Skills:
+        - golang
 
-MCP Servers:
-  - context7 (npx) [user]
+  Project scope
+    Plugins:
+      - backend-dev@claude-code-workflows
 
 Marketplaces:
   - anthropics/claude-plugins-official
   - obra/superpowers-marketplace
-
-Extensions:
-  Agents:
-    - test-runner/test-runner.md
-  Commands:
-    - commit.md
-  Skills:
-    - golang
 ```
 
-Multi-scope profiles show scope labels (`[user]`, `[project]`, `[local]`) next to each plugin and MCP server. Extensions (from `~/.claudeup/ext/`) are grouped by category.
+Multi-scope profiles group plugins, MCP servers, and extensions under scope headers (`User scope`, `Project scope`, `Local scope`).
 
 ## Profile Scopes
 
