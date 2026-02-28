@@ -46,6 +46,43 @@ var _ = Describe("Profile breadcrumb", func() {
 		})
 	})
 
+	Describe("save with no args", func() {
+		It("saves to breadcrumbed profile name", func() {
+			// Create original profile
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-setup",
+				Description: "original",
+			})
+			env.WriteBreadcrumb("user", "my-setup")
+
+			// Add a plugin to live state so there's something to save
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"new-plugin@marketplace": map[string]interface{}{
+					"scope": "user",
+				},
+			})
+
+			result := env.RunWithInput("y\n", "profile", "save")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+		})
+
+		It("errors when no breadcrumb exists", func() {
+			result := env.Run("profile", "save")
+
+			Expect(result.ExitCode).To(Equal(1))
+			Expect(result.Stderr).To(ContainSubstring("No profile has been applied"))
+		})
+
+		It("explicit name still works", func() {
+			result := env.RunWithInput("y\n", "profile", "save", "explicit-name")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("explicit-name"))
+		})
+	})
+
 	Describe("diff with no args", func() {
 		BeforeEach(func() {
 			// Create a profile with a plugin at user scope

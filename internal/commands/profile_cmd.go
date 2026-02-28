@@ -105,9 +105,11 @@ Shows a diff of changes before applying. Prompts for confirmation unless -y is u
 }
 
 var profileSaveCmd = &cobra.Command{
-	Use:   "save <name>",
+	Use:   "save [name]",
 	Short: "Save current Claude Code state to a profile",
 	Long: `Saves your current Claude Code configuration (plugins, MCP servers, marketplaces) to a profile.
+
+When no name is given, defaults to the last-applied profile (from 'profile apply').
 
 MULTI-SCOPE CAPTURE:
   Save captures settings from ALL scopes (user, project, local) and stores them
@@ -119,12 +121,15 @@ MULTI-SCOPE CAPTURE:
   profile at project scope, which creates .claude/settings.json for version control.
 
 If the profile exists, prompts for confirmation unless -y is used.`,
-	Example: `  # Save current state to a named profile
+	Example: `  # Save current state (defaults to last-applied profile)
+  claudeup profile save
+
+  # Save current state to a named profile
   claudeup profile save my-tools
 
   # Save with confirmation prompt
   claudeup profile save team-config`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileSave,
 }
 
@@ -1149,7 +1154,35 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	name := args[0]
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		// Default to last-applied profile from breadcrumb
+		bc, err := breadcrumb.Load(claudeupHome)
+		if err != nil {
+			return fmt.Errorf("failed to read breadcrumb: %w", err)
+		}
+
+		var bcScope string
+		if resolvedScope != "" {
+			profileName, appliedAt, ok := breadcrumb.ForScope(bc, resolvedScope)
+			if !ok {
+				return fmt.Errorf("no profile has been applied at %s scope. Run: claudeup profile save <name>", resolvedScope)
+			}
+			name = profileName
+			bcScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2"), resolvedScope)
+		} else {
+			profileName, scope := breadcrumb.HighestPrecedence(bc)
+			if profileName == "" {
+				return fmt.Errorf("No profile has been applied yet. Run: claudeup profile save <name>")
+			}
+			name = profileName
+			entry := bc[scope]
+			bcScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2"), scope)
+		}
+		fmt.Printf("Saving to %q (%s)\n\n", name, bcScope)
+	}
 
 	// "current" is reserved as a keyword for live status view
 	if name == "current" {
