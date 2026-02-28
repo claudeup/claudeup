@@ -234,4 +234,144 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(result.Stderr).To(ContainSubstring("invalid scope"))
 		})
 	})
+
+	Describe("status shows last-applied info", func() {
+		It("shows last-applied line when breadcrumb exists and profile matches", func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-setup",
+				Description: "test profile",
+			})
+			env.WriteBreadcrumb("user", "my-setup")
+
+			result := env.Run("profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Last applied"))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+			Expect(result.Stdout).To(ContainSubstring("user scope"))
+		})
+
+		It("shows (modified) when live state differs from saved profile", func() {
+			// Create profile with a plugin
+			env.CreateProfile(&profile.Profile{
+				Name: "my-setup",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"saved-plugin@marketplace"},
+					},
+				},
+			})
+			env.WriteBreadcrumb("user", "my-setup")
+
+			// Live state has a different plugin
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"different-plugin@marketplace": map[string]interface{}{
+					"scope": "user",
+				},
+			})
+
+			result := env.Run("profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Last applied"))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+			Expect(result.Stdout).To(ContainSubstring("modified"))
+		})
+
+		It("does not show (modified) when live matches saved profile", func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-setup",
+				Description: "test",
+			})
+			env.WriteBreadcrumb("user", "my-setup")
+
+			result := env.Run("profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Last applied"))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+			Expect(result.Stdout).NotTo(ContainSubstring("modified"))
+		})
+
+		It("skips last-applied section when no breadcrumb exists", func() {
+			result := env.Run("profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("Last applied"))
+		})
+
+		It("skips last-applied section when breadcrumbed profile is missing", func() {
+			env.WriteBreadcrumb("user", "deleted-profile")
+
+			result := env.Run("profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("Last applied"))
+		})
+	})
+
+	Describe("list shows applied marker", func() {
+		It("shows (applied) on the matching profile", func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-setup",
+				Description: "test profile",
+			})
+			env.WriteBreadcrumb("user", "my-setup")
+
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+			Expect(result.Stdout).To(ContainSubstring("(applied)"))
+		})
+
+		It("shows (applied, modified) when profile has drifted", func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "my-setup",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"saved-plugin@marketplace"},
+					},
+				},
+			})
+			env.WriteBreadcrumb("user", "my-setup")
+
+			// Live state has a different plugin
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"different-plugin@marketplace": map[string]interface{}{
+					"scope": "user",
+				},
+			})
+
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+			Expect(result.Stdout).To(ContainSubstring("(applied, modified)"))
+		})
+
+		It("shows no marker when no breadcrumb exists", func() {
+			env.CreateProfile(&profile.Profile{
+				Name:        "my-setup",
+				Description: "test profile",
+			})
+
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("my-setup"))
+			Expect(result.Stdout).NotTo(ContainSubstring("(applied"))
+		})
+
+		It("shows marker on built-in profile when breadcrumbed", func() {
+			env.WriteBreadcrumb("user", "frontend")
+
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("frontend"))
+			// Built-in frontend has plugins; empty test env means it's always modified
+			Expect(result.Stdout).To(ContainSubstring("(applied, modified)"))
+		})
+	})
 })
