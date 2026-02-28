@@ -625,6 +625,9 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 	hiddenCount := 0
 	for _, p := range customProfiles {
 		displayName := p.DisplayName()
+		if displayName == "" {
+			continue
+		}
 		baseName := displayName
 		if idx := strings.LastIndex(displayName, "/"); idx >= 0 {
 			baseName = displayName[idx+1:]
@@ -715,12 +718,12 @@ func runProfileList(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 
 		if hiddenCount > 0 {
-			fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("(%d hidden profiles — use --all to show)", hiddenCount)))
+			fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("(%d hidden profiles not shown, use --all to include them)", hiddenCount)))
 			fmt.Println()
 		}
 	} else if hiddenCount > 0 {
 		// All custom profiles are hidden
-		fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("(%d hidden profiles — use --all to show)", hiddenCount)))
+		fmt.Printf("  %s\n", ui.Muted(fmt.Sprintf("(%d hidden profiles not shown, use --all to include them)", hiddenCount)))
 		fmt.Println()
 	}
 
