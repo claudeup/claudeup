@@ -37,7 +37,7 @@ var upgradeCmd = &cobra.Command{
   claudeup upgrade superpowers-marketplace
 
   # Upgrade a specific plugin
-  claudeup upgrade hookify@claude-code-plugins`,
+  claudeup upgrade hookify@claude-plugins-official`,
 	Args: cobra.ArbitraryArgs,
 	RunE: runUpgrade,
 }
