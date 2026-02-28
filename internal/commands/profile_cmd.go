@@ -25,6 +25,7 @@ var (
 	profileSaveDescription  string
 	profileCloneFromFlag    string
 	profileCloneDescription string
+	profileDiffOriginal     bool
 )
 
 var profileCmd = &cobra.Command{
@@ -183,18 +184,20 @@ Shows plugins from all active scopes (user, project, local) with:
 
 var profileDiffCmd = &cobra.Command{
 	Use:   "diff <name>",
-	Short: "Compare customized built-in profile to its original",
-	Long: `Compare a customized built-in profile to its embedded original.
+	Short: "Compare a profile against live Claude Code state",
+	Long: `Compare a saved profile against the live Claude Code configuration.
 
-This command shows what you've changed from the original built-in profile.
-Use this to see your customizations before restoring or sharing profiles.
+Shows what has changed between the profile and the current state across
+all scopes (user, project, local). Use this to see drift before running
+'profile save' to pull changes back into the profile.
 
-Only works with built-in profiles that have been customized (saved to disk).`,
-	Example: `  # Show changes made to the default profile
-  claudeup profile diff default
+Use --original to compare a customized built-in profile against its
+embedded original.`,
+	Example: `  # Diff a profile against live state
+  claudeup profile diff my-setup
 
-  # Show changes made to the frontend profile
-  claudeup profile diff frontend`,
+  # Compare a customized built-in profile to its original
+  claudeup profile diff default --original`,
 	Args: cobra.ExactArgs(1),
 	RunE: runProfileDiff,
 }
@@ -541,6 +544,9 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
+
+	// Add flags to profile diff command
+	profileDiffCmd.Flags().BoolVar(&profileDiffOriginal, "original", false, "Compare a customized built-in profile against its embedded original")
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
@@ -1582,12 +1588,132 @@ func showDiff(diff *profile.Diff) {
 }
 
 func runProfileDiff(cmd *cobra.Command, args []string) error {
+	if profileDiffOriginal {
+		return runProfileDiffOriginal(cmd, args)
+	}
+
+	name := args[0]
+	profilesDir := getProfilesDir()
+
+	// Load saved profile (disk first, fallback to embedded)
+	saved, err := loadProfileWithFallback(profilesDir, name)
+	if err != nil {
+		var ambigErr *profile.AmbiguousProfileError
+		if errors.As(err, &ambigErr) {
+			return ambigErr
+		}
+		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	// Snapshot live state
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
+	live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot live state: %w", err)
+	}
+
+	// Normalize both to PerScope form
+	savedNorm := saved.AsPerScope()
+	liveNorm := live.AsPerScope()
+
+	// Compute and display diff (skip description -- live snapshots auto-generate descriptions)
+	diff := profile.ComputeProfileDiff(savedNorm, liveNorm)
+	diff.DescriptionChange = nil
+	if diff.IsEmpty() {
+		fmt.Printf("Profile '%s' matches live state. No differences.\n", name)
+		return nil
+	}
+
+	showProfileDiff(diff)
+	fmt.Println()
+	fmt.Printf("%s Run 'claudeup profile save %s' to update the profile.\n", ui.Info(ui.SymbolArrow), name)
+	return nil
+}
+
+// showProfileDiff displays a formatted diff between a profile and live state
+func showProfileDiff(diff *profile.ProfileDiff) {
+	fmt.Printf("Profile '%s' vs live configuration:\n", diff.ProfileName)
+
+	if diff.DescriptionChange != nil {
+		fmt.Printf("\n  %s description: %q %s %q\n",
+			ui.Warning("~"),
+			diff.DescriptionChange[0],
+			ui.SymbolArrow,
+			diff.DescriptionChange[1])
+	}
+
+	for _, sd := range diff.Scopes {
+		if len(sd.Items) == 0 {
+			continue
+		}
+		fmt.Printf("\n  %s:\n", capitalizeFirst(sd.Scope))
+		for _, item := range sd.Items {
+			symbol := ui.Warning("~")
+			switch item.Op {
+			case profile.DiffAdded:
+				symbol = ui.Success("+")
+			case profile.DiffRemoved:
+				symbol = ui.Error("-")
+			}
+
+			detail := ""
+			if item.Detail != "" {
+				detail = fmt.Sprintf(" (%s)", item.Detail)
+			}
+
+			fmt.Printf("    %s %s: %s%s\n", symbol, item.Kind, item.Name, detail)
+		}
+	}
+
+	added, removed, modified := diff.Counts()
+	if diff.DescriptionChange != nil {
+		modified++
+	}
+	total := added + removed + modified
+	parts := []string{}
+	if added > 0 {
+		parts = append(parts, fmt.Sprintf("%d added", added))
+	}
+	if removed > 0 {
+		parts = append(parts, fmt.Sprintf("%d removed", removed))
+	}
+	if modified > 0 {
+		parts = append(parts, fmt.Sprintf("%d modified", modified))
+	}
+	fmt.Printf("\n%d %s (%s)\n",
+		total,
+		pluralize(total, "difference", "differences"),
+		strings.Join(parts, ", "))
+}
+
+// capitalizeFirst uppercases the first letter of a string
+func capitalizeFirst(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// pluralize returns singular or plural form based on count
+func pluralize(count int, singular, plural string) string {
+	if count == 1 {
+		return singular
+	}
+	return plural
+}
+
+// runProfileDiffOriginal compares a customized built-in profile against its embedded original
+func runProfileDiffOriginal(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	profilesDir := getProfilesDir()
 
 	// Check if the profile is a built-in
 	if !profile.IsEmbeddedProfile(name) {
-		return fmt.Errorf("'%s' is not a built-in profile. Use 'profile diff' only with built-in profiles", name)
+		return fmt.Errorf("'%s' is not a built-in profile. Use 'profile diff --original' only with built-in profiles", name)
 	}
 
 	// Get the embedded original
@@ -1628,9 +1754,10 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 
 	// Compare description
 	if embedded.Description != customized.Description {
-		fmt.Printf("  %s description: %q → %q\n",
+		fmt.Printf("  %s description: %q %s %q\n",
 			ui.Warning("~"),
 			embedded.Description,
+			ui.SymbolArrow,
 			customized.Description)
 	}
 
