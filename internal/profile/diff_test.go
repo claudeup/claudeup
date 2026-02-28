@@ -558,6 +558,60 @@ func TestProfileDiff_IsEmpty(t *testing.T) {
 	}
 }
 
+func TestFilterToScopes_KeepsAllMarketplacesWhenUserActive(t *testing.T) {
+	// Marketplace matching via plugin @suffix vs DisplayName() is unreliable.
+	// When user scope is active, all marketplaces should be preserved
+	// regardless of whether plugin @suffixes match DisplayName() patterns.
+	p := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "anthropics/claude-plugins-official"}, // suffix matches
+			{Source: "github", Repo: "thedotmack/claude-mem"},              // prefix, not suffix
+			{Source: "github", Repo: "anthropics/skills"},                  // no relationship to key
+		},
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{
+					"code-simplifier@claude-plugins-official",
+					"claude-mem@thedotmack",
+					"document-skills@anthropic-agent-skills",
+				},
+			},
+		},
+	}
+
+	result := FilterToScopes(p, map[string]bool{"user": true})
+
+	if len(result.Marketplaces) != 3 {
+		t.Errorf("expected 3 marketplaces, got %d", len(result.Marketplaces))
+		for _, m := range result.Marketplaces {
+			t.Logf("  kept: %s", m.DisplayName())
+		}
+	}
+}
+
+func TestFilterToScopes_DropsMarketplacesWhenUserNotActive(t *testing.T) {
+	// When only project scope is active, marketplaces (always user-scoped)
+	// should not be included.
+	p := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "org/repo"},
+		},
+		PerScope: &PerScopeSettings{
+			Project: &ScopeSettings{
+				Plugins: []string{"tool@repo"},
+			},
+		},
+	}
+
+	result := FilterToScopes(p, map[string]bool{"project": true})
+
+	if len(result.Marketplaces) != 0 {
+		t.Errorf("expected 0 marketplaces when user scope not active, got %d", len(result.Marketplaces))
+	}
+}
+
 func TestComputeProfileDiff_TotalCounts(t *testing.T) {
 	saved := &Profile{
 		Name: "test",

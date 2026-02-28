@@ -724,6 +724,49 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(result.Stdout).To(ContainSubstring("user-base"))
 		})
 
+		It("does not show modified when marketplace registry keys differ from display names", func() {
+			// Marketplace registry keys (e.g., "thedotmack") may not match
+			// the marketplace DisplayName (e.g., "thedotmack/claude-mem").
+			// This should not cause false "(modified)" drift detection.
+			projDir := env.ProjectDir("myproject")
+
+			// Registry key "mismatched-key" has repo "mismatched-key/some-tool"
+			// Plugin @suffix "mismatched-key" matches the registry key but NOT
+			// the DisplayName via HasSuffix.
+			env.CreateMarketplace("mismatched-key", "mismatched-key/some-tool")
+
+			// Settings have the plugin enabled
+			env.CreateSettings(map[string]bool{
+				"my-plugin@mismatched-key": true,
+			})
+
+			// Saved profile has the same plugin and marketplace
+			env.CreateProfile(&profile.Profile{
+				Name: "mismatch-test",
+				Marketplaces: []profile.Marketplace{
+					{Source: "github", Repo: "mismatched-key/some-tool"},
+				},
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"my-plugin@mismatched-key"},
+					},
+				},
+			})
+
+			env.WriteBreadcrumbWithDir("user", "mismatch-test", projDir)
+
+			result := env.RunInDir(projDir, "profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "mismatch-test") {
+					Expect(line).To(ContainSubstring("(applied)"))
+					Expect(line).NotTo(ContainSubstring("modified"))
+				}
+			}
+		})
+
 		It("does not show multi-scope profile as modified from a different directory", func() {
 			origDir := env.ProjectDir("original")
 			otherDir := env.ProjectDir("other")

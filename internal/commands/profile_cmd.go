@@ -2278,6 +2278,21 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 		// saved profile descriptions; exclude them from drift detection.
 		diff.DescriptionChange = nil
 
+		// Exclude marketplace diffs from drift detection. Marketplaces are
+		// infrastructure managed automatically with plugin installs -- they
+		// never change independently of plugins. Including them causes false
+		// positives due to mismatches between registry key matching (used by
+		// snapshots) and DisplayName matching (used by diff comparison).
+		for i := range diff.Scopes {
+			filtered := diff.Scopes[i].Items[:0]
+			for _, item := range diff.Scopes[i].Items {
+				if item.Kind != profile.DiffMarketplace {
+					filtered = append(filtered, item)
+				}
+			}
+			diff.Scopes[i].Items = filtered
+		}
+
 		// Only check drift at scopes where BOTH the saved profile defines
 		// settings AND a breadcrumb is active. This prevents false positives
 		// from scopes the profile covers but whose breadcrumbs were filtered
