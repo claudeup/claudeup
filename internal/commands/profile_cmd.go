@@ -883,6 +883,11 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		if loadErr != nil {
 			return fmt.Errorf("failed to load profile %q: %w", name, loadErr)
 		}
+		// Normalize name to the display name format (relative path without .json)
+		// so breadcrumbs match what profile list uses for lookups.
+		if relPath, err := filepath.Rel(profilesDir, resolvedPath); err == nil {
+			name = strings.TrimSuffix(relPath, ".json")
+		}
 	} else {
 		// Surface ambiguity and other non-not-found errors directly
 		var ambigErr *profile.AmbiguousProfileError
@@ -2225,10 +2230,33 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 			continue
 		}
 
-		diff := profile.ComputeProfileDiff(saved.AsPerScope(), live.AsPerScope())
+		savedPerScope := saved.AsPerScope()
+		diff := profile.ComputeProfileDiff(savedPerScope, live.AsPerScope())
 		// Snapshot descriptions are auto-generated and always differ from
 		// saved profile descriptions; exclude them from drift detection.
 		diff.DescriptionChange = nil
+
+		// Only check drift at scopes the saved profile defines settings for.
+		// This prevents false positives from unrelated config at other scopes
+		// (e.g., a user-scope profile appearing modified due to project-scope changes).
+		filtered := diff.Scopes[:0]
+		for _, sd := range diff.Scopes {
+			switch sd.Scope {
+			case "user":
+				if savedPerScope.PerScope.User != nil {
+					filtered = append(filtered, sd)
+				}
+			case "project":
+				if savedPerScope.PerScope.Project != nil {
+					filtered = append(filtered, sd)
+				}
+			case "local":
+				if savedPerScope.PerScope.Local != nil {
+					filtered = append(filtered, sd)
+				}
+			}
+		}
+		diff.Scopes = filtered
 
 		result[entry.Profile] = appliedProfileInfo{
 			Name:      entry.Profile,

@@ -294,6 +294,36 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("modified"))
 		})
 
+		It("does not show (modified) when unrelated config exists at other scopes", func() {
+			// Profile only defines user-scope settings
+			env.CreateProfile(&profile.Profile{
+				Name: "user-only",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"my-plugin@marketplace"},
+					},
+				},
+			})
+			env.WriteBreadcrumb("user", "user-only")
+
+			// Enable the same plugin at user scope (matches profile)
+			env.CreateSettings(map[string]bool{
+				"my-plugin@marketplace": true,
+			})
+			// AND an unrelated plugin at project scope
+			env.CreateProjectScopeSettings(env.TempDir, map[string]bool{
+				"project-plugin@marketplace": true,
+			})
+
+			result := env.Run("profile", "status")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Last applied"))
+			Expect(result.Stdout).To(ContainSubstring("user-only"))
+			// Should NOT show modified -- the user-scope config matches
+			Expect(result.Stdout).NotTo(ContainSubstring("modified"))
+		})
+
 		It("skips last-applied section when no breadcrumb exists", func() {
 			result := env.Run("profile", "status")
 
@@ -349,6 +379,38 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("my-setup"))
 			Expect(result.Stdout).To(ContainSubstring("(applied, modified)"))
+		})
+
+		It("does not show (modified) when unrelated config exists at other scopes", func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "user-only",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						Plugins: []string{"my-plugin@marketplace"},
+					},
+				},
+			})
+			env.WriteBreadcrumb("user", "user-only")
+
+			// Enable the same plugin at user scope (matches profile)
+			env.CreateSettings(map[string]bool{
+				"my-plugin@marketplace": true,
+			})
+			// AND an unrelated plugin at project scope
+			env.CreateProjectScopeSettings(env.TempDir, map[string]bool{
+				"project-plugin@marketplace": true,
+			})
+
+			result := env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "user-only") {
+					Expect(line).To(ContainSubstring("(applied)"))
+					Expect(line).NotTo(ContainSubstring("modified"))
+				}
+			}
 		})
 
 		It("shows no marker when no breadcrumb exists", func() {
@@ -432,7 +494,7 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(projectLine).To(ContainSubstring("(applied"))
 		})
 
-		It("shows marker on nested profile when breadcrumbed", func() {
+		It("shows marker on nested profile when breadcrumbed by path", func() {
 			env.CreateNestedProfile("team", &profile.Profile{
 				Name:        "backend",
 				Description: "team backend profile",
@@ -444,6 +506,28 @@ var _ = Describe("Profile breadcrumb", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("backend"))
 			Expect(result.Stdout).To(ContainSubstring("(applied"))
+		})
+
+		It("shows marker on nested profile applied by leaf name", func() {
+			env.CreateNestedProfile("team", &profile.Profile{
+				Name:        "backend",
+				Description: "team backend profile",
+			})
+
+			// Apply by leaf name (not path) -- the breadcrumb should
+			// record the display name so it matches on listing
+			result := env.Run("profile", "apply", "backend")
+			Expect(result.ExitCode).To(Equal(0))
+
+			result = env.Run("profile", "list")
+
+			Expect(result.ExitCode).To(Equal(0))
+			lines := strings.Split(result.Stdout, "\n")
+			for _, line := range lines {
+				if strings.Contains(line, "backend") {
+					Expect(line).To(ContainSubstring("(applied"))
+				}
+			}
 		})
 
 		It("shows applied marker alongside stack marker", func() {
