@@ -4,6 +4,17 @@ A CLI tool for managing Claude Code profiles and configurations.
 
 **[Documentation](https://claudeup.github.io/claudeup/)**
 
+## Why ClaudeUp
+
+Claude Code stores its configuration across multiple files and scopes. claudeup solves the problems that come with managing these configurations by hand:
+
+- **Portable setups** -- Save your entire Claude configuration (plugins, MCP servers, settings) as a profile. Apply it on any machine in one command.
+- **Team sharing** -- Apply a profile at project scope, commit the resulting config files to git, and every team member gets the same setup.
+- **Project switching** -- Keep separate profiles for frontend, backend, or client work. Switch between them instantly.
+- **Diagnostics** -- `claudeup doctor` catches common issues. Event tracking shows exactly what changed and when.
+
+claudeup is designed to bootstrap your setup and get out of the way. After applying a profile, you manage settings directly through Claude Code's native files.
+
 ## Install
 
 ```bash
