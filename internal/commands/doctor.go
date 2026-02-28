@@ -264,7 +264,7 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 
 func getExpectedPath(currentPath string) string {
 	// Based on fix-plugin-paths.sh logic
-	if strings.Contains(currentPath, "claude-code-plugins") {
+	if strings.Contains(currentPath, "claude-code-plugins") || strings.Contains(currentPath, "claude-plugins-official") {
 		// Add /plugins/ subdirectory
 		base := filepath.Dir(currentPath)
 		plugin := filepath.Base(currentPath)
@@ -290,12 +290,12 @@ func getExpectedPath(currentPath string) string {
 		plugin := filepath.Base(currentPath)
 		return filepath.Join(base, "plugins", plugin)
 	}
-	if strings.Contains(currentPath, "tanzu-cf-architect") {
+	if strings.Contains(currentPath, "platform-k8s-architect") {
 		// Remove duplicate directory name
-		parts := strings.Split(currentPath, string(filepath.Separator))
-		lastPart := parts[len(parts)-1]
-		if len(parts) >= 2 && parts[len(parts)-2] == lastPart {
-			return filepath.Join(parts[:len(parts)-1]...)
+		dir := filepath.Dir(currentPath)
+		base := filepath.Base(currentPath)
+		if filepath.Base(dir) == base {
+			return dir
 		}
 	}
 	return ""
