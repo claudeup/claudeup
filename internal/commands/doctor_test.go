@@ -43,13 +43,13 @@ func TestGetExpectedPath(t *testing.T) {
 			expected: "/home/user/.claude/plugins/marketplaces/anthropic-agent-skills/skills/my-skill",
 		},
 		{
-			name:     "tanzu-cf-architect removes duplicate directory",
-			input:    "/home/user/.claude/plugins/marketplaces/tanzu-cf-architect/tanzu-cf-architect",
-			expected: "/home/user/.claude/plugins/marketplaces/tanzu-cf-architect",
+			name:     "platform-k8s-architect removes duplicate directory",
+			input:    "/home/user/.claude/plugins/marketplaces/platform-k8s-architect/platform-k8s-architect",
+			expected: "/home/user/.claude/plugins/marketplaces/platform-k8s-architect",
 		},
 		{
-			name:     "tanzu-cf-architect non-duplicate returns empty",
-			input:    "/home/user/.claude/plugins/marketplaces/tanzu-cf-architect/other-plugin",
+			name:     "platform-k8s-architect non-duplicate returns empty",
+			input:    "/home/user/.claude/plugins/marketplaces/platform-k8s-architect/other-plugin",
 			expected: "",
 		},
 		{

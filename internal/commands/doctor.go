@@ -290,7 +290,7 @@ func getExpectedPath(currentPath string) string {
 		plugin := filepath.Base(currentPath)
 		return filepath.Join(base, "plugins", plugin)
 	}
-	if strings.Contains(currentPath, "tanzu-cf-architect") {
+	if strings.Contains(currentPath, "platform-k8s-architect") {
 		// Remove duplicate directory name
 		dir := filepath.Dir(currentPath)
 		base := filepath.Base(currentPath)
