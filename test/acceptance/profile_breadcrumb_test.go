@@ -746,7 +746,7 @@ var _ = Describe("Profile breadcrumb", func() {
 				},
 			})
 
-			env.WriteBreadcrumbWithDir("user", "mismatch-test", projDir)
+			env.WriteBreadcrumb("user", "mismatch-test")
 
 			result := env.RunInDir(projDir, "profile", "list")
 

@@ -85,6 +85,8 @@ func Record(claudeupHome, profileName, projectDir string, scopes []string) error
 	if resolved != "" {
 		if r, err := filepath.EvalSymlinks(resolved); err == nil {
 			resolved = r
+		} else {
+			resolved = filepath.Clean(resolved)
 		}
 	}
 
@@ -179,6 +181,8 @@ func FilterByDir(f File, cwd string) File {
 	resolved := cwd
 	if r, err := filepath.EvalSymlinks(resolved); err == nil {
 		resolved = r
+	} else {
+		resolved = filepath.Clean(resolved)
 	}
 
 	for scope, entry := range f {
@@ -190,9 +194,13 @@ func FilterByDir(f File, cwd string) File {
 		if entry.ProjectDir == "" {
 			continue
 		}
+		// Re-resolve in case entry was written before the Clean fallback
+		// was added, or by an external tool.
 		entryDir := entry.ProjectDir
 		if r, err := filepath.EvalSymlinks(entryDir); err == nil {
 			entryDir = r
+		} else {
+			entryDir = filepath.Clean(entryDir)
 		}
 		if entryDir == resolved {
 			result[scope] = entry
