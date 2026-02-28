@@ -1,5 +1,5 @@
 // ABOUTME: Profile subcommands for managing Claude Code profiles
-// ABOUTME: Implements list, use, save, and show operations
+// ABOUTME: Implements all profile lifecycle commands (list, apply, save, diff, delete, rename, etc.)
 package commands
 
 import (
@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/backup"
+	"github.com/claudeup/claudeup/v5/internal/breadcrumb"
 	"github.com/claudeup/claudeup/v5/internal/claude"
 	"github.com/claudeup/claudeup/v5/internal/config"
 	"github.com/claudeup/claudeup/v5/internal/profile"
@@ -26,6 +27,10 @@ var (
 	profileCloneFromFlag    string
 	profileCloneDescription string
 	profileDiffOriginal     bool
+	profileDiffScope        string
+	profileDiffUser         bool
+	profileDiffProject      bool
+	profileDiffLocal        bool
 )
 
 var profileCmd = &cobra.Command{
@@ -100,9 +105,11 @@ Shows a diff of changes before applying. Prompts for confirmation unless -y is u
 }
 
 var profileSaveCmd = &cobra.Command{
-	Use:   "save <name>",
+	Use:   "save [name]",
 	Short: "Save current Claude Code state to a profile",
 	Long: `Saves your current Claude Code configuration (plugins, MCP servers, marketplaces) to a profile.
+
+When no name is given, defaults to the last-applied profile (from 'profile apply').
 
 MULTI-SCOPE CAPTURE:
   Save captures settings from ALL scopes (user, project, local) and stores them
@@ -114,12 +121,15 @@ MULTI-SCOPE CAPTURE:
   profile at project scope, which creates .claude/settings.json for version control.
 
 If the profile exists, prompts for confirmation unless -y is used.`,
-	Example: `  # Save current state to a named profile
+	Example: `  # Save current state (defaults to last-applied profile)
+  claudeup profile save
+
+  # Save current state to a named profile
   claudeup profile save my-tools
 
   # Save with confirmation prompt
   claudeup profile save team-config`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileSave,
 }
 
@@ -183,7 +193,7 @@ Shows plugins from all active scopes (user, project, local) with:
 }
 
 var profileDiffCmd = &cobra.Command{
-	Use:   "diff <name>",
+	Use:   "diff [name]",
 	Short: "Compare a profile against live Claude Code state",
 	Long: `Compare a saved profile against the live Claude Code configuration.
 
@@ -191,14 +201,19 @@ Shows what has changed between the profile and the current state across
 all scopes (user, project, local). Use this to see drift before running
 'profile save' to pull changes back into the profile.
 
+When called without arguments, diffs against the last-applied profile.
+
 Use --original to compare a customized built-in profile against its
 embedded original.`,
-	Example: `  # Diff a profile against live state
+	Example: `  # Diff against the last-applied profile
+  claudeup profile diff
+
+  # Diff a specific profile against live state
   claudeup profile diff my-setup
 
   # Compare a customized built-in profile to its original
   claudeup profile diff default --original`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: runProfileDiff,
 }
 
@@ -552,6 +567,10 @@ func init() {
 
 	// Add flags to profile diff command
 	profileDiffCmd.Flags().BoolVar(&profileDiffOriginal, "original", false, "Compare a customized built-in profile against its embedded original")
+	profileDiffCmd.Flags().StringVar(&profileDiffScope, "scope", "", "Use the last-applied profile at this scope: user, project, local")
+	profileDiffCmd.Flags().BoolVar(&profileDiffUser, "user", false, "Use the last-applied profile at user scope")
+	profileDiffCmd.Flags().BoolVar(&profileDiffProject, "project", false, "Use the last-applied profile at project scope")
+	profileDiffCmd.Flags().BoolVar(&profileDiffLocal, "local", false, "Use the last-applied profile at local scope")
 
 	// Add flags to profile clean command
 	profileCleanCmd.Flags().StringVar(&profileCleanScope, "scope", "", "Config scope to clean: project or local (required)")
@@ -919,6 +938,14 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	// If no changes and no hook to run, we're done
 	if !needsApply {
+		if profileApplyDryRun {
+			ui.PrintInfo("Dry run: no changes would be applied.")
+			return nil
+		}
+
+		// Record breadcrumb even when no changes needed -- user applied this profile
+		recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
+
 		if p.SkipPluginDiff {
 			ui.PrintSuccess("No configuration changes needed.")
 			fmt.Println()
@@ -1022,6 +1049,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 
 	fmt.Println()
 	ui.PrintSuccess("Profile applied!")
+	recordBreadcrumb(name, scopesForBreadcrumb(scope, p))
 
 	// Scope-specific post-apply messages
 	if scope == profile.ScopeProject {
@@ -1051,6 +1079,35 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	}
 
 	return nil
+}
+
+// recordBreadcrumb writes a breadcrumb entry recording which profile was applied.
+// Errors are logged but do not fail the operation.
+func recordBreadcrumb(name string, scopes []string) {
+	if err := breadcrumb.Record(claudeupHome, name, scopes); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not save breadcrumb: %v", err))
+	}
+}
+
+// scopesForBreadcrumb determines which scopes a profile apply touched.
+func scopesForBreadcrumb(scope profile.Scope, p *profile.Profile) []string {
+	if p.PerScope != nil {
+		var scopes []string
+		if p.PerScope.User != nil {
+			scopes = append(scopes, "user")
+		}
+		if p.PerScope.Project != nil {
+			scopes = append(scopes, "project")
+		}
+		if p.PerScope.Local != nil {
+			scopes = append(scopes, "local")
+		}
+		if len(scopes) > 0 {
+			return scopes
+		}
+	}
+	// Flat profiles and flat-only stacks apply to the requested scope
+	return []string{string(scope)}
 }
 
 // cleanupStalePlugins removes plugin entries with invalid paths
@@ -1103,7 +1160,35 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	name := args[0]
+	var name string
+	if len(args) > 0 {
+		name = args[0]
+	} else {
+		// Default to last-applied profile from breadcrumb
+		bc, err := breadcrumb.Load(claudeupHome)
+		if err != nil {
+			return fmt.Errorf("failed to read breadcrumb: %w", err)
+		}
+
+		var bcScope string
+		if resolvedScope != "" {
+			profileName, appliedAt, ok := breadcrumb.ForScope(bc, resolvedScope)
+			if !ok {
+				return fmt.Errorf("no profile has been applied at %s scope. Run: claudeup profile save <name>", resolvedScope)
+			}
+			name = profileName
+			bcScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2, 2006"), resolvedScope)
+		} else {
+			profileName, scope := breadcrumb.HighestPrecedence(bc)
+			if profileName == "" {
+				return fmt.Errorf("no profile has been applied yet. Run: claudeup profile save <name>")
+			}
+			name = profileName
+			entry := bc[scope]
+			bcScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2, 2006"), scope)
+		}
+		fmt.Printf("Saving to %q (%s)\n\n", name, bcScope)
+	}
 
 	// "current" is reserved as a keyword for live status view
 	if name == "current" {
@@ -1672,10 +1757,57 @@ func showDiff(diff *profile.Diff) {
 
 func runProfileDiff(cmd *cobra.Command, args []string) error {
 	if profileDiffOriginal {
+		if len(args) != 1 {
+			return fmt.Errorf("--original requires exactly 1 profile name")
+		}
 		return runProfileDiffOriginal(cmd, args)
 	}
 
-	name := args[0]
+	var name string
+	var breadcrumbScope string
+
+	// Resolve scope flags early to detect conflicts with explicit name
+	resolvedScope, err := resolveScopeFlags(profileDiffScope, profileDiffUser, profileDiffProject, profileDiffLocal)
+	if err != nil {
+		return err
+	}
+
+	if resolvedScope != "" {
+		if err := claude.ValidateScope(resolvedScope); err != nil {
+			return err
+		}
+	}
+
+	if len(args) > 0 {
+		if resolvedScope != "" {
+			return fmt.Errorf("cannot use --scope/--user/--project/--local with an explicit profile name")
+		}
+		name = args[0]
+	} else {
+		// Load breadcrumb for default profile
+		bc, err := breadcrumb.Load(claudeupHome)
+		if err != nil {
+			return fmt.Errorf("failed to read breadcrumb: %w", err)
+		}
+
+		if resolvedScope != "" {
+			profileName, appliedAt, ok := breadcrumb.ForScope(bc, resolvedScope)
+			if !ok {
+				return fmt.Errorf("no profile has been applied at %s scope. Run: claudeup profile diff <name>", resolvedScope)
+			}
+			name = profileName
+			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", appliedAt.Format("Jan 2, 2006"), resolvedScope)
+		} else {
+			profileName, scope := breadcrumb.HighestPrecedence(bc)
+			if profileName == "" {
+				return fmt.Errorf("no profile has been applied yet. Run: claudeup profile diff <name>")
+			}
+			name = profileName
+			entry := bc[scope]
+			breadcrumbScope = fmt.Sprintf("applied %s, %s scope", entry.AppliedAt.Format("Jan 2, 2006"), scope)
+		}
+	}
+
 	profilesDir := getProfilesDir()
 
 	// Load saved profile (disk first, fallback to embedded)
@@ -1685,7 +1817,14 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 		if errors.As(err, &ambigErr) {
 			return ambigErr
 		}
+		if breadcrumbScope != "" {
+			return fmt.Errorf("profile %q not found (breadcrumb referenced it). Run: claudeup profile diff <name>", name)
+		}
 		return fmt.Errorf("profile '%s' not found", name)
+	}
+
+	if breadcrumbScope != "" {
+		fmt.Printf("Comparing against %q (%s)\n\n", name, breadcrumbScope)
 	}
 
 	// Snapshot live state
@@ -2531,6 +2670,11 @@ func runProfileDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to delete profile: %w", err)
 	}
 
+	// Clean breadcrumb entries referencing the deleted profile
+	if err := breadcrumb.Remove(claudeupHome, name); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Breadcrumb cleanup failed: %v. 'profile diff' may reference the deleted profile until you apply another.", err))
+	}
+
 	ui.PrintSuccess(fmt.Sprintf("Deleted profile %q", name))
 
 	return nil
@@ -2629,6 +2773,11 @@ func runProfileRename(cmd *cobra.Command, args []string) error {
 		// Rollback: remove the new file we just created to avoid inconsistent state
 		os.Remove(newPath)
 		return fmt.Errorf("failed to remove old profile: %w", err)
+	}
+
+	// Update breadcrumb entries referencing the old name
+	if err := breadcrumb.Rename(claudeupHome, oldName, newName); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Breadcrumb update failed: %v. 'profile diff' may reference the old name until you apply again.", err))
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Renamed profile %q to %q", oldName, newName))

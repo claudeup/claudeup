@@ -30,9 +30,8 @@ var _ = Describe("Profile diff --original", func() {
 		It("returns error when no profile name given", func() {
 			result := env.Run("profile", "diff", "--original")
 
-			// ExactArgs(1) rejects missing argument
 			Expect(result.ExitCode).To(Equal(1))
-			Expect(result.Stderr).To(ContainSubstring("accepts 1 arg"))
+			Expect(result.Stderr).To(ContainSubstring("--original requires exactly 1 profile name"))
 		})
 	})
 

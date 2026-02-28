@@ -64,11 +64,11 @@ var _ = Describe("profile save", func() {
 	})
 
 	Context("without a profile name", func() {
-		It("returns an error requiring a name argument", func() {
+		It("returns an error when no breadcrumb exists", func() {
 			result := env.Run("profile", "save")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
-			Expect(result.Stderr).To(ContainSubstring("accepts 1 arg"))
+			Expect(result.Stderr).To(ContainSubstring("no profile has been applied"))
 		})
 	})
 
