@@ -182,8 +182,8 @@ func ComputeProfileDiff(saved, live *Profile) *ProfileDiff {
 // has no user scope or there are no extras.
 //
 // Only plugins are compared because ReplaceUserScope only affects
-// enabledPlugins in settings.json. Marketplaces and MCP servers are
-// managed separately and not affected by the replace toggle.
+// enabledPlugins in settings.json. MCP servers, extensions, and
+// marketplaces are managed separately and not affected by the replace toggle.
 func UserScopeExtras(saved, live *Profile) []DiffItem {
 	savedUser := getScopeSettings(saved, "user")
 	if savedUser == nil {

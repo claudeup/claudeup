@@ -138,6 +138,47 @@ var _ = Describe("profile apply extras prompt", func() {
 			Expect(settings.EnabledPlugins).To(HaveKey("plugin-a@market"))
 			Expect(settings.EnabledPlugins).NotTo(HaveKey("plugin-b@market"))
 		})
+
+		It("--force bypasses extras prompt and defaults to additive", func() {
+			result := env.Run("profile", "apply", "test-extras", "--force")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("not in this profile"))
+			Expect(result.Stdout).To(ContainSubstring("Profile applied"))
+
+			settings := loadUserSettings()
+			Expect(settings.EnabledPlugins).To(HaveKey("plugin-a@market"))
+			Expect(settings.EnabledPlugins).To(HaveKey("plugin-b@market"))
+		})
+	})
+
+	Describe("when profile is legacy (flat, not multi-scope)", func() {
+		BeforeEach(func() {
+			// Flat profile with no perScope -- legacy format
+			profileData := map[string]any{
+				"name":    "test-legacy",
+				"plugins": []string{"plugin-a@market"},
+			}
+			data, err := json.MarshalIndent(profileData, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+
+			profilePath := filepath.Join(env.ClaudeupDir, "profiles", "test-legacy.json")
+			Expect(os.MkdirAll(filepath.Dir(profilePath), 0755)).To(Succeed())
+			Expect(os.WriteFile(profilePath, data, 0644)).To(Succeed())
+
+			// Live config has extras
+			setLivePlugins(map[string]bool{
+				"plugin-a@market": true,
+				"plugin-b@market": true,
+			})
+		})
+
+		It("does not show the extras prompt", func() {
+			result := env.RunWithInput("y\n", "profile", "apply", "test-legacy")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("not in this profile"))
+		})
 	})
 
 	Describe("when live config matches profile exactly", func() {

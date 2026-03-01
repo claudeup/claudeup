@@ -1027,7 +1027,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		if (p.IsMultiScope() || wasStack) && !profileApplyReplace && !config.YesFlag && !profileApplyForce {
 			live, snapErr := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
 			if snapErr != nil {
-				ui.PrintWarning(fmt.Sprintf("Could not snapshot live config for extras detection: %v", snapErr))
+				ui.PrintWarning(fmt.Sprintf("Could not detect existing plugins: %v", snapErr))
 			} else {
 				extras := profile.UserScopeExtras(p.AsPerScope(), live.AsPerScope())
 				if len(extras) > 0 {
@@ -2052,7 +2052,7 @@ func pluralize(count int, singular, plural string) string {
 // promptApplyMode shows extra plugins (live items not in profile) and asks the
 // user whether to keep them or replace to match the profile exactly.
 // Returns true if the user chose replace mode, false for additive.
-// Callers receive only DiffPlugin items (UserScopeExtras filters to plugins).
+// Expects plugin items only (the display text uses "plugin" phrasing).
 func promptApplyMode(extras []profile.DiffItem) bool {
 	n := len(extras)
 	fmt.Printf("  %s %d %s in your current config %s not in this profile:\n",
@@ -2066,7 +2066,8 @@ func promptApplyMode(extras []profile.DiffItem) bool {
 	fmt.Printf("    [R] Replace %s match profile exactly (removes extras)\n", ui.Muted("--"))
 	fmt.Println()
 
-	for {
+	const maxAttempts = 10
+	for i := 0; i < maxAttempts; i++ {
 		choice := strings.TrimSpace(promptChoice("  Choice", "A"))
 		if strings.EqualFold(choice, "A") {
 			return false
@@ -2076,6 +2077,8 @@ func promptApplyMode(extras []profile.DiffItem) bool {
 		}
 		fmt.Printf("  Please enter A or R.\n")
 	}
+	// Exhausted attempts -- default to additive
+	return false
 }
 
 // runProfileDiffOriginal compares a customized built-in profile against its embedded original
