@@ -612,6 +612,152 @@ func TestFilterToScopes_DropsMarketplacesWhenUserNotActive(t *testing.T) {
 	}
 }
 
+func TestUserScopeExtras(t *testing.T) {
+	t.Run("returns plugins in live but not in saved", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market", "plugin-b@market"},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market", "plugin-b@market", "plugin-c@market", "plugin-d@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 2 {
+			t.Fatalf("expected 2 extras, got %d", len(extras))
+		}
+
+		names := map[string]bool{}
+		for _, item := range extras {
+			names[item.Name] = true
+			if item.Op != DiffAdded {
+				t.Errorf("expected DiffAdded, got %v", item.Op)
+			}
+		}
+		if !names["plugin-c@market"] || !names["plugin-d@market"] {
+			t.Errorf("expected plugin-c and plugin-d, got %v", names)
+		}
+	})
+
+	t.Run("returns empty when no extras", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 0 {
+			t.Fatalf("expected 0 extras, got %d", len(extras))
+		}
+	})
+
+	t.Run("returns empty when saved has no user scope", func(t *testing.T) {
+		saved := &Profile{
+			Name:     "test",
+			PerScope: &PerScopeSettings{},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 0 {
+			t.Fatalf("expected 0 extras (no user scope in profile), got %d", len(extras))
+		}
+	})
+
+	t.Run("returns empty when live has no user scope", func(t *testing.T) {
+		saved := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 0 {
+			t.Fatalf("expected 0 extras (no live user scope), got %d", len(extras))
+		}
+	})
+
+	t.Run("all live plugins are extras when saved has empty plugin list", func(t *testing.T) {
+		saved := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market", "plugin-b@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 2 {
+			t.Fatalf("expected 2 extras, got %d", len(extras))
+		}
+	})
+
+	t.Run("all extras have DiffPlugin kind", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market", "plugin-b@market", "plugin-c@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 2 {
+			t.Fatalf("expected 2 extras, got %d", len(extras))
+		}
+		for _, item := range extras {
+			if item.Kind != DiffPlugin {
+				t.Errorf("expected DiffPlugin, got %v for %v", item.Kind, item.Name)
+			}
+		}
+	})
+}
+
 func TestComputeProfileDiff_TotalCounts(t *testing.T) {
 	saved := &Profile{
 		Name: "test",

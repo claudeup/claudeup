@@ -75,6 +75,13 @@ REPLACE MODE:
                    By default, user-scope plugins are preserved (additive).
                    Project and local scopes are always replaced.
 
+When applying multi-scope profiles, existing user-scope plugins not in the
+profile are preserved by default. If extras are detected, you will be prompted
+to choose between keeping them or replacing to match the profile exactly.
+
+Use --replace to skip the prompt and always replace.
+Use -y to skip the prompt and always keep extras (additive).
+
 DRY RUN:
   --dry-run        Show what would change without making any modifications.
 
@@ -563,7 +570,7 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyLocal, "local", false, "Apply to local scope (.claude/settings.local.json)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
-	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings instead of adding to them")
 	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
 
 	// Add flags to profile diff command
@@ -1014,8 +1021,26 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			return nil
 		}
 
-		// Skip confirmation if using --force flag
-		if !profileApplyForce && !confirmProceed() {
+		// Detect extras (live user-scope plugins not in profile) for multi-scope profiles.
+		// Only user scope is snapshotted since UserScopeExtras compares plugins only.
+		extrasPrompted := false
+		if (p.IsMultiScope() || wasStack) && !profileApplyReplace && !config.YesFlag && !profileApplyForce {
+			live, snapErr := profile.Snapshot("live", claudeDir, claudeJSONPath, claudeupHome)
+			if snapErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not detect existing plugins: %v", snapErr))
+			} else {
+				extras := profile.UserScopeExtras(p.AsPerScope(), live.AsPerScope())
+				if len(extras) > 0 {
+					if promptApplyMode(extras) {
+						profileApplyReplace = true
+					}
+					extrasPrompted = true
+				}
+			}
+		}
+
+		// Skip confirmation if extras prompt was already shown (it serves as confirmation)
+		if !extrasPrompted && !profileApplyForce && !confirmProceed() {
 			ui.PrintMuted("Cancelled.")
 			return nil
 		}
@@ -2022,6 +2047,38 @@ func pluralize(count int, singular, plural string) string {
 		return singular
 	}
 	return plural
+}
+
+// promptApplyMode shows extra plugins (live items not in profile) and asks the
+// user whether to keep them or replace to match the profile exactly.
+// Returns true if the user chose replace mode, false for additive.
+// Expects plugin items only (the display text uses "plugin" phrasing).
+func promptApplyMode(extras []profile.DiffItem) bool {
+	n := len(extras)
+	fmt.Printf("  %s %d %s in your current config %s not in this profile:\n",
+		ui.Info(ui.SymbolInfo), n, pluralize(n, "plugin", "plugins"), pluralize(n, "is", "are"))
+	for _, e := range extras {
+		fmt.Printf("    - %s\n", e.Name)
+	}
+	fmt.Println()
+	fmt.Println("  How would you like to apply?")
+	fmt.Printf("    [A] Add profile settings, keep extras (default)\n")
+	fmt.Printf("    [R] Replace %s match profile exactly (removes extras)\n", ui.Muted("--"))
+	fmt.Println()
+
+	const maxAttempts = 10
+	for i := 0; i < maxAttempts; i++ {
+		choice := strings.TrimSpace(promptChoice("  Choice", "A"))
+		if strings.EqualFold(choice, "A") {
+			return false
+		}
+		if strings.EqualFold(choice, "R") {
+			return true
+		}
+		fmt.Printf("  Please enter A or R.\n")
+	}
+	// Exhausted attempts -- default to additive
+	return false
 }
 
 // runProfileDiffOriginal compares a customized built-in profile against its embedded original

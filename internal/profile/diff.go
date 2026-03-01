@@ -176,6 +176,35 @@ func ComputeProfileDiff(saved, live *Profile) *ProfileDiff {
 	return diff
 }
 
+// UserScopeExtras returns plugins that exist in live user-scope config
+// but not in the saved profile. Both inputs should be in PerScope form
+// (call AsPerScope() before passing). Returns nil if the saved profile
+// has no user scope or there are no extras.
+//
+// Only plugins are compared because ReplaceUserScope only affects
+// enabledPlugins in settings.json. MCP servers, extensions, and
+// marketplaces are managed separately and not affected by the replace toggle.
+func UserScopeExtras(saved, live *Profile) []DiffItem {
+	savedUser := getScopeSettings(saved, "user")
+	if savedUser == nil {
+		return nil
+	}
+	liveUser := getScopeSettings(live, "user")
+	if liveUser == nil {
+		return nil
+	}
+
+	var extras []DiffItem
+
+	for _, item := range diffStringSet(scopePlugins(savedUser), scopePlugins(liveUser), DiffPlugin) {
+		if item.Op == DiffAdded {
+			extras = append(extras, item)
+		}
+	}
+
+	return extras
+}
+
 // getScopeSettings returns the ScopeSettings for a given scope, or nil if not set
 func getScopeSettings(p *Profile, scope string) *ScopeSettings {
 	if p == nil || p.PerScope == nil {
