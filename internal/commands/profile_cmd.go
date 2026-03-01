@@ -2069,17 +2069,26 @@ func promptApplyMode(extras []profile.DiffItem) bool {
 	}
 
 	summary := strings.Join(parts, " and ")
-	fmt.Printf("%s %s in your current config %s not in this profile:\n",
+	fmt.Printf("  %s %s in your current config %s not in this profile:\n",
 		ui.Info(ui.SymbolInfo), summary, pluralize(len(extras), "is", "are"))
-	for _, e := range extras {
-		fmt.Printf("  %s %s\n", ui.Muted(ui.SymbolBullet), e.Name)
+	for _, kind := range order {
+		for _, e := range counts[kind] {
+			prefix := ""
+			if kind == profile.DiffMarketplace {
+				prefix = "marketplace: "
+			} else if kind == profile.DiffMCP {
+				prefix = "mcp: "
+			}
+			fmt.Printf("    - %s%s\n", prefix, e.Name)
+		}
 	}
 	fmt.Println()
+	fmt.Println("  How would you like to apply?")
+	fmt.Printf("    [A] Add profile settings, keep extras (default)\n")
+	fmt.Printf("    [R] Replace %s match profile exactly (removes extras)\n", ui.Muted("--"))
+	fmt.Println()
 
-	choice := promptChoice(
-		"[A] Add profile settings, keep extras  [R] Replace -- match profile exactly",
-		"A",
-	)
+	choice := promptChoice("  Choice", "A")
 
 	return strings.EqualFold(strings.TrimSpace(choice), "R")
 }
