@@ -19,16 +19,16 @@ var _ = Describe("profile apply extras prompt", func() {
 	BeforeEach(func() {
 		env = helpers.NewTestEnv(binaryPath)
 		env.CreateClaudeSettings()
-		env.CreateInstalledPlugins(map[string]interface{}{})
-		env.CreateKnownMarketplaces(map[string]interface{}{})
+		env.CreateInstalledPlugins(map[string]any{})
+		env.CreateKnownMarketplaces(map[string]any{})
 	})
 
 	// createMultiScopeProfile writes a multi-scope profile with the given user-scope plugins.
 	createMultiScopeProfile := func(name string, userPlugins []string) {
-		profileData := map[string]interface{}{
+		profileData := map[string]any{
 			"name": name,
-			"perScope": map[string]interface{}{
-				"user": map[string]interface{}{
+			"perScope": map[string]any{
+				"user": map[string]any{
 					"plugins": userPlugins,
 				},
 			},
@@ -47,7 +47,7 @@ var _ = Describe("profile apply extras prompt", func() {
 		data, err := os.ReadFile(settingsPath)
 		Expect(err).NotTo(HaveOccurred())
 
-		var settings map[string]interface{}
+		var settings map[string]any
 		Expect(json.Unmarshal(data, &settings)).To(Succeed())
 
 		settings["enabledPlugins"] = plugins
