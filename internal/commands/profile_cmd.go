@@ -1021,11 +1021,11 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			return nil
 		}
 
-		// Detect extras (live items not in profile) for multi-scope profiles.
-		// Show interactive prompt so users can choose add vs replace mode.
+		// Detect extras (live user-scope plugins not in profile) for multi-scope profiles.
+		// Only user scope is snapshotted since UserScopeExtras compares plugins only.
 		extrasPrompted := false
 		if (p.IsMultiScope() || wasStack) && !profileApplyReplace && !config.YesFlag && !profileApplyForce {
-			live, snapErr := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
+			live, snapErr := profile.Snapshot("live", claudeDir, claudeJSONPath, claudeupHome)
 			if snapErr != nil {
 				ui.PrintWarning(fmt.Sprintf("Could not detect existing plugins: %v", snapErr))
 			} else {
