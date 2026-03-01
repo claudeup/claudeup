@@ -1014,8 +1014,24 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 			return nil
 		}
 
-		// Skip confirmation if using --force flag
-		if !profileApplyForce && !confirmProceed() {
+		// Detect extras (live items not in profile) for multi-scope profiles.
+		// Show interactive prompt so users can choose add vs replace mode.
+		extrasPrompted := false
+		if (p.IsMultiScope() || wasStack) && !profileApplyReplace && !config.YesFlag && !profileApplyForce {
+			live, snapErr := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
+			if snapErr == nil {
+				extras := profile.UserScopeExtras(p.AsPerScope(), live.AsPerScope())
+				if len(extras) > 0 {
+					if promptApplyMode(extras) {
+						profileApplyReplace = true
+					}
+					extrasPrompted = true
+				}
+			}
+		}
+
+		// Skip confirmation if extras prompt was already shown (it serves as confirmation)
+		if !extrasPrompted && !profileApplyForce && !confirmProceed() {
 			ui.PrintMuted("Cancelled.")
 			return nil
 		}
@@ -2022,6 +2038,50 @@ func pluralize(count int, singular, plural string) string {
 		return singular
 	}
 	return plural
+}
+
+// promptApplyMode shows extras (live items not in profile) and asks the user
+// whether to keep them or replace to match the profile exactly.
+// Returns true if the user chose replace mode.
+func promptApplyMode(extras []profile.DiffItem) bool {
+	// Group extras by kind for display
+	counts := map[profile.DiffItemKind][]profile.DiffItem{}
+	for _, e := range extras {
+		counts[e.Kind] = append(counts[e.Kind], e)
+	}
+
+	// Build summary parts in a stable order
+	order := []profile.DiffItemKind{profile.DiffPlugin, profile.DiffMarketplace, profile.DiffMCP}
+	var parts []string
+	for _, kind := range order {
+		items := counts[kind]
+		if len(items) == 0 {
+			continue
+		}
+		switch kind {
+		case profile.DiffPlugin:
+			parts = append(parts, fmt.Sprintf("%d %s", len(items), pluralize(len(items), "plugin", "plugins")))
+		case profile.DiffMarketplace:
+			parts = append(parts, fmt.Sprintf("%d %s", len(items), pluralize(len(items), "marketplace", "marketplaces")))
+		case profile.DiffMCP:
+			parts = append(parts, fmt.Sprintf("%d %s", len(items), pluralize(len(items), "MCP server", "MCP servers")))
+		}
+	}
+
+	summary := strings.Join(parts, " and ")
+	fmt.Printf("%s %s in your current config %s not in this profile:\n",
+		ui.Info(ui.SymbolInfo), summary, pluralize(len(extras), "is", "are"))
+	for _, e := range extras {
+		fmt.Printf("  %s %s\n", ui.Muted(ui.SymbolBullet), e.Name)
+	}
+	fmt.Println()
+
+	choice := promptChoice(
+		"[A] Add profile settings, keep extras  [R] Replace -- match profile exactly",
+		"A",
+	)
+
+	return strings.EqualFold(strings.TrimSpace(choice), "R")
 }
 
 // runProfileDiffOriginal compares a customized built-in profile against its embedded original
