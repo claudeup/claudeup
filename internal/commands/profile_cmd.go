@@ -75,6 +75,13 @@ REPLACE MODE:
                    By default, user-scope plugins are preserved (additive).
                    Project and local scopes are always replaced.
 
+When applying multi-scope profiles, existing user-scope plugins not in the
+profile are preserved by default. If extras are detected, you will be prompted
+to choose between keeping them or replacing to match the profile exactly.
+
+Use --replace to skip the prompt and always replace.
+Use -y to skip the prompt and always keep extras (additive).
+
 DRY RUN:
   --dry-run        Show what would change without making any modifications.
 
@@ -563,7 +570,7 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyLocal, "local", false, "Apply to local scope (.claude/settings.local.json)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
-	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings (default: additive)")
+	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings instead of adding to them")
 	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
 
 	// Add flags to profile diff command
