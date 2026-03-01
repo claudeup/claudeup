@@ -612,6 +612,206 @@ func TestFilterToScopes_DropsMarketplacesWhenUserNotActive(t *testing.T) {
 	}
 }
 
+func TestUserScopeExtras(t *testing.T) {
+	t.Run("returns plugins in live but not in saved", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market", "plugin-b@market"},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market", "plugin-b@market", "plugin-c@market", "plugin-d@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 2 {
+			t.Fatalf("expected 2 extras, got %d", len(extras))
+		}
+
+		names := map[string]bool{}
+		for _, item := range extras {
+			names[item.Name] = true
+			if item.Op != DiffAdded {
+				t.Errorf("expected DiffAdded, got %v", item.Op)
+			}
+		}
+		if !names["plugin-c@market"] || !names["plugin-d@market"] {
+			t.Errorf("expected plugin-c and plugin-d, got %v", names)
+		}
+	})
+
+	t.Run("returns marketplaces in live but not in saved", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{},
+			},
+			Marketplaces: []Marketplace{{Source: "github", Repo: "org/market-a"}},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{},
+			},
+			Marketplaces: []Marketplace{{Source: "github", Repo: "org/market-a"}, {Source: "github", Repo: "org/market-b"}},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 1 {
+			t.Fatalf("expected 1 extra, got %d", len(extras))
+		}
+		if extras[0].Kind != DiffMarketplace {
+			t.Errorf("expected DiffMarketplace, got %v", extras[0].Kind)
+		}
+	})
+
+	t.Run("returns MCP servers in live but not in saved", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{{Name: "srv-a", Command: "cmd-a"}},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{Name: "srv-a", Command: "cmd-a"},
+						{Name: "srv-b", Command: "cmd-b"},
+					},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 1 {
+			t.Fatalf("expected 1 extra, got %d", len(extras))
+		}
+		if extras[0].Kind != DiffMCP {
+			t.Errorf("expected DiffMCP, got %v", extras[0].Kind)
+		}
+		if extras[0].Name != "srv-b" {
+			t.Errorf("expected srv-b, got %v", extras[0].Name)
+		}
+	})
+
+	t.Run("returns empty when no extras", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 0 {
+			t.Fatalf("expected 0 extras, got %d", len(extras))
+		}
+	})
+
+	t.Run("returns empty when saved has no user scope", func(t *testing.T) {
+		saved := &Profile{
+			Name:     "test",
+			PerScope: &PerScopeSettings{},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 0 {
+			t.Fatalf("expected 0 extras (no user scope in profile), got %d", len(extras))
+		}
+	})
+
+	t.Run("excludes modified MCP servers", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{{Name: "srv-a", Command: "old-cmd"}},
+				},
+			},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{{Name: "srv-a", Command: "new-cmd"}},
+				},
+			},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 0 {
+			t.Fatalf("expected 0 extras (modified, not added), got %d", len(extras))
+		}
+	})
+
+	t.Run("combines plugins marketplaces and MCP servers", func(t *testing.T) {
+		saved := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins: []string{"plugin-a@market"},
+				},
+			},
+			Marketplaces: []Marketplace{{Source: "github", Repo: "org/market-a"}},
+		}
+		live := &Profile{
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					Plugins:    []string{"plugin-a@market", "plugin-b@market"},
+					MCPServers: []MCPServer{{Name: "srv-new", Command: "cmd"}},
+				},
+			},
+			Marketplaces: []Marketplace{{Source: "github", Repo: "org/market-a"}, {Source: "github", Repo: "org/market-b"}},
+		}
+
+		extras := UserScopeExtras(saved, live)
+		if len(extras) != 3 {
+			t.Fatalf("expected 3 extras (1 plugin + 1 marketplace + 1 MCP), got %d", len(extras))
+		}
+
+		kinds := map[DiffItemKind]int{}
+		for _, item := range extras {
+			kinds[item.Kind]++
+			if item.Op != DiffAdded {
+				t.Errorf("expected DiffAdded, got %v for %v", item.Op, item.Name)
+			}
+		}
+		if kinds[DiffPlugin] != 1 {
+			t.Errorf("expected 1 plugin extra, got %d", kinds[DiffPlugin])
+		}
+		if kinds[DiffMarketplace] != 1 {
+			t.Errorf("expected 1 marketplace extra, got %d", kinds[DiffMarketplace])
+		}
+		if kinds[DiffMCP] != 1 {
+			t.Errorf("expected 1 MCP extra, got %d", kinds[DiffMCP])
+		}
+	})
+}
+
 func TestComputeProfileDiff_TotalCounts(t *testing.T) {
 	saved := &Profile{
 		Name: "test",

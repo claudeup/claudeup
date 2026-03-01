@@ -176,6 +176,42 @@ func ComputeProfileDiff(saved, live *Profile) *ProfileDiff {
 	return diff
 }
 
+// UserScopeExtras returns items that exist in live user-scope config
+// but not in the saved profile. Returns nil if the saved profile has no user scope
+// or there are no extras.
+func UserScopeExtras(saved, live *Profile) []DiffItem {
+	savedUser := getScopeSettings(saved, "user")
+	if savedUser == nil {
+		return nil
+	}
+	liveUser := getScopeSettings(live, "user")
+	if liveUser == nil {
+		return nil
+	}
+
+	var extras []DiffItem
+
+	for _, item := range diffStringSet(scopePlugins(savedUser), scopePlugins(liveUser), DiffPlugin) {
+		if item.Op == DiffAdded {
+			extras = append(extras, item)
+		}
+	}
+
+	for _, item := range diffMarketplaces(saved.Marketplaces, live.Marketplaces) {
+		if item.Op == DiffAdded {
+			extras = append(extras, item)
+		}
+	}
+
+	for _, item := range diffMCPServers(scopeMCPServers(savedUser), scopeMCPServers(liveUser)) {
+		if item.Op == DiffAdded {
+			extras = append(extras, item)
+		}
+	}
+
+	return extras
+}
+
 // getScopeSettings returns the ScopeSettings for a given scope, or nil if not set
 func getScopeSettings(p *Profile, scope string) *ScopeSettings {
 	if p == nil || p.PerScope == nil {
