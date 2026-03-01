@@ -125,6 +125,19 @@ var _ = Describe("profile apply extras prompt", func() {
 			Expect(settings.EnabledPlugins).To(HaveKey("plugin-a@market"))
 			Expect(settings.EnabledPlugins).To(HaveKey("plugin-b@market"))
 		})
+
+		It("--replace without -y bypasses extras prompt and removes extras", func() {
+			result := env.RunWithInput("y\n", "profile", "apply", "test-extras", "--replace")
+
+			Expect(result.ExitCode).To(Equal(0))
+			// --replace bypasses extras prompt but still needs confirm
+			Expect(result.Stdout).NotTo(ContainSubstring("not in this profile"))
+			Expect(result.Stdout).To(ContainSubstring("Profile applied"))
+
+			settings := loadUserSettings()
+			Expect(settings.EnabledPlugins).To(HaveKey("plugin-a@market"))
+			Expect(settings.EnabledPlugins).NotTo(HaveKey("plugin-b@market"))
+		})
 	})
 
 	Describe("when live config matches profile exactly", func() {
@@ -142,6 +155,14 @@ var _ = Describe("profile apply extras prompt", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).NotTo(ContainSubstring("not in this profile"))
+		})
+
+		It("interactive mode without extras goes straight to confirm", func() {
+			result := env.RunWithInput("y\n", "profile", "apply", "test-no-extras")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("not in this profile"))
+			Expect(result.Stdout).To(ContainSubstring("Profile applied"))
 		})
 	})
 })

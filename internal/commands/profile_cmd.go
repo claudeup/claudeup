@@ -1026,7 +1026,9 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		extrasPrompted := false
 		if (p.IsMultiScope() || wasStack) && !profileApplyReplace && !config.YesFlag && !profileApplyForce {
 			live, snapErr := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
-			if snapErr == nil {
+			if snapErr != nil {
+				ui.PrintWarning(fmt.Sprintf("Could not snapshot live config for extras detection: %v", snapErr))
+			} else {
 				extras := profile.UserScopeExtras(p.AsPerScope(), live.AsPerScope())
 				if len(extras) > 0 {
 					if promptApplyMode(extras) {
@@ -2047,47 +2049,16 @@ func pluralize(count int, singular, plural string) string {
 	return plural
 }
 
-// promptApplyMode shows extras (live items not in profile) and asks the user
-// whether to keep them or replace to match the profile exactly.
-// Returns true if the user chose replace mode.
+// promptApplyMode shows extra plugins (live items not in profile) and asks the
+// user whether to keep them or replace to match the profile exactly.
+// Returns true if the user chose replace mode, false for additive.
+// Callers receive only DiffPlugin items (UserScopeExtras filters to plugins).
 func promptApplyMode(extras []profile.DiffItem) bool {
-	// Group extras by kind for display
-	counts := map[profile.DiffItemKind][]profile.DiffItem{}
+	n := len(extras)
+	fmt.Printf("  %s %d %s in your current config %s not in this profile:\n",
+		ui.Info(ui.SymbolInfo), n, pluralize(n, "plugin", "plugins"), pluralize(n, "is", "are"))
 	for _, e := range extras {
-		counts[e.Kind] = append(counts[e.Kind], e)
-	}
-
-	// Build summary parts in a stable order
-	order := []profile.DiffItemKind{profile.DiffPlugin, profile.DiffMarketplace, profile.DiffMCP}
-	var parts []string
-	for _, kind := range order {
-		items := counts[kind]
-		if len(items) == 0 {
-			continue
-		}
-		switch kind {
-		case profile.DiffPlugin:
-			parts = append(parts, fmt.Sprintf("%d %s", len(items), pluralize(len(items), "plugin", "plugins")))
-		case profile.DiffMarketplace:
-			parts = append(parts, fmt.Sprintf("%d %s", len(items), pluralize(len(items), "marketplace", "marketplaces")))
-		case profile.DiffMCP:
-			parts = append(parts, fmt.Sprintf("%d %s", len(items), pluralize(len(items), "MCP server", "MCP servers")))
-		}
-	}
-
-	summary := strings.Join(parts, " and ")
-	fmt.Printf("  %s %s in your current config %s not in this profile:\n",
-		ui.Info(ui.SymbolInfo), summary, pluralize(len(extras), "is", "are"))
-	for _, kind := range order {
-		for _, e := range counts[kind] {
-			prefix := ""
-			if kind == profile.DiffMarketplace {
-				prefix = "marketplace: "
-			} else if kind == profile.DiffMCP {
-				prefix = "mcp: "
-			}
-			fmt.Printf("    - %s%s\n", prefix, e.Name)
-		}
+		fmt.Printf("    - %s\n", e.Name)
 	}
 	fmt.Println()
 	fmt.Println("  How would you like to apply?")
@@ -2095,9 +2066,16 @@ func promptApplyMode(extras []profile.DiffItem) bool {
 	fmt.Printf("    [R] Replace %s match profile exactly (removes extras)\n", ui.Muted("--"))
 	fmt.Println()
 
-	choice := promptChoice("  Choice", "A")
-
-	return strings.EqualFold(strings.TrimSpace(choice), "R")
+	for {
+		choice := strings.TrimSpace(promptChoice("  Choice", "A"))
+		if strings.EqualFold(choice, "A") {
+			return false
+		}
+		if strings.EqualFold(choice, "R") {
+			return true
+		}
+		fmt.Printf("  Please enter A or R.\n")
+	}
 }
 
 // runProfileDiffOriginal compares a customized built-in profile against its embedded original
