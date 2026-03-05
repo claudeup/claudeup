@@ -1301,7 +1301,7 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	existingProfile, _ := profile.Load(profilesDir, name) // OK if doesn't exist
 	if existingProfile != nil {
 		p.PreserveFrom(existingProfile)
-		profile.PreserveMCPSecrets(p, existingProfile)
+		p.PreserveMCPSecrets(existingProfile)
 	}
 
 	// Handle description

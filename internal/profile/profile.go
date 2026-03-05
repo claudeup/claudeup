@@ -481,23 +481,23 @@ type HookEntry struct {
 // MCP server configs, secret values are resolved to plaintext. This function
 // matches servers by name and replaces resolved arg values with the original
 // $KEY references using positional matching against the existing profile's args.
-func PreserveMCPSecrets(snapshot, existing *Profile) {
-	if snapshot == nil || existing == nil {
+func (p *Profile) PreserveMCPSecrets(existing *Profile) {
+	if p == nil || existing == nil {
 		return
 	}
 
 	// Handle legacy flat MCPServers field
-	restoreServerSecrets(snapshot.MCPServers, existing.MCPServers)
+	restoreServerSecrets(p.MCPServers, existing.MCPServers)
 
 	// Handle per-scope MCPServers
-	if snapshot.PerScope != nil && existing.PerScope != nil {
+	if p.PerScope != nil && existing.PerScope != nil {
 		pairs := []struct {
 			snap *ScopeSettings
 			orig *ScopeSettings
 		}{
-			{snapshot.PerScope.User, existing.PerScope.User},
-			{snapshot.PerScope.Project, existing.PerScope.Project},
-			{snapshot.PerScope.Local, existing.PerScope.Local},
+			{p.PerScope.User, existing.PerScope.User},
+			{p.PerScope.Project, existing.PerScope.Project},
+			{p.PerScope.Local, existing.PerScope.Local},
 		}
 		for _, pair := range pairs {
 			if pair.snap != nil && pair.orig != nil {
@@ -524,6 +524,16 @@ func restoreServerSecrets(snapServers, origServers []MCPServer) {
 			continue
 		}
 
+		// Restore $VAR references by positional matching.
+		// Only possible when arg counts match; otherwise the server config
+		// has changed and positional alignment is unreliable.
+		if len(snapServers[i].Args) != len(orig.Args) {
+			// Skip this server entirely -- copying Secrets without restoring
+			// $VAR refs would leave plaintext values alongside metadata,
+			// creating a false sense of security.
+			continue
+		}
+
 		// Copy the Secrets map
 		snapServers[i].Secrets = make(map[string]SecretRef, len(orig.Secrets))
 		for k, v := range orig.Secrets {
@@ -535,12 +545,11 @@ func restoreServerSecrets(snapServers, origServers []MCPServer) {
 			}
 		}
 
-		// Restore $VAR references by positional matching.
-		// The existing profile's args contain $KEY where secrets go.
-		// The snapshot's args have the resolved values in the same positions.
-		if len(snapServers[i].Args) == len(orig.Args) {
-			for j, origArg := range orig.Args {
-				if strings.HasPrefix(origArg, "$") {
+		// Replace only args that reference keys in the Secrets map.
+		for j, origArg := range orig.Args {
+			if strings.HasPrefix(origArg, "$") {
+				key := origArg[1:]
+				if _, isSecret := orig.Secrets[key]; isSecret {
 					snapServers[i].Args[j] = origArg
 				}
 			}

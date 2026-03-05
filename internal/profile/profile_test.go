@@ -2123,7 +2123,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, existing)
+		snapshot.PreserveMCPSecrets(existing)
 
 		srv := snapshot.PerScope.User.MCPServers[0]
 		if srv.Args[3] != "$MY_TOKEN" {
@@ -2157,7 +2157,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, nil)
+		snapshot.PreserveMCPSecrets(nil)
 
 		// Args should be unchanged
 		if snapshot.PerScope.User.MCPServers[0].Args[1] != "sk-secret-12345" {
@@ -2199,7 +2199,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, existing)
+		snapshot.PreserveMCPSecrets(existing)
 
 		srv := snapshot.PerScope.User.MCPServers[0]
 		if srv.Args[0] != "resolved-value" {
@@ -2257,7 +2257,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, existing)
+		snapshot.PreserveMCPSecrets(existing)
 
 		userSrv := snapshot.PerScope.User.MCPServers[0]
 		if userSrv.Args[0] != "$USER_KEY" {
@@ -2312,7 +2312,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, existing)
+		snapshot.PreserveMCPSecrets(existing)
 
 		secretSrv := snapshot.PerScope.User.MCPServers[0]
 		if secretSrv.Args[1] != "$API_KEY" {
@@ -2353,7 +2353,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, existing)
+		snapshot.PreserveMCPSecrets(existing)
 
 		srv := snapshot.MCPServers[0]
 		if srv.Args[0] != "$TOKEN" {
@@ -2399,7 +2399,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		PreserveMCPSecrets(snapshot, existing)
+		snapshot.PreserveMCPSecrets(existing)
 
 		srv := snapshot.PerScope.User.MCPServers[0]
 		if srv.Args[1] != "$USERNAME" {
@@ -2411,5 +2411,105 @@ func TestPreserveMCPSecrets(t *testing.T) {
 		if len(srv.Secrets) != 2 {
 			t.Errorf("expected 2 secrets, got %d", len(srv.Secrets))
 		}
+	})
+
+	t.Run("arg length mismatch skips both secrets and arg restoration", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "changed-server",
+							Command: "cmd",
+							Args:    []string{"--token", "$TOKEN", "--verbose"},
+							Secrets: map[string]SecretRef{
+								"TOKEN": {Sources: []SecretSource{{Type: "env", Key: "TOKEN"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "changed-server",
+							Command: "cmd",
+							Args:    []string{"--mode", "test"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		// Args unchanged -- positional matching not possible
+		if srv.Args[0] != "--mode" || srv.Args[1] != "test" {
+			t.Errorf("expected unchanged args, got %v", srv.Args)
+		}
+		// Secrets should NOT be copied when args can't be restored
+		if len(srv.Secrets) != 0 {
+			t.Errorf("expected no secrets when arg lengths differ, got %d", len(srv.Secrets))
+		}
+	})
+
+	t.Run("only restores args backed by secrets map keys", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "mixed-args",
+							Command: "cmd",
+							Args:    []string{"$HOME", "--token", "$API_KEY"},
+							Secrets: map[string]SecretRef{
+								"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "API_KEY"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "mixed-args",
+							Command: "cmd",
+							Args:    []string{"/Users/mark", "--token", "real-key"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		// $HOME is NOT in the Secrets map -- should keep resolved value
+		if srv.Args[0] != "/Users/mark" {
+			t.Errorf("expected resolved $HOME to be kept, got %q", srv.Args[0])
+		}
+		// $API_KEY IS in the Secrets map -- should be restored
+		if srv.Args[2] != "$API_KEY" {
+			t.Errorf("expected $API_KEY, got %q", srv.Args[2])
+		}
+	})
+
+	t.Run("nil snapshot is a no-op", func(t *testing.T) {
+		existing := &Profile{Name: "test"}
+		var nilProfile *Profile
+		nilProfile.PreserveMCPSecrets(existing) // should not panic
 	})
 }

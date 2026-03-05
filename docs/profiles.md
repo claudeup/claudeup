@@ -814,23 +814,27 @@ MCP server args use `$KEY` references to substitute secret values at apply time.
 
 ```json
 {
-  "mcpServers": [
-    {
-      "name": "my-api",
-      "command": "npx",
-      "args": ["-y", "@my/mcp-server", "--token", "$API_TOKEN"],
-      "secrets": {
-        "API_TOKEN": {
-          "description": "API token for the service",
-          "sources": [{ "type": "env", "key": "API_TOKEN" }]
+  "perScope": {
+    "user": {
+      "mcpServers": [
+        {
+          "name": "my-api",
+          "command": "npx",
+          "args": ["-y", "@my/mcp-server", "--token", "$API_TOKEN"],
+          "secrets": {
+            "API_TOKEN": {
+              "description": "API token for the service",
+              "sources": [{ "type": "env", "key": "API_TOKEN" }]
+            }
+          }
         }
-      }
+      ]
     }
-  ]
+  }
 }
 ```
 
-When claudeup applies this profile, `$API_TOKEN` in args is replaced with the resolved secret value. The profile JSON itself never contains the plaintext secret.
+Both the flat `mcpServers` and `perScope.*.mcpServers` formats are supported. When claudeup applies this profile, `$API_TOKEN` in args is replaced with the resolved secret value. The profile JSON itself never contains the plaintext secret.
 
 ### Redacting Secrets from Existing Profiles
 
@@ -881,8 +885,8 @@ Add this to your shell profile (`~/.zshrc`, `~/.bashrc`) so it persists.
 **5. Verify the profile is safe to commit:**
 
 ```bash
-# Check for remaining secrets
-grep -E 'sk-|token.*=|key.*=' ~/.claudeup/profiles/my-profile.json
+# Review the args arrays for any remaining plaintext values
+claudeup profile show my-profile
 
 # Test that apply resolves correctly
 claudeup profile apply my-profile
