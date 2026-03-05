@@ -582,9 +582,12 @@ Without a name argument, `profile save` defaults to the last-applied profile nam
 
 The profile is saved once to `~/.claudeup/profiles/<name>.json`, but internally it records which scope each item came from. When you later run `profile apply`, each item is restored to its original scope.
 
+**MCP servers and secrets:** When saving, MCP server args are captured from the live Claude Code configuration, which contains resolved (plaintext) secret values. If the profile you're overwriting already has `secrets` metadata and `$KEY` references in its args, `profile save` restores those references automatically. However, if the profile has no prior `secrets` metadata, the plaintext values are saved as-is. **Review the saved profile before committing it to git.** See [Redacting Secrets from Existing Profiles](#redacting-secrets-from-existing-profiles) for how to add secret references to a profile that contains plaintext values.
+
 **When re-saving an existing profile:**
 
 - Extensions are preserved from the existing profile (not re-scanned from the system)
+- MCP secret references (`$KEY` args and `secrets` blocks) are preserved from the existing profile
 - Marketplaces are always re-filtered based on current plugins
 - Custom descriptions are preserved unless overridden with `--description`
 
