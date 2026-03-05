@@ -700,3 +700,45 @@ func TestImportSkipsGitkeep(t *testing.T) {
 		}
 	}
 }
+
+func TestDisableAgentGroupByDirectoryName(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create agent group directory
+	extDir := filepath.Join(claudeupHome, "ext")
+	groupDir := filepath.Join(extDir, "agents", "developer-experience")
+	os.MkdirAll(groupDir, 0755)
+	os.WriteFile(filepath.Join(groupDir, "build-engineer.md"), []byte("# Agent"), 0644)
+	os.WriteFile(filepath.Join(groupDir, "cli-developer.md"), []byte("# Agent"), 0644)
+
+	// Enable agents first
+	enabled, _, err := manager.Enable("agents", []string{"developer-experience"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+	if len(enabled) != 2 {
+		t.Fatalf("Enable() enabled %d items, want 2", len(enabled))
+	}
+
+	// Disable using the directory name
+	disabled, notFound, err := manager.Disable("agents", []string{"developer-experience"})
+	if err != nil {
+		t.Fatalf("Disable() error = %v", err)
+	}
+	if len(notFound) != 0 {
+		t.Errorf("Disable() notFound = %v, want []", notFound)
+	}
+	if len(disabled) != 2 {
+		t.Errorf("Disable() disabled %d items, want 2: %v", len(disabled), disabled)
+	}
+
+	// Verify all items are disabled in config
+	config, _ := manager.LoadConfig()
+	for item, isEnabled := range config["agents"] {
+		if isEnabled {
+			t.Errorf("Config[agents][%s] should be false", item)
+		}
+	}
+}

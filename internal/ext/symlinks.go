@@ -36,7 +36,14 @@ func (m *Manager) resolvePattern(category, pattern string, allItems []string) ([
 	// Try to resolve as a single item
 	resolved, err := m.ResolveItemName(category, pattern)
 	if err != nil {
-		return nil, "", false
+		// ResolveItemName failed -- check if the pattern is a directory name
+		// (e.g., agent group directories aren't resolved as individual items)
+		dirPath := filepath.Join(m.extDir, category, pattern)
+		info, statErr := os.Stat(dirPath)
+		if statErr != nil || !info.IsDir() {
+			return nil, "", false
+		}
+		resolved = pattern
 	}
 
 	// Check if resolved item is a directory (not a skill)
