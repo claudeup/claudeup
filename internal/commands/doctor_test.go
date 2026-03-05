@@ -3,8 +3,137 @@
 package commands
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
+
+func TestCheckDirectorySymlinks(t *testing.T) {
+	t.Run("detects symlink pointing to directory", func(t *testing.T) {
+		claudeDir := t.TempDir()
+		extDir := t.TempDir()
+
+		// Create a category directory in claudeDir
+		agentsDir := filepath.Join(claudeDir, "agents")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a source directory with some agent files
+		groupDir := filepath.Join(extDir, "developer-experience")
+		if err := os.MkdirAll(groupDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"build-engineer.md", "cli-developer.md"} {
+			if err := os.WriteFile(filepath.Join(groupDir, name), []byte("agent"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		// Create directory symlink (the bug)
+		if err := os.Symlink(groupDir, filepath.Join(agentsDir, "developer-experience")); err != nil {
+			t.Fatal(err)
+		}
+
+		results := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 1 {
+			t.Fatalf("expected 1 directory symlink, got %d", len(results))
+		}
+		if results[0].Category != "agents" {
+			t.Errorf("expected category 'agents', got %q", results[0].Category)
+		}
+		if results[0].ItemCount != 2 {
+			t.Errorf("expected 2 exposed items, got %d", results[0].ItemCount)
+		}
+	})
+
+	t.Run("ignores regular file symlinks", func(t *testing.T) {
+		claudeDir := t.TempDir()
+		extDir := t.TempDir()
+
+		agentsDir := filepath.Join(claudeDir, "agents")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a source file
+		srcFile := filepath.Join(extDir, "my-agent.md")
+		if err := os.WriteFile(srcFile, []byte("agent"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create file symlink (normal behavior)
+		if err := os.Symlink(srcFile, filepath.Join(agentsDir, "my-agent.md")); err != nil {
+			t.Fatal(err)
+		}
+
+		results := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 0 {
+			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
+		}
+	})
+
+	t.Run("ignores non-symlink directories", func(t *testing.T) {
+		claudeDir := t.TempDir()
+
+		// Create a real subdirectory (not a symlink) -- this is normal for grouped agents
+		agentsDir := filepath.Join(claudeDir, "agents", "test-runner")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		results := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 0 {
+			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
+		}
+	})
+
+	t.Run("ignores skill directories with SKILL.md", func(t *testing.T) {
+		claudeDir := t.TempDir()
+		extDir := t.TempDir()
+
+		skillsDir := filepath.Join(claudeDir, "skills")
+		if err := os.MkdirAll(skillsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Create a skill directory with SKILL.md (legitimate directory symlink)
+		skillDir := filepath.Join(extDir, "golang")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("skill"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(skillDir, "helpers.md"), []byte("ref"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.Symlink(skillDir, filepath.Join(skillsDir, "golang")); err != nil {
+			t.Fatal(err)
+		}
+
+		results := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 0 {
+			t.Fatalf("expected 0 directory symlinks (skill dir should be excluded), got %d", len(results))
+		}
+	})
+
+	t.Run("skips missing category directories", func(t *testing.T) {
+		claudeDir := t.TempDir()
+		// Don't create any category dirs
+
+		results := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 0 {
+			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
+		}
+	})
+}
 
 func TestGetExpectedPath(t *testing.T) {
 	tests := []struct {

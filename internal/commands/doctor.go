@@ -197,6 +197,20 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("claudeup extensions sync")), 1))
 	}
+
+	// Check for directory symlinks that bypass enable/disable controls
+	dirSymlinks := checkDirectorySymlinks(claudeDir)
+	if len(dirSymlinks) > 0 {
+		fmt.Println()
+		fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d directory symlink%s bypassing enable/disable controls:", len(dirSymlinks), pluralS(len(dirSymlinks))), 1))
+		for _, ds := range dirSymlinks {
+			fmt.Println(ui.Indent(ui.SymbolBullet+" "+filepath.Base(ds.Path)+ui.Muted(" ("+ds.Category+", "+fmt.Sprintf("%d", ds.ItemCount)+" items exposed)"), 2))
+			fmt.Println(ui.Indent(ui.Muted("-> "+ds.Target), 3))
+		}
+		fmt.Println()
+		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("cu ext disable <category> <directory-name>")), 1))
+		fmt.Println(ui.Indent(ui.Muted("This removes the directory symlink; re-enable individual items with cu ext enable"), 2))
+	}
 	fmt.Println()
 
 	// Summary
@@ -214,8 +228,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", pluginSummary), 1))
 
+	symSummary := fmt.Sprintf("%d broken", len(brokenSymlinks))
+	if len(dirSymlinks) > 0 {
+		symSummary += fmt.Sprintf(", %d directory", len(dirSymlinks))
+	}
+	if len(brokenSymlinks) == 0 && len(dirSymlinks) == 0 {
+		symSummary = "all valid"
+	}
+	fmt.Println(ui.Indent(ui.RenderDetail("Symlinks", symSummary), 1))
+
 	fmt.Println()
-	if totalIssues > 0 || marketplaceIssues > 0 {
+	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks)
+	if allIssues > 0 {
 		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {
 		ui.PrintSuccess("No issues detected!")
@@ -304,6 +328,73 @@ func getExpectedPath(currentPath string) string {
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// DirectorySymlink represents a symlink in a category directory that points to a
+// directory instead of a file. Directory symlinks bypass individual enable/disable
+// controls in enabled.json, exposing all items in the target directory.
+type DirectorySymlink struct {
+	Path      string
+	Target    string
+	Category  string
+	ItemCount int
+}
+
+// checkDirectorySymlinks scans category directories for symlinks that point to
+// directories. These bypass the per-item enable/disable controls in enabled.json.
+func checkDirectorySymlinks(baseDir string) []DirectorySymlink {
+	var results []DirectorySymlink
+	for _, category := range ext.AllCategories() {
+		catDir := filepath.Join(baseDir, category)
+		entries, err := os.ReadDir(catDir)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			path := filepath.Join(catDir, entry.Name())
+
+			// Check if it's a symlink
+			info, err := os.Lstat(path)
+			if err != nil || info.Mode()&os.ModeSymlink == 0 {
+				continue
+			}
+
+			// Resolve the symlink target and check if it's a directory
+			target, err := os.Readlink(path)
+			if err != nil {
+				continue
+			}
+			targetInfo, err := os.Stat(path)
+			if err != nil || !targetInfo.IsDir() {
+				continue
+			}
+
+			// Skill directories (containing SKILL.md) are legitimate directory symlinks
+			if _, err := os.Stat(filepath.Join(path, "SKILL.md")); err == nil {
+				continue
+			}
+
+			// Count exposed items
+			items, err := os.ReadDir(path)
+			itemCount := 0
+			if err == nil {
+				for _, item := range items {
+					if !item.IsDir() {
+						itemCount++
+					}
+				}
+			}
+
+			results = append(results, DirectorySymlink{
+				Path:      path,
+				Target:    target,
+				Category:  category,
+				ItemCount: itemCount,
+			})
+		}
+	}
+	return results
 }
 
 // BrokenSymlink represents a symlink whose target no longer exists
