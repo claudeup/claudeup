@@ -476,6 +476,108 @@ type HookEntry struct {
 	Command string `json:"command"`
 }
 
+// PreserveMCPSecrets restores $VAR references and Secrets metadata from an
+// existing profile onto a snapshotted profile. When profile save captures live
+// MCP server configs, secret values are resolved to plaintext. This function
+// matches servers by name and replaces resolved arg values with the original
+// $KEY references using positional matching against the existing profile's args.
+//
+// Returns warning messages for servers that could not be restored (e.g., when
+// arg counts have changed since the profile was last saved).
+func (p *Profile) PreserveMCPSecrets(existing *Profile) []string {
+	if p == nil || existing == nil {
+		return nil
+	}
+
+	var warnings []string
+
+	// Handle legacy flat MCPServers field
+	warnings = append(warnings, restoreServerSecrets(p.MCPServers, existing.MCPServers)...)
+
+	// Handle per-scope MCPServers
+	if p.PerScope != nil && existing.PerScope != nil {
+		pairs := []struct {
+			snap *ScopeSettings
+			orig *ScopeSettings
+		}{
+			{p.PerScope.User, existing.PerScope.User},
+			{p.PerScope.Project, existing.PerScope.Project},
+			{p.PerScope.Local, existing.PerScope.Local},
+		}
+		for _, pair := range pairs {
+			if pair.snap != nil && pair.orig != nil {
+				warnings = append(warnings, restoreServerSecrets(pair.snap.MCPServers, pair.orig.MCPServers)...)
+			}
+		}
+	}
+
+	return warnings
+}
+
+// restoreServerSecrets matches snapshotted servers to existing servers by name
+// and restores $VAR arg references and Secrets metadata.
+//
+// Restoration uses positional matching: each arg index in the snapshot is
+// compared to the same index in the existing profile. This means reordered or
+// inserted args will produce incorrect substitutions. The arg-count guard
+// below catches the most common case (added/removed args), but reordering
+// within the same count is not detected.
+func restoreServerSecrets(snapServers, origServers []MCPServer) []string {
+	var warnings []string
+
+	// Build lookup of existing servers with secrets
+	byName := make(map[string]*MCPServer, len(origServers))
+	for i := range origServers {
+		if len(origServers[i].Secrets) > 0 {
+			byName[origServers[i].Name] = &origServers[i]
+		}
+	}
+
+	for i := range snapServers {
+		orig, ok := byName[snapServers[i].Name]
+		if !ok {
+			continue
+		}
+
+		// Restore $VAR references by positional matching.
+		// Only possible when arg counts match; otherwise the server config
+		// has changed and positional alignment is unreliable.
+		if len(snapServers[i].Args) != len(orig.Args) {
+			// Skip this server entirely -- copying Secrets without restoring
+			// $VAR refs would leave plaintext values alongside metadata,
+			// creating a false sense of security.
+			warnings = append(warnings, fmt.Sprintf(
+				"server %q: args changed (%d → %d), secret references not restored -- review saved profile for plaintext values",
+				snapServers[i].Name, len(orig.Args), len(snapServers[i].Args),
+			))
+			continue
+		}
+
+		// Copy the Secrets map
+		snapServers[i].Secrets = make(map[string]SecretRef, len(orig.Secrets))
+		for k, v := range orig.Secrets {
+			sources := make([]SecretSource, len(v.Sources))
+			copy(sources, v.Sources)
+			snapServers[i].Secrets[k] = SecretRef{
+				Description: v.Description,
+				Sources:     sources,
+			}
+		}
+
+		// Replace only args that reference keys in the Secrets map.
+		for j, origArg := range orig.Args {
+			if strings.HasPrefix(origArg, "$") {
+				key := origArg[1:]
+				if _, isSecret := orig.Secrets[key]; isSecret {
+					snapServers[i].Args[j] = origArg
+				}
+			}
+		}
+	}
+
+	return warnings
+}
+
 // PreserveFrom copies extensions from an existing profile.
 // When re-saving, this keeps only the extensions the user originally saved,
 // preventing accumulation of items enabled by other tools.

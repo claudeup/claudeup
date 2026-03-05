@@ -2080,3 +2080,443 @@ func TestValidateMarketplaceRefs(t *testing.T) {
 		}
 	})
 }
+
+func TestPreserveMCPSecrets(t *testing.T) {
+	t.Run("restores secret refs and metadata from existing profile", func(t *testing.T) {
+		// Existing profile has $VAR references and Secrets metadata
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "my-server",
+							Command: "npx",
+							Args:    []string{"-y", "@my/mcp", "--token", "$MY_TOKEN"},
+							Secrets: map[string]SecretRef{
+								"MY_TOKEN": {
+									Description: "API token",
+									Sources: []SecretSource{
+										{Type: "env", Key: "MY_TOKEN"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		// Snapshot captured the resolved plaintext value
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "my-server",
+							Command: "npx",
+							Args:    []string{"-y", "@my/mcp", "--token", "sk-secret-12345"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		if srv.Args[3] != "$MY_TOKEN" {
+			t.Errorf("expected arg[3] to be $MY_TOKEN, got %q", srv.Args[3])
+		}
+		if len(srv.Secrets) != 1 {
+			t.Fatalf("expected 1 secret, got %d", len(srv.Secrets))
+		}
+		ref, ok := srv.Secrets["MY_TOKEN"]
+		if !ok {
+			t.Fatal("expected MY_TOKEN secret key")
+		}
+		if ref.Description != "API token" {
+			t.Errorf("expected description 'API token', got %q", ref.Description)
+		}
+	})
+
+	t.Run("nil existing profile is a no-op", func(t *testing.T) {
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "my-server",
+							Command: "npx",
+							Args:    []string{"--token", "sk-secret-12345"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(nil)
+
+		// Args should be unchanged
+		if snapshot.PerScope.User.MCPServers[0].Args[1] != "sk-secret-12345" {
+			t.Error("snapshot should be unchanged when existing is nil")
+		}
+	})
+
+	t.Run("server name mismatch leaves snapshot unchanged", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "other-server",
+							Command: "npx",
+							Args:    []string{"$SECRET"},
+							Secrets: map[string]SecretRef{
+								"SECRET": {Sources: []SecretSource{{Type: "env", Key: "SECRET"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "my-server",
+							Command: "npx",
+							Args:    []string{"resolved-value"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		if srv.Args[0] != "resolved-value" {
+			t.Errorf("expected unchanged arg, got %q", srv.Args[0])
+		}
+		if len(srv.Secrets) != 0 {
+			t.Error("expected no secrets on unmatched server")
+		}
+	})
+
+	t.Run("preserves secrets across multiple scopes", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "user-server",
+							Command: "cmd",
+							Args:    []string{"$USER_KEY"},
+							Secrets: map[string]SecretRef{
+								"USER_KEY": {Sources: []SecretSource{{Type: "env", Key: "USER_KEY"}}},
+							},
+						},
+					},
+				},
+				Project: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "project-server",
+							Command: "cmd",
+							Args:    []string{"$PROJ_KEY"},
+							Secrets: map[string]SecretRef{
+								"PROJ_KEY": {Sources: []SecretSource{{Type: "env", Key: "PROJ_KEY"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{Name: "user-server", Command: "cmd", Args: []string{"actual-user-key"}},
+					},
+				},
+				Project: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{Name: "project-server", Command: "cmd", Args: []string{"actual-proj-key"}},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		userSrv := snapshot.PerScope.User.MCPServers[0]
+		if userSrv.Args[0] != "$USER_KEY" {
+			t.Errorf("user scope: expected $USER_KEY, got %q", userSrv.Args[0])
+		}
+		if len(userSrv.Secrets) != 1 {
+			t.Errorf("user scope: expected 1 secret, got %d", len(userSrv.Secrets))
+		}
+
+		projSrv := snapshot.PerScope.Project.MCPServers[0]
+		if projSrv.Args[0] != "$PROJ_KEY" {
+			t.Errorf("project scope: expected $PROJ_KEY, got %q", projSrv.Args[0])
+		}
+		if len(projSrv.Secrets) != 1 {
+			t.Errorf("project scope: expected 1 secret, got %d", len(projSrv.Secrets))
+		}
+	})
+
+	t.Run("partial match preserves only secret-bearing servers", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "secret-server",
+							Command: "cmd",
+							Args:    []string{"--key", "$API_KEY"},
+							Secrets: map[string]SecretRef{
+								"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "API_KEY"}}},
+							},
+						},
+						{
+							Name:    "plain-server",
+							Command: "cmd",
+							Args:    []string{"--verbose"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{Name: "secret-server", Command: "cmd", Args: []string{"--key", "real-api-key-value"}},
+						{Name: "plain-server", Command: "cmd", Args: []string{"--verbose"}},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		secretSrv := snapshot.PerScope.User.MCPServers[0]
+		if secretSrv.Args[1] != "$API_KEY" {
+			t.Errorf("expected $API_KEY, got %q", secretSrv.Args[1])
+		}
+		if len(secretSrv.Secrets) != 1 {
+			t.Error("expected secrets map on secret-bearing server")
+		}
+
+		plainSrv := snapshot.PerScope.User.MCPServers[1]
+		if plainSrv.Args[0] != "--verbose" {
+			t.Errorf("expected --verbose unchanged, got %q", plainSrv.Args[0])
+		}
+		if len(plainSrv.Secrets) != 0 {
+			t.Error("expected no secrets on plain server")
+		}
+	})
+
+	t.Run("handles legacy flat MCPServers field", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			MCPServers: []MCPServer{
+				{
+					Name:    "legacy-server",
+					Command: "cmd",
+					Args:    []string{"$TOKEN"},
+					Secrets: map[string]SecretRef{
+						"TOKEN": {Sources: []SecretSource{{Type: "env", Key: "TOKEN"}}},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			MCPServers: []MCPServer{
+				{Name: "legacy-server", Command: "cmd", Args: []string{"resolved-token"}},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.MCPServers[0]
+		if srv.Args[0] != "$TOKEN" {
+			t.Errorf("expected $TOKEN, got %q", srv.Args[0])
+		}
+		if len(srv.Secrets) != 1 {
+			t.Error("expected secrets map on legacy server")
+		}
+	})
+
+	t.Run("multiple secrets in same server", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "multi-secret",
+							Command: "cmd",
+							Args:    []string{"--user", "$USERNAME", "--pass", "$PASSWORD"},
+							Secrets: map[string]SecretRef{
+								"USERNAME": {Sources: []SecretSource{{Type: "env", Key: "USERNAME"}}},
+								"PASSWORD": {Sources: []SecretSource{{Type: "env", Key: "PASSWORD"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "multi-secret",
+							Command: "cmd",
+							Args:    []string{"--user", "alice", "--pass", "hunter2"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		if srv.Args[1] != "$USERNAME" {
+			t.Errorf("expected $USERNAME, got %q", srv.Args[1])
+		}
+		if srv.Args[3] != "$PASSWORD" {
+			t.Errorf("expected $PASSWORD, got %q", srv.Args[3])
+		}
+		if len(srv.Secrets) != 2 {
+			t.Errorf("expected 2 secrets, got %d", len(srv.Secrets))
+		}
+	})
+
+	t.Run("arg length mismatch skips server and returns warning", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "changed-server",
+							Command: "cmd",
+							Args:    []string{"--token", "$TOKEN", "--verbose"},
+							Secrets: map[string]SecretRef{
+								"TOKEN": {Sources: []SecretSource{{Type: "env", Key: "TOKEN"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "changed-server",
+							Command: "cmd",
+							Args:    []string{"--mode", "test"},
+						},
+					},
+				},
+			},
+		}
+
+		warnings := snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		// Args unchanged -- positional matching not possible
+		if srv.Args[0] != "--mode" || srv.Args[1] != "test" {
+			t.Errorf("expected unchanged args, got %v", srv.Args)
+		}
+		// Secrets should NOT be copied when args can't be restored
+		if len(srv.Secrets) != 0 {
+			t.Errorf("expected no secrets when arg lengths differ, got %d", len(srv.Secrets))
+		}
+		// Should warn the user about the skipped server
+		if len(warnings) != 1 {
+			t.Fatalf("expected 1 warning, got %d", len(warnings))
+		}
+		if !strings.Contains(warnings[0], "changed-server") {
+			t.Errorf("expected warning to mention server name, got %q", warnings[0])
+		}
+	})
+
+	t.Run("only restores args backed by secrets map keys", func(t *testing.T) {
+		existing := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "mixed-args",
+							Command: "cmd",
+							Args:    []string{"$HOME", "--token", "$API_KEY"},
+							Secrets: map[string]SecretRef{
+								"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "API_KEY"}}},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot := &Profile{
+			Name: "test",
+			PerScope: &PerScopeSettings{
+				User: &ScopeSettings{
+					MCPServers: []MCPServer{
+						{
+							Name:    "mixed-args",
+							Command: "cmd",
+							Args:    []string{"/Users/mark", "--token", "real-key"},
+						},
+					},
+				},
+			},
+		}
+
+		snapshot.PreserveMCPSecrets(existing)
+
+		srv := snapshot.PerScope.User.MCPServers[0]
+		// $HOME is NOT in the Secrets map -- should keep resolved value
+		if srv.Args[0] != "/Users/mark" {
+			t.Errorf("expected resolved $HOME to be kept, got %q", srv.Args[0])
+		}
+		// $API_KEY IS in the Secrets map -- should be restored
+		if srv.Args[2] != "$API_KEY" {
+			t.Errorf("expected $API_KEY, got %q", srv.Args[2])
+		}
+	})
+
+	t.Run("nil snapshot is a no-op", func(t *testing.T) {
+		existing := &Profile{Name: "test"}
+		var nilProfile *Profile
+		nilProfile.PreserveMCPSecrets(existing) // should not panic
+	})
+}

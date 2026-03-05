@@ -1301,6 +1301,11 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 	existingProfile, _ := profile.Load(profilesDir, name) // OK if doesn't exist
 	if existingProfile != nil {
 		p.PreserveFrom(existingProfile)
+		if warnings := p.PreserveMCPSecrets(existingProfile); len(warnings) > 0 {
+			for _, w := range warnings {
+				fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning(ui.SymbolWarning), w)
+			}
+		}
 	}
 
 	// Handle description
