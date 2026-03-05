@@ -805,6 +805,88 @@ MCP servers often need API keys. Profiles support multiple secret backends that 
 
 Resolution tries each source in order. First success wins.
 
+### Referencing Secrets in Args
+
+MCP server args use `$KEY` references to substitute secret values at apply time. The key must match an entry in the server's `secrets` map:
+
+```json
+{
+  "mcpServers": [
+    {
+      "name": "my-api",
+      "command": "npx",
+      "args": ["-y", "@my/mcp-server", "--token", "$API_TOKEN"],
+      "secrets": {
+        "API_TOKEN": {
+          "description": "API token for the service",
+          "sources": [{ "type": "env", "key": "API_TOKEN" }]
+        }
+      }
+    }
+  ]
+}
+```
+
+When claudeup applies this profile, `$API_TOKEN` in args is replaced with the resolved secret value. The profile JSON itself never contains the plaintext secret.
+
+### Redacting Secrets from Existing Profiles
+
+If you previously ran `profile save` and the saved JSON contains plaintext secrets in MCP server args, edit the profile to replace them with `$KEY` references:
+
+**1. Open the profile:**
+
+```bash
+$EDITOR ~/.claudeup/profiles/my-profile.json
+```
+
+**2. Find MCP servers with plaintext secrets in args.** Look for tokens, API keys, or passwords appearing directly in the `args` array.
+
+**3. For each secret value, make two changes:**
+
+Replace the plaintext value in `args` with a `$KEY` reference, and add a `secrets` block to the server:
+
+```json
+{
+  "perScope": {
+    "user": {
+      "mcpServers": [
+        {
+          "name": "my-server",
+          "command": "npx",
+          "args": ["-y", "@my/mcp", "--token", "$MY_TOKEN"],
+          "secrets": {
+            "MY_TOKEN": {
+              "description": "API token for my-server",
+              "sources": [{ "type": "env", "key": "MY_TOKEN" }]
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+```
+
+**4. Set the environment variable** so the secret resolves at apply time:
+
+```bash
+export MY_TOKEN="your-secret-value"
+```
+
+Add this to your shell profile (`~/.zshrc`, `~/.bashrc`) so it persists.
+
+**5. Verify the profile is safe to commit:**
+
+```bash
+# Check for remaining secrets
+grep -E 'sk-|token.*=|key.*=' ~/.claudeup/profiles/my-profile.json
+
+# Test that apply resolves correctly
+claudeup profile apply my-profile
+```
+
+After editing, subsequent `profile save` calls preserve the `$KEY` references and `secrets` metadata rather than re-capturing plaintext values.
+
 ## Project Detection
 
 The `detect` field enables automatic profile suggestion based on project files:
