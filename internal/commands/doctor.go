@@ -208,8 +208,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println(ui.Indent(ui.Muted("-> "+ds.Target), 3))
 		}
 		fmt.Println()
-		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("cu ext disable <category> <directory-name>")), 1))
-		fmt.Println(ui.Indent(ui.Muted("This removes the directory symlink; re-enable individual items with cu ext enable"), 2))
+		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("claudeup extensions disable <category> <directory-name>")), 1))
+		fmt.Println(ui.Indent(ui.Muted("This removes the directory symlink; re-enable individual items with claudeup extensions enable"), 2))
 	}
 	fmt.Println()
 
@@ -230,7 +230,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 
 	symSummary := fmt.Sprintf("%d broken", len(brokenSymlinks))
 	if len(dirSymlinks) > 0 {
-		symSummary += fmt.Sprintf(", %d directory", len(dirSymlinks))
+		symSummary += fmt.Sprintf(", %d directory symlinks", len(dirSymlinks))
 	}
 	if len(brokenSymlinks) == 0 && len(dirSymlinks) == 0 {
 		symSummary = "all valid"
@@ -354,25 +354,25 @@ func checkDirectorySymlinks(baseDir string) []DirectorySymlink {
 		for _, entry := range entries {
 			path := filepath.Join(catDir, entry.Name())
 
-			// Check if it's a symlink
-			info, err := os.Lstat(path)
-			if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			if entry.Type()&os.ModeSymlink == 0 {
 				continue
 			}
 
-			// Resolve the symlink target and check if it's a directory
-			target, err := os.Readlink(path)
+			// Resolve the symlink and check if the target is a directory
+			resolved, err := filepath.EvalSymlinks(path)
 			if err != nil {
 				continue
 			}
-			targetInfo, err := os.Stat(path)
-			if err != nil || !targetInfo.IsDir() {
+			resolvedInfo, err := os.Stat(resolved)
+			if err != nil || !resolvedInfo.IsDir() {
 				continue
 			}
 
 			// Skill directories (containing SKILL.md) are legitimate directory symlinks
-			if _, err := os.Stat(filepath.Join(path, "SKILL.md")); err == nil {
-				continue
+			if category == ext.CategorySkills {
+				if _, err := os.Stat(filepath.Join(resolved, "SKILL.md")); err == nil {
+					continue
+				}
 			}
 
 			// Count exposed items
@@ -388,7 +388,7 @@ func checkDirectorySymlinks(baseDir string) []DirectorySymlink {
 
 			results = append(results, DirectorySymlink{
 				Path:      path,
-				Target:    target,
+				Target:    resolved,
 				Category:  category,
 				ItemCount: itemCount,
 			})

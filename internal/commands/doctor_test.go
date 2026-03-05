@@ -30,7 +30,7 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 			}
 		}
 
-		// Create directory symlink (the bug)
+		// Create directory symlink pointing to the group directory
 		if err := os.Symlink(groupDir, filepath.Join(agentsDir, "developer-experience")); err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +63,7 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// Create file symlink (normal behavior)
+		// Create file symlink to a single agent
 		if err := os.Symlink(srcFile, filepath.Join(agentsDir, "my-agent.md")); err != nil {
 			t.Fatal(err)
 		}
