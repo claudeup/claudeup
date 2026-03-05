@@ -2413,7 +2413,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 		}
 	})
 
-	t.Run("arg length mismatch skips both secrets and arg restoration", func(t *testing.T) {
+	t.Run("arg length mismatch skips server and returns warning", func(t *testing.T) {
 		existing := &Profile{
 			Name: "test",
 			PerScope: &PerScopeSettings{
@@ -2447,7 +2447,7 @@ func TestPreserveMCPSecrets(t *testing.T) {
 			},
 		}
 
-		snapshot.PreserveMCPSecrets(existing)
+		warnings := snapshot.PreserveMCPSecrets(existing)
 
 		srv := snapshot.PerScope.User.MCPServers[0]
 		// Args unchanged -- positional matching not possible
@@ -2457,6 +2457,13 @@ func TestPreserveMCPSecrets(t *testing.T) {
 		// Secrets should NOT be copied when args can't be restored
 		if len(srv.Secrets) != 0 {
 			t.Errorf("expected no secrets when arg lengths differ, got %d", len(srv.Secrets))
+		}
+		// Should warn the user about the skipped server
+		if len(warnings) != 1 {
+			t.Fatalf("expected 1 warning, got %d", len(warnings))
+		}
+		if !strings.Contains(warnings[0], "changed-server") {
+			t.Errorf("expected warning to mention server name, got %q", warnings[0])
 		}
 	})
 

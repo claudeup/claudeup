@@ -481,13 +481,18 @@ type HookEntry struct {
 // MCP server configs, secret values are resolved to plaintext. This function
 // matches servers by name and replaces resolved arg values with the original
 // $KEY references using positional matching against the existing profile's args.
-func (p *Profile) PreserveMCPSecrets(existing *Profile) {
+//
+// Returns warning messages for servers that could not be restored (e.g., when
+// arg counts have changed since the profile was last saved).
+func (p *Profile) PreserveMCPSecrets(existing *Profile) []string {
 	if p == nil || existing == nil {
-		return
+		return nil
 	}
 
+	var warnings []string
+
 	// Handle legacy flat MCPServers field
-	restoreServerSecrets(p.MCPServers, existing.MCPServers)
+	warnings = append(warnings, restoreServerSecrets(p.MCPServers, existing.MCPServers)...)
 
 	// Handle per-scope MCPServers
 	if p.PerScope != nil && existing.PerScope != nil {
@@ -501,15 +506,25 @@ func (p *Profile) PreserveMCPSecrets(existing *Profile) {
 		}
 		for _, pair := range pairs {
 			if pair.snap != nil && pair.orig != nil {
-				restoreServerSecrets(pair.snap.MCPServers, pair.orig.MCPServers)
+				warnings = append(warnings, restoreServerSecrets(pair.snap.MCPServers, pair.orig.MCPServers)...)
 			}
 		}
 	}
+
+	return warnings
 }
 
 // restoreServerSecrets matches snapshotted servers to existing servers by name
 // and restores $VAR arg references and Secrets metadata.
-func restoreServerSecrets(snapServers, origServers []MCPServer) {
+//
+// Restoration uses positional matching: each arg index in the snapshot is
+// compared to the same index in the existing profile. This means reordered or
+// inserted args will produce incorrect substitutions. The arg-count guard
+// below catches the most common case (added/removed args), but reordering
+// within the same count is not detected.
+func restoreServerSecrets(snapServers, origServers []MCPServer) []string {
+	var warnings []string
+
 	// Build lookup of existing servers with secrets
 	byName := make(map[string]*MCPServer, len(origServers))
 	for i := range origServers {
@@ -531,6 +546,10 @@ func restoreServerSecrets(snapServers, origServers []MCPServer) {
 			// Skip this server entirely -- copying Secrets without restoring
 			// $VAR refs would leave plaintext values alongside metadata,
 			// creating a false sense of security.
+			warnings = append(warnings, fmt.Sprintf(
+				"server %q: args changed (%d → %d), secret references not restored -- review saved profile for plaintext values",
+				snapServers[i].Name, len(orig.Args), len(snapServers[i].Args),
+			))
 			continue
 		}
 
@@ -555,6 +574,8 @@ func restoreServerSecrets(snapServers, origServers []MCPServer) {
 			}
 		}
 	}
+
+	return warnings
 }
 
 // PreserveFrom copies extensions from an existing profile.
