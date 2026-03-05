@@ -476,6 +476,78 @@ type HookEntry struct {
 	Command string `json:"command"`
 }
 
+// PreserveMCPSecrets restores $VAR references and Secrets metadata from an
+// existing profile onto a snapshotted profile. When profile save captures live
+// MCP server configs, secret values are resolved to plaintext. This function
+// matches servers by name and replaces resolved arg values with the original
+// $KEY references using positional matching against the existing profile's args.
+func PreserveMCPSecrets(snapshot, existing *Profile) {
+	if snapshot == nil || existing == nil {
+		return
+	}
+
+	// Handle legacy flat MCPServers field
+	restoreServerSecrets(snapshot.MCPServers, existing.MCPServers)
+
+	// Handle per-scope MCPServers
+	if snapshot.PerScope != nil && existing.PerScope != nil {
+		pairs := []struct {
+			snap *ScopeSettings
+			orig *ScopeSettings
+		}{
+			{snapshot.PerScope.User, existing.PerScope.User},
+			{snapshot.PerScope.Project, existing.PerScope.Project},
+			{snapshot.PerScope.Local, existing.PerScope.Local},
+		}
+		for _, pair := range pairs {
+			if pair.snap != nil && pair.orig != nil {
+				restoreServerSecrets(pair.snap.MCPServers, pair.orig.MCPServers)
+			}
+		}
+	}
+}
+
+// restoreServerSecrets matches snapshotted servers to existing servers by name
+// and restores $VAR arg references and Secrets metadata.
+func restoreServerSecrets(snapServers, origServers []MCPServer) {
+	// Build lookup of existing servers with secrets
+	byName := make(map[string]*MCPServer, len(origServers))
+	for i := range origServers {
+		if len(origServers[i].Secrets) > 0 {
+			byName[origServers[i].Name] = &origServers[i]
+		}
+	}
+
+	for i := range snapServers {
+		orig, ok := byName[snapServers[i].Name]
+		if !ok {
+			continue
+		}
+
+		// Copy the Secrets map
+		snapServers[i].Secrets = make(map[string]SecretRef, len(orig.Secrets))
+		for k, v := range orig.Secrets {
+			sources := make([]SecretSource, len(v.Sources))
+			copy(sources, v.Sources)
+			snapServers[i].Secrets[k] = SecretRef{
+				Description: v.Description,
+				Sources:     sources,
+			}
+		}
+
+		// Restore $VAR references by positional matching.
+		// The existing profile's args contain $KEY where secrets go.
+		// The snapshot's args have the resolved values in the same positions.
+		if len(snapServers[i].Args) == len(orig.Args) {
+			for j, origArg := range orig.Args {
+				if strings.HasPrefix(origArg, "$") {
+					snapServers[i].Args[j] = origArg
+				}
+			}
+		}
+	}
+}
+
 // PreserveFrom copies extensions from an existing profile.
 // When re-saving, this keeps only the extensions the user originally saved,
 // preventing accumulation of items enabled by other tools.
