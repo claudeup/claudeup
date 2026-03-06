@@ -701,6 +701,94 @@ func TestImportSkipsGitkeep(t *testing.T) {
 	}
 }
 
+// TestCreateOrVerifySymlink directly tests the createOrVerifySymlink helper
+func TestCreateOrVerifySymlink(t *testing.T) {
+	t.Run("creates symlink when nothing exists", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+
+		if err := createOrVerifySymlink(source, target); err != nil {
+			t.Fatalf("createOrVerifySymlink() error = %v", err)
+		}
+
+		got, err := os.Readlink(target)
+		if err != nil {
+			t.Fatalf("Readlink() error = %v", err)
+		}
+		if got != source {
+			t.Errorf("symlink target = %q, want %q", got, source)
+		}
+	})
+
+	t.Run("no-op when correct symlink exists", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+		os.Symlink(source, target)
+
+		if err := createOrVerifySymlink(source, target); err != nil {
+			t.Fatalf("createOrVerifySymlink() error = %v", err)
+		}
+
+		got, _ := os.Readlink(target)
+		if got != source {
+			t.Errorf("symlink target = %q, want %q", got, source)
+		}
+	})
+
+	t.Run("replaces wrong symlink", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+		os.Symlink("/tmp/wrong-source", target)
+
+		if err := createOrVerifySymlink(source, target); err != nil {
+			t.Fatalf("createOrVerifySymlink() error = %v", err)
+		}
+
+		got, _ := os.Readlink(target)
+		if got != source {
+			t.Errorf("symlink target = %q, want %q", got, source)
+		}
+	})
+
+	t.Run("errors on regular file", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+		os.WriteFile(target, []byte("# Blocking file"), 0644)
+
+		err := createOrVerifySymlink(source, target)
+		if err == nil {
+			t.Fatal("createOrVerifySymlink() should error on regular file")
+		}
+		if !strings.Contains(err.Error(), "non-symlink file exists") {
+			t.Errorf("error should mention 'non-symlink file exists', got: %v", err)
+		}
+	})
+
+	t.Run("errors on directory", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "blocking-dir")
+		os.MkdirAll(target, 0755)
+
+		err := createOrVerifySymlink(source, target)
+		if err == nil {
+			t.Fatal("createOrVerifySymlink() should error on directory")
+		}
+		if !strings.Contains(err.Error(), "non-symlink file exists") {
+			t.Errorf("error should mention 'non-symlink file exists', got: %v", err)
+		}
+	})
+}
+
 func TestEnableIdempotent(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
