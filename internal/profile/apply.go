@@ -75,6 +75,7 @@ type Diff struct {
 type DiffOptions struct {
 	Scope      Scope  // Target scope for comparison
 	ProjectDir string // Required for project/local scope
+	Reinstall  bool   // Force all profile items into install lists
 }
 
 // ComputeDiff calculates what changes are needed to apply a profile.
@@ -125,9 +126,10 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 			}
 		}
 
-		// Plugins to install (in profile but not in current state)
+		// Plugins to install (in profile but not in current state, or all if reinstalling)
 		for plugin := range profilePlugins {
-			if _, exists := currentPlugins[plugin]; !exists {
+			_, exists := currentPlugins[plugin]
+			if opts.Reinstall || !exists {
 				diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
 			}
 		}
@@ -154,7 +156,7 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	}
 
 	for name, mcp := range profileMCP {
-		if !currentMCP[name] {
+		if opts.Reinstall || !currentMCP[name] {
 			diff.MCPToInstall = append(diff.MCPToInstall, mcp)
 		}
 	}
@@ -183,8 +185,10 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	}
 
 	// Add marketplaces missing from current (all scopes need this for plugin resolution)
+	// When reinstalling, include all profile marketplaces regardless of current state
 	for _, m := range profile.Marketplaces {
-		if _, exists := currentMarketplaces[marketplaceKey(m)]; !exists {
+		_, exists := currentMarketplaces[marketplaceKey(m)]
+		if opts.Reinstall || !exists {
 			diff.MarketplacesToAdd = append(diff.MarketplacesToAdd, m)
 		}
 	}
@@ -503,7 +507,10 @@ func ApplyWithExecutor(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 // applyUserScope applies a profile at user scope with declarative behavior.
 // It computes a diff, removes extras, adds missing plugins/MCP servers.
 func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
-	diff, err := ComputeDiff(profile, claudeDir, claudeJSONPath, claudeupHome)
+	diff, err := ComputeDiffWithScope(profile, claudeDir, claudeJSONPath, claudeupHome, DiffOptions{
+		Scope:     ScopeUser,
+		Reinstall: opts.Reinstall,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute diff: %w", err)
 	}

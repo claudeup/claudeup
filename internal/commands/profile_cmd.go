@@ -952,6 +952,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	diff, err := profile.ComputeDiffWithScope(p, claudeDir, claudeJSONPath, claudeupHome, profile.DiffOptions{
 		Scope:      scope,
 		ProjectDir: cwd,
+		Reinstall:  profileApplyReinstall,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to compute changes: %w", err)

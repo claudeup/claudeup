@@ -1363,6 +1363,175 @@ func TestComputeDiffWithScopeLocalBehavesLikeProject(t *testing.T) {
 	}
 }
 
+func TestComputeDiffWithScopeReinstallIncludesExistingItems(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: plugins A and B already installed
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"plugin-b@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+			"plugin-b@marketplace": true,
+		},
+	}
+	marketplaces := map[string]interface{}{
+		"existing-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "existing/marketplace",
+			},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"existing-mcp": map[string]interface{}{
+				"command": "echo",
+				"args":    []string{"hello"},
+			},
+		},
+	})
+
+	// Profile has the same plugins, MCP server, and marketplace
+	prof := &Profile{
+		Name:    "test-reinstall",
+		Plugins: []string{"plugin-a@marketplace", "plugin-b@marketplace"},
+		MCPServers: []MCPServer{
+			{Name: "existing-mcp", Command: "echo", Args: []string{"hello"}},
+		},
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "existing/marketplace"},
+		},
+	}
+
+	// Without Reinstall: nothing to install
+	diff, err := ComputeDiffWithScope(prof, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
+		Scope: ScopeUser,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope failed: %v", err)
+	}
+	if len(diff.PluginsToInstall) != 0 {
+		t.Errorf("Without Reinstall, expected no plugins to install, got: %v", diff.PluginsToInstall)
+	}
+	if len(diff.MCPToInstall) != 0 {
+		t.Errorf("Without Reinstall, expected no MCP to install, got: %v", diff.MCPToInstall)
+	}
+	if len(diff.MarketplacesToAdd) != 0 {
+		t.Errorf("Without Reinstall, expected no marketplaces to add, got: %v", diff.MarketplacesToAdd)
+	}
+
+	// With Reinstall: all profile items appear in install lists
+	diff, err = ComputeDiffWithScope(prof, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
+		Scope:     ScopeUser,
+		Reinstall: true,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope with Reinstall failed: %v", err)
+	}
+	if len(diff.PluginsToInstall) != 2 {
+		t.Errorf("With Reinstall, expected 2 plugins to install, got: %v", diff.PluginsToInstall)
+	}
+	if len(diff.MCPToInstall) != 1 {
+		t.Errorf("With Reinstall, expected 1 MCP to install, got: %v", diff.MCPToInstall)
+	}
+	if len(diff.MarketplacesToAdd) != 1 {
+		t.Errorf("With Reinstall, expected 1 marketplace to add, got: %v", diff.MarketplacesToAdd)
+	}
+
+	// Removals should be empty (profile matches current)
+	if len(diff.PluginsToRemove) != 0 {
+		t.Errorf("With Reinstall, expected no removals, got: %v", diff.PluginsToRemove)
+	}
+	if len(diff.MCPToRemove) != 0 {
+		t.Errorf("With Reinstall, expected no MCP removals, got: %v", diff.MCPToRemove)
+	}
+}
+
+func TestComputeDiffWithScopeReinstallStillRemovesExtras(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: plugins A and B installed, MCP server "extra-mcp" present
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"plugin-b@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+			"plugin-b@marketplace": true,
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{
+		"extra-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "extra/marketplace",
+			},
+		},
+	})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"extra-mcp": map[string]interface{}{
+				"command": "extra",
+			},
+		},
+	})
+
+	// Profile only wants plugin-a (not plugin-b) and no MCP servers
+	prof := &Profile{
+		Name:    "test-reinstall-removes",
+		Plugins: []string{"plugin-a@marketplace"},
+	}
+
+	diff, err := ComputeDiffWithScope(prof, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
+		Scope:     ScopeUser,
+		Reinstall: true,
+	})
+	if err != nil {
+		t.Fatalf("ComputeDiffWithScope with Reinstall failed: %v", err)
+	}
+
+	// plugin-a should be reinstalled
+	if len(diff.PluginsToInstall) != 1 || diff.PluginsToInstall[0] != "plugin-a@marketplace" {
+		t.Errorf("Expected plugin-a to reinstall, got: %v", diff.PluginsToInstall)
+	}
+
+	// plugin-b should be removed (in current but not in profile)
+	if len(diff.PluginsToRemove) != 1 || diff.PluginsToRemove[0] != "plugin-b@marketplace" {
+		t.Errorf("Expected plugin-b to be removed, got: %v", diff.PluginsToRemove)
+	}
+
+	// extra-mcp should be removed
+	if len(diff.MCPToRemove) != 1 || diff.MCPToRemove[0] != "extra-mcp" {
+		t.Errorf("Expected extra-mcp to be removed, got: %v", diff.MCPToRemove)
+	}
+
+	// extra-marketplace should be removed
+	if len(diff.MarketplacesToRemove) != 1 {
+		t.Errorf("Expected extra marketplace to be removed, got: %v", diff.MarketplacesToRemove)
+	}
+}
+
 func TestResetHandlesPluginNotFoundError(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
