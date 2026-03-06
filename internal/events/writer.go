@@ -70,6 +70,11 @@ func (w *JSONLWriter) Query(filters EventFilters) ([]*FileOperation, error) {
 	var events []*FileOperation
 	scanner := bufio.NewScanner(f)
 
+	// Log lines contain full JSON file snapshots and can exceed the default
+	// 64KB scanner buffer. Use a 2MB max to handle large configuration files.
+	const maxLineSize = 2 * 1024 * 1024
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxLineSize)
+
 	// Note: For large log files, this loads all matching events into memory
 	// before sorting and limiting. A future optimization could use a bounded
 	// priority queue to keep only the top N events during scanning.

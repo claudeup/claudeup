@@ -251,6 +251,39 @@ var _ = Describe("JSONLWriter", func() {
 			Expect(evts[1].Operation).To(Equal("test"))
 		})
 
+		It("handles log lines exceeding the default scanner buffer", func() {
+			largePath := filepath.Join(tempDir, "large-lines.log")
+			largeWriter, err := events.NewJSONLWriter(largePath)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create a snapshot with content larger than the default 64KB scanner buffer
+			largeContent := make([]byte, 100*1024) // 100KB
+			for i := range largeContent {
+				largeContent[i] = 'x'
+			}
+
+			event := &events.FileOperation{
+				Timestamp:  time.Now(),
+				Operation:  "profile apply",
+				File:       "/path/to/settings.json",
+				Scope:      "user",
+				ChangeType: "update",
+				After: &events.Snapshot{
+					Hash:    "abc123",
+					Size:    int64(len(largeContent)),
+					Content: string(largeContent),
+				},
+			}
+
+			err = largeWriter.Write(event)
+			Expect(err).NotTo(HaveOccurred())
+
+			evts, err := largeWriter.Query(events.EventFilters{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(evts).To(HaveLen(1))
+			Expect(evts[0].After.Content).To(HaveLen(100 * 1024))
+		})
+
 		It("returns empty slice for non-existent log file", func() {
 			emptyPath := filepath.Join(tempDir, "nonexistent.log")
 			emptyWriter, err := events.NewJSONLWriter(emptyPath)
