@@ -812,6 +812,38 @@ func TestEnableWithRegularFileConflict(t *testing.T) {
 	}
 }
 
+func TestEnableWithDirectoryConflict(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage
+	extDir := filepath.Join(claudeupHome, "ext")
+	rulesDir := filepath.Join(extDir, "rules")
+	os.MkdirAll(rulesDir, 0755)
+	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+
+	// Create a directory at the target location where the symlink should go
+	targetDir := filepath.Join(claudeDir, "rules")
+	conflictDir := filepath.Join(targetDir, "coding.md") // directory named like the file
+	os.MkdirAll(conflictDir, 0755)
+	os.WriteFile(filepath.Join(conflictDir, "notes.txt"), []byte("some notes"), 0644)
+
+	// Enable should return an error for the directory conflict
+	_, _, err := manager.Enable("rules", []string{"coding"})
+	if err == nil {
+		t.Fatal("Enable() should have returned an error for directory conflict")
+	}
+	if !strings.Contains(err.Error(), "non-symlink file exists") {
+		t.Errorf("Error should mention non-symlink conflict, got: %v", err)
+	}
+
+	// Verify the directory and its contents are preserved
+	if _, err := os.Stat(filepath.Join(conflictDir, "notes.txt")); os.IsNotExist(err) {
+		t.Error("Directory contents should be preserved")
+	}
+}
+
 func TestDisableAgentGroupByDirectoryName(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
