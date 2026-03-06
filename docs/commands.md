@@ -135,7 +135,7 @@ claudeup profile apply frontend --local
 | `--setup`          | Force post-apply setup wizard to run                            |
 | `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                 |
 | `-f, --force`      | Force reapply even with unsaved changes                         |
-| `--reinstall`      | Force reinstall all plugins and marketplaces                    |
+| `--reinstall`      | Force reinstall all plugins, MCP servers, and marketplaces      |
 | `--no-progress`    | Disable progress display (for CI/scripting)                     |
 | `--dry-run`        | Show what would be changed without making modifications         |
 
