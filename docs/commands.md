@@ -75,7 +75,7 @@ Manage configuration profiles.
 
 ```bash
 claudeup profile list                        # List available profiles
-claudeup profile list -a                     # Include hidden profiles (prefixed with _)
+claudeup profile list --all                   # Include hidden profiles (prefixed with _)
 claudeup profile show <name>                 # Display profile contents (with scope labels)
 claudeup profile status                      # Show effective configuration across all scopes
 claudeup profile diff                        # Diff last-applied profile against live state
