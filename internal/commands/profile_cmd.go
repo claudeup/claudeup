@@ -568,7 +568,7 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyUser, "user", false, fmt.Sprintf("Apply to user scope (%s/)", config.ClaudeDirDisplay()))
 	profileApplyCmd.Flags().BoolVar(&profileApplyProject, "project", false, "Apply to project scope (.claude/settings.json)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyLocal, "local", false, "Apply to local scope (.claude/settings.local.json)")
-	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins and marketplaces")
+	profileApplyCmd.Flags().BoolVar(&profileApplyReinstall, "reinstall", false, "Force reinstall all plugins, MCP servers, and marketplaces")
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings instead of adding to them")
 	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
