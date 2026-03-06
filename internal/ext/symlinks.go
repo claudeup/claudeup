@@ -24,18 +24,22 @@ func ensureSymlink(source, target string) error {
 	// Something exists at target -- inspect it
 	info, lstatErr := os.Lstat(target)
 	if lstatErr != nil {
-		return err // return original symlink error
+		return fmt.Errorf("cannot inspect existing path %s: %w", target, lstatErr)
 	}
 
 	if info.Mode()&os.ModeSymlink == 0 {
-		// Not a symlink -- regular file or directory blocking the path
-		return fmt.Errorf("cannot create symlink %s: regular file exists (remove it manually or use 'ext import')", target)
+		// Not a symlink -- something else is blocking the path
+		kind := "file"
+		if info.IsDir() {
+			kind = "directory"
+		}
+		return fmt.Errorf("cannot create symlink %s: %s exists (remove it manually or use 'ext import')", target, kind)
 	}
 
 	// It's a symlink -- check if it already points to the correct source
 	existing, readErr := os.Readlink(target)
 	if readErr != nil {
-		return err
+		return fmt.Errorf("cannot read existing symlink %s: %w", target, readErr)
 	}
 	if existing == source {
 		return nil // already correct

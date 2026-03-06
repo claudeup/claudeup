@@ -701,6 +701,94 @@ func TestImportSkipsGitkeep(t *testing.T) {
 	}
 }
 
+// TestEnsureSymlink directly tests the ensureSymlink helper
+func TestEnsureSymlink(t *testing.T) {
+	t.Run("creates symlink when nothing exists", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+
+		if err := ensureSymlink(source, target); err != nil {
+			t.Fatalf("ensureSymlink() error = %v", err)
+		}
+
+		got, err := os.Readlink(target)
+		if err != nil {
+			t.Fatalf("Readlink() error = %v", err)
+		}
+		if got != source {
+			t.Errorf("symlink target = %q, want %q", got, source)
+		}
+	})
+
+	t.Run("no-op when correct symlink exists", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+		os.Symlink(source, target)
+
+		if err := ensureSymlink(source, target); err != nil {
+			t.Fatalf("ensureSymlink() error = %v", err)
+		}
+
+		got, _ := os.Readlink(target)
+		if got != source {
+			t.Errorf("symlink target = %q, want %q", got, source)
+		}
+	})
+
+	t.Run("replaces wrong symlink", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+		os.Symlink("/tmp/wrong-source", target)
+
+		if err := ensureSymlink(source, target); err != nil {
+			t.Fatalf("ensureSymlink() error = %v", err)
+		}
+
+		got, _ := os.Readlink(target)
+		if got != source {
+			t.Errorf("symlink target = %q, want %q", got, source)
+		}
+	})
+
+	t.Run("errors on regular file", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "target.md")
+		os.WriteFile(target, []byte("# Blocking file"), 0644)
+
+		err := ensureSymlink(source, target)
+		if err == nil {
+			t.Fatal("ensureSymlink() should error on regular file")
+		}
+		if !strings.Contains(err.Error(), "file exists") {
+			t.Errorf("error should mention 'file exists', got: %v", err)
+		}
+	})
+
+	t.Run("errors on directory", func(t *testing.T) {
+		dir := t.TempDir()
+		source := filepath.Join(dir, "source.md")
+		os.WriteFile(source, []byte("# Source"), 0644)
+		target := filepath.Join(dir, "blocking-dir")
+		os.MkdirAll(target, 0755)
+
+		err := ensureSymlink(source, target)
+		if err == nil {
+			t.Fatal("ensureSymlink() should error on directory")
+		}
+		if !strings.Contains(err.Error(), "directory exists") {
+			t.Errorf("error should mention 'directory exists', got: %v", err)
+		}
+	})
+}
+
 // TestSyncIdempotent verifies that Sync succeeds when symlinks already exist
 func TestSyncIdempotent(t *testing.T) {
 	claudeDir := t.TempDir()
@@ -801,8 +889,8 @@ func TestSyncErrorsOnRegularFile(t *testing.T) {
 	if err == nil {
 		t.Fatal("Sync() should error when a regular file blocks symlink creation")
 	}
-	if !strings.Contains(err.Error(), "regular file") {
-		t.Errorf("Error should mention 'regular file', got: %v", err)
+	if !strings.Contains(err.Error(), "file exists") {
+		t.Errorf("Error should mention 'file exists', got: %v", err)
 	}
 }
 
