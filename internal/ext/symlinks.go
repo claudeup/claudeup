@@ -3,54 +3,12 @@
 package ext
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 )
-
-// ensureSymlink creates a symlink at target pointing to source, handling existing entries.
-// If target is already a correct symlink, it's a no-op. If it's a wrong symlink, it's replaced.
-// If it's a regular file or directory, a descriptive error is returned.
-func ensureSymlink(source, target string) error {
-	err := os.Symlink(source, target)
-	if err == nil {
-		return nil
-	}
-	if !os.IsExist(err) {
-		return err
-	}
-
-	// Something exists at target -- inspect it
-	info, lstatErr := os.Lstat(target)
-	if lstatErr != nil {
-		return fmt.Errorf("cannot inspect existing path %s: %w", target, lstatErr)
-	}
-
-	if info.Mode()&os.ModeSymlink == 0 {
-		// Not a symlink -- something else is blocking the path
-		kind := "file"
-		if info.IsDir() {
-			kind = "directory"
-		}
-		return fmt.Errorf("cannot create symlink %s: %s exists (remove it manually or use 'ext import')", target, kind)
-	}
-
-	// It's a symlink -- check if it already points to the correct source
-	existing, readErr := os.Readlink(target)
-	if readErr != nil {
-		return fmt.Errorf("cannot read existing symlink %s: %w", target, readErr)
-	}
-	if existing == source {
-		return nil // already correct
-	}
-
-	// Wrong target -- remove and recreate
-	if removeErr := os.Remove(target); removeErr != nil {
-		return fmt.Errorf("cannot replace symlink %s: %w", target, removeErr)
-	}
-	return os.Symlink(source, target)
-}
 
 // validateItemPath checks that an item name doesn't contain path traversal sequences
 func validateItemPath(item string) error {
@@ -63,6 +21,46 @@ func validateItemPath(item string) error {
 		return fmt.Errorf("path traversal detected in item name: %q", item)
 	}
 	return nil
+}
+
+// createOrVerifySymlink creates a symlink at target pointing to source, handling conflicts:
+//   - If target doesn't exist, creates the symlink
+//   - If target is a symlink pointing to source, skips silently (idempotent)
+//   - If target is a symlink pointing elsewhere, replaces it
+//   - If target is a non-symlink (regular file, directory, etc.), returns an error
+func createOrVerifySymlink(source, target string) error {
+	err := os.Symlink(source, target)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("creating symlink %s -> %s: %w", target, source, err)
+	}
+
+	// Something exists at target -- inspect it
+	info, lstatErr := os.Lstat(target)
+	if lstatErr != nil {
+		return fmt.Errorf("inspecting existing entry at %s: %w", target, lstatErr)
+	}
+
+	if info.Mode()&os.ModeSymlink != 0 {
+		// It's a symlink -- check where it points
+		existing, readErr := os.Readlink(target)
+		if readErr != nil {
+			return fmt.Errorf("reading symlink at %s: %w", target, readErr)
+		}
+		if existing == source {
+			return nil // already correct
+		}
+		// Stale symlink -- replace it
+		if removeErr := os.Remove(target); removeErr != nil {
+			return fmt.Errorf("removing stale symlink at %s: %w", target, removeErr)
+		}
+		return os.Symlink(source, target)
+	}
+
+	// Non-symlink entry -- don't clobber it
+	return fmt.Errorf("non-symlink file exists at %s; remove it or use 'ext import' to adopt it", target)
 }
 
 // resolvePattern resolves a pattern to matching items.
@@ -285,7 +283,7 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 		}
 
 		source := filepath.Join(m.extDir, category, item)
-		if err := ensureSymlink(source, target); err != nil {
+		if err := createOrVerifySymlink(source, target); err != nil {
 			return err
 		}
 	}
@@ -374,14 +372,14 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 
 			target := filepath.Join(groupTargetDir, agent)
 			source := filepath.Join(m.extDir, "agents", group, agent)
-			if err := ensureSymlink(source, target); err != nil {
+			if err := createOrVerifySymlink(source, target); err != nil {
 				return err
 			}
 		} else {
 			// Flat agent
 			target := filepath.Join(targetDir, item)
 			source := filepath.Join(m.extDir, "agents", item)
-			if err := ensureSymlink(source, target); err != nil {
+			if err := createOrVerifySymlink(source, target); err != nil {
 				return err
 			}
 		}

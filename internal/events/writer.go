@@ -57,8 +57,11 @@ func (w *JSONLWriter) Query(filters EventFilters) ([]*FileOperation, error) {
 	defer w.mu.Unlock()
 
 	// Check if log file exists
-	if _, err := os.Stat(w.logPath); os.IsNotExist(err) {
-		return []*FileOperation{}, nil
+	if _, err := os.Stat(w.logPath); err != nil {
+		if os.IsNotExist(err) {
+			return []*FileOperation{}, nil
+		}
+		return nil, err
 	}
 
 	f, err := os.Open(w.logPath)
@@ -69,6 +72,12 @@ func (w *JSONLWriter) Query(filters EventFilters) ([]*FileOperation, error) {
 
 	var events []*FileOperation
 	scanner := bufio.NewScanner(f)
+
+	// Log lines contain full JSON file snapshots (captured for files under
+	// 1MB) and can exceed the default 64KB scanner buffer. The 2MB max
+	// provides headroom for before+after snapshots plus event metadata.
+	const maxLineSize = 2 * 1024 * 1024
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), maxLineSize)
 
 	// Note: For large log files, this loads all matching events into memory
 	// before sorting and limiting. A future optimization could use a bounded
