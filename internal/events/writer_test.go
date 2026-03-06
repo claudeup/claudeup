@@ -284,6 +284,53 @@ var _ = Describe("JSONLWriter", func() {
 			Expect(evts[0].After.Content).To(HaveLen(100 * 1024))
 		})
 
+		It("returns an error when a log line exceeds the scanner buffer cap", func() {
+			overflowPath := filepath.Join(tempDir, "overflow.log")
+			overflowWriter, err := events.NewJSONLWriter(overflowPath)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create a snapshot larger than the 2MB scanner buffer cap
+			hugeContent := make([]byte, 3*1024*1024) // 3MB
+			for i := range hugeContent {
+				hugeContent[i] = 'y'
+			}
+
+			event := &events.FileOperation{
+				Timestamp:  time.Now(),
+				Operation:  "profile apply",
+				File:       "/path/to/huge.json",
+				Scope:      "user",
+				ChangeType: "update",
+				After: &events.Snapshot{
+					Hash:    "def456",
+					Size:    int64(len(hugeContent)),
+					Content: string(hugeContent),
+				},
+			}
+
+			err = overflowWriter.Write(event)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = overflowWriter.Query(events.EventFilters{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("token too long"))
+		})
+
+		It("returns error for unreadable log file", func() {
+			unreadablePath := filepath.Join(tempDir, "unreadable.log")
+			unreadableWriter, err := events.NewJSONLWriter(unreadablePath)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Create the file then remove read permission
+			err = os.WriteFile(unreadablePath, []byte("{}"), 0600)
+			Expect(err).NotTo(HaveOccurred())
+			err = os.Chmod(unreadablePath, 0000)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = unreadableWriter.Query(events.EventFilters{})
+			Expect(err).To(HaveOccurred())
+		})
+
 		It("returns empty slice for non-existent log file", func() {
 			emptyPath := filepath.Join(tempDir, "nonexistent.log")
 			emptyWriter, err := events.NewJSONLWriter(emptyPath)
