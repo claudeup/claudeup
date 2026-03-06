@@ -10,6 +10,7 @@ title: Command Reference
 | ----------------- | -------------------------------------------------------------------------------- |
 | `--claude-dir`    | Override Claude installation directory (default: `~/.claude`)                    |
 | `--claudeup-home` | Override claudeup home directory; must be absolute path (default: `~/.claudeup`) |
+| `-v, --version`   | Show claudeup version                                                            |
 | `-y, --yes`       | Skip interactive prompts, use defaults                                           |
 
 ## Setup & Profiles
@@ -74,7 +75,7 @@ Manage configuration profiles.
 
 ```bash
 claudeup profile list                        # List available profiles
-claudeup profile list --all                  # Include hidden profiles (prefixed with _)
+claudeup profile list --all                   # Include hidden profiles (prefixed with _)
 claudeup profile show <name>                 # Display profile contents (with scope labels)
 claudeup profile status                      # Show effective configuration across all scopes
 claudeup profile diff                        # Diff last-applied profile against live state
@@ -84,19 +85,21 @@ claudeup profile save                        # Save to last-applied profile name
 claudeup profile save <name>                 # Save current setup as profile (all scopes)
 claudeup profile create <name>               # Create profile with interactive wizard
 claudeup profile clone <name>                # Clone an existing profile
-claudeup profile apply <name>                # Apply a profile (user scope)
+claudeup profile apply <name>                # Apply a profile (user scope); alias: use
 claudeup profile suggest                     # Suggest profile based on project files
 claudeup profile delete <name>               # Delete a custom profile
 claudeup profile restore <name>              # Restore a built-in profile
 claudeup profile reset <name>                # Remove everything a profile installed
 claudeup profile rename <old> <new>          # Rename a custom profile
-claudeup profile clean <plugin>              # Remove orphaned plugin from config
+claudeup profile clean <plugin> --project     # Remove orphaned plugin from project scope
+claudeup profile clean <plugin> --local      # Remove orphaned plugin from local scope
 
 # With description and scope flags
 claudeup profile save my-work --description "My work setup"
 claudeup profile save my-user-config --user          # Save only user-scope settings
 claudeup profile save my-project-config --project    # Save only project-scope settings
 claudeup profile save my-local-config --local        # Save only local-scope settings
+claudeup profile save my-config --scope user         # Same as --user
 claudeup profile clone home --from work --description "Home setup"
 ```
 
@@ -127,6 +130,7 @@ claudeup profile apply frontend --local
 | `--user`           | Apply to user scope (~/.claude/) - default                      |
 | `--project`        | Apply to project scope (.claude/settings.json)                  |
 | `--local`          | Apply to local scope (.claude/settings.local.json)              |
+| `--scope`          | Apply scope: user, project, or local (default: user)            |
 | `--replace`        | Clear target scope before applying (replaces instead of adding) |
 | `--setup`          | Force post-apply setup wizard to run                            |
 | `--no-interactive` | Skip post-apply setup wizard (for CI/scripting)                 |
@@ -236,6 +240,7 @@ Use this to see:
 | `--user`     | Use the last-applied profile at user scope                          |
 | `--project`  | Use the last-applied profile at project scope                       |
 | `--local`    | Use the last-applied profile at local scope                         |
+| `--scope`    | Use the last-applied profile at this scope: user, project, local    |
 | `--original` | Compare a customized built-in profile against its embedded original |
 
 Without a name argument, `profile diff` defaults to the highest-precedence last-applied profile (local > project > user). Scope flags select a specific scope's breadcrumb. Scope flags error when combined with an explicit profile name.
@@ -396,15 +401,15 @@ claudeup plugin search api --format json
 
 **`plugin search` flags:**
 
-| Flag             | Description                                                                |
-| ---------------- | -------------------------------------------------------------------------- |
-| `--all`          | Search all cached plugins, not just installed                              |
-| `--type`         | Filter by component type: skills, commands, agents                         |
-| `--marketplace`  | Limit search to specific marketplace                                       |
-| `--by-component` | Group results by component type instead of plugin                          |
-| `--content`      | Search SKILL.md body content (not yet implemented; falls back to metadata) |
-| `--regex`        | Treat query as regular expression                                          |
-| `--format`       | Output format: json, table (default: styled text with trees)               |
+| Flag             | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| `--all`          | Search all cached plugins, not just installed                |
+| `--type`         | Filter by component type: skills, commands, agents           |
+| `--marketplace`  | Limit search to specific marketplace                         |
+| `--by-component` | Group results by component type instead of plugin            |
+| `--content`      | Also search SKILL.md body content                            |
+| `--regex`        | Treat query as regular expression                            |
+| `--format`       | Output format: json, table (default: styled text with trees) |
 
 **Output formats:**
 
@@ -428,6 +433,7 @@ claudeup extensions list hooks --disabled         # Show only disabled hooks
 claudeup extensions enable <category> <items...>  # Enable items (supports wildcards)
 claudeup extensions disable <category> <items...> # Disable items (supports wildcards)
 claudeup extensions view <category> <item>        # View item contents
+claudeup extensions view <category> <item> --raw # View raw content (for piping)
 claudeup extensions sync                          # Recreate symlinks from enabled.json
 claudeup extensions import <category> <items...>  # Move items from active dir to storage
 claudeup extensions import-all [patterns...]      # Import items from all categories
@@ -545,9 +551,13 @@ claudeup update              # Update to latest version
 Update marketplaces and plugins.
 
 ```bash
-claudeup upgrade              # Update marketplaces and plugins for current context
-claudeup upgrade --all        # Update across all scopes and projects
+claudeup upgrade                              # Update all outdated marketplaces and plugins
+claudeup upgrade superpowers-marketplace      # Update a specific marketplace
+claudeup upgrade hookify@claude-plugins-official  # Update a specific plugin
+claudeup upgrade --all                        # Update across all scopes and projects
 ```
+
+When called without arguments, upgrades all outdated items. You can pass specific marketplace names or `plugin@marketplace` identifiers to upgrade individual targets.
 
 By default, `upgrade` is scope-aware: it only processes user-scope plugins and plugins scoped to the current project directory. Use `--all` to upgrade plugins across all scopes and projects.
 
