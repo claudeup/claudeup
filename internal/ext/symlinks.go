@@ -9,6 +9,45 @@ import (
 	"strings"
 )
 
+// ensureSymlink creates a symlink at target pointing to source, handling existing entries.
+// If target is already a correct symlink, it's a no-op. If it's a wrong symlink, it's replaced.
+// If it's a regular file or directory, a descriptive error is returned.
+func ensureSymlink(source, target string) error {
+	err := os.Symlink(source, target)
+	if err == nil {
+		return nil
+	}
+	if !os.IsExist(err) {
+		return err
+	}
+
+	// Something exists at target -- inspect it
+	info, lstatErr := os.Lstat(target)
+	if lstatErr != nil {
+		return err // return original symlink error
+	}
+
+	if info.Mode()&os.ModeSymlink == 0 {
+		// Not a symlink -- regular file or directory blocking the path
+		return fmt.Errorf("cannot create symlink %s: regular file exists (remove it manually or use 'ext import')", target)
+	}
+
+	// It's a symlink -- check if it already points to the correct source
+	existing, readErr := os.Readlink(target)
+	if readErr != nil {
+		return err
+	}
+	if existing == source {
+		return nil // already correct
+	}
+
+	// Wrong target -- remove and recreate
+	if removeErr := os.Remove(target); removeErr != nil {
+		return fmt.Errorf("cannot replace symlink %s: %w", target, removeErr)
+	}
+	return os.Symlink(source, target)
+}
+
 // validateItemPath checks that an item name doesn't contain path traversal sequences
 func validateItemPath(item string) error {
 	// Check for explicit path traversal
@@ -242,7 +281,7 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 		}
 
 		source := filepath.Join(m.extDir, category, item)
-		if err := os.Symlink(source, target); err != nil {
+		if err := ensureSymlink(source, target); err != nil {
 			return err
 		}
 	}
@@ -331,14 +370,14 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 
 			target := filepath.Join(groupTargetDir, agent)
 			source := filepath.Join(m.extDir, "agents", group, agent)
-			if err := os.Symlink(source, target); err != nil {
+			if err := ensureSymlink(source, target); err != nil {
 				return err
 			}
 		} else {
 			// Flat agent
 			target := filepath.Join(targetDir, item)
 			source := filepath.Join(m.extDir, "agents", item)
-			if err := os.Symlink(source, target); err != nil {
+			if err := ensureSymlink(source, target); err != nil {
 				return err
 			}
 		}

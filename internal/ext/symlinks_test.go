@@ -701,6 +701,146 @@ func TestImportSkipsGitkeep(t *testing.T) {
 	}
 }
 
+// TestSyncIdempotent verifies that Sync succeeds when symlinks already exist
+func TestSyncIdempotent(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage
+	extDir := filepath.Join(claudeupHome, "ext")
+	rulesDir := filepath.Join(extDir, "rules")
+	os.MkdirAll(rulesDir, 0755)
+	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+
+	// Enable and verify initial sync works
+	_, _, err := manager.Enable("rules", []string{"coding.md"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+
+	// Run Sync again -- should succeed (idempotent)
+	if err := manager.Sync(); err != nil {
+		t.Fatalf("Sync() should be idempotent, got error = %v", err)
+	}
+
+	// Verify symlink still exists and points to correct source
+	symlinkPath := filepath.Join(claudeDir, "rules", "coding.md")
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
+		t.Fatalf("Readlink() error = %v", err)
+	}
+	expectedTarget := filepath.Join(extDir, "rules", "coding.md")
+	if target != expectedTarget {
+		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
+	}
+}
+
+// TestSyncReplacesWrongSymlink verifies that Sync replaces symlinks pointing to the wrong target
+func TestSyncReplacesWrongSymlink(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage
+	extDir := filepath.Join(claudeupHome, "ext")
+	rulesDir := filepath.Join(extDir, "rules")
+	os.MkdirAll(rulesDir, 0755)
+	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+
+	// Create a symlink pointing to the wrong target
+	targetDir := filepath.Join(claudeDir, "rules")
+	os.MkdirAll(targetDir, 0755)
+	symlinkPath := filepath.Join(targetDir, "coding.md")
+	os.Symlink("/tmp/wrong-target", symlinkPath)
+
+	// Write config with the item enabled
+	config := Config{"rules": {"coding.md": true}}
+	manager.SaveConfig(config)
+
+	// Sync should replace the wrong symlink
+	if err := manager.Sync(); err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	// Verify symlink now points to correct source
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
+		t.Fatalf("Readlink() error = %v", err)
+	}
+	expectedTarget := filepath.Join(extDir, "rules", "coding.md")
+	if target != expectedTarget {
+		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
+	}
+}
+
+// TestSyncErrorsOnRegularFile verifies that Sync returns a clear error when a regular file
+// blocks symlink creation
+func TestSyncErrorsOnRegularFile(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage
+	extDir := filepath.Join(claudeupHome, "ext")
+	rulesDir := filepath.Join(extDir, "rules")
+	os.MkdirAll(rulesDir, 0755)
+	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+
+	// Create a regular file at the symlink target
+	targetDir := filepath.Join(claudeDir, "rules")
+	os.MkdirAll(targetDir, 0755)
+	os.WriteFile(filepath.Join(targetDir, "coding.md"), []byte("# Local Copy"), 0644)
+
+	// Write config with the item enabled
+	config := Config{"rules": {"coding.md": true}}
+	manager.SaveConfig(config)
+
+	// Sync should return a descriptive error about the regular file
+	err := manager.Sync()
+	if err == nil {
+		t.Fatal("Sync() should error when a regular file blocks symlink creation")
+	}
+	if !strings.Contains(err.Error(), "regular file") {
+		t.Errorf("Error should mention 'regular file', got: %v", err)
+	}
+}
+
+// TestSyncIdempotentAgents verifies that Sync is idempotent for grouped agents
+func TestSyncIdempotentAgents(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create agent group
+	extDir := filepath.Join(claudeupHome, "ext")
+	groupDir := filepath.Join(extDir, "agents", "dev-tools")
+	os.MkdirAll(groupDir, 0755)
+	os.WriteFile(filepath.Join(groupDir, "builder.md"), []byte("# Builder"), 0644)
+
+	// Enable and verify initial sync
+	_, _, err := manager.Enable("agents", []string{"dev-tools/builder"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+
+	// Run Sync again -- should succeed
+	if err := manager.Sync(); err != nil {
+		t.Fatalf("Sync() should be idempotent for agents, got error = %v", err)
+	}
+
+	// Verify symlink still correct
+	symlinkPath := filepath.Join(claudeDir, "agents", "dev-tools", "builder.md")
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
+		t.Fatalf("Readlink() error = %v", err)
+	}
+	expectedTarget := filepath.Join(extDir, "agents", "dev-tools", "builder.md")
+	if target != expectedTarget {
+		t.Errorf("Symlink target = %q, want %q", target, expectedTarget)
+	}
+}
+
 func TestDisableAgentGroupByDirectoryName(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
