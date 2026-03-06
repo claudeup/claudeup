@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -53,7 +54,7 @@ func TestComputeDiffPlugins(t *testing.T) {
 	}
 
 	// Should install only C (B already installed)
-	if len(diff.PluginsToInstall) != 1 || diff.PluginsToInstall[0] != "plugin-c@marketplace" {
+	if len(diff.PluginsToInstall) != 1 || !slices.Contains(diff.PluginsToInstall, "plugin-c@marketplace") {
 		t.Errorf("Expected to install only plugin-c, got: %v", diff.PluginsToInstall)
 	}
 }
