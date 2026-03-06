@@ -433,7 +433,7 @@ claudeup setup --profile default
 
 **Marketplaces:**
 
-- `anthropics/claude-code` - Official Anthropic plugins
+- `anthropics/claude-plugins-official` - Official Anthropic plugins
 
 **Use when:** Starting fresh or want a clean slate.
 

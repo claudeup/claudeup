@@ -4,7 +4,7 @@ title: Documentation
 
 # claudeup
 
-Manage Claude Code plugins and profiles.
+CLI tool for managing Claude Code installations.
 
 ## Quick Start
 
