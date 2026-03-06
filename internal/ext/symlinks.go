@@ -23,44 +23,44 @@ func validateItemPath(item string) error {
 	return nil
 }
 
-// createOrVerifySymlink creates a symlink from source to target, handling conflicts:
+// createOrVerifySymlink creates a symlink at target pointing to source, handling conflicts:
 //   - If target doesn't exist, creates the symlink
 //   - If target is a symlink pointing to source, skips silently (idempotent)
 //   - If target is a symlink pointing elsewhere, replaces it
-//   - If target is a regular file, returns an error (requires user action)
+//   - If target is a non-symlink (regular file, directory, etc.), returns an error
 func createOrVerifySymlink(source, target string) error {
 	err := os.Symlink(source, target)
 	if err == nil {
 		return nil
 	}
 	if !errors.Is(err, os.ErrExist) {
-		return err
+		return fmt.Errorf("creating symlink %s -> %s: %w", target, source, err)
 	}
 
 	// Something exists at target -- inspect it
 	info, lstatErr := os.Lstat(target)
 	if lstatErr != nil {
-		return lstatErr
+		return fmt.Errorf("inspecting existing entry at %s: %w", target, lstatErr)
 	}
 
 	if info.Mode()&os.ModeSymlink != 0 {
 		// It's a symlink -- check where it points
 		existing, readErr := os.Readlink(target)
 		if readErr != nil {
-			return readErr
+			return fmt.Errorf("reading symlink at %s: %w", target, readErr)
 		}
 		if existing == source {
 			return nil // already correct
 		}
 		// Stale symlink -- replace it
 		if removeErr := os.Remove(target); removeErr != nil {
-			return removeErr
+			return fmt.Errorf("removing stale symlink at %s: %w", target, removeErr)
 		}
 		return os.Symlink(source, target)
 	}
 
-	// Regular file or directory -- don't clobber it
-	return fmt.Errorf("regular file exists at %s; remove it or use 'ext import' to adopt it", target)
+	// Non-symlink entry -- don't clobber it
+	return fmt.Errorf("non-symlink file exists at %s; remove it or use 'ext import' to adopt it", target)
 }
 
 // resolvePattern resolves a pattern to matching items.

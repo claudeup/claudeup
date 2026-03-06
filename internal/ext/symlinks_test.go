@@ -801,8 +801,8 @@ func TestEnableWithRegularFileConflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("Enable() should have returned an error for regular file conflict")
 	}
-	if !strings.Contains(err.Error(), "regular file exists") {
-		t.Errorf("Error should mention regular file conflict, got: %v", err)
+	if !strings.Contains(err.Error(), "non-symlink file exists") {
+		t.Errorf("Error should mention non-symlink conflict, got: %v", err)
 	}
 
 	// Verify the original regular file is preserved
