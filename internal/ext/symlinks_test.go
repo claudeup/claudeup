@@ -701,6 +701,117 @@ func TestImportSkipsGitkeep(t *testing.T) {
 	}
 }
 
+func TestEnableIdempotent(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage with items
+	extDir := filepath.Join(claudeupHome, "ext")
+	agentsDir := filepath.Join(extDir, "agents")
+	os.MkdirAll(agentsDir, 0755)
+	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
+	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
+
+	// Enable items
+	_, _, err := manager.Enable("agents", []string{"gsd-*"})
+	if err != nil {
+		t.Fatalf("first Enable() error = %v", err)
+	}
+
+	// Enable again -- should succeed without error
+	enabled, _, err := manager.Enable("agents", []string{"gsd-*"})
+	if err != nil {
+		t.Fatalf("second Enable() error = %v", err)
+	}
+	if len(enabled) != 2 {
+		t.Errorf("second Enable() enabled %d items, want 2", len(enabled))
+	}
+
+	// Verify symlinks still point to the correct source
+	for _, name := range []string{"gsd-planner.md", "gsd-executor.md"} {
+		symlinkPath := filepath.Join(claudeDir, "agents", name)
+		target, err := os.Readlink(symlinkPath)
+		if err != nil {
+			t.Fatalf("Readlink(%s) error = %v", name, err)
+		}
+		expected := filepath.Join(agentsDir, name)
+		if target != expected {
+			t.Errorf("Symlink %s target = %q, want %q", name, target, expected)
+		}
+	}
+}
+
+func TestEnableWithStaleSymlink(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage
+	extDir := filepath.Join(claudeupHome, "ext")
+	rulesDir := filepath.Join(extDir, "rules")
+	os.MkdirAll(rulesDir, 0755)
+	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+
+	// Create a stale symlink at the target location (pointing to a nonexistent path)
+	targetDir := filepath.Join(claudeDir, "rules")
+	os.MkdirAll(targetDir, 0755)
+	staleTarget := filepath.Join(claudeupHome, "old-location", "coding.md")
+	os.Symlink(staleTarget, filepath.Join(targetDir, "coding.md"))
+
+	// Enable should replace the stale symlink
+	enabled, _, err := manager.Enable("rules", []string{"coding"})
+	if err != nil {
+		t.Fatalf("Enable() error = %v", err)
+	}
+	if len(enabled) != 1 {
+		t.Errorf("Enable() enabled %d items, want 1", len(enabled))
+	}
+
+	// Verify symlink now points to the correct source
+	symlinkPath := filepath.Join(targetDir, "coding.md")
+	target, err := os.Readlink(symlinkPath)
+	if err != nil {
+		t.Fatalf("Readlink() error = %v", err)
+	}
+	expected := filepath.Join(rulesDir, "coding.md")
+	if target != expected {
+		t.Errorf("Symlink target = %q, want %q", target, expected)
+	}
+}
+
+func TestEnableWithRegularFileConflict(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	// Create extension storage
+	extDir := filepath.Join(claudeupHome, "ext")
+	rulesDir := filepath.Join(extDir, "rules")
+	os.MkdirAll(rulesDir, 0755)
+	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+
+	// Create a regular file at the target location (manual install or partial import)
+	targetDir := filepath.Join(claudeDir, "rules")
+	os.MkdirAll(targetDir, 0755)
+	os.WriteFile(filepath.Join(targetDir, "coding.md"), []byte("# Manual install"), 0644)
+
+	// Enable should return an error for the regular file conflict
+	_, _, err := manager.Enable("rules", []string{"coding"})
+	if err == nil {
+		t.Fatal("Enable() should have returned an error for regular file conflict")
+	}
+	if !strings.Contains(err.Error(), "regular file exists") {
+		t.Errorf("Error should mention regular file conflict, got: %v", err)
+	}
+
+	// Verify the original regular file is preserved
+	content, _ := os.ReadFile(filepath.Join(targetDir, "coding.md"))
+	if string(content) != "# Manual install" {
+		t.Error("Original regular file should be preserved")
+	}
+}
+
 func TestDisableAgentGroupByDirectoryName(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
