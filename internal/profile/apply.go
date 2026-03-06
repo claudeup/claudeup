@@ -125,12 +125,11 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 			}
 		}
 
-		// Plugins to install - always include ALL profile plugins to ensure
-		// they're properly registered with Claude CLI, even if they appear
-		// in the current state (they may be in a broken state where JSON
-		// shows them but Claude CLI doesn't recognize them)
+		// Plugins to install (in profile but not in current state)
 		for plugin := range profilePlugins {
-			diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+			if _, exists := currentPlugins[plugin]; !exists {
+				diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+			}
 		}
 	}
 

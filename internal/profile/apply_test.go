@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -52,9 +53,9 @@ func TestComputeDiffPlugins(t *testing.T) {
 		t.Errorf("Expected to remove plugin-a, got: %v", diff.PluginsToRemove)
 	}
 
-	// Should install ALL profile plugins (B and C) to ensure proper registration
-	if len(diff.PluginsToInstall) != 2 {
-		t.Errorf("Expected to install 2 plugins (all profile plugins), got: %v", diff.PluginsToInstall)
+	// Should install only C (B already installed)
+	if len(diff.PluginsToInstall) != 1 || !slices.Contains(diff.PluginsToInstall, "plugin-c@marketplace") {
+		t.Errorf("Expected to install only plugin-c, got: %v", diff.PluginsToInstall)
 	}
 }
 
@@ -261,8 +262,14 @@ func TestComputeDiffIdenticalStates(t *testing.T) {
 			"server-a": map[string]interface{}{"command": "cmd-a"},
 		},
 	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+		},
+	}
 	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
 	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
 	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), claudeJSON)
 
 	// Profile identical to current state
@@ -283,15 +290,58 @@ func TestComputeDiffIdenticalStates(t *testing.T) {
 	if len(diff.PluginsToRemove) != 0 {
 		t.Errorf("Expected no plugins to remove, got: %v", diff.PluginsToRemove)
 	}
-	// All profile plugins should be in install list (to ensure proper registration)
-	if len(diff.PluginsToInstall) != 1 {
-		t.Errorf("Expected 1 plugin to install (all profile plugins), got: %v", diff.PluginsToInstall)
+	// No plugins should be installed (all already present)
+	if len(diff.PluginsToInstall) != 0 {
+		t.Errorf("Expected no plugins to install, got: %v", diff.PluginsToInstall)
 	}
 	if len(diff.MCPToRemove) != 0 {
 		t.Errorf("Expected no MCP servers to remove, got: %v", diff.MCPToRemove)
 	}
 	if len(diff.MCPToInstall) != 0 {
 		t.Errorf("Expected no MCP servers to install, got: %v", diff.MCPToInstall)
+	}
+}
+
+func TestComputeDiffIdempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// State where all profile plugins are already installed
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-x@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+			"plugin-y@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-x@marketplace": true,
+			"plugin-y@marketplace": true,
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	profile := &Profile{
+		Name:    "test",
+		Plugins: []string{"plugin-x@marketplace", "plugin-y@marketplace"},
+	}
+
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+	if err != nil {
+		t.Fatalf("ComputeDiff failed: %v", err)
+	}
+
+	if len(diff.PluginsToInstall) != 0 {
+		t.Errorf("Re-applying same profile should install 0 plugins, got: %v", diff.PluginsToInstall)
+	}
+	if len(diff.PluginsToRemove) != 0 {
+		t.Errorf("Re-applying same profile should remove 0 plugins, got: %v", diff.PluginsToRemove)
 	}
 }
 
