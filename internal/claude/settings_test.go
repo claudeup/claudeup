@@ -70,6 +70,19 @@ func TestLoadSettingsNoFile(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error when loading non-existent settings.json")
 	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadSettings error must wrap fs.ErrNotExist so callers can use errors.Is, got: %v", err)
+	}
+}
+
+func TestLoadSettingsNonExistentDir(t *testing.T) {
+	_, err := LoadSettings("/non/existent/path")
+	if err == nil {
+		t.Error("LoadSettings should return error for non-existent directory")
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadSettings error must wrap fs.ErrNotExist so callers can use errors.Is, got: %v", err)
+	}
 }
 
 func TestIsPluginEnabled(t *testing.T) {

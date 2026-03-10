@@ -318,7 +318,7 @@ type Settings struct {
 func LoadSettings(claudeDir string) (*Settings, error) {
 	// Check if Claude directory exists
 	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
+		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
 	}
 
 	settingsPath := filepath.Join(claudeDir, "settings.json")
@@ -329,6 +329,7 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 			Component:    "settings",
 			ExpectedPath: settingsPath,
 			ClaudeDir:    claudeDir,
+			Err:          err,
 		}
 	}
 	if err != nil {
