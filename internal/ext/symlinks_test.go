@@ -17,8 +17,12 @@ func TestEnableDisable(t *testing.T) {
 	// Create local directory structure
 	extDir := filepath.Join(claudeupHome, "ext")
 	hooksDir := filepath.Join(extDir, "hooks")
-	os.MkdirAll(hooksDir, 0755)
-	os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644)
+	if err := os.MkdirAll(hooksDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(hooksDir, "format-on-save.sh"), []byte("#!/bin/bash"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable
 	enabled, notFound, err := manager.Enable("hooks", []string{"format-on-save"})
@@ -74,8 +78,12 @@ func TestEnableAgentWithGroup(t *testing.T) {
 	// Create local directory structure with groups
 	extDir := filepath.Join(claudeupHome, "ext")
 	groupDir := filepath.Join(extDir, "agents", "business-product")
-	os.MkdirAll(groupDir, 0755)
-	os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644)
+	if err := os.MkdirAll(groupDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(groupDir, "analyst.md"), []byte("# Analyst"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable grouped agent
 	enabled, _, err := manager.Enable("agents", []string{"business-product/analyst"})
@@ -111,10 +119,18 @@ func TestEnableWildcard(t *testing.T) {
 	// Create local directory structure
 	extDir := filepath.Join(claudeupHome, "ext")
 	agentsDir := filepath.Join(extDir, "agents")
-	os.MkdirAll(agentsDir, 0755)
-	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
-	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
-	os.WriteFile(filepath.Join(agentsDir, "other-agent.md"), []byte("# Other"), 0644)
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentsDir, "other-agent.md"), []byte("# Other"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable with wildcard
 	enabled, _, err := manager.Enable("agents", []string{"gsd-*"})
@@ -134,9 +150,15 @@ func TestEnableNestedCommand(t *testing.T) {
 	// Create local directory structure for commands with subdirectory
 	extDir := filepath.Join(claudeupHome, "ext")
 	gsdCommandsDir := filepath.Join(extDir, "commands", "gsd")
-	os.MkdirAll(gsdCommandsDir, 0755)
-	os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644)
-	os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute Phase"), 0644)
+	if err := os.MkdirAll(gsdCommandsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute Phase"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable nested command using gsd/* wildcard
 	enabled, _, err := manager.Enable("commands", []string{"gsd/*"})
@@ -175,19 +197,35 @@ func TestImport(t *testing.T) {
 
 	// Create local directory structure (empty)
 	extDir := filepath.Join(claudeupHome, "ext")
-	os.MkdirAll(filepath.Join(extDir, "agents"), 0755)
-	os.MkdirAll(filepath.Join(extDir, "hooks"), 0755)
+	if err := os.MkdirAll(filepath.Join(extDir, "agents"), 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(extDir, "hooks"), 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
 	// Create files directly in active directories (simulating GSD install)
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
 	activeHooksDir := filepath.Join(claudeDir, "hooks")
-	os.MkdirAll(activeAgentsDir, 0755)
-	os.MkdirAll(activeHooksDir, 0755)
+	if err := os.MkdirAll(activeAgentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(activeHooksDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
-	os.WriteFile(filepath.Join(activeAgentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
-	os.WriteFile(filepath.Join(activeAgentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
-	os.WriteFile(filepath.Join(activeAgentsDir, "other-agent.md"), []byte("# Other"), 0644)
-	os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "gsd-planner.md"), []byte("# Planner"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "gsd-executor.md"), []byte("# Executor"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "other-agent.md"), []byte("# Other"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import GSD agents with wildcard
 	imported, _, notFound, err := manager.Import("agents", []string{"gsd-*"})
@@ -238,15 +276,23 @@ func TestImportDirectory(t *testing.T) {
 
 	// Create local directory structure (empty)
 	extDir := filepath.Join(claudeupHome, "ext")
-	os.MkdirAll(filepath.Join(extDir, "commands"), 0755)
+	if err := os.MkdirAll(filepath.Join(extDir, "commands"), 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
 	// Create commands/gsd directory directly (simulating GSD install)
 	activeCommandsDir := filepath.Join(claudeDir, "commands")
 	gsdCommandsDir := filepath.Join(activeCommandsDir, "gsd")
-	os.MkdirAll(gsdCommandsDir, 0755)
+	if err := os.MkdirAll(gsdCommandsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
-	os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644)
-	os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute"), 0644)
+	if err := os.WriteFile(filepath.Join(gsdCommandsDir, "new-project.md"), []byte("# New Project"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(gsdCommandsDir, "execute-phase.md"), []byte("# Execute"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import the gsd directory
 	imported, _, _, err := manager.Import("commands", []string{"gsd"})
@@ -300,16 +346,26 @@ func TestImportSkipsSymlinks(t *testing.T) {
 
 	// Create extension storage with an item
 	extDir := filepath.Join(claudeupHome, "ext")
-	os.MkdirAll(filepath.Join(extDir, "agents"), 0755)
-	os.WriteFile(filepath.Join(extDir, "agents", "existing.md"), []byte("# Existing"), 0644)
+	if err := os.MkdirAll(filepath.Join(extDir, "agents"), 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(extDir, "agents", "existing.md"), []byte("# Existing"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Create active directory with a symlink (already managed)
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
-	os.MkdirAll(activeAgentsDir, 0755)
-	os.Symlink(filepath.Join(extDir, "agents", "existing.md"), filepath.Join(activeAgentsDir, "existing.md"))
+	if err := os.MkdirAll(activeAgentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.Symlink(filepath.Join(extDir, "agents", "existing.md"), filepath.Join(activeAgentsDir, "existing.md")); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
 
 	// Also create a real file
-	os.WriteFile(filepath.Join(activeAgentsDir, "new-agent.md"), []byte("# New"), 0644)
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "new-agent.md"), []byte("# New"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import all
 	imported, _, _, err := manager.Import("agents", []string{"*"})
@@ -332,16 +388,34 @@ func TestImportAll(t *testing.T) {
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
 	activeCommandsDir := filepath.Join(claudeDir, "commands")
 	activeHooksDir := filepath.Join(claudeDir, "hooks")
-	os.MkdirAll(activeAgentsDir, 0755)
-	os.MkdirAll(activeCommandsDir, 0755)
-	os.MkdirAll(activeHooksDir, 0755)
+	if err := os.MkdirAll(activeAgentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(activeCommandsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(activeHooksDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
-	os.WriteFile(filepath.Join(activeAgentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
-	os.WriteFile(filepath.Join(activeAgentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
-	os.WriteFile(filepath.Join(activeAgentsDir, "other-agent.md"), []byte("# Other"), 0644)
-	os.MkdirAll(filepath.Join(activeCommandsDir, "gsd"), 0755)
-	os.WriteFile(filepath.Join(activeCommandsDir, "gsd", "start.md"), []byte("# Start"), 0644)
-	os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644)
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "gsd-planner.md"), []byte("# Planner"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "gsd-executor.md"), []byte("# Executor"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "other-agent.md"), []byte("# Other"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(activeCommandsDir, "gsd"), 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeCommandsDir, "gsd", "start.md"), []byte("# Start"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeHooksDir, "gsd-check-update.js"), []byte("// JS"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import all with pattern
 	results, _, err := manager.ImportAll([]string{"gsd-*", "gsd"})
@@ -384,10 +458,18 @@ func TestEnableDirectoryByName(t *testing.T) {
 	// Create local directory structure for commands with a subdirectory
 	extDir := filepath.Join(claudeupHome, "ext")
 	vsphereDir := filepath.Join(extDir, "commands", "vsphere-architect")
-	os.MkdirAll(vsphereDir, 0755)
-	os.WriteFile(filepath.Join(vsphereDir, "capacity-plan.md"), []byte("# Capacity Plan"), 0644)
-	os.WriteFile(filepath.Join(vsphereDir, "ha-design.md"), []byte("# HA Design"), 0644)
-	os.WriteFile(filepath.Join(vsphereDir, "storage-design.md"), []byte("# Storage Design"), 0644)
+	if err := os.MkdirAll(vsphereDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(vsphereDir, "capacity-plan.md"), []byte("# Capacity Plan"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(vsphereDir, "ha-design.md"), []byte("# HA Design"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(vsphereDir, "storage-design.md"), []byte("# Storage Design"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable using just the directory name (no wildcard)
 	enabled, notFound, err := manager.Enable("commands", []string{"vsphere-architect"})
@@ -435,8 +517,12 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	// Create local directory structure
 	extDir := filepath.Join(claudeupHome, "ext")
 	commandsDir := filepath.Join(extDir, "commands")
-	os.MkdirAll(commandsDir, 0755)
-	os.WriteFile(filepath.Join(commandsDir, "legit.md"), []byte("# Legit"), 0644)
+	if err := os.MkdirAll(commandsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(commandsDir, "legit.md"), []byte("# Legit"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Manually write a malicious config with path traversal
 	config := Config{
@@ -476,12 +562,22 @@ func TestImportAllNoPattern(t *testing.T) {
 	// Create files directly in active directories
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
 	activeHooksDir := filepath.Join(claudeDir, "hooks")
-	os.MkdirAll(activeAgentsDir, 0755)
-	os.MkdirAll(activeHooksDir, 0755)
+	if err := os.MkdirAll(activeAgentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(activeHooksDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
-	os.WriteFile(filepath.Join(activeAgentsDir, "agent1.md"), []byte("# Agent1"), 0644)
-	os.WriteFile(filepath.Join(activeAgentsDir, "agent2.md"), []byte("# Agent2"), 0644)
-	os.WriteFile(filepath.Join(activeHooksDir, "hook1.js"), []byte("// JS"), 0644)
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "agent1.md"), []byte("# Agent1"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "agent2.md"), []byte("# Agent2"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeHooksDir, "hook1.js"), []byte("// JS"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import all without pattern (should import everything)
 	results, _, err := manager.ImportAll(nil)
@@ -507,13 +603,21 @@ func TestImportReconciliation(t *testing.T) {
 
 	// Create extension storage with an existing item
 	extDir := filepath.Join(claudeupHome, "ext")
-	os.MkdirAll(filepath.Join(extDir, "agents"), 0755)
-	os.WriteFile(filepath.Join(extDir, "agents", "existing-agent.md"), []byte("# Stored Version"), 0644)
+	if err := os.MkdirAll(filepath.Join(extDir, "agents"), 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(extDir, "agents", "existing-agent.md"), []byte("# Stored Version"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Create active directory with a duplicate (local version)
 	activeAgentsDir := filepath.Join(claudeDir, "agents")
-	os.MkdirAll(activeAgentsDir, 0755)
-	os.WriteFile(filepath.Join(activeAgentsDir, "existing-agent.md"), []byte("# Local Version"), 0644)
+	if err := os.MkdirAll(activeAgentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeAgentsDir, "existing-agent.md"), []byte("# Local Version"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import the duplicate item
 	imported, skipped, _, err := manager.Import("agents", []string{"existing-agent.md"})
@@ -558,10 +662,18 @@ func TestEnableMixedItems(t *testing.T) {
 	extDir := filepath.Join(claudeupHome, "ext")
 	commandsDir := filepath.Join(extDir, "commands")
 	groupDir := filepath.Join(commandsDir, "group")
-	os.MkdirAll(groupDir, 0755)
-	os.WriteFile(filepath.Join(commandsDir, "standalone.md"), []byte("# Standalone"), 0644)
-	os.WriteFile(filepath.Join(groupDir, "item1.md"), []byte("# Item 1"), 0644)
-	os.WriteFile(filepath.Join(groupDir, "item2.md"), []byte("# Item 2"), 0644)
+	if err := os.MkdirAll(groupDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(commandsDir, "standalone.md"), []byte("# Standalone"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(groupDir, "item1.md"), []byte("# Item 1"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(groupDir, "item2.md"), []byte("# Item 2"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable both a directory and a standalone file
 	enabled, notFound, err := manager.Enable("commands", []string{"group", "standalone.md"})
@@ -598,7 +710,9 @@ func TestEnableEmptyDirectory(t *testing.T) {
 	// Create extension storage with empty directory
 	extDir := filepath.Join(claudeupHome, "ext")
 	emptyDir := filepath.Join(extDir, "commands", "empty-dir")
-	os.MkdirAll(emptyDir, 0755)
+	if err := os.MkdirAll(emptyDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
 	// Enable empty directory - should report as not found (no items inside)
 	enabled, notFound, err := manager.Enable("commands", []string{"empty-dir"})
@@ -622,8 +736,12 @@ func TestEnableNestedDirectories(t *testing.T) {
 	// Create nested directory structure (only one level is expanded)
 	extDir := filepath.Join(claudeupHome, "ext")
 	topDir := filepath.Join(extDir, "commands", "top")
-	os.MkdirAll(topDir, 0755)
-	os.WriteFile(filepath.Join(topDir, "item.md"), []byte("# Item"), 0644)
+	if err := os.MkdirAll(topDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(topDir, "item.md"), []byte("# Item"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable top-level directory
 	enabled, _, err := manager.Enable("commands", []string{"top"})
@@ -656,16 +774,28 @@ func TestImportSkipsGitkeep(t *testing.T) {
 	// Create active directories with .gitkeep files and real items
 	activeHooksDir := filepath.Join(claudeDir, "hooks")
 	activeCommandsDir := filepath.Join(claudeDir, "commands")
-	os.MkdirAll(activeHooksDir, 0755)
-	os.MkdirAll(activeCommandsDir, 0755)
+	if err := os.MkdirAll(activeHooksDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.MkdirAll(activeCommandsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 
 	// Add .gitkeep files (should be ignored)
-	os.WriteFile(filepath.Join(activeHooksDir, ".gitkeep"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(activeCommandsDir, ".gitkeep"), []byte(""), 0644)
+	if err := os.WriteFile(filepath.Join(activeHooksDir, ".gitkeep"), []byte(""), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeCommandsDir, ".gitkeep"), []byte(""), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Add real items
-	os.WriteFile(filepath.Join(activeHooksDir, "format.sh"), []byte("#!/bin/bash"), 0755)
-	os.WriteFile(filepath.Join(activeCommandsDir, "build.md"), []byte("# Build"), 0644)
+	if err := os.WriteFile(filepath.Join(activeHooksDir, "format.sh"), []byte("#!/bin/bash"), 0755); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(activeCommandsDir, "build.md"), []byte("# Build"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Import all
 	imported, skipped, err := manager.ImportAll([]string{"*"})
@@ -706,7 +836,9 @@ func TestCreateOrVerifySymlink(t *testing.T) {
 	t.Run("creates symlink when nothing exists", func(t *testing.T) {
 		dir := t.TempDir()
 		source := filepath.Join(dir, "source.md")
-		os.WriteFile(source, []byte("# Source"), 0644)
+		if err := os.WriteFile(source, []byte("# Source"), 0644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 		target := filepath.Join(dir, "target.md")
 
 		if err := createOrVerifySymlink(source, target); err != nil {
@@ -725,9 +857,13 @@ func TestCreateOrVerifySymlink(t *testing.T) {
 	t.Run("no-op when correct symlink exists", func(t *testing.T) {
 		dir := t.TempDir()
 		source := filepath.Join(dir, "source.md")
-		os.WriteFile(source, []byte("# Source"), 0644)
+		if err := os.WriteFile(source, []byte("# Source"), 0644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 		target := filepath.Join(dir, "target.md")
-		os.Symlink(source, target)
+		if err := os.Symlink(source, target); err != nil {
+			t.Fatalf("Symlink() error = %v", err)
+		}
 
 		if err := createOrVerifySymlink(source, target); err != nil {
 			t.Fatalf("createOrVerifySymlink() error = %v", err)
@@ -742,9 +878,13 @@ func TestCreateOrVerifySymlink(t *testing.T) {
 	t.Run("replaces wrong symlink", func(t *testing.T) {
 		dir := t.TempDir()
 		source := filepath.Join(dir, "source.md")
-		os.WriteFile(source, []byte("# Source"), 0644)
+		if err := os.WriteFile(source, []byte("# Source"), 0644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 		target := filepath.Join(dir, "target.md")
-		os.Symlink("/tmp/wrong-source", target)
+		if err := os.Symlink("/tmp/wrong-source", target); err != nil {
+			t.Fatalf("Symlink() error = %v", err)
+		}
 
 		if err := createOrVerifySymlink(source, target); err != nil {
 			t.Fatalf("createOrVerifySymlink() error = %v", err)
@@ -759,9 +899,13 @@ func TestCreateOrVerifySymlink(t *testing.T) {
 	t.Run("errors on regular file", func(t *testing.T) {
 		dir := t.TempDir()
 		source := filepath.Join(dir, "source.md")
-		os.WriteFile(source, []byte("# Source"), 0644)
+		if err := os.WriteFile(source, []byte("# Source"), 0644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 		target := filepath.Join(dir, "target.md")
-		os.WriteFile(target, []byte("# Blocking file"), 0644)
+		if err := os.WriteFile(target, []byte("# Blocking file"), 0644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 
 		err := createOrVerifySymlink(source, target)
 		if err == nil {
@@ -775,9 +919,13 @@ func TestCreateOrVerifySymlink(t *testing.T) {
 	t.Run("errors on directory", func(t *testing.T) {
 		dir := t.TempDir()
 		source := filepath.Join(dir, "source.md")
-		os.WriteFile(source, []byte("# Source"), 0644)
+		if err := os.WriteFile(source, []byte("# Source"), 0644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 		target := filepath.Join(dir, "blocking-dir")
-		os.MkdirAll(target, 0755)
+		if err := os.MkdirAll(target, 0755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
 
 		err := createOrVerifySymlink(source, target)
 		if err == nil {
@@ -797,9 +945,15 @@ func TestEnableIdempotent(t *testing.T) {
 	// Create extension storage with items
 	extDir := filepath.Join(claudeupHome, "ext")
 	agentsDir := filepath.Join(extDir, "agents")
-	os.MkdirAll(agentsDir, 0755)
-	os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644)
-	os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644)
+	if err := os.MkdirAll(agentsDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentsDir, "gsd-planner.md"), []byte("# Planner"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentsDir, "gsd-executor.md"), []byte("# Executor"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable items
 	_, _, err := manager.Enable("agents", []string{"gsd-*"})
@@ -838,14 +992,22 @@ func TestEnableWithStaleSymlink(t *testing.T) {
 	// Create extension storage
 	extDir := filepath.Join(claudeupHome, "ext")
 	rulesDir := filepath.Join(extDir, "rules")
-	os.MkdirAll(rulesDir, 0755)
-	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Create a stale symlink at the target location (pointing to a nonexistent path)
 	targetDir := filepath.Join(claudeDir, "rules")
-	os.MkdirAll(targetDir, 0755)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
 	staleTarget := filepath.Join(claudeupHome, "old-location", "coding.md")
-	os.Symlink(staleTarget, filepath.Join(targetDir, "coding.md"))
+	if err := os.Symlink(staleTarget, filepath.Join(targetDir, "coding.md")); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
 
 	// Enable should replace the stale symlink
 	enabled, _, err := manager.Enable("rules", []string{"coding"})
@@ -876,13 +1038,21 @@ func TestEnableWithRegularFileConflict(t *testing.T) {
 	// Create extension storage
 	extDir := filepath.Join(claudeupHome, "ext")
 	rulesDir := filepath.Join(extDir, "rules")
-	os.MkdirAll(rulesDir, 0755)
-	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Create a regular file at the target location (manual install or partial import)
 	targetDir := filepath.Join(claudeDir, "rules")
-	os.MkdirAll(targetDir, 0755)
-	os.WriteFile(filepath.Join(targetDir, "coding.md"), []byte("# Manual install"), 0644)
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(targetDir, "coding.md"), []byte("# Manual install"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable should return an error for the regular file conflict
 	_, _, err := manager.Enable("rules", []string{"coding"})
@@ -908,14 +1078,22 @@ func TestEnableWithDirectoryConflict(t *testing.T) {
 	// Create extension storage
 	extDir := filepath.Join(claudeupHome, "ext")
 	rulesDir := filepath.Join(extDir, "rules")
-	os.MkdirAll(rulesDir, 0755)
-	os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644)
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "coding.md"), []byte("# Coding"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Create a directory at the target location where the symlink should go
 	targetDir := filepath.Join(claudeDir, "rules")
 	conflictDir := filepath.Join(targetDir, "coding.md") // directory named like the file
-	os.MkdirAll(conflictDir, 0755)
-	os.WriteFile(filepath.Join(conflictDir, "notes.txt"), []byte("some notes"), 0644)
+	if err := os.MkdirAll(conflictDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(conflictDir, "notes.txt"), []byte("some notes"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable should return an error for the directory conflict
 	_, _, err := manager.Enable("rules", []string{"coding"})
@@ -940,9 +1118,15 @@ func TestDisableAgentGroupByDirectoryName(t *testing.T) {
 	// Create agent group directory
 	extDir := filepath.Join(claudeupHome, "ext")
 	groupDir := filepath.Join(extDir, "agents", "developer-experience")
-	os.MkdirAll(groupDir, 0755)
-	os.WriteFile(filepath.Join(groupDir, "build-engineer.md"), []byte("# Agent"), 0644)
-	os.WriteFile(filepath.Join(groupDir, "cli-developer.md"), []byte("# Agent"), 0644)
+	if err := os.MkdirAll(groupDir, 0755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(groupDir, "build-engineer.md"), []byte("# Agent"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(groupDir, "cli-developer.md"), []byte("# Agent"), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
 
 	// Enable agents first
 	enabled, _, err := manager.Enable("agents", []string{"developer-experience"})
