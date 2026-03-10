@@ -87,6 +87,7 @@ var _ = Describe("doctor", func() {
 			Expect(result.Stdout).NotTo(ContainSubstring("Checking Settings Scopes"))
 			Expect(result.Stdout).NotTo(ContainSubstring("scope load error"))
 			Expect(result.Stdout).NotTo(ContainSubstring("Settings:"))
+			Expect(result.Stdout).NotTo(ContainSubstring("Plugin analysis may be incomplete"))
 			Expect(result.Stdout).To(ContainSubstring("No issues detected!"))
 		})
 	})
