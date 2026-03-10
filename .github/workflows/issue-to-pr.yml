@@ -36,6 +36,9 @@ on:
         options:
           - claude-sonnet-4-6
           - claude-opus-4-6
+      max_turns:
+        description: "Max turns (default: 50 sonnet, 30 opus)"
+        required: false
 
 # ─────────────────────────────────────────────
 # Global settings
@@ -75,21 +78,26 @@ jobs:
       - name: Authenticate gh CLI
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
-      - name: Resolve model from label
-        id: model
+      - name: Resolve model and max-turns from label
+        id: config
         run: |
           LABEL="${{ github.event.label.name }}"
           case "$LABEL" in
-            claude:opus)   echo "model=claude-opus-4-6" >> "$GITHUB_OUTPUT" ;;
-            claude:sonnet) echo "model=claude-sonnet-4-6" >> "$GITHUB_OUTPUT" ;;
-            *)             echo "model=${{ inputs.model || 'claude-sonnet-4-6' }}" >> "$GITHUB_OUTPUT" ;;
+            claude:opus)   MODEL="claude-opus-4-6";   DEFAULT_TURNS=30 ;;
+            claude:sonnet) MODEL="claude-sonnet-4-6";  DEFAULT_TURNS=50 ;;
+            *)             MODEL="${{ inputs.model || 'claude-sonnet-4-6' }}"
+                           DEFAULT_TURNS=50 ;;
           esac
+          # Manual override takes precedence
+          TURNS="${{ inputs.max_turns }}"
+          echo "model=$MODEL" >> "$GITHUB_OUTPUT"
+          echo "max_turns=${TURNS:-$DEFAULT_TURNS}" >> "$GITHUB_OUTPUT"
 
       - name: Implement issue with Claude Code
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          claude_args: "--model ${{ steps.model.outputs.model }} --max-turns 30"
+          claude_args: "--model ${{ steps.config.outputs.model }} --max-turns ${{ steps.config.outputs.max_turns }}"
           settings: |
             {
               "permissions": {
