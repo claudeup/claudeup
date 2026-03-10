@@ -201,19 +201,9 @@ jobs:
     name: PR review (pr-review-toolkit)
     runs-on: ubuntu-latest
 
-    # Run on:
-    #   • any PR opened/updated against main, OR
-    #   • @claude mention inside a PR comment
-    # Bot-authored comments are excluded to prevent review loops
-    if: |
-      (
-        github.event_name == 'pull_request'
-      ) || (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request != null &&
-        contains(github.event.comment.body, '@claude') &&
-        github.event.comment.user.type != 'Bot'
-      )
+    # Run on any PR opened/updated against main
+    # Bot-authored comments are handled by the fix-review job instead
+    if: github.event_name == 'pull_request'
 
     permissions:
       contents: read
@@ -222,23 +212,9 @@ jobs:
       id-token: write # OIDC token for claude-code-action OAuth
 
     steps:
-      # For issue_comment triggers, resolve the PR head ref via gh CLI
-      - name: Resolve PR ref
-        id: pr-ref
-        run: |
-          if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_NUM="${{ github.event.issue.number }}"
-            SHA=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json headRefOid -q .headRefOid)
-            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          else
-            echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ github.token }}
-
       - uses: actions/checkout@v4
         with:
-          ref: ${{ steps.pr-ref.outputs.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Review PR with Claude Code (pr-review-toolkit)
@@ -275,3 +251,84 @@ jobs:
             Confidence-filter: only surface HIGH and MEDIUM confidence findings.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────
+  # Job 4 – Fix review findings on @claude mention
+  # ─────────────────────────────────────────────
+  fix-review:
+    name: Fix review findings
+    runs-on: ubuntu-latest
+
+    # Run when a human comments @claude on a PR
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '@claude') &&
+      github.event.comment.user.type != 'Bot'
+
+    permissions:
+      contents: write # push fixes to branch
+      pull-requests: write # update PR
+      issues: write # reply to comment
+      id-token: write # OIDC token for claude-code-action OAuth
+
+    steps:
+      - name: Resolve PR branch
+        id: pr
+        run: |
+          PR_NUM="${{ github.event.issue.number }}"
+          BRANCH=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json headRefName -q .headRefName)
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "number=$PR_NUM" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+
+      - name: Authenticate gh CLI
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Fix review findings with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-opus-4-6 --max-turns 30"
+          allowed_bots: "claude"
+          settings: |
+            {
+              "permissions": {
+                "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "Glob(*)", "Grep(*)"]
+              }
+            }
+          prompt: |
+            You are working on PR #${{ steps.pr.outputs.number }} in the claudeup Go CLI repository.
+            You are on branch `${{ steps.pr.outputs.branch }}`.
+
+            A reviewer commented:
+            ${{ github.event.comment.body }}
+
+            ## Steps
+            1. Read the PR diff and all review comments to understand the findings.
+            2. Address each finding the reviewer mentioned.
+            3. Run `go build ./...` and `go test ./...` -- fix any failures.
+            4. Commit the fixes with a descriptive message.
+            5. Push to the current branch.
+            6. Reply on the PR summarizing what you fixed.
+
+            ## Constraints
+            - Only fix what was requested. Do not refactor unrelated code.
+            - Do NOT force-push or amend existing commits.
+            - Do NOT close or merge the PR.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Claude execution log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-fix-review-log
+          path: /home/runner/work/_temp/claude-execution-output.json
+          retention-days: 7
