@@ -48,12 +48,16 @@ func TestClearScope_UserScope_ClearsExistingPlugins(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("result is not valid JSON: %v", err)
 	}
 
-	if plugins, ok := raw["enabledPlugins"].(map[string]interface{}); ok && len(plugins) != 0 {
+	plugins, ok := raw["enabledPlugins"].(map[string]any)
+	if !ok {
+		t.Fatal("expected enabledPlugins key to be present as an object")
+	}
+	if len(plugins) != 0 {
 		t.Errorf("expected enabledPlugins to be empty, got %v", plugins)
 	}
 }
@@ -76,7 +80,7 @@ func TestClearScope_UserScope_PreservesNonPluginFields(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("result is not valid JSON: %v", err)
 	}
@@ -85,7 +89,11 @@ func TestClearScope_UserScope_PreservesNonPluginFields(t *testing.T) {
 		t.Errorf("expected model field to be preserved, got: %v", raw["model"])
 	}
 
-	if plugins, ok := raw["enabledPlugins"].(map[string]interface{}); ok && len(plugins) != 0 {
+	plugins, ok := raw["enabledPlugins"].(map[string]any)
+	if !ok {
+		t.Fatal("expected enabledPlugins key to be present as an object")
+	}
+	if len(plugins) != 0 {
 		t.Errorf("expected enabledPlugins to be empty, got %v", plugins)
 	}
 }
@@ -256,5 +264,16 @@ func TestRenderPluginsByScope_LocalScope_EmptyProjectDir_ReturnsError(t *testing
 	err := RenderPluginsByScope(claudeDir, "", "local")
 	if err == nil {
 		t.Fatal("expected error for local scope with empty projectDir, got nil")
+	}
+}
+
+func TestRenderPluginsByScope_UserScope_CorruptJSON_ReturnsError(t *testing.T) {
+	claudeDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{invalid"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RenderPluginsByScope(claudeDir, t.TempDir(), "user"); err == nil {
+		t.Error("expected error for corrupt settings.json, got nil")
 	}
 }
