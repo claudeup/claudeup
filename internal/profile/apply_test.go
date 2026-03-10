@@ -531,10 +531,16 @@ func TestComputeDiffDuplicatePluginsInSlice(t *testing.T) {
 		t.Fatalf("ComputeDiff failed: %v", err)
 	}
 
-	// Should deduplicate: only 2 unique plugins to install
-	if len(diff.PluginsToInstall) != 2 {
-		t.Errorf("Expected 2 unique plugins to install (deduped), got %d: %v",
-			len(diff.PluginsToInstall), diff.PluginsToInstall)
+	// Should deduplicate: only 2 unique plugins to install, first occurrence wins
+	expected := []string{"plugin-a@marketplace", "plugin-b@marketplace"}
+	if len(diff.PluginsToInstall) != len(expected) {
+		t.Fatalf("Expected %d unique plugins to install (deduped), got %d: %v",
+			len(expected), len(diff.PluginsToInstall), diff.PluginsToInstall)
+	}
+	for i, plugin := range diff.PluginsToInstall {
+		if plugin != expected[i] {
+			t.Errorf("PluginsToInstall[%d] = %q, want %q", i, plugin, expected[i])
+		}
 	}
 }
 

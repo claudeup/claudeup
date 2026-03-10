@@ -158,6 +158,7 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	}
 
 	// Iterate over current.MCPServers slice (not currentMCP map) for deterministic ordering.
+	// No dedup guard needed: snapshot reads from a JSON object, so server names are unique.
 	for _, mcp := range current.MCPServers {
 		if _, exists := profileMCP[mcp.Name]; !exists {
 			diff.MCPToRemove = append(diff.MCPToRemove, mcp.Name)
@@ -165,6 +166,7 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	}
 
 	// Iterate over profile.MCPServers slice (not profileMCP map) to preserve user-defined order.
+	// No dedup guard needed: profile JSON object keys are unique by definition.
 	for _, mcp := range profile.MCPServers {
 		if opts.Reinstall || !currentMCP[mcp.Name] {
 			diff.MCPToInstall = append(diff.MCPToInstall, mcp)
