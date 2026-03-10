@@ -336,6 +336,16 @@ func TestComputeDiffPluginRemoveOrderPreserved(t *testing.T) {
 	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
 	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
 
+	// readPluginsForScope sorts plugins alphabetically, so PluginsToRemove
+	// reflects that sorted snapshot order.
+	expectedRemoveOrder := []string{
+		"plugin-alpha@marketplace",
+		"plugin-beta@marketplace",
+		"plugin-delta@marketplace",
+		"plugin-epsilon@marketplace",
+		"plugin-gamma@marketplace",
+	}
+
 	// Empty profile — all current plugins should appear in PluginsToRemove
 	profile := &Profile{Name: "empty"}
 
@@ -346,14 +356,14 @@ func TestComputeDiffPluginRemoveOrderPreserved(t *testing.T) {
 			t.Fatalf("ComputeDiff failed on iteration %d: %v", i, err)
 		}
 
-		if len(diff.PluginsToRemove) != len(currentPluginList) {
+		if len(diff.PluginsToRemove) != len(expectedRemoveOrder) {
 			t.Fatalf("iteration %d: expected %d plugins to remove, got %d: %v",
-				i, len(currentPluginList), len(diff.PluginsToRemove), diff.PluginsToRemove)
+				i, len(expectedRemoveOrder), len(diff.PluginsToRemove), diff.PluginsToRemove)
 		}
 		for j, plugin := range diff.PluginsToRemove {
-			if plugin != currentPluginList[j] {
+			if plugin != expectedRemoveOrder[j] {
 				t.Errorf("iteration %d: PluginsToRemove[%d] = %q, want %q (full list: %v)",
-					i, j, plugin, currentPluginList[j], diff.PluginsToRemove)
+					i, j, plugin, expectedRemoveOrder[j], diff.PluginsToRemove)
 				break
 			}
 		}
@@ -445,7 +455,17 @@ func TestComputeDiffMCPOrderPreserved(t *testing.T) {
 		"mcpServers": mcpMap,
 	})
 
-	// Profile: empty — all should appear in MCPToRemove in current state order
+	// ReadMCPServersForScope sorts servers alphabetically by name,
+	// so MCPToRemove order reflects that sorted snapshot order.
+	expectedRemoveOrder := []string{
+		"server-alpha",
+		"server-beta",
+		"server-delta",
+		"server-epsilon",
+		"server-gamma",
+	}
+
+	// Profile: empty — all should appear in MCPToRemove in snapshot order (alphabetical)
 	emptyProfile := &Profile{Name: "empty"}
 
 	for i := 0; i < 20; i++ {
@@ -453,14 +473,14 @@ func TestComputeDiffMCPOrderPreserved(t *testing.T) {
 		if err != nil {
 			t.Fatalf("iteration %d: ComputeDiff failed: %v", i, err)
 		}
-		if len(diff.MCPToRemove) != len(mcpList) {
+		if len(diff.MCPToRemove) != len(expectedRemoveOrder) {
 			t.Fatalf("iteration %d: expected %d MCP to remove, got %d: %v",
-				i, len(mcpList), len(diff.MCPToRemove), diff.MCPToRemove)
+				i, len(expectedRemoveOrder), len(diff.MCPToRemove), diff.MCPToRemove)
 		}
 		for j, name := range diff.MCPToRemove {
-			if name != mcpList[j].Name {
+			if name != expectedRemoveOrder[j] {
 				t.Errorf("iteration %d: MCPToRemove[%d] = %q, want %q (full list: %v)",
-					i, j, name, mcpList[j].Name, diff.MCPToRemove)
+					i, j, name, expectedRemoveOrder[j], diff.MCPToRemove)
 				break
 			}
 		}
