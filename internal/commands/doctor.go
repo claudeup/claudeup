@@ -79,6 +79,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	scopeSettings := make(map[string]*claude.Settings)
 	enabledInSettings := make(map[string]bool)
 
+	type scopeLoadError struct {
+		scope string
+		err   error
+	}
+	var scopeLoadErrors []scopeLoadError
+
 	for _, scope := range scopes {
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
 		if err == nil {
@@ -88,6 +94,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 					enabledInSettings[name] = true
 				}
 			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			// ErrNotExist is expected for scopes without a settings file; all other errors are diagnostic findings
+			scopeLoadErrors = append(scopeLoadErrors, scopeLoadError{scope: scope, err: err})
+		}
+	}
+
+	// Report any scope settings loading errors
+	if len(scopeLoadErrors) > 0 {
+		fmt.Println()
+		fmt.Println(ui.RenderSection("Checking Settings Scopes", -1))
+		for _, se := range scopeLoadErrors {
+			fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+" "+se.scope+" scope: failed to load settings: "+se.err.Error(), 1))
 		}
 	}
 
@@ -239,8 +257,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Symlinks", symSummary), 1))
 
+	if len(scopeLoadErrors) > 0 {
+		fmt.Println(ui.Indent(ui.RenderDetail("Settings", fmt.Sprintf("%d scope load error%s", len(scopeLoadErrors), pluralS(len(scopeLoadErrors)))), 1))
+	}
+
 	fmt.Println()
-	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks)
+	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks) + len(scopeLoadErrors)
 	if allIssues > 0 {
 		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {

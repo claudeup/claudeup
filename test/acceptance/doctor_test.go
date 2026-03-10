@@ -15,6 +15,22 @@ var _ = Describe("doctor", func() {
 		env = helpers.NewTestEnv(binaryPath)
 	})
 
+	Describe("scope settings load errors", func() {
+		BeforeEach(func() {
+			// Write invalid JSON to the user-scope settings file to trigger a load error
+			env.WriteFile(env.ClaudeDir, "settings.json", "{invalid json")
+		})
+
+		It("surfaces a warning for the failed scope and counts it in the summary", func() {
+			result := env.Run("doctor")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Checking Settings Scopes"))
+			Expect(result.Stdout).To(ContainSubstring("user scope: failed to load settings"))
+			Expect(result.Stdout).To(ContainSubstring("1 scope load error"))
+		})
+	})
+
 	Describe("missing plugin recommendations", func() {
 		BeforeEach(func() {
 			// Create empty plugin registry (no plugins installed)
