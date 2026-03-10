@@ -41,7 +41,7 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 	if filterScope != "" {
 		scopesToShow = append(scopesToShow, filterScope)
 	} else {
-		scopesToShow = []string{"user", "project", "local"}
+		scopesToShow = claude.ValidScopes
 	}
 
 	// Track if we're in a project directory
@@ -111,7 +111,11 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 	return nil
 }
 
-// clearScope removes settings at the specified scope
+// clearScope removes plugin settings at the given scope.
+// For "user" scope, only enabledPlugins is cleared while other settings are preserved.
+// For "project" and "local" scope, the entire settings file is removed.
+// If the file does not exist, the operation succeeds silently.
+// Unrecognised scope values return an error.
 func clearScope(scope string, settingsPath string, claudeDir string) error {
 	switch scope {
 	case "user":
@@ -123,15 +127,7 @@ func clearScope(scope string, settingsPath string, claudeDir string) error {
 		settings.EnabledPlugins = make(map[string]bool)
 		return claude.SaveSettings(claudeDir, settings)
 
-	case "project":
-		// Remove project settings file
-		if err := os.Remove(settingsPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return err
-		}
-		return nil
-
-	case "local":
-		// Remove local settings file
+	case "project", "local":
 		if err := os.Remove(settingsPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}

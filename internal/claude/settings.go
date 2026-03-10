@@ -469,7 +469,9 @@ func SettingsPathForScope(scope string, claudeDir string, projectDir string) (st
 	}
 }
 
-// LoadSettingsForScope reads settings from a specific scope
+// LoadSettingsForScope reads settings for the given scope.
+// If the settings file does not exist, it returns empty settings and a nil error.
+// Parse errors and I/O failures (other than ErrNotExist) are returned to the caller.
 func LoadSettingsForScope(scope string, claudeDir string, projectDir string) (*Settings, error) {
 	path, err := SettingsPathForScope(scope, claudeDir, projectDir)
 	if err != nil {

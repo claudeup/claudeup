@@ -75,11 +75,17 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	// Load settings from all scopes to find enabled plugins
-	scopes := []string{"user", "project", "local"}
 	scopeSettings := make(map[string]*claude.Settings)
 	enabledInSettings := make(map[string]bool)
 
-	for _, scope := range scopes {
+	type scopeIssue struct {
+		scope string
+		path  string
+		err   error
+	}
+	var scopeIssues []scopeIssue
+
+	for _, scope := range claude.ValidScopes {
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
 		if err == nil {
 			scopeSettings[scope] = settings
@@ -87,6 +93,28 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 				if enabled {
 					enabledInSettings[name] = true
 				}
+			}
+		} else {
+			// LoadSettingsForScope handles missing files internally (returns empty settings, nil error).
+			// Any error reaching here is a real I/O or parse failure.
+			path, pathErr := claude.SettingsPathForScope(scope, claudeDir, projectDir)
+			if pathErr != nil {
+				path = ""
+			}
+			scopeIssues = append(scopeIssues, scopeIssue{scope: scope, path: path, err: err})
+		}
+	}
+
+	// Report any scope settings loading errors
+	if len(scopeIssues) > 0 {
+		fmt.Println()
+		fmt.Println(ui.RenderSection("Checking Settings Scopes", -1))
+		for _, se := range scopeIssues {
+			fmt.Println(ui.Indent(fmt.Sprintf("%s %s scope: failed to load settings: %v", ui.Warning(ui.SymbolWarning), se.scope, se.err), 1))
+			if se.path != "" {
+				fmt.Println(ui.Indent(ui.Muted("Restore or delete the corrupted file: "+se.path), 2))
+			} else {
+				fmt.Println(ui.Indent(ui.Muted("Could not determine settings file path for this scope."), 2))
 			}
 		}
 	}
@@ -115,7 +143,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	for name := range enabledInSettings {
 		if !plugins.PluginExistsAtAnyScope(name) {
 			missingPlugins = append(missingPlugins, name)
-			for _, scope := range scopes {
+			for _, scope := range claude.ValidScopes {
 				if scopeSettings[scope] != nil && scopeSettings[scope].IsPluginEnabled(name) {
 					missingPluginScope[name] = scope
 					break
@@ -128,6 +156,11 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Analyze path issues
 	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
+
+	if len(scopeIssues) > 0 {
+		fmt.Println(ui.Indent(fmt.Sprintf("%s Plugin analysis may be incomplete: %d scope%s could not be loaded",
+			ui.Warning(ui.SymbolWarning), len(scopeIssues), pluralS(len(scopeIssues))), 1))
+	}
 
 	if len(pathIssues) == 0 && len(missingPlugins) == 0 {
 		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All plugin paths are valid", 1))
@@ -239,8 +272,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Symlinks", symSummary), 1))
 
+	if len(scopeIssues) > 0 {
+		fmt.Println(ui.Indent(ui.RenderDetail("Settings", fmt.Sprintf("%d scope load error%s", len(scopeIssues), pluralS(len(scopeIssues)))), 1))
+	}
+
 	fmt.Println()
-	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks)
+	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks) + len(scopeIssues)
 	if allIssues > 0 {
 		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {
