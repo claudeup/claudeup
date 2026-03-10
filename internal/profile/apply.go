@@ -120,17 +120,26 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		currentPlugins := toSet(current.Plugins)
 		profilePlugins := toSet(profile.Plugins)
 
-		for plugin := range currentPlugins {
-			if _, exists := profilePlugins[plugin]; !exists {
+		// Iterate over current.Plugins slice (not currentPlugins map) for deterministic ordering.
+		// Defensive dedup: current.Plugins is derived from a settings map (always unique),
+		// but guards against future changes to the snapshot path.
+		seenRemove := make(map[string]bool)
+		for _, plugin := range current.Plugins {
+			if _, exists := profilePlugins[plugin]; !exists && !seenRemove[plugin] {
 				diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
+				seenRemove[plugin] = true
 			}
 		}
 
 		// Plugins to install (in profile but not in current state, or all if reinstalling)
-		for plugin := range profilePlugins {
+		// Iterate over profile.Plugins slice (not profilePlugins map) to preserve user-defined order.
+		// Guard against duplicates in input slices to avoid issuing the same install command twice.
+		seenInstall := make(map[string]bool)
+		for _, plugin := range profile.Plugins {
 			_, exists := currentPlugins[plugin]
-			if opts.Reinstall || !exists {
+			if (opts.Reinstall || !exists) && !seenInstall[plugin] {
 				diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+				seenInstall[plugin] = true
 			}
 		}
 	}
@@ -149,15 +158,21 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		profileMCP[mcp.Name] = mcp
 	}
 
-	for name := range currentMCP {
-		if _, exists := profileMCP[name]; !exists {
-			diff.MCPToRemove = append(diff.MCPToRemove, name)
+	// Iterate over current.MCPServers slice (not currentMCP map) for deterministic ordering.
+	// No dedup guard needed: snapshot reads from a JSON object, so server names are unique.
+	for _, mcp := range current.MCPServers {
+		if _, exists := profileMCP[mcp.Name]; !exists {
+			diff.MCPToRemove = append(diff.MCPToRemove, mcp.Name)
 		}
 	}
 
-	for name, mcp := range profileMCP {
-		if opts.Reinstall || !currentMCP[name] {
+	// Iterate over profile.MCPServers slice (not profileMCP map) to preserve user-defined order.
+	// Guard against duplicates: MCPServers is a JSON array, so duplicate names are possible.
+	seenMCPInstall := make(map[string]bool)
+	for _, mcp := range profile.MCPServers {
+		if (opts.Reinstall || !currentMCP[mcp.Name]) && !seenMCPInstall[mcp.Name] {
 			diff.MCPToInstall = append(diff.MCPToInstall, mcp)
+			seenMCPInstall[mcp.Name] = true
 		}
 	}
 
@@ -177,8 +192,8 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	// Only remove marketplaces for user scope (declarative behavior)
 	// For project/local scope, don't show removal of user-scope marketplaces
 	if scope == ScopeUser {
-		for key, m := range currentMarketplaces {
-			if !profileMarketplaces[key] {
+		for _, m := range current.Marketplaces {
+			if !profileMarketplaces[marketplaceKey(m)] {
 				diff.MarketplacesToRemove = append(diff.MarketplacesToRemove, m)
 			}
 		}

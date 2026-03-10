@@ -147,30 +147,37 @@ func (p *Profile) CombinedScopes() *Profile {
 		return result
 	}
 
-	// Aggregate plugins from all scopes (use a set to avoid duplicates)
+	// Aggregate plugins from all scopes in slice order, deduplicating with a set.
+	// This preserves deterministic ordering (user → project → local, first occurrence wins).
 	pluginSet := make(map[string]bool)
 	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
 		if scope != nil {
 			for _, plugin := range scope.Plugins {
-				pluginSet[plugin] = true
+				if !pluginSet[plugin] {
+					pluginSet[plugin] = true
+					result.Plugins = append(result.Plugins, plugin)
+				}
 			}
 		}
 	}
-	for plugin := range pluginSet {
-		result.Plugins = append(result.Plugins, plugin)
-	}
 
-	// Aggregate MCP servers from all scopes (later scopes override earlier)
+	// Aggregate MCP servers from all scopes (later scopes override earlier).
+	// Position is first-occurrence-wins (user → project → local determines placement).
+	// Value is last-scope-wins (later scopes override earlier for the same server name).
+	var serverOrder []string
 	serverMap := make(map[string]MCPServer)
 	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
 		if scope != nil {
 			for _, server := range scope.MCPServers {
+				if _, exists := serverMap[server.Name]; !exists {
+					serverOrder = append(serverOrder, server.Name)
+				}
 				serverMap[server.Name] = server
 			}
 		}
 	}
-	for _, server := range serverMap {
-		result.MCPServers = append(result.MCPServers, server)
+	for _, name := range serverOrder {
+		result.MCPServers = append(result.MCPServers, serverMap[name])
 	}
 
 	// Aggregate extensions from all scopes (union with dedup)
