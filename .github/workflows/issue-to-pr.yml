@@ -28,6 +28,14 @@ on:
       issue_number:
         description: "Issue number to implement"
         required: true
+      model:
+        description: "Model to use"
+        required: false
+        default: "claude-sonnet-4-6"
+        type: choice
+        options:
+          - claude-sonnet-4-6
+          - claude-opus-4-6
 
 # ─────────────────────────────────────────────
 # Global settings
@@ -45,10 +53,11 @@ jobs:
     runs-on: ubuntu-latest
 
     # Only run when:
-    #   • an issue gets the "claude" label, OR
+    #   • an issue gets a claude label (claude, claude:opus, claude:sonnet), OR
     #   • manually dispatched
     if: |
-      (github.event_name == 'issues' && github.event.label.name == 'claude') ||
+      (github.event_name == 'issues' &&
+       (github.event.label.name == 'claude' || startsWith(github.event.label.name, 'claude:'))) ||
       github.event_name == 'workflow_dispatch'
 
     permissions:
@@ -66,12 +75,21 @@ jobs:
       - name: Authenticate gh CLI
         run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
 
+      - name: Resolve model from label
+        id: model
+        run: |
+          LABEL="${{ github.event.label.name }}"
+          case "$LABEL" in
+            claude:opus)   echo "model=claude-opus-4-6" >> "$GITHUB_OUTPUT" ;;
+            claude:sonnet) echo "model=claude-sonnet-4-6" >> "$GITHUB_OUTPUT" ;;
+            *)             echo "model=${{ inputs.model || 'claude-sonnet-4-6' }}" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Implement issue with Claude Code
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Sonnet 4.6 is the default; pin explicitly so this doesn't drift
-          claude_args: "--model claude-opus-4-6 --max-turns 30"
+          claude_args: "--model ${{ steps.model.outputs.model }} --max-turns 30"
           settings: |
             {
               "permissions": {
