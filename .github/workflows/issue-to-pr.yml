@@ -1,0 +1,221 @@
+name: Issue → PR → Review
+
+# ─────────────────────────────────────────────
+# Triggers
+# ─────────────────────────────────────────────
+on:
+  # Kick off implementation when a human assigns
+  # the "claude" label to an issue
+  issues:
+    types: [labeled]
+
+  # Auto-review every PR Claude opens (and
+  # any subsequent push to that PR branch)
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+  # Allow ad-hoc @claude mentions inside PRs
+  issue_comment:
+    types: [created]
+
+  # Weekly triage sweep for unlabeled/stale issues
+  schedule:
+    - cron: "0 9 * * 1" # Monday 09:00 UTC
+
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number to implement"
+        required: true
+
+# ─────────────────────────────────────────────
+# Global settings
+# ─────────────────────────────────────────────
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false # don't kill an in-flight implementation
+
+# ─────────────────────────────────────────────
+# Job 1 – Implement an issue and open a PR
+# ─────────────────────────────────────────────
+jobs:
+  implement:
+    name: Implement issue & open PR
+    runs-on: ubuntu-latest
+
+    # Only run when:
+    #   • an issue gets the "claude" label, OR
+    #   • manually dispatched
+    if: |
+      (github.event_name == 'issues' && github.event.label.name == 'claude') ||
+      github.event_name == 'workflow_dispatch'
+
+    permissions:
+      contents: write # push branch
+      pull-requests: write # open PR
+      issues: write # add labels / comments
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so Claude can read git log
+
+      # gh CLI is pre-installed on ubuntu-latest; make sure it is auth'd
+      - name: Authenticate gh CLI
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Implement issue with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Sonnet 4.6 is the default; pin explicitly so this doesn't drift
+          claude_args: "--model claude-sonnet-4-6 --max-turns 15"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            commit-commands@claude-plugins-official
+          prompt: |
+            You are working inside the claudeup Go CLI repository.
+
+            ## Task
+            Implement the changes described in GitHub issue
+            #${{ github.event.issue.number || inputs.issue_number }}.
+
+            ## Steps you MUST follow (in order)
+            1. Read the issue body and all comments carefully.
+            2. Explore the relevant source files to understand the codebase.
+            3. Implement the required changes following the project conventions
+               in CLAUDE.md (if present).
+            4. Add or update tests as appropriate.
+            5. Run `go build ./...` and `go test ./...` — fix any failures
+               before proceeding.
+            6. Use the /commit-commands:commit-push-pr command to:
+               - Create a feature branch named `claude/issue-${{ github.event.issue.number || inputs.issue_number }}-<slug>`
+               - Commit all changes with a conventional commit message
+               - Push the branch
+               - Open a pull request against main with:
+                   • Title referencing the issue (e.g. "fix: ...")
+                   • Body that closes the issue (Closes #N) and includes
+                     a brief summary + test plan
+            7. Post the PR URL as a comment on the original issue.
+
+            ## Constraints
+            - Only touch files relevant to the issue.
+            - Do NOT force-push or amend existing commits.
+            - Do NOT merge the PR — leave it open for review.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────
+  # Job 2 – Scheduled issue triage (weekly sweep)
+  # ─────────────────────────────────────────────
+  triage:
+    name: Triage open issues
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'schedule'
+
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Triage with Claude Code
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-sonnet-4-6 --max-turns 10"
+          prompt: |
+            Triage all open issues in this repository.
+
+            For each open issue:
+            1. Apply ONE of these labels if not already set:
+               - "bug"         – confirmed defect
+               - "enhancement" – new feature / improvement
+               - "question"    – needs clarification
+               - "good first issue" – small, well-scoped, good for new contributors
+               - "claude"      – ready to implement autonomously
+            2. If the issue needs clarification, post a polite comment asking
+               for the missing information.
+            3. If an issue has had no activity for > 30 days AND is not labeled
+               "claude", add the "stale" label and a comment explaining this.
+            4. Do NOT close any issues.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ─────────────────────────────────────────────
+  # Job 3 – Review every PR with pr-review-toolkit
+  # ─────────────────────────────────────────────
+  review:
+    name: PR review (pr-review-toolkit)
+    runs-on: ubuntu-latest
+
+    # Run on:
+    #   • any PR opened/updated against main, OR
+    #   • @claude mention inside a PR comment
+    # Bot-authored comments are excluded to prevent review loops
+    if: |
+      (
+        github.event_name == 'pull_request'
+      ) || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '@claude') &&
+        github.event.comment.user.type != 'Bot'
+      )
+
+    permissions:
+      contents: read
+      pull-requests: write # post review comments
+      issues: write # reply to @claude mentions
+
+    steps:
+      # For issue_comment triggers, resolve the PR head ref via gh CLI
+      - name: Resolve PR ref
+        id: pr-ref
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_NUM="${{ github.event.issue.number }}"
+            SHA=$(gh pr view "$PR_NUM" --repo "${{ github.repository }}" --json headRefOid -q .headRefOid)
+            echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr-ref.outputs.sha }}
+          fetch-depth: 0
+
+      - name: Review PR with Claude Code (pr-review-toolkit)
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: "--model claude-sonnet-4-6 --max-turns 20"
+          plugin_marketplaces: |
+            https://github.com/anthropics/claude-plugins-official.git
+          plugins: |
+            pr-review-toolkit@claude-plugins-official
+          prompt: |
+            Run a comprehensive PR review using the pr-review-toolkit plugin.
+
+            Execute: /pr-review-toolkit:review-pr all
+
+            The review should cover all six dimensions:
+            - **comments**  – accuracy of code comments vs implementation
+            - **tests**     – coverage completeness and quality
+            - **errors**    – silent failures and improper error handling
+            - **types**     – Go type design and interface encapsulation
+            - **code**      – style, idioms, and best practices (Effective Go)
+            - **simplify**  – dead code and unnecessary complexity
+
+            Post a single structured review comment on the PR summarising
+            findings from all agents. Use inline suggestions where possible.
+            Confidence-filter: only surface HIGH and MEDIUM confidence findings.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
