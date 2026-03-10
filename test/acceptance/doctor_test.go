@@ -32,6 +32,7 @@ var _ = Describe("doctor", func() {
 			Expect(result.Stdout).To(ContainSubstring("user scope: failed to load settings"))
 			Expect(result.Stdout).To(ContainSubstring("Settings: 1 scope load error"))
 			Expect(result.Stdout).To(ContainSubstring("Restore or delete the corrupted file:"))
+			Expect(result.Stdout).To(ContainSubstring("settings.json"))
 			Expect(result.Stdout).To(ContainSubstring("Plugin analysis may be incomplete"))
 			Expect(result.Stdout).To(ContainSubstring("Run the suggested commands to fix these issues"))
 		})
@@ -51,6 +52,29 @@ var _ = Describe("doctor", func() {
 			Expect(result.Stdout).To(ContainSubstring("project scope: failed to load settings"))
 			Expect(result.Stdout).To(ContainSubstring("Settings: 1 scope load error"))
 			Expect(result.Stdout).To(ContainSubstring("Restore or delete the corrupted file:"))
+			Expect(result.Stdout).To(ContainSubstring("settings.json"))
+		})
+	})
+
+	Describe("multi-scope settings load errors", func() {
+		It("reports the correct count and plural form when multiple scopes fail", func() {
+			// Corrupt user-scope settings
+			env.WriteFile(env.ClaudeDir, "settings.json", "{invalid json")
+
+			// Corrupt project-scope settings
+			projectDir := env.ProjectDir("multi-corrupt")
+			claudeDir := filepath.Join(projectDir, ".claude")
+			Expect(os.MkdirAll(claudeDir, 0755)).To(Succeed())
+			env.WriteFile(claudeDir, "settings.json", "{invalid json")
+
+			result := env.RunInDir(projectDir, "doctor")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Checking Settings Scopes"))
+			Expect(result.Stdout).To(ContainSubstring("user scope: failed to load settings"))
+			Expect(result.Stdout).To(ContainSubstring("project scope: failed to load settings"))
+			Expect(result.Stdout).To(ContainSubstring("Settings: 2 scope load errors"))
+			Expect(result.Stdout).To(ContainSubstring("Plugin analysis may be incomplete: 2 scopes"))
 		})
 	})
 

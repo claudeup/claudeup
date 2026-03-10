@@ -97,7 +97,10 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		} else {
 			// LoadSettingsForScope handles missing files internally (returns empty settings, nil error).
 			// Any error reaching here is a real I/O or parse failure.
-			path, _ := claude.SettingsPathForScope(scope, claudeDir, projectDir)
+			path, pathErr := claude.SettingsPathForScope(scope, claudeDir, projectDir)
+			if pathErr != nil {
+				path = ""
+			}
 			scopeIssues = append(scopeIssues, scopeIssue{scope: scope, path: path, err: err})
 		}
 	}
@@ -110,6 +113,8 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			fmt.Println(ui.Indent(fmt.Sprintf("%s %s scope: failed to load settings: %v", ui.Warning(ui.SymbolWarning), se.scope, se.err), 1))
 			if se.path != "" {
 				fmt.Println(ui.Indent(ui.Muted("Restore or delete the corrupted file: "+se.path), 2))
+			} else {
+				fmt.Println(ui.Indent(ui.Muted("Could not determine settings file path for this scope."), 2))
 			}
 		}
 	}

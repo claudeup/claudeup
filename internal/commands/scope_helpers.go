@@ -115,6 +115,7 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 // For "user" scope, only enabledPlugins is cleared while other settings are preserved.
 // For "project" and "local" scope, the entire settings file is removed.
 // If the file does not exist, the operation succeeds silently.
+// Unrecognised scope values return an error.
 func clearScope(scope string, settingsPath string, claudeDir string) error {
 	switch scope {
 	case "user":
