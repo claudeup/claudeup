@@ -27,7 +27,21 @@ var _ = Describe("doctor", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("Checking Settings Scopes"))
 			Expect(result.Stdout).To(ContainSubstring("user scope: failed to load settings"))
-			Expect(result.Stdout).To(ContainSubstring("1 scope load error"))
+			Expect(result.Stdout).To(ContainSubstring("Settings: 1 scope load error"))
+			Expect(result.Stdout).To(ContainSubstring("Restore or delete the corrupted file:"))
+			Expect(result.Stdout).To(ContainSubstring("Plugin analysis may be incomplete"))
+			Expect(result.Stdout).To(ContainSubstring("Run the suggested commands to fix these issues"))
+		})
+	})
+
+	Describe("absent settings file", func() {
+		It("does not warn when settings file is simply absent", func() {
+			// No settings.json written — this is the normal case for fresh installs
+			result := env.Run("doctor")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).NotTo(ContainSubstring("Checking Settings Scopes"))
+			Expect(result.Stdout).NotTo(ContainSubstring("scope load error"))
 		})
 	})
 
