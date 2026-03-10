@@ -207,22 +207,6 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	// Finish progress display
 	tracker.Finish(opts.Output)
 
-	// Print warnings (non-fatal load issues)
-	if len(result.Warnings) > 0 {
-		fmt.Fprintf(opts.Output, "\n%d warning(s):\n", len(result.Warnings))
-		for _, w := range result.Warnings {
-			fmt.Fprintf(opts.Output, "  ⚠ %s\n", w.Error())
-		}
-	}
-
-	// Print failures (actual install errors)
-	if len(result.Errors) > 0 {
-		fmt.Fprintf(opts.Output, "\n%d operation(s) failed:\n", len(result.Errors))
-		for _, err := range result.Errors {
-			fmt.Fprintf(opts.Output, "  • %s\n", err.Error())
-		}
-	}
-
 	return result, nil
 }
 

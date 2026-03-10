@@ -212,7 +212,7 @@ func runPluginBrowse(cmd *cobra.Command, args []string) error {
 		// Build helpful error message
 		registry, loadErr := claude.LoadMarketplaces(claudeDir)
 		if loadErr != nil {
-			return fmt.Errorf("cannot load marketplaces: %w", loadErr)
+			return fmt.Errorf("cannot load marketplaces: %w\n\nTo add a marketplace:\n  claude marketplace add <repo-or-url>", loadErr)
 		}
 
 		var installed []string

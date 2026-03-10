@@ -137,6 +137,9 @@ func TestLoadSettingsOrEmpty_MissingFile(t *testing.T) {
 }
 
 func TestLoadSettingsOrEmpty_PermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	if err := os.WriteFile(path, []byte(`{"model":"sonnet"}`), 0000); err != nil {
