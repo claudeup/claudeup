@@ -209,6 +209,9 @@ func TestLoadPluginsNonExistent(t *testing.T) {
 	if err == nil {
 		t.Error("LoadPlugins should return error for non-existent path")
 	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadPlugins error must wrap fs.ErrNotExist so callers can use errors.Is, got: %v", err)
+	}
 }
 
 func TestLoadPluginsFreshInstall(t *testing.T) {

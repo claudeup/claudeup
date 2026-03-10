@@ -68,7 +68,8 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 		// Load settings for this scope
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
 		if err != nil {
-			// If file doesn't exist, show appropriate message
+			// LoadSettingsForScope handles missing files internally, so this
+			// branch catches real I/O errors (permissions, corrupt JSON, etc.)
 			if errors.Is(err, fs.ErrNotExist) {
 				if filterScope == "" {
 					// When showing all scopes, mention it's not configured

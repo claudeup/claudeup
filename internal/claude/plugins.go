@@ -256,7 +256,7 @@ func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 		return
 	}
 
-	// Update existing user-scoped instance or append
+	// Update existing instance at the same scope, or append if not found
 	for i, inst := range instances {
 		if inst.Scope == metadata.Scope {
 			instances[i] = metadata

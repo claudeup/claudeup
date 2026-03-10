@@ -34,7 +34,7 @@ func createOrVerifySymlink(source, target string) error {
 	if err == nil {
 		return nil
 	}
-	if !errors.Is(err, os.ErrExist) {
+	if !errors.Is(err, fs.ErrExist) {
 		return fmt.Errorf("creating symlink %s -> %s: %w", target, source, err)
 	}
 
