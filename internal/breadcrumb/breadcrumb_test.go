@@ -1,6 +1,8 @@
 package breadcrumb
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -125,7 +127,7 @@ func TestRemoveLastEntry(t *testing.T) {
 
 	// File should be deleted when empty
 	_, err := os.Stat(filepath.Join(dir, "last-applied.json"))
-	if !os.IsNotExist(err) {
+	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("expected file to be deleted when empty")
 	}
 }

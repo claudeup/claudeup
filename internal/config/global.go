@@ -4,6 +4,8 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -34,7 +36,7 @@ func Load() (*GlobalConfig, error) {
 	cfgPath := configPath()
 
 	// If config doesn't exist, create it with defaults
-	if _, err := os.Stat(cfgPath); os.IsNotExist(err) {
+	if _, err := os.Stat(cfgPath); errors.Is(err, fs.ErrNotExist) {
 		cfg := DefaultConfig()
 		if err := Save(cfg); err != nil {
 			return nil, err

@@ -4,6 +4,8 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,6 +16,9 @@ func TestLoadMarketplacesNonExistent(t *testing.T) {
 	_, err := LoadMarketplaces("/non/existent/path")
 	if err == nil {
 		t.Error("LoadMarketplaces should return error for non-existent path")
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadMarketplaces should return fs.ErrNotExist-wrapping error, got: %v", err)
 	}
 }
 

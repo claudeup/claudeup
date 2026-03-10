@@ -3,6 +3,8 @@
 package ext
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -56,7 +58,7 @@ func TestExtensionIntegration(t *testing.T) {
 	// Verify symlinks
 	for _, item := range enabled {
 		symlinkPath := filepath.Join(claudeDir, "agents", item)
-		if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+		if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 			t.Errorf("Symlink not created for %s", item)
 		}
 	}
@@ -71,7 +73,7 @@ func TestExtensionIntegration(t *testing.T) {
 	}
 
 	// Verify symlink removed
-	if _, err := os.Lstat(filepath.Join(claudeDir, "agents", "gsd-planner.md")); !os.IsNotExist(err) {
+	if _, err := os.Lstat(filepath.Join(claudeDir, "agents", "gsd-planner.md")); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not removed")
 	}
 
@@ -129,7 +131,7 @@ func TestExtensionWithAgentGroups(t *testing.T) {
 
 	// Verify symlinks in group directory
 	symlinkPath := filepath.Join(claudeDir, "agents", "business-product", "analyst.md")
-	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not created in group directory")
 	}
 
@@ -183,7 +185,7 @@ func TestExtensionCommandsWithDirectoryStructure(t *testing.T) {
 
 	// Verify symlink
 	symlinkPath := filepath.Join(claudeDir, "commands", "other-command.md")
-	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not created")
 	}
 }

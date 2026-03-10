@@ -4,7 +4,9 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -43,14 +45,14 @@ type MarketplacePluginInfo struct {
 func LoadMarketplaces(claudeDir string) (MarketplaceRegistry, error) {
 	// Check if plugins directory exists
 	pluginsDir := filepath.Join(claudeDir, "plugins")
-	if _, err := os.Stat(pluginsDir); os.IsNotExist(err) {
+	if _, err := os.Stat(pluginsDir); errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
 	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
 
 	data, err := os.ReadFile(marketplacesPath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// Fresh Claude install - no marketplaces added yet
 		return make(MarketplaceRegistry), nil
 	}

@@ -3,6 +3,8 @@
 package ext
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,13 +52,13 @@ func TestConfigRoundTrip(t *testing.T) {
 
 	// Verify file exists in claudeupHome, NOT claudeDir
 	configPath := filepath.Join(claudeupHome, "enabled.json")
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	if _, err := os.Stat(configPath); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("enabled.json was not created in claudeupHome")
 	}
 
 	// Verify file does NOT exist in claudeDir
 	wrongPath := filepath.Join(claudeDir, "enabled.json")
-	if _, err := os.Stat(wrongPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(wrongPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("enabled.json should NOT be in claudeDir")
 	}
 
@@ -91,13 +93,13 @@ func TestManagerMigratesOldDirectory(t *testing.T) {
 	manager := NewManager(claudeDir, claudeupHome)
 
 	// Old directory should be gone
-	if _, err := os.Stat(filepath.Join(claudeupHome, "local")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(claudeupHome, "local")); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Old 'local' directory should have been removed after migration")
 	}
 
 	// New directory should exist with the content
 	newPath := filepath.Join(claudeupHome, "ext", "agents", "my-agent.md")
-	if _, err := os.Stat(newPath); os.IsNotExist(err) {
+	if _, err := os.Stat(newPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Content should be in new 'ext' directory after migration")
 	}
 
@@ -128,10 +130,10 @@ func TestManagerSkipsMigrationWhenExtExists(t *testing.T) {
 	_ = NewManager(claudeDir, claudeupHome)
 
 	// Both directories should still exist
-	if _, err := os.Stat(filepath.Join(claudeupHome, "local")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(claudeupHome, "local")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Old 'local' directory should be preserved when 'ext' already exists")
 	}
-	if _, err := os.Stat(filepath.Join(claudeupHome, "ext", "agents", "new-agent.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(claudeupHome, "ext", "agents", "new-agent.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("New 'ext' content should be preserved")
 	}
 }

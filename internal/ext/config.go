@@ -4,7 +4,9 @@ package ext
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -30,7 +32,7 @@ func NewManager(claudeDir, claudeupHome string) *Manager {
 	// Migrate from old directory name if needed
 	oldDir := filepath.Join(claudeupHome, "local")
 	if info, err := os.Stat(oldDir); err == nil && info.IsDir() {
-		if _, err := os.Stat(extDir); os.IsNotExist(err) {
+		if _, err := os.Stat(extDir); errors.Is(err, fs.ErrNotExist) {
 			if err := os.Rename(oldDir, extDir); err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to migrate %s to %s: %v\n", oldDir, extDir, err)
 			}
@@ -47,7 +49,7 @@ func NewManager(claudeDir, claudeupHome string) *Manager {
 // LoadConfig reads the enabled.json config file
 func (m *Manager) LoadConfig() (Config, error) {
 	data, err := os.ReadFile(m.configFile)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return make(Config), nil
 	}
 	if err != nil {

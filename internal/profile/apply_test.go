@@ -4,7 +4,9 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1017,7 +1019,7 @@ func TestRunHookScriptTakesPrecedenceOverCommand(t *testing.T) {
 	}
 
 	// Verify script ran (marker file exists)
-	if _, err := os.Stat(markerPath); os.IsNotExist(err) {
+	if _, err := os.Stat(markerPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Script did not run - marker file not created")
 	}
 }
@@ -1914,13 +1916,13 @@ func TestApplyWithExtensions(t *testing.T) {
 
 	// Verify symlinks created
 	symlinkPath := filepath.Join(claudeDir, "agents", "gsd-planner.md")
-	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not created for gsd-planner.md")
 	}
 
 	// Verify second symlink
 	symlinkPath2 := filepath.Join(claudeDir, "agents", "gsd-executor.md")
-	if _, err := os.Lstat(symlinkPath2); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath2); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not created for gsd-executor.md")
 	}
 }

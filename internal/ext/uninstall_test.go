@@ -3,6 +3,8 @@
 package ext
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +25,7 @@ func TestUninstall(t *testing.T) {
 
 	// Verify setup
 	symlinkPath := filepath.Join(claudeDir, "rules", "my-rule.md")
-	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("Setup failed: symlink not created")
 	}
 
@@ -40,12 +42,12 @@ func TestUninstall(t *testing.T) {
 	}
 
 	// File should be gone from extension storage
-	if _, err := os.Stat(filepath.Join(rulesDir, "my-rule.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(rulesDir, "my-rule.md")); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("File was not removed from extension storage")
 	}
 
 	// Symlink should be gone
-	if _, err := os.Lstat(symlinkPath); !os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not removed")
 	}
 
@@ -79,7 +81,7 @@ func TestUninstallWildcard(t *testing.T) {
 	}
 
 	// keep.md should still exist
-	if _, err := os.Stat(filepath.Join(rulesDir, "keep.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(rulesDir, "keep.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("keep.md was incorrectly removed")
 	}
 }
@@ -119,7 +121,7 @@ func TestUninstallDisabledItem(t *testing.T) {
 		t.Errorf("Uninstall() removed = %v, want [disabled-rule.md]", removed)
 	}
 
-	if _, err := os.Stat(filepath.Join(rulesDir, "disabled-rule.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(rulesDir, "disabled-rule.md")); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("File was not removed from extension storage")
 	}
 }

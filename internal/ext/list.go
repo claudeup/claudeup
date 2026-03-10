@@ -3,6 +3,8 @@
 package ext
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -18,7 +20,7 @@ func (m *Manager) ListItems(category string) ([]string, error) {
 	}
 
 	libPath := filepath.Join(m.extDir, category)
-	if _, err := os.Stat(libPath); os.IsNotExist(err) {
+	if _, err := os.Stat(libPath); errors.Is(err, fs.ErrNotExist) {
 		return []string{}, nil
 	}
 

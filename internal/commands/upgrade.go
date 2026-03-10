@@ -4,7 +4,9 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -293,7 +295,7 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry, onResult f
 
 		// Fetch latest from remote
 		gitDir := filepath.Join(marketplace.InstallLocation, ".git")
-		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		if _, err := os.Stat(gitDir); errors.Is(err, fs.ErrNotExist) {
 			// Not a git repo, skip
 			update = MarketplaceUpdate{
 				Name:      name,
@@ -417,7 +419,7 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 
 		// Get current commit from marketplace
 		gitDir := filepath.Join(marketplacePath, ".git")
-		if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		if _, err := os.Stat(gitDir); errors.Is(err, fs.ErrNotExist) {
 			updates = append(updates, PluginUpdate{Name: name, Scope: plugin.Scope})
 			continue
 		}

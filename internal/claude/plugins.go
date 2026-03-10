@@ -4,7 +4,9 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -43,13 +45,13 @@ type ScopedPlugin struct {
 // Supports both V1 (single objects) and V2 (arrays with scopes) formats
 func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 	// Check if Claude directory exists
-	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
+	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
 	}
 
 	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
 	data, err := os.ReadFile(pluginsPath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// Fresh Claude install - no plugins installed yet
 		return &PluginRegistry{
 			Version: 2,
@@ -125,8 +127,6 @@ func SavePlugins(claudeDir string, registry *PluginRegistry) error {
 	}
 
 	// Wrap file write with event tracking
-	// Note: Operation name is generic. Phase 2 will add context to distinguish
-	// between "profile apply", "plugin cleanup", and "plugin update" operations.
 	return events.GlobalTracker().RecordFileWrite(
 		"plugin update",
 		pluginsPath,
@@ -254,7 +254,7 @@ func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 		return
 	}
 
-	// Update existing user-scoped instance or append
+	// Update existing instance at the same scope, or append if not found
 	for i, inst := range instances {
 		if inst.Scope == metadata.Scope {
 			instances[i] = metadata
@@ -263,7 +263,6 @@ func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 		}
 	}
 
-	// No matching scope, append
 	r.Plugins[pluginName] = append(instances, metadata)
 }
 

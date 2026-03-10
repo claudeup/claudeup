@@ -5,7 +5,9 @@ package claude
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -315,18 +317,21 @@ type Settings struct {
 // LoadSettings reads the settings.json file from the Claude directory
 func LoadSettings(claudeDir string) (*Settings, error) {
 	// Check if Claude directory exists
-	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
-		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
+	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
 	}
 
 	settingsPath := filepath.Join(claudeDir, "settings.json")
 	data, err := os.ReadFile(settingsPath)
-	if os.IsNotExist(err) {
-		// Claude installed but settings missing - suspicious
+	if errors.Is(err, fs.ErrNotExist) {
+		// Claude directory exists but settings.json is absent; unlike
+		// LoadSettingsForScope (which returns empty settings), this returns
+		// an error so callers can distinguish a missing file from success.
 		return nil, &PathNotFoundError{
 			Component:    "settings",
 			ExpectedPath: settingsPath,
 			ClaudeDir:    claudeDir,
+			Err:          err,
 		}
 	}
 	if err != nil {
@@ -359,6 +364,20 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 	}
 
 	return settings, nil
+}
+
+// LoadSettingsOrEmpty loads settings from claudeDir, returning empty settings
+// when the settings file or Claude directory is absent (both wrap fs.ErrNotExist).
+// Real I/O errors (permissions, corrupt JSON) are returned to the caller.
+func LoadSettingsOrEmpty(claudeDir string) (*Settings, error) {
+	settings, err := LoadSettings(claudeDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &Settings{
+			EnabledPlugins: make(map[string]bool),
+			raw:            make(map[string]interface{}),
+		}, nil
+	}
+	return settings, err
 }
 
 // IsPluginEnabled checks if a plugin is enabled in the settings
@@ -458,7 +477,7 @@ func LoadSettingsForScope(scope string, claudeDir string, projectDir string) (*S
 	}
 
 	// If file doesn't exist, return empty settings (not an error)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		return &Settings{
 			EnabledPlugins: make(map[string]bool),
 			raw:            make(map[string]interface{}),

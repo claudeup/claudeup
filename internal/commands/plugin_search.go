@@ -3,7 +3,9 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -71,7 +73,7 @@ func runPluginSearch(cmd *cobra.Command, args []string) error {
 	cacheDir := filepath.Join(claudeDir, "plugins", "cache")
 
 	// Check cache exists
-	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+	if _, err := os.Stat(cacheDir); errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("plugin cache not found at %s\n\nRun 'claude marketplace sync' to populate the cache", cacheDir)
 	}
 

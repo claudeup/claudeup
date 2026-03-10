@@ -3,7 +3,9 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"sort"
 
@@ -66,19 +68,6 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 		// Load settings for this scope
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
 		if err != nil {
-			// If file doesn't exist, show appropriate message
-			if os.IsNotExist(err) || (scope != "user" && err != nil) {
-				if filterScope == "" {
-					// When showing all scopes, mention it's not configured
-					fmt.Println(ui.RenderSection(fmt.Sprintf("Scope: %s (%s)", formatScopeName(scope), settingsPath), -1))
-					fmt.Printf("  %s Not configured\n", ui.Muted("—"))
-					fmt.Println()
-					continue
-				} else {
-					// When showing specific scope, it's an error if it doesn't exist
-					return fmt.Errorf("%s scope not configured", scope)
-				}
-			}
 			return err
 		}
 
@@ -127,28 +116,23 @@ func clearScope(scope string, settingsPath string, claudeDir string) error {
 	switch scope {
 	case "user":
 		// Load existing settings and only clear enabledPlugins
-		settings, err := claude.LoadSettings(claudeDir)
+		settings, err := claude.LoadSettingsOrEmpty(claudeDir)
 		if err != nil {
-			// If settings don't exist, create minimal settings
-			settings = &claude.Settings{
-				EnabledPlugins: make(map[string]bool),
-			}
-		} else {
-			// Clear only the enabledPlugins field, preserve everything else
-			settings.EnabledPlugins = make(map[string]bool)
+			return fmt.Errorf("failed to load settings: %w", err)
 		}
+		settings.EnabledPlugins = make(map[string]bool)
 		return claude.SaveSettings(claudeDir, settings)
 
 	case "project":
 		// Remove project settings file
-		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(settingsPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 		return nil
 
 	case "local":
 		// Remove local settings file
-		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(settingsPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 		return nil

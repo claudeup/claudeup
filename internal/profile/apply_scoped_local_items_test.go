@@ -3,6 +3,8 @@
 package profile
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -60,7 +62,7 @@ func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 	}
 
 	agentsPath := filepath.Join(projectDir, ".claude", "agents", "reviewer.md")
-	if _, err := os.Stat(agentsPath); os.IsNotExist(err) {
+	if _, err := os.Stat(agentsPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected reviewer.md to be copied to project .claude/agents/")
 	}
 }
@@ -262,7 +264,7 @@ func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	}
 
 	projectAgentPath := filepath.Join(projectDir, ".claude", "agents", "reviewer.md")
-	if _, err := os.Stat(projectAgentPath); os.IsNotExist(err) {
+	if _, err := os.Stat(projectAgentPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected reviewer.md copied to project .claude/agents/")
 	}
 }

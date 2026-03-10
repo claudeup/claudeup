@@ -4,6 +4,8 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -67,6 +69,73 @@ func TestLoadSettingsNoFile(t *testing.T) {
 	_, err = LoadSettings(tempDir)
 	if err == nil {
 		t.Error("Expected error when loading non-existent settings.json")
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadSettings error must wrap fs.ErrNotExist so callers can use errors.Is, got: %v", err)
+	}
+}
+
+func TestLoadSettingsNonExistentDir(t *testing.T) {
+	_, err := LoadSettings("/non/existent/path")
+	if err == nil {
+		t.Error("LoadSettings should return error for non-existent directory")
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadSettings error must wrap fs.ErrNotExist so callers can use errors.Is, got: %v", err)
+	}
+}
+
+func TestLoadSettingsOrEmpty_NonExistentDir(t *testing.T) {
+	settings, err := LoadSettingsOrEmpty("/non/existent/path")
+	if err != nil {
+		t.Fatalf("expected nil error for missing dir, got: %v", err)
+	}
+	if settings == nil {
+		t.Fatal("expected non-nil settings")
+	}
+	if settings.EnabledPlugins == nil {
+		t.Error("EnabledPlugins map must be initialized")
+	}
+}
+
+func TestLoadSettingsOrEmpty_MissingFile(t *testing.T) {
+	dir := t.TempDir()
+	settings, err := LoadSettingsOrEmpty(dir)
+	if err != nil {
+		t.Fatalf("expected nil error for missing settings.json, got: %v", err)
+	}
+	if settings == nil {
+		t.Fatal("expected non-nil settings")
+	}
+	if settings.EnabledPlugins == nil {
+		t.Error("EnabledPlugins map must be initialized")
+	}
+}
+
+func TestLoadSettingsOrEmpty_PermissionError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"model":"sonnet"}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadSettingsOrEmpty(dir)
+	if err == nil {
+		t.Error("expected error for unreadable file")
+	}
+}
+
+func TestLoadSettingsOrEmpty_ValidFile(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte(`{"enabledPlugins":{"foo@bar":true}}`)
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := LoadSettingsOrEmpty(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !settings.IsPluginEnabled("foo@bar") {
+		t.Error("expected foo@bar to be enabled")
 	}
 }
 
@@ -356,7 +425,7 @@ func TestSaveSettingsForScope(t *testing.T) {
 
 	// Verify directory was created
 	projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
-	if _, err := os.Stat(projectSettingsPath); os.IsNotExist(err) {
+	if _, err := os.Stat(projectSettingsPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Project settings file should have been created")
 	}
 

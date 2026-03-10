@@ -3,6 +3,8 @@
 package claude_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -24,7 +26,7 @@ var _ = Describe("Claude CLI Format Compatibility", func() {
 	Context("Smoke tests against real Claude installation", func() {
 		It("can parse installed_plugins.json from user's Claude dir", func() {
 			// Skip if Claude not installed
-			if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+			if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
 				Skip("Claude CLI not installed on this system")
 			}
 
@@ -41,7 +43,7 @@ var _ = Describe("Claude CLI Format Compatibility", func() {
 
 		It("can parse settings.json from user's Claude dir", func() {
 			// Skip if Claude not installed
-			if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+			if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
 				Skip("Claude CLI not installed on this system")
 			}
 

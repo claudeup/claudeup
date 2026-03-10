@@ -5,6 +5,7 @@ package profile
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -42,7 +43,7 @@ func TestProfileRoundTrip(t *testing.T) {
 
 	// Verify file exists
 	profilePath := filepath.Join(profilesDir, "test-profile.json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+	if _, err := os.Stat(profilePath); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal("Profile file was not created")
 	}
 
@@ -432,7 +433,7 @@ func TestSaveToProject(t *testing.T) {
 
 	// Verify file exists in correct location
 	expectedPath := filepath.Join(projectDir, ".claudeup", "profiles", "team-profile.json")
-	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+	if _, err := os.Stat(expectedPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Profile not saved to expected path: %s", expectedPath)
 	}
 
@@ -459,7 +460,7 @@ func TestSave_NestedProfileName(t *testing.T) {
 
 	// Verify file exists in nested location
 	expectedPath := filepath.Join(profilesDir, "projects", "claudeup.json")
-	if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+	if _, err := os.Stat(expectedPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("Nested profile not saved to expected path: %s", expectedPath)
 	}
 

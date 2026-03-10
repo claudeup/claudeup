@@ -4,7 +4,9 @@ package breadcrumb
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -27,7 +29,7 @@ type File map[string]Entry
 func Load(claudeupHome string) (File, error) {
 	path := filepath.Join(claudeupHome, filename)
 	data, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return File{}, nil
 	}
 	if err != nil {
@@ -126,7 +128,7 @@ func Remove(claudeupHome, profileName string) error {
 	}
 	if len(f) == 0 {
 		err := os.Remove(filepath.Join(claudeupHome, filename))
-		if err != nil && !os.IsNotExist(err) {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("removing empty breadcrumb file: %w", err)
 		}
 		return nil

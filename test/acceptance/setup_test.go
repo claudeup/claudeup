@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -205,7 +206,7 @@ var _ = Describe("setup", func() {
 
 			// Verify directory doesn't exist
 			_, err := os.Stat(nonexistentDir)
-			Expect(os.IsNotExist(err)).To(BeTrue())
+			Expect(err).To(MatchError(fs.ErrNotExist))
 
 			// Run setup, choose 'c' to create, then 'y' to proceed with setup
 			result := env.RunWithInput("c\ny\n", "setup", "--claude-dir", nonexistentDir)
@@ -229,7 +230,7 @@ var _ = Describe("setup", func() {
 
 			// Directory should NOT exist
 			_, err := os.Stat(nonexistentDir)
-			Expect(os.IsNotExist(err)).To(BeTrue())
+			Expect(err).To(MatchError(fs.ErrNotExist))
 		})
 
 		It("does not modify the default claude directory when --claude-dir is specified", func() {

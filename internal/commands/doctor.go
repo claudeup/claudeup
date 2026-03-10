@@ -3,7 +3,9 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -55,7 +57,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Load plugins (gracefully handle fresh installs with no plugins)
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			plugins = &claude.PluginRegistry{Plugins: make(map[string][]claude.PluginMetadata)}
 		} else {
 			return fmt.Errorf("failed to load plugins: %w", err)
@@ -65,7 +67,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	// Load marketplaces (gracefully handle fresh installs)
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			marketplaces = make(claude.MarketplaceRegistry)
 		} else {
 			return fmt.Errorf("failed to load marketplaces: %w", err)
@@ -94,7 +96,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderSection("Checking Marketplaces", len(marketplaces)))
 	marketplaceIssues := 0
 	for name, marketplace := range marketplaces {
-		if _, err := os.Stat(marketplace.InstallLocation); os.IsNotExist(err) {
+		if _, err := os.Stat(marketplace.InstallLocation); errors.Is(err, fs.ErrNotExist) {
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+" "+name+": Directory not found at "+marketplace.InstallLocation, 1))
 			marketplaceIssues++
 		} else {
@@ -428,7 +430,7 @@ func checkBrokenSymlinks() []BrokenSymlink {
 					broken = append(broken, BrokenSymlink{Path: path, Target: "(unreadable)"})
 					return nil
 				}
-				if _, err := os.Stat(path); os.IsNotExist(err) {
+				if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 					broken = append(broken, BrokenSymlink{Path: path, Target: target})
 				}
 			}

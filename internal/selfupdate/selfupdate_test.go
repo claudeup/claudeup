@@ -4,6 +4,7 @@ package selfupdate
 
 import (
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -143,7 +144,7 @@ var _ = Describe("ReplaceBinary", func() {
 		err := ReplaceBinary(currentBinary, newBinary)
 		Expect(err).NotTo(HaveOccurred())
 		_, err = os.Stat(currentBinary + ".old")
-		Expect(os.IsNotExist(err)).To(BeTrue())
+		Expect(err).To(MatchError(fs.ErrNotExist))
 	})
 })
 

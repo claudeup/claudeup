@@ -3,6 +3,8 @@
 package claude
 
 import (
+	"errors"
+	"io/fs"
 	"strings"
 	"testing"
 )
@@ -39,6 +41,7 @@ func TestPathNotFoundError(t *testing.T) {
 		Component:    "plugin registry",
 		ExpectedPath: "/Users/test/.claude/plugins/installed_plugins.json",
 		ClaudeDir:    "/Users/test/.claude",
+		Err:          fs.ErrNotExist,
 	}
 
 	msg := err.Error()
@@ -55,5 +58,10 @@ func TestPathNotFoundError(t *testing.T) {
 	}
 	if !strings.Contains(msg, "github.com/claudeup/claudeup/issues") {
 		t.Error("Error message should contain issue tracker URL")
+	}
+
+	// Verify Unwrap enables errors.Is for the underlying error
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Error("PathNotFoundError must unwrap to fs.ErrNotExist so callers can use errors.Is")
 	}
 }

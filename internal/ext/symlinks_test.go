@@ -3,6 +3,8 @@
 package ext
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +41,7 @@ func TestEnableDisable(t *testing.T) {
 	// Verify symlink exists
 	targetDir := filepath.Join(claudeDir, "hooks")
 	symlinkPath := filepath.Join(targetDir, "format-on-save.sh")
-	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not created")
 	}
 
@@ -59,7 +61,7 @@ func TestEnableDisable(t *testing.T) {
 	}
 
 	// Verify symlink removed
-	if _, err := os.Lstat(symlinkPath); !os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not removed")
 	}
 
@@ -96,7 +98,7 @@ func TestEnableAgentWithGroup(t *testing.T) {
 
 	// Verify symlink exists in correct location
 	symlinkPath := filepath.Join(claudeDir, "agents", "business-product", "analyst.md")
-	if _, err := os.Lstat(symlinkPath); os.IsNotExist(err) {
+	if _, err := os.Lstat(symlinkPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Symlink was not created in group directory")
 	}
 
@@ -240,15 +242,15 @@ func TestImport(t *testing.T) {
 	}
 
 	// Verify files moved to extension storage
-	if _, err := os.Stat(filepath.Join(extDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(extDir, "agents", "gsd-planner.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("gsd-planner.md was not moved to extension storage")
 	}
-	if _, err := os.Stat(filepath.Join(extDir, "agents", "gsd-executor.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(extDir, "agents", "gsd-executor.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("gsd-executor.md was not moved to extension storage")
 	}
 
 	// Verify other-agent.md was NOT moved (didn't match pattern)
-	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("other-agent.md should not have been moved")
 	}
 
@@ -304,7 +306,7 @@ func TestImportDirectory(t *testing.T) {
 	}
 
 	// Verify directory moved to extension storage
-	if _, err := os.Stat(filepath.Join(extDir, "commands", "gsd", "new-project.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(extDir, "commands", "gsd", "new-project.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("gsd directory was not moved to extension storage")
 	}
 
@@ -436,12 +438,12 @@ func TestImportAll(t *testing.T) {
 
 	// Verify files moved to extension storage
 	extDir := filepath.Join(claudeupHome, "ext")
-	if _, err := os.Stat(filepath.Join(extDir, "agents", "gsd-planner.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(extDir, "agents", "gsd-planner.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("gsd-planner.md was not moved to extension storage")
 	}
 
 	// Verify other-agent.md was NOT moved (didn't match pattern)
-	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(activeAgentsDir, "other-agent.md")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("other-agent.md should not have been moved")
 	}
 }
@@ -1105,7 +1107,7 @@ func TestEnableWithDirectoryConflict(t *testing.T) {
 	}
 
 	// Verify the directory and its contents are preserved
-	if _, err := os.Stat(filepath.Join(conflictDir, "notes.txt")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(conflictDir, "notes.txt")); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Directory contents should be preserved")
 	}
 }

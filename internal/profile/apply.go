@@ -4,7 +4,9 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
@@ -666,12 +668,9 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 	// Write user scope settings.json with enabled plugins (declarative replace)
 	// This ensures settings.json exactly matches the profile
 	// CRITICAL: Load existing settings to preserve non-plugin fields (mcpServers, etc.)
-	userSettings, err := claude.LoadSettings(claudeDir)
+	userSettings, err := claude.LoadSettingsOrEmpty(claudeDir)
 	if err != nil {
-		// If settings don't exist, create new minimal settings
-		userSettings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return result, fmt.Errorf("failed to load settings: %w", err)
 	}
 
 	// Update only enabledPlugins field (preserve all other fields)
@@ -1039,7 +1038,7 @@ func RunHook(profile *Profile, opts HookOptions) error {
 			scriptPath = filepath.Join(opts.ScriptDir, scriptPath)
 		}
 		// Verify script exists before attempting to run
-		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+		if _, err := os.Stat(scriptPath); errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("hook script not found: %s", scriptPath)
 		}
 		cmd = exec.Command("bash", scriptPath)
@@ -1135,11 +1134,9 @@ func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string, repl
 	result := &ApplyResult{}
 
 	// Load existing user settings (preserves other fields)
-	settings, err := claude.LoadSettings(claudeDir)
+	settings, err := claude.LoadSettingsOrEmpty(claudeDir)
 	if err != nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}
 
 	if replace {
@@ -1177,9 +1174,7 @@ func applyProjectScopeSettings(profile *Profile, claudeDir, projectDir string) (
 	// Load existing project settings (preserves other fields)
 	settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
 	if err != nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return nil, fmt.Errorf("failed to load project settings: %w", err)
 	}
 
 	// Update enabledPlugins with profile plugins
@@ -1204,9 +1199,7 @@ func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*A
 	// Load existing local settings (preserves other fields)
 	settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return nil, fmt.Errorf("failed to load local settings: %w", err)
 	}
 
 	// Update enabledPlugins with profile plugins
@@ -1334,12 +1327,9 @@ func applySettingsHooks(profile *Profile, claudeDir string) error {
 		return nil
 	}
 
-	settings, err := claude.LoadSettings(claudeDir)
+	settings, err := claude.LoadSettingsOrEmpty(claudeDir)
 	if err != nil {
-		// Create new settings if none exist
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return fmt.Errorf("failed to load settings: %w", err)
 	}
 
 	// Convert HookEntry to map format for MergeHooks

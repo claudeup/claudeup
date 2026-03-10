@@ -4,7 +4,9 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -691,7 +693,7 @@ func FindProfilePaths(profilesDir, name string) ([]string, error) {
 	}
 
 	// Name-based search: walk recursively
-	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+	if _, err := os.Stat(profilesDir); errors.Is(err, fs.ErrNotExist) {
 		return []string{}, nil
 	}
 
@@ -758,7 +760,7 @@ func SaveToProject(projectDir string, p *Profile) error {
 // List returns all profiles in the profiles directory (including subdirectories),
 // sorted by name then by relative path for duplicates.
 func List(profilesDir string) ([]ProfileEntry, error) {
-	if _, err := os.Stat(profilesDir); os.IsNotExist(err) {
+	if _, err := os.Stat(profilesDir); errors.Is(err, fs.ErrNotExist) {
 		return []ProfileEntry{}, nil
 	}
 
