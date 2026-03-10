@@ -39,16 +39,16 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	result := &ConcurrentApplyResult{}
 
 	// Load current state to determine what needs installing.
-	// Errors are treated as empty state (same as the serial apply path), so
-	// all profile items are treated as new and will be installed.
+	// Errors fall back to empty state so all profile items are treated as new.
 	currentMarketplaces, err := claude.LoadMarketplaces(opts.ClaudeDir)
 	if err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("could not read installed marketplaces (treating as empty): %w", err))
 		currentMarketplaces = make(claude.MarketplaceRegistry)
 	}
 
 	currentPlugins, err := claude.LoadPlugins(opts.ClaudeDir)
 	if err != nil {
-		currentPlugins = nil
+		result.Errors = append(result.Errors, fmt.Errorf("could not read installed plugins (treating as empty): %w", err))
 	}
 
 	// Filter marketplaces - skip already installed unless reinstall

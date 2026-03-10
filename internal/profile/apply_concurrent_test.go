@@ -4,6 +4,7 @@ package profile
 
 import (
 	"bytes"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -141,5 +142,54 @@ func TestApplyConcurrentlyWithReinstallFlag(t *testing.T) {
 	// With reinstall, nothing should be skipped
 	if len(result.MarketplacesSkipped) != 0 {
 		t.Errorf("expected 0 skipped with reinstall, got %d", len(result.MarketplacesSkipped))
+	}
+}
+
+func TestApplyConcurrentlyWithLoadError(t *testing.T) {
+	// When the config directory is unreadable, load errors should be surfaced
+	// and all items treated as new (installed, not skipped).
+	profile := &Profile{
+		Marketplaces: []Marketplace{
+			{Repo: "org/marketplace-a"},
+		},
+		Plugins: []string{"plugin-a"},
+	}
+
+	executor := &concurrentMockExecutor{}
+	var output bytes.Buffer
+
+	result, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
+		ClaudeDir: "/nonexistent",
+		Executor:  executor,
+		Output:    &output,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// All items should be installed (not skipped) since load fell back to empty
+	if len(result.MarketplacesInstalled) != 1 {
+		t.Errorf("expected 1 marketplace installed, got %d", len(result.MarketplacesInstalled))
+	}
+	if len(result.MarketplacesSkipped) != 0 {
+		t.Errorf("expected 0 marketplaces skipped, got %d", len(result.MarketplacesSkipped))
+	}
+	if len(result.PluginsInstalled) != 1 {
+		t.Errorf("expected 1 plugin installed, got %d", len(result.PluginsInstalled))
+	}
+	if len(result.PluginsSkipped) != 0 {
+		t.Errorf("expected 0 plugins skipped, got %d", len(result.PluginsSkipped))
+	}
+
+	// Load error for plugins should be surfaced (LoadMarketplaces absorbs ErrNotExist)
+	foundPluginError := false
+	for _, e := range result.Errors {
+		if strings.Contains(e.Error(), "could not read installed plugins") {
+			foundPluginError = true
+		}
+	}
+	if !foundPluginError {
+		t.Error("expected load error for plugins to be surfaced in result.Errors")
 	}
 }

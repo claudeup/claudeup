@@ -321,7 +321,7 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
 		}
-		return nil, fmt.Errorf("cannot access Claude directory: %w", err)
+		return nil, fmt.Errorf("cannot access Claude directory %s: %w", claudeDir, err)
 	}
 
 	settingsPath := filepath.Join(claudeDir, "settings.json")

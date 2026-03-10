@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -224,6 +225,33 @@ func TestLoadPluginsPermissionError(t *testing.T) {
 	}
 	if errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("expected permission error, not ErrNotExist, got: %v", err)
+	}
+}
+
+func TestLoadPluginsFilePermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
+	tempDir := t.TempDir()
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Create an unreadable installed_plugins.json
+	pluginsPath := filepath.Join(pluginsDir, "installed_plugins.json")
+	if err := os.WriteFile(pluginsPath, []byte(`{"version":2,"plugins":{}}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadPlugins(tempDir)
+	if err == nil {
+		t.Fatal("LoadPlugins should return error for unreadable file")
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected permission error, not ErrNotExist, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "cannot read plugins from") {
+		t.Errorf("expected context-wrapped error, got: %v", err)
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -76,8 +77,8 @@ func TestLoadMarketplacesPermissionError(t *testing.T) {
 	if err == nil {
 		t.Fatal("LoadMarketplaces should return error for unreadable file")
 	}
-	if errMsg := err.Error(); len(errMsg) == 0 {
-		t.Error("error message should not be empty")
+	if !strings.Contains(err.Error(), "cannot read marketplaces from") {
+		t.Errorf("expected context-wrapped error, got: %v", err)
 	}
 	// Should NOT be a not-found error -- it's a permission error
 	if errors.Is(err, fs.ErrNotExist) {

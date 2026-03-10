@@ -41,7 +41,9 @@ type MarketplacePluginInfo struct {
 	Version     string `json:"version,omitempty"`
 }
 
-// LoadMarketplaces reads and parses the known_marketplaces.json file
+// LoadMarketplaces reads and parses the known_marketplaces.json file.
+// If the plugins directory or marketplaces file does not exist, returns an
+// empty registry and nil error (treated as a fresh install).
 func LoadMarketplaces(claudeDir string) (MarketplaceRegistry, error) {
 	pluginsDir := filepath.Join(claudeDir, "plugins")
 	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
@@ -57,7 +59,7 @@ func LoadMarketplaces(claudeDir string) (MarketplaceRegistry, error) {
 
 	var registry MarketplaceRegistry
 	if err := json.Unmarshal(data, &registry); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse marketplaces JSON from %s: %w", marketplacesPath, err)
 	}
 
 	return registry, nil

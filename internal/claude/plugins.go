@@ -49,7 +49,7 @@ func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
 		}
-		return nil, fmt.Errorf("cannot access Claude directory: %w", err)
+		return nil, fmt.Errorf("cannot access Claude directory %s: %w", claudeDir, err)
 	}
 
 	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
@@ -62,7 +62,7 @@ func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 		}, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read plugins from %s: %w", pluginsPath, err)
 	}
 
 	// Try V2 format (arrays) first
