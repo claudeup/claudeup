@@ -71,7 +71,7 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Sonnet 4.6 is the default; pin explicitly so this doesn't drift
-          claude_args: "--model claude-sonnet-4-6 --max-turns 15"
+          claude_args: "--model claude-sonnet-4-6 --max-turns 30"
           settings: |
             {
               "permissions": {
