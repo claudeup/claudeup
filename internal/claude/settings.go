@@ -372,7 +372,10 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 func LoadSettingsOrEmpty(claudeDir string) (*Settings, error) {
 	settings, err := LoadSettings(claudeDir)
 	if errors.Is(err, fs.ErrNotExist) {
-		return &Settings{EnabledPlugins: make(map[string]bool)}, nil
+		return &Settings{
+			EnabledPlugins: make(map[string]bool),
+			raw:            make(map[string]interface{}),
+		}, nil
 	}
 	return settings, err
 }

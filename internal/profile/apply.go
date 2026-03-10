@@ -1174,9 +1174,7 @@ func applyProjectScopeSettings(profile *Profile, claudeDir, projectDir string) (
 	// Load existing project settings (preserves other fields)
 	settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
 	if err != nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return nil, fmt.Errorf("failed to load project settings: %w", err)
 	}
 
 	// Update enabledPlugins with profile plugins
@@ -1201,9 +1199,7 @@ func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*A
 	// Load existing local settings (preserves other fields)
 	settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
+		return nil, fmt.Errorf("failed to load local settings: %w", err)
 	}
 
 	// Update enabledPlugins with profile plugins
