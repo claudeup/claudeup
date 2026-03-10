@@ -33,7 +33,7 @@ type PathNotFoundError struct {
 	Component    string // e.g., "plugin registry", "settings"
 	ExpectedPath string // Full path where file was expected
 	ClaudeDir    string // Claude installation directory
-	Err          error  // underlying OS error, enables errors.Is(err, fs.ErrNotExist)
+	Err          error  // underlying OS error; when wrapping fs.ErrNotExist, enables errors.Is via Unwrap
 }
 
 func (e *PathNotFoundError) Unwrap() error { return e.Err }
