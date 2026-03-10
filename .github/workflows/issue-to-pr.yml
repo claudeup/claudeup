@@ -55,6 +55,7 @@ jobs:
       contents: write # push branch
       pull-requests: write # open PR
       issues: write # add labels / comments
+      id-token: write # OIDC token for claude-code-action OAuth
 
     steps:
       - uses: actions/checkout@v4
@@ -119,6 +120,7 @@ jobs:
     permissions:
       issues: write
       contents: read
+      id-token: write # OIDC token for claude-code-action OAuth
 
     steps:
       - uses: actions/checkout@v4
@@ -171,6 +173,7 @@ jobs:
       contents: read
       pull-requests: write # post review comments
       issues: write # reply to @claude mentions
+      id-token: write # OIDC token for claude-code-action OAuth
 
     steps:
       # For issue_comment triggers, resolve the PR head ref via gh CLI
