@@ -140,6 +140,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload Claude execution log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-execution-log
+          path: /home/runner/work/_temp/claude-execution-output.json
+          retention-days: 7
+
   # ─────────────────────────────────────────────
   # Job 2 – Scheduled issue triage (weekly sweep)
   # ─────────────────────────────────────────────
