@@ -121,7 +121,8 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		profilePlugins := toSet(profile.Plugins)
 
 		// Iterate over current.Plugins slice (not currentPlugins map) for deterministic ordering.
-		// Guard against duplicates in input slices to avoid issuing the same remove command twice.
+		// Defensive dedup: current.Plugins is derived from a settings map (always unique),
+		// but guards against future changes to the snapshot path.
 		seenRemove := make(map[string]bool)
 		for _, plugin := range current.Plugins {
 			if _, exists := profilePlugins[plugin]; !exists && !seenRemove[plugin] {
@@ -166,10 +167,12 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	}
 
 	// Iterate over profile.MCPServers slice (not profileMCP map) to preserve user-defined order.
-	// No dedup guard needed: profile JSON object keys are unique by definition.
+	// Guard against duplicates: MCPServers is a JSON array, so duplicate names are possible.
+	seenMCPInstall := make(map[string]bool)
 	for _, mcp := range profile.MCPServers {
-		if opts.Reinstall || !currentMCP[mcp.Name] {
+		if (opts.Reinstall || !currentMCP[mcp.Name]) && !seenMCPInstall[mcp.Name] {
 			diff.MCPToInstall = append(diff.MCPToInstall, mcp)
+			seenMCPInstall[mcp.Name] = true
 		}
 	}
 

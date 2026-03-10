@@ -162,7 +162,8 @@ func (p *Profile) CombinedScopes() *Profile {
 	}
 
 	// Aggregate MCP servers from all scopes (later scopes override earlier).
-	// Track insertion order to produce deterministic output; last-scope-wins for the value.
+	// Position is first-occurrence-wins (user → project → local determines placement).
+	// Value is last-scope-wins (later scopes override earlier for the same server name).
 	var serverOrder []string
 	serverMap := make(map[string]MCPServer)
 	for _, scope := range []*ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {

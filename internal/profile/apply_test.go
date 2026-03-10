@@ -294,14 +294,8 @@ func TestComputeDiffPluginOrderPreserved(t *testing.T) {
 			"plugin-epsilon@marketplace",
 		}
 
-		if len(diff.PluginsToInstall) != len(expected) {
-			t.Fatalf("iteration %d: expected %d plugins, got %d: %v", i, len(expected), len(diff.PluginsToInstall), diff.PluginsToInstall)
-		}
-		for j, plugin := range diff.PluginsToInstall {
-			if plugin != expected[j] {
-				t.Errorf("iteration %d: PluginsToInstall[%d] = %q, want %q (full list: %v)", i, j, plugin, expected[j], diff.PluginsToInstall)
-				break
-			}
+		if !slices.Equal(diff.PluginsToInstall, expected) {
+			t.Fatalf("iteration %d: PluginsToInstall = %v, want %v", i, diff.PluginsToInstall, expected)
 		}
 	}
 }
@@ -356,16 +350,9 @@ func TestComputeDiffPluginRemoveOrderPreserved(t *testing.T) {
 			t.Fatalf("ComputeDiff failed on iteration %d: %v", i, err)
 		}
 
-		if len(diff.PluginsToRemove) != len(expectedRemoveOrder) {
-			t.Fatalf("iteration %d: expected %d plugins to remove, got %d: %v",
-				i, len(expectedRemoveOrder), len(diff.PluginsToRemove), diff.PluginsToRemove)
-		}
-		for j, plugin := range diff.PluginsToRemove {
-			if plugin != expectedRemoveOrder[j] {
-				t.Errorf("iteration %d: PluginsToRemove[%d] = %q, want %q (full list: %v)",
-					i, j, plugin, expectedRemoveOrder[j], diff.PluginsToRemove)
-				break
-			}
+		if !slices.Equal(diff.PluginsToRemove, expectedRemoveOrder) {
+			t.Fatalf("iteration %d: PluginsToRemove = %v, want %v",
+				i, diff.PluginsToRemove, expectedRemoveOrder)
 		}
 	}
 }
@@ -415,16 +402,9 @@ func TestComputeDiffWithScopeReinstallOrderPreserved(t *testing.T) {
 			t.Fatalf("ComputeDiffWithScope failed on iteration %d: %v", i, err)
 		}
 
-		if len(diff.PluginsToInstall) != len(pluginList) {
-			t.Fatalf("iteration %d: expected %d plugins, got %d: %v",
-				i, len(pluginList), len(diff.PluginsToInstall), diff.PluginsToInstall)
-		}
-		for j, plugin := range diff.PluginsToInstall {
-			if plugin != pluginList[j] {
-				t.Errorf("iteration %d: PluginsToInstall[%d] = %q, want %q (full list: %v)",
-					i, j, plugin, pluginList[j], diff.PluginsToInstall)
-				break
-			}
+		if !slices.Equal(diff.PluginsToInstall, pluginList) {
+			t.Fatalf("iteration %d: PluginsToInstall = %v, want %v",
+				i, diff.PluginsToInstall, pluginList)
 		}
 	}
 }
@@ -473,16 +453,9 @@ func TestComputeDiffMCPOrderPreserved(t *testing.T) {
 		if err != nil {
 			t.Fatalf("iteration %d: ComputeDiff failed: %v", i, err)
 		}
-		if len(diff.MCPToRemove) != len(expectedRemoveOrder) {
-			t.Fatalf("iteration %d: expected %d MCP to remove, got %d: %v",
-				i, len(expectedRemoveOrder), len(diff.MCPToRemove), diff.MCPToRemove)
-		}
-		for j, name := range diff.MCPToRemove {
-			if name != expectedRemoveOrder[j] {
-				t.Errorf("iteration %d: MCPToRemove[%d] = %q, want %q (full list: %v)",
-					i, j, name, expectedRemoveOrder[j], diff.MCPToRemove)
-				break
-			}
+		if !slices.Equal(diff.MCPToRemove, expectedRemoveOrder) {
+			t.Fatalf("iteration %d: MCPToRemove = %v, want %v",
+				i, diff.MCPToRemove, expectedRemoveOrder)
 		}
 	}
 
@@ -533,14 +506,47 @@ func TestComputeDiffDuplicatePluginsInSlice(t *testing.T) {
 
 	// Should deduplicate: only 2 unique plugins to install, first occurrence wins
 	expected := []string{"plugin-a@marketplace", "plugin-b@marketplace"}
-	if len(diff.PluginsToInstall) != len(expected) {
-		t.Fatalf("Expected %d unique plugins to install (deduped), got %d: %v",
-			len(expected), len(diff.PluginsToInstall), diff.PluginsToInstall)
+	if !slices.Equal(diff.PluginsToInstall, expected) {
+		t.Fatalf("PluginsToInstall = %v, want %v", diff.PluginsToInstall, expected)
 	}
-	for i, plugin := range diff.PluginsToInstall {
-		if plugin != expected[i] {
-			t.Errorf("PluginsToInstall[%d] = %q, want %q", i, plugin, expected[i])
-		}
+}
+
+func TestComputeDiffDuplicateMCPInProfile(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile with duplicate MCP server names (possible since MCPServers is a JSON array)
+	profile := &Profile{
+		Name: "dupes",
+		MCPServers: []MCPServer{
+			{Name: "server-a", Command: "cmd-first"},
+			{Name: "server-a", Command: "cmd-second"},
+			{Name: "server-b", Command: "cmd-b"},
+		},
+	}
+
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+	if err != nil {
+		t.Fatalf("ComputeDiff failed: %v", err)
+	}
+
+	// Should deduplicate: 2 unique servers, first occurrence wins
+	if len(diff.MCPToInstall) != 2 {
+		t.Fatalf("Expected 2 unique MCP servers (deduped), got %d: %v",
+			len(diff.MCPToInstall), diff.MCPToInstall)
+	}
+	if diff.MCPToInstall[0].Name != "server-a" || diff.MCPToInstall[0].Command != "cmd-first" {
+		t.Errorf("MCPToInstall[0] = %+v, want server-a with cmd-first (first occurrence wins)", diff.MCPToInstall[0])
+	}
+	if diff.MCPToInstall[1].Name != "server-b" {
+		t.Errorf("MCPToInstall[1].Name = %q, want %q", diff.MCPToInstall[1].Name, "server-b")
 	}
 }
 
