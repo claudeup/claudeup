@@ -324,7 +324,9 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 	settingsPath := filepath.Join(claudeDir, "settings.json")
 	data, err := os.ReadFile(settingsPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		// Claude directory exists but settings.json is absent
+		// Claude directory exists but settings.json is absent; unlike
+		// LoadSettingsForScope (which returns empty settings), this returns
+		// an error so callers can distinguish a missing file from success.
 		return nil, &PathNotFoundError{
 			Component:    "settings",
 			ExpectedPath: settingsPath,
@@ -362,6 +364,17 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 	}
 
 	return settings, nil
+}
+
+// LoadSettingsOrEmpty loads settings from claudeDir, returning empty settings
+// when the settings file or Claude directory is absent (both wrap fs.ErrNotExist).
+// Real I/O errors (permissions, corrupt JSON) are returned to the caller.
+func LoadSettingsOrEmpty(claudeDir string) (*Settings, error) {
+	settings, err := LoadSettings(claudeDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return &Settings{EnabledPlugins: make(map[string]bool)}, nil
+	}
+	return settings, err
 }
 
 // IsPluginEnabled checks if a plugin is enabled in the settings

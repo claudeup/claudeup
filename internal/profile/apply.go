@@ -668,14 +668,9 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 	// Write user scope settings.json with enabled plugins (declarative replace)
 	// This ensures settings.json exactly matches the profile
 	// CRITICAL: Load existing settings to preserve non-plugin fields (mcpServers, etc.)
-	userSettings, err := claude.LoadSettings(claudeDir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	userSettings, err := claude.LoadSettingsOrEmpty(claudeDir)
+	if err != nil {
 		return result, fmt.Errorf("failed to load settings: %w", err)
-	}
-	if userSettings == nil {
-		userSettings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
 	}
 
 	// Update only enabledPlugins field (preserve all other fields)
@@ -1139,14 +1134,9 @@ func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string, repl
 	result := &ApplyResult{}
 
 	// Load existing user settings (preserves other fields)
-	settings, err := claude.LoadSettings(claudeDir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	settings, err := claude.LoadSettingsOrEmpty(claudeDir)
+	if err != nil {
 		return nil, fmt.Errorf("failed to load settings: %w", err)
-	}
-	if settings == nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
 	}
 
 	if replace {
@@ -1341,14 +1331,9 @@ func applySettingsHooks(profile *Profile, claudeDir string) error {
 		return nil
 	}
 
-	settings, err := claude.LoadSettings(claudeDir)
-	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+	settings, err := claude.LoadSettingsOrEmpty(claudeDir)
+	if err != nil {
 		return fmt.Errorf("failed to load settings: %w", err)
-	}
-	if settings == nil {
-		settings = &claude.Settings{
-			EnabledPlugins: make(map[string]bool),
-		}
 	}
 
 	// Convert HookEntry to map format for MergeHooks

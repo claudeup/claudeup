@@ -116,18 +116,11 @@ func clearScope(scope string, settingsPath string, claudeDir string) error {
 	switch scope {
 	case "user":
 		// Load existing settings and only clear enabledPlugins
-		settings, err := claude.LoadSettings(claudeDir)
-		if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		settings, err := claude.LoadSettingsOrEmpty(claudeDir)
+		if err != nil {
 			return fmt.Errorf("failed to load settings: %w", err)
 		}
-		if settings == nil {
-			settings = &claude.Settings{
-				EnabledPlugins: make(map[string]bool),
-			}
-		} else {
-			// Clear only the enabledPlugins field, preserve everything else
-			settings.EnabledPlugins = make(map[string]bool)
-		}
+		settings.EnabledPlugins = make(map[string]bool)
 		return claude.SaveSettings(claudeDir, settings)
 
 	case "project":
