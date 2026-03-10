@@ -306,6 +306,218 @@ func TestComputeDiffPluginOrderPreserved(t *testing.T) {
 	}
 }
 
+func TestComputeDiffPluginRemoveOrderPreserved(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: 5 plugins installed (none in profile → all should be removed)
+	currentPluginList := []string{
+		"plugin-alpha@marketplace",
+		"plugin-beta@marketplace",
+		"plugin-gamma@marketplace",
+		"plugin-delta@marketplace",
+		"plugin-epsilon@marketplace",
+	}
+	pluginsMap := make(map[string]interface{})
+	enabledPlugins := make(map[string]bool)
+	for _, p := range currentPluginList {
+		pluginsMap[p] = []map[string]interface{}{{"scope": "user", "version": "1.0"}}
+		enabledPlugins[p] = true
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{
+		"version": 2,
+		"plugins": pluginsMap,
+	})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{
+		"enabledPlugins": enabledPlugins,
+	})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Empty profile — all current plugins should appear in PluginsToRemove
+	profile := &Profile{Name: "empty"}
+
+	// Run 20 times to detect non-deterministic ordering
+	for i := 0; i < 20; i++ {
+		diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+		if err != nil {
+			t.Fatalf("ComputeDiff failed on iteration %d: %v", i, err)
+		}
+
+		if len(diff.PluginsToRemove) != len(currentPluginList) {
+			t.Fatalf("iteration %d: expected %d plugins to remove, got %d: %v",
+				i, len(currentPluginList), len(diff.PluginsToRemove), diff.PluginsToRemove)
+		}
+		for j, plugin := range diff.PluginsToRemove {
+			if plugin != currentPluginList[j] {
+				t.Errorf("iteration %d: PluginsToRemove[%d] = %q, want %q (full list: %v)",
+					i, j, plugin, currentPluginList[j], diff.PluginsToRemove)
+				break
+			}
+		}
+	}
+}
+
+func TestComputeDiffWithScopeReinstallOrderPreserved(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	pluginList := []string{
+		"plugin-alpha@marketplace",
+		"plugin-beta@marketplace",
+		"plugin-gamma@marketplace",
+		"plugin-delta@marketplace",
+		"plugin-epsilon@marketplace",
+	}
+	pluginsMap := make(map[string]interface{})
+	enabledPlugins := make(map[string]bool)
+	for _, p := range pluginList {
+		pluginsMap[p] = []map[string]interface{}{{"scope": "user", "version": "1.0"}}
+		enabledPlugins[p] = true
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{
+		"version": 2,
+		"plugins": pluginsMap,
+	})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{
+		"enabledPlugins": enabledPlugins,
+	})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile matches current exactly — reinstall should produce all plugins in profile order
+	profile := &Profile{
+		Name:    "ordered",
+		Plugins: pluginList,
+	}
+
+	// Run 20 times to detect non-deterministic ordering
+	for i := 0; i < 20; i++ {
+		diff, err := ComputeDiffWithScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, DiffOptions{
+			Scope:     ScopeUser,
+			Reinstall: true,
+		})
+		if err != nil {
+			t.Fatalf("ComputeDiffWithScope failed on iteration %d: %v", i, err)
+		}
+
+		if len(diff.PluginsToInstall) != len(pluginList) {
+			t.Fatalf("iteration %d: expected %d plugins, got %d: %v",
+				i, len(pluginList), len(diff.PluginsToInstall), diff.PluginsToInstall)
+		}
+		for j, plugin := range diff.PluginsToInstall {
+			if plugin != pluginList[j] {
+				t.Errorf("iteration %d: PluginsToInstall[%d] = %q, want %q (full list: %v)",
+					i, j, plugin, pluginList[j], diff.PluginsToInstall)
+				break
+			}
+		}
+	}
+}
+
+func TestComputeDiffMCPOrderPreserved(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+
+	mcpList := []MCPServer{
+		{Name: "server-alpha", Command: "cmd-alpha"},
+		{Name: "server-beta", Command: "cmd-beta"},
+		{Name: "server-gamma", Command: "cmd-gamma"},
+		{Name: "server-delta", Command: "cmd-delta"},
+		{Name: "server-epsilon", Command: "cmd-epsilon"},
+	}
+
+	// Current state: all 5 servers present
+	mcpMap := make(map[string]interface{})
+	for _, s := range mcpList {
+		mcpMap[s.Name] = map[string]interface{}{"command": s.Command}
+	}
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{
+		"mcpServers": mcpMap,
+	})
+
+	// Profile: empty — all should appear in MCPToRemove in current state order
+	emptyProfile := &Profile{Name: "empty"}
+
+	for i := 0; i < 20; i++ {
+		diff, err := ComputeDiff(emptyProfile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+		if err != nil {
+			t.Fatalf("iteration %d: ComputeDiff failed: %v", i, err)
+		}
+		if len(diff.MCPToRemove) != len(mcpList) {
+			t.Fatalf("iteration %d: expected %d MCP to remove, got %d: %v",
+				i, len(mcpList), len(diff.MCPToRemove), diff.MCPToRemove)
+		}
+		for j, name := range diff.MCPToRemove {
+			if name != mcpList[j].Name {
+				t.Errorf("iteration %d: MCPToRemove[%d] = %q, want %q (full list: %v)",
+					i, j, name, mcpList[j].Name, diff.MCPToRemove)
+				break
+			}
+		}
+	}
+
+	// Profile with all 5 servers; current is empty → all should appear in MCPToInstall in profile order
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+	fullProfile := &Profile{Name: "full", MCPServers: mcpList}
+
+	for i := 0; i < 20; i++ {
+		diff, err := ComputeDiff(fullProfile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+		if err != nil {
+			t.Fatalf("iteration %d: ComputeDiff failed: %v", i, err)
+		}
+		if len(diff.MCPToInstall) != len(mcpList) {
+			t.Fatalf("iteration %d: expected %d MCP to install, got %d: %v",
+				i, len(mcpList), len(diff.MCPToInstall), diff.MCPToInstall)
+		}
+		for j, mcp := range diff.MCPToInstall {
+			if mcp.Name != mcpList[j].Name {
+				t.Errorf("iteration %d: MCPToInstall[%d] = %q, want %q (full list: %v)",
+					i, j, mcp.Name, mcpList[j].Name, diff.MCPToInstall)
+				break
+			}
+		}
+	}
+}
+
+func TestComputeDiffDuplicatePluginsInSlice(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile with duplicate plugin entries
+	profile := &Profile{
+		Name:    "dupes",
+		Plugins: []string{"plugin-a@marketplace", "plugin-a@marketplace", "plugin-b@marketplace"},
+	}
+
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+	if err != nil {
+		t.Fatalf("ComputeDiff failed: %v", err)
+	}
+
+	// Should deduplicate: only 2 unique plugins to install
+	if len(diff.PluginsToInstall) != 2 {
+		t.Errorf("Expected 2 unique plugins to install (deduped), got %d: %v",
+			len(diff.PluginsToInstall), diff.PluginsToInstall)
+	}
+}
+
 func TestComputeDiffIdenticalStates(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")

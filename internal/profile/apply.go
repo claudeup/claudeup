@@ -120,19 +120,25 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		currentPlugins := toSet(current.Plugins)
 		profilePlugins := toSet(profile.Plugins)
 
-		// Iterate over current.Plugins slice (not the map) for stable ordering
+		// Iterate over current.Plugins slice (not currentPlugins map) for deterministic ordering.
+		// Guard against duplicates in input slices to avoid issuing the same remove command twice.
+		seenRemove := make(map[string]bool)
 		for _, plugin := range current.Plugins {
-			if _, exists := profilePlugins[plugin]; !exists {
+			if _, exists := profilePlugins[plugin]; !exists && !seenRemove[plugin] {
 				diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
+				seenRemove[plugin] = true
 			}
 		}
 
 		// Plugins to install (in profile but not in current state, or all if reinstalling)
-		// Iterate over profile.Plugins slice (not the map) to preserve user-defined order
+		// Iterate over profile.Plugins slice (not profilePlugins map) to preserve user-defined order.
+		// Guard against duplicates in input slices to avoid issuing the same install command twice.
+		seenInstall := make(map[string]bool)
 		for _, plugin := range profile.Plugins {
 			_, exists := currentPlugins[plugin]
-			if opts.Reinstall || !exists {
+			if (opts.Reinstall || !exists) && !seenInstall[plugin] {
 				diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)
+				seenInstall[plugin] = true
 			}
 		}
 	}
@@ -151,14 +157,16 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		profileMCP[mcp.Name] = mcp
 	}
 
-	for name := range currentMCP {
-		if _, exists := profileMCP[name]; !exists {
-			diff.MCPToRemove = append(diff.MCPToRemove, name)
+	// Iterate over current.MCPServers slice (not currentMCP map) for deterministic ordering.
+	for _, mcp := range current.MCPServers {
+		if _, exists := profileMCP[mcp.Name]; !exists {
+			diff.MCPToRemove = append(diff.MCPToRemove, mcp.Name)
 		}
 	}
 
-	for name, mcp := range profileMCP {
-		if opts.Reinstall || !currentMCP[name] {
+	// Iterate over profile.MCPServers slice (not profileMCP map) to preserve user-defined order.
+	for _, mcp := range profile.MCPServers {
+		if opts.Reinstall || !currentMCP[mcp.Name] {
 			diff.MCPToInstall = append(diff.MCPToInstall, mcp)
 		}
 	}
