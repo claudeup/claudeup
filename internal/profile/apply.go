@@ -192,8 +192,8 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	// Only remove marketplaces for user scope (declarative behavior)
 	// For project/local scope, don't show removal of user-scope marketplaces
 	if scope == ScopeUser {
-		for key, m := range currentMarketplaces {
-			if !profileMarketplaces[key] {
+		for _, m := range current.Marketplaces {
+			if !profileMarketplaces[marketplaceKey(m)] {
 				diff.MarketplacesToRemove = append(diff.MarketplacesToRemove, m)
 			}
 		}
