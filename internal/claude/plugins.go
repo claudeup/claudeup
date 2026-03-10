@@ -46,7 +46,7 @@ type ScopedPlugin struct {
 func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 	// Check if Claude directory exists
 	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
+		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
 	}
 
 	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
