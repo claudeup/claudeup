@@ -60,7 +60,8 @@ type ApplyResult struct {
 	MCPServersInstalled   []string
 	MarketplacesAdded     []string
 	MarketplacesRemoved   []string
-	Errors                []error
+	Warnings              []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
+	Errors                []error // Actual install/operation failures
 }
 
 // Diff represents what needs to change to apply a profile
@@ -283,6 +284,7 @@ func convertConcurrentResult(cr *ConcurrentApplyResult) *ApplyResult {
 		PluginsAlreadyPresent: cr.PluginsSkipped,
 		MCPServersInstalled:   cr.MCPServersInstalled,
 		MarketplacesAdded:     cr.MarketplacesInstalled,
+		Warnings:              cr.Warnings,
 		Errors:                cr.Errors,
 	}
 }
@@ -1230,6 +1232,7 @@ func aggregateResults(target, source *ApplyResult) {
 	target.MCPServersRemoved = append(target.MCPServersRemoved, source.MCPServersRemoved...)
 	target.MarketplacesAdded = append(target.MarketplacesAdded, source.MarketplacesAdded...)
 	target.MarketplacesRemoved = append(target.MarketplacesRemoved, source.MarketplacesRemoved...)
+	target.Warnings = append(target.Warnings, source.Warnings...)
 	target.Errors = append(target.Errors, source.Errors...)
 }
 

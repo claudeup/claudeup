@@ -54,24 +54,16 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Load plugins (gracefully handle fresh installs with no plugins)
+	// Load plugins
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			plugins = &claude.PluginRegistry{Plugins: make(map[string][]claude.PluginMetadata)}
-		} else {
-			return fmt.Errorf("failed to load plugins: %w", err)
-		}
+		return fmt.Errorf("failed to load plugins: %w", err)
 	}
 
-	// Load marketplaces (gracefully handle fresh installs)
+	// Load marketplaces (LoadMarketplaces treats missing files as fresh install)
 	marketplaces, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			marketplaces = make(claude.MarketplaceRegistry)
-		} else {
-			return fmt.Errorf("failed to load marketplaces: %w", err)
-		}
+		return fmt.Errorf("failed to load marketplaces: %w", err)
 	}
 
 	// Load settings from all scopes to find enabled plugins

@@ -8,17 +8,22 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 func TestLoadMarketplacesNonExistent(t *testing.T) {
-	// Try to load from non-existent directory
-	_, err := LoadMarketplaces("/non/existent/path")
-	if err == nil {
-		t.Error("LoadMarketplaces should return error for non-existent path")
+	// A non-existent plugins directory is treated as a fresh install (no marketplaces yet).
+	// The stat check is intentionally absent; ReadFile handles the missing path.
+	registry, err := LoadMarketplaces("/non/existent/path")
+	if err != nil {
+		t.Errorf("LoadMarketplaces should return empty registry for non-existent path, got error: %v", err)
 	}
-	if !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("LoadMarketplaces should return fs.ErrNotExist-wrapping error, got: %v", err)
+	if registry == nil {
+		t.Error("Registry should be initialized, not nil")
+	}
+	if len(registry) != 0 {
+		t.Errorf("Expected 0 marketplaces for non-existent path, got %d", len(registry))
 	}
 }
 
@@ -50,6 +55,54 @@ func TestLoadMarketplacesFreshInstall(t *testing.T) {
 
 	if len(registry) != 0 {
 		t.Errorf("Expected 0 marketplaces in fresh install, got %d", len(registry))
+	}
+}
+
+func TestLoadMarketplacesPermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
+	tempDir := t.TempDir()
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Create an unreadable known_marketplaces.json
+	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
+	if err := os.WriteFile(marketplacesPath, []byte(`{}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadMarketplaces(tempDir)
+	if err == nil {
+		t.Fatal("LoadMarketplaces should return error for unreadable file")
+	}
+	if !strings.Contains(err.Error(), "cannot read marketplaces from") {
+		t.Errorf("expected context-wrapped error, got: %v", err)
+	}
+	// Should NOT be a not-found error -- it's a permission error
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected permission error, not ErrNotExist, got: %v", err)
+	}
+}
+
+func TestLoadMarketplacesCorruptJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
+	if err := os.WriteFile(marketplacesPath, []byte(`{not valid json`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadMarketplaces(tempDir)
+	if err == nil {
+		t.Fatal("LoadMarketplaces should return error for corrupt JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse marketplaces JSON from") {
+		t.Errorf("expected parse error with path context, got: %v", err)
 	}
 }
 

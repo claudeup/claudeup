@@ -27,7 +27,8 @@ type ConcurrentApplyResult struct {
 	PluginsInstalled      []string
 	PluginsSkipped        []string
 	MCPServersInstalled   []string
-	Errors                []error
+	Warnings              []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
+	Errors                []error // Actual install/operation failures
 }
 
 // ApplyConcurrently installs marketplaces and plugins concurrently with progress tracking
@@ -38,13 +39,19 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 
 	result := &ConcurrentApplyResult{}
 
-	// Load current state to determine what needs installing
-	currentMarketplaces, _ := claude.LoadMarketplaces(opts.ClaudeDir)
-	if currentMarketplaces == nil {
+	// Load current state to determine what needs installing.
+	// Errors fall back to empty state so all profile items are treated as new.
+	currentMarketplaces, err := claude.LoadMarketplaces(opts.ClaudeDir)
+	if err != nil {
+		result.Warnings = append(result.Warnings, fmt.Errorf("could not read installed marketplaces (treating as empty): %w", err))
 		currentMarketplaces = make(claude.MarketplaceRegistry)
 	}
 
-	currentPlugins, _ := claude.LoadPlugins(opts.ClaudeDir)
+	currentPlugins, err := claude.LoadPlugins(opts.ClaudeDir)
+	if err != nil {
+		result.Warnings = append(result.Warnings, fmt.Errorf("could not read installed plugins (treating as empty): %w", err))
+		currentPlugins = &claude.PluginRegistry{Plugins: make(map[string][]claude.PluginMetadata)}
+	}
 
 	// Filter marketplaces - skip already installed unless reinstall
 	var marketplacesToInstall []Marketplace
@@ -60,7 +67,7 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	// Filter plugins - skip already installed unless reinstall
 	var pluginsToInstall []string
 	for _, plugin := range profile.Plugins {
-		if opts.Reinstall || currentPlugins == nil || !currentPlugins.PluginExistsAtScope(plugin, opts.Scope) {
+		if opts.Reinstall || !currentPlugins.PluginExistsAtScope(plugin, opts.Scope) {
 			pluginsToInstall = append(pluginsToInstall, plugin)
 		} else {
 			result.PluginsSkipped = append(result.PluginsSkipped, plugin)
@@ -86,7 +93,6 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	if len(marketplacesToInstall) > 0 {
 		marketplaceJobs := make([]Job, len(marketplacesToInstall))
 		for i, m := range marketplacesToInstall {
-			m := m // capture for closure
 			key := marketplaceKey(m)
 			marketplaceJobs[i] = Job{
 				Name: key,
@@ -126,7 +132,6 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	// (currently 4) to avoid overwhelming the Claude CLI or network.
 	pluginJobs := make([]Job, len(pluginsToInstall))
 	for i, plugin := range pluginsToInstall {
-		plugin := plugin // capture
 		args := []string{"plugin", "install"}
 		if opts.Scope != "" && opts.Scope != "user" {
 			args = append(args, "--scope", opts.Scope)
@@ -146,7 +151,6 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 	// MCP server jobs (can run in parallel with plugins)
 	mcpJobs := make([]Job, len(profile.MCPServers))
 	for i, mcp := range profile.MCPServers {
-		mcp := mcp // capture
 		mcpJobs[i] = Job{
 			Name: mcp.Name,
 			Type: "mcp",
@@ -202,14 +206,6 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 
 	// Finish progress display
 	tracker.Finish(opts.Output)
-
-	// Print summary with error count if any failures occurred
-	if len(result.Errors) > 0 {
-		fmt.Fprintf(opts.Output, "\n%d operation(s) failed:\n", len(result.Errors))
-		for _, err := range result.Errors {
-			fmt.Fprintf(opts.Output, "  • %s\n", err.Error())
-		}
-	}
 
 	return result, nil
 }

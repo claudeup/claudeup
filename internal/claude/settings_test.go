@@ -75,6 +75,30 @@ func TestLoadSettingsNoFile(t *testing.T) {
 	}
 }
 
+func TestLoadSettingsPermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
+	// Create a parent directory that is untraversable, making claudeDir inaccessible
+	parent := t.TempDir()
+	claudeDir := filepath.Join(parent, "claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(parent, 0755) // restore so TempDir cleanup can run
+
+	_, err := LoadSettings(claudeDir)
+	if err == nil {
+		t.Fatal("LoadSettings should return error when claudeDir is inaccessible")
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected permission error, not ErrNotExist, got: %v", err)
+	}
+}
+
 func TestLoadSettingsNonExistentDir(t *testing.T) {
 	_, err := LoadSettings("/non/existent/path")
 	if err == nil {
@@ -113,6 +137,9 @@ func TestLoadSettingsOrEmpty_MissingFile(t *testing.T) {
 }
 
 func TestLoadSettingsOrEmpty_PermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
 	dir := t.TempDir()
 	path := filepath.Join(dir, "settings.json")
 	if err := os.WriteFile(path, []byte(`{"model":"sonnet"}`), 0000); err != nil {
