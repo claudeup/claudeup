@@ -1,9 +1,11 @@
 // ABOUTME: Unit tests for scope helper functions (clearScope and RenderPluginsByScope)
-// ABOUTME: Covers absent settings.json, non-existent file removal, and error propagation
+// ABOUTME: Covers absent settings.json, non-existent file removal, and error propagation from clearScope
 package commands
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +24,7 @@ func TestClearScope_UserScope_AbsentSettingsJSON(t *testing.T) {
 	}
 
 	// settings.json must now exist
-	if _, err := os.Stat(settingsPath); os.IsNotExist(err) {
+	if _, err := os.Stat(settingsPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected settings.json to be created after clearScope(user)")
 	}
 }
@@ -56,11 +58,42 @@ func TestClearScope_UserScope_ClearsExistingPlugins(t *testing.T) {
 	}
 }
 
+func TestClearScope_UserScope_PreservesNonPluginFields(t *testing.T) {
+	claudeDir := t.TempDir()
+	settingsPath := filepath.Join(claudeDir, "settings.json")
+
+	initial := `{"enabledPlugins":{"plugin-a":true},"model":"claude-opus-4-5"}`
+	if err := os.WriteFile(settingsPath, []byte(initial), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := clearScope("user", settingsPath, claudeDir); err != nil {
+		t.Fatalf("clearScope(user): %v", err)
+	}
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("result is not valid JSON: %v", err)
+	}
+
+	if raw["model"] != "claude-opus-4-5" {
+		t.Errorf("expected model field to be preserved, got: %v", raw["model"])
+	}
+
+	if plugins, ok := raw["enabledPlugins"].(map[string]interface{}); ok && len(plugins) != 0 {
+		t.Errorf("expected enabledPlugins to be empty, got %v", plugins)
+	}
+}
+
 func TestClearScope_ProjectScope_NonExistentFile(t *testing.T) {
 	// Removing a non-existent project settings file should succeed silently
 	claudeDir := t.TempDir()
-	projectDir := t.TempDir()
-	settingsPath := filepath.Join(projectDir, ".claude", "settings.json")
+	settingsPath := filepath.Join(t.TempDir(), ".claude", "settings.json")
 
 	if err := clearScope("project", settingsPath, claudeDir); err != nil {
 		t.Errorf("clearScope(project) with non-existent file: unexpected error: %v", err)
@@ -70,8 +103,7 @@ func TestClearScope_ProjectScope_NonExistentFile(t *testing.T) {
 func TestClearScope_LocalScope_NonExistentFile(t *testing.T) {
 	// Removing a non-existent local settings file should succeed silently
 	claudeDir := t.TempDir()
-	projectDir := t.TempDir()
-	settingsPath := filepath.Join(projectDir, ".claude", "settings.local.json")
+	settingsPath := filepath.Join(t.TempDir(), ".claude", "settings.local.json")
 
 	if err := clearScope("local", settingsPath, claudeDir); err != nil {
 		t.Errorf("clearScope(local) with non-existent file: unexpected error: %v", err)
@@ -94,7 +126,7 @@ func TestClearScope_ProjectScope_RemovesExistingFile(t *testing.T) {
 		t.Fatalf("clearScope(project): %v", err)
 	}
 
-	if _, err := os.Stat(settingsPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(settingsPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected settings.json to be removed after clearScope(project)")
 	}
 }
@@ -115,7 +147,7 @@ func TestClearScope_LocalScope_RemovesExistingFile(t *testing.T) {
 		t.Fatalf("clearScope(local): %v", err)
 	}
 
-	if _, err := os.Stat(settingsPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(settingsPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected settings.local.json to be removed after clearScope(local)")
 	}
 }
