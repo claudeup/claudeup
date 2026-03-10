@@ -78,12 +78,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	scopeSettings := make(map[string]*claude.Settings)
 	enabledInSettings := make(map[string]bool)
 
-	type scopeLoadError struct {
+	type scopeIssue struct {
 		scope string
 		path  string
 		err   error
 	}
-	var scopeLoadErrors []scopeLoadError
+	var scopeIssues []scopeIssue
 
 	for _, scope := range claude.ValidScopes {
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
@@ -98,15 +98,15 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 			// LoadSettingsForScope handles missing files internally (returns empty settings, nil error).
 			// Any error reaching here is a real I/O or parse failure.
 			path, _ := claude.SettingsPathForScope(scope, claudeDir, projectDir)
-			scopeLoadErrors = append(scopeLoadErrors, scopeLoadError{scope: scope, path: path, err: err})
+			scopeIssues = append(scopeIssues, scopeIssue{scope: scope, path: path, err: err})
 		}
 	}
 
 	// Report any scope settings loading errors
-	if len(scopeLoadErrors) > 0 {
+	if len(scopeIssues) > 0 {
 		fmt.Println()
 		fmt.Println(ui.RenderSection("Checking Settings Scopes", -1))
-		for _, se := range scopeLoadErrors {
+		for _, se := range scopeIssues {
 			fmt.Println(ui.Indent(fmt.Sprintf("%s %s scope: failed to load settings: %v", ui.Warning(ui.SymbolWarning), se.scope, se.err), 1))
 			if se.path != "" {
 				fmt.Println(ui.Indent(ui.Muted("Restore or delete the corrupted file: "+se.path), 2))
@@ -152,9 +152,9 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderSection("Analyzing Plugin Paths", -1))
 	pathIssues := analyzePathIssues(plugins)
 
-	if len(scopeLoadErrors) > 0 {
+	if len(scopeIssues) > 0 {
 		fmt.Println(ui.Indent(fmt.Sprintf("%s Plugin analysis may be incomplete: %d scope%s could not be loaded",
-			ui.Warning(ui.SymbolWarning), len(scopeLoadErrors), pluralS(len(scopeLoadErrors))), 1))
+			ui.Warning(ui.SymbolWarning), len(scopeIssues), pluralS(len(scopeIssues))), 1))
 	}
 
 	if len(pathIssues) == 0 && len(missingPlugins) == 0 {
@@ -267,12 +267,12 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Symlinks", symSummary), 1))
 
-	if len(scopeLoadErrors) > 0 {
-		fmt.Println(ui.Indent(ui.RenderDetail("Settings", fmt.Sprintf("%d scope load error%s", len(scopeLoadErrors), pluralS(len(scopeLoadErrors)))), 1))
+	if len(scopeIssues) > 0 {
+		fmt.Println(ui.Indent(ui.RenderDetail("Settings", fmt.Sprintf("%d scope load error%s", len(scopeIssues), pluralS(len(scopeIssues)))), 1))
 	}
 
 	fmt.Println()
-	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks) + len(scopeLoadErrors)
+	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks) + len(scopeIssues)
 	if allIssues > 0 {
 		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {

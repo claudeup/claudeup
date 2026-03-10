@@ -3,6 +3,9 @@
 package acceptance
 
 import (
+	"os"
+	"path/filepath"
+
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,6 +37,23 @@ var _ = Describe("doctor", func() {
 		})
 	})
 
+	Describe("corrupt project-scope settings", func() {
+		It("surfaces a warning for the failed project scope", func() {
+			projectDir := env.ProjectDir("corrupt-project")
+			claudeDir := filepath.Join(projectDir, ".claude")
+			Expect(os.MkdirAll(claudeDir, 0755)).To(Succeed())
+			env.WriteFile(claudeDir, "settings.json", "{invalid json")
+
+			result := env.RunInDir(projectDir, "doctor")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Checking Settings Scopes"))
+			Expect(result.Stdout).To(ContainSubstring("project scope: failed to load settings"))
+			Expect(result.Stdout).To(ContainSubstring("Settings: 1 scope load error"))
+			Expect(result.Stdout).To(ContainSubstring("Restore or delete the corrupted file:"))
+		})
+	})
+
 	Describe("absent settings file", func() {
 		It("does not warn when settings file is simply absent", func() {
 			// No settings.json written — this is the normal case for fresh installs
@@ -42,6 +62,8 @@ var _ = Describe("doctor", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).NotTo(ContainSubstring("Checking Settings Scopes"))
 			Expect(result.Stdout).NotTo(ContainSubstring("scope load error"))
+			Expect(result.Stdout).NotTo(ContainSubstring("Settings:"))
+			Expect(result.Stdout).To(ContainSubstring("No issues detected!"))
 		})
 	})
 
