@@ -86,6 +86,26 @@ func TestLoadMarketplacesPermissionError(t *testing.T) {
 	}
 }
 
+func TestLoadMarketplacesCorruptJSON(t *testing.T) {
+	tempDir := t.TempDir()
+	pluginsDir := filepath.Join(tempDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
+	if err := os.WriteFile(marketplacesPath, []byte(`{not valid json`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := LoadMarketplaces(tempDir)
+	if err == nil {
+		t.Fatal("LoadMarketplaces should return error for corrupt JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse marketplaces JSON from") {
+		t.Errorf("expected parse error with path context, got: %v", err)
+	}
+}
+
 func TestMarketplaceRegistryJSONMarshaling(t *testing.T) {
 	registry := MarketplaceRegistry{
 		"marketplace-1": MarketplaceMetadata{

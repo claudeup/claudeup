@@ -42,11 +42,11 @@ type MarketplacePluginInfo struct {
 }
 
 // LoadMarketplaces reads and parses the known_marketplaces.json file.
-// If the plugins directory or marketplaces file does not exist, returns an
-// empty registry and nil error (treated as a fresh install).
+// Any fs.ErrNotExist along the full path -- including a missing claudeDir,
+// plugins directory, or marketplaces file -- is treated as a fresh install
+// and returns an empty registry with nil error.
 func LoadMarketplaces(claudeDir string) (MarketplaceRegistry, error) {
-	pluginsDir := filepath.Join(claudeDir, "plugins")
-	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
+	marketplacesPath := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
 
 	data, err := os.ReadFile(marketplacesPath)
 	if err != nil {

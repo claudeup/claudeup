@@ -4,6 +4,8 @@ package profile
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -146,8 +148,24 @@ func TestApplyConcurrentlyWithReinstallFlag(t *testing.T) {
 }
 
 func TestApplyConcurrentlyWithLoadError(t *testing.T) {
-	// When the config directory is unreadable, load errors should be surfaced
-	// and all items treated as new (installed, not skipped).
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
+
+	// Create a claudeDir with unreadable marketplace and plugin files
+	// so both LoadMarketplaces and LoadPlugins return non-ErrNotExist errors.
+	claudeDir := t.TempDir()
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginsDir, "known_marketplaces.json"), []byte(`{}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), []byte(`{"version":2,"plugins":{}}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+
 	profile := &Profile{
 		Marketplaces: []Marketplace{
 			{Repo: "org/marketplace-a"},
@@ -159,7 +177,7 @@ func TestApplyConcurrentlyWithLoadError(t *testing.T) {
 	var output bytes.Buffer
 
 	result, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
-		ClaudeDir: "/nonexistent",
+		ClaudeDir: claudeDir,
 		Executor:  executor,
 		Output:    &output,
 	})
@@ -182,14 +200,26 @@ func TestApplyConcurrentlyWithLoadError(t *testing.T) {
 		t.Errorf("expected 0 plugins skipped, got %d", len(result.PluginsSkipped))
 	}
 
-	// Load error for plugins should be surfaced (LoadMarketplaces absorbs ErrNotExist)
-	foundPluginError := false
-	for _, e := range result.Errors {
-		if strings.Contains(e.Error(), "could not read installed plugins") {
-			foundPluginError = true
+	// Both load errors should be surfaced as warnings
+	foundMarketplaceWarning := false
+	foundPluginWarning := false
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Error(), "could not read installed marketplaces") {
+			foundMarketplaceWarning = true
+		}
+		if strings.Contains(w.Error(), "could not read installed plugins") {
+			foundPluginWarning = true
 		}
 	}
-	if !foundPluginError {
-		t.Error("expected load error for plugins to be surfaced in result.Errors")
+	if !foundMarketplaceWarning {
+		t.Error("expected load warning for marketplaces to be surfaced in result.Warnings")
+	}
+	if !foundPluginWarning {
+		t.Error("expected load warning for plugins to be surfaced in result.Warnings")
+	}
+
+	// No actual install errors should exist (mock executor succeeds)
+	if len(result.Errors) != 0 {
+		t.Errorf("expected 0 errors, got %d: %v", len(result.Errors), result.Errors)
 	}
 }

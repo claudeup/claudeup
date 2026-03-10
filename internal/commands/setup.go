@@ -568,6 +568,14 @@ func showApplyResults(result *profile.ApplyResult) {
 		fmt.Printf("  %s Added %d marketplaces\n", ui.Success(ui.SymbolSuccess), len(result.MarketplacesAdded))
 	}
 
+	if len(result.Warnings) > 0 {
+		fmt.Println()
+		ui.PrintWarning("Warnings:")
+		for _, w := range result.Warnings {
+			fmt.Printf("    %s %v\n", ui.Warning(ui.SymbolWarning), w)
+		}
+	}
+
 	if len(result.Errors) > 0 {
 		fmt.Println()
 		ui.PrintWarning("Some operations had errors:")
