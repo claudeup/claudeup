@@ -4,6 +4,8 @@ package integration
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -34,7 +36,7 @@ func TestWriteMCPJSON_CreatesValidFile(t *testing.T) {
 
 	// Verify file exists
 	mcpPath := filepath.Join(projectDir, ".mcp.json")
-	if _, err := os.Stat(mcpPath); os.IsNotExist(err) {
+	if _, err := os.Stat(mcpPath); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal(".mcp.json should be created")
 	}
 
@@ -117,7 +119,7 @@ func TestWriteMCPJSON_EmptyServers(t *testing.T) {
 
 	// File should still be created with empty mcpServers
 	mcpPath := filepath.Join(projectDir, ".mcp.json")
-	if _, err := os.Stat(mcpPath); os.IsNotExist(err) {
+	if _, err := os.Stat(mcpPath); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal(".mcp.json should be created even with empty servers")
 	}
 

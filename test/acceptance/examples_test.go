@@ -3,6 +3,8 @@
 package acceptance
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,10 +26,10 @@ var _ = Describe("example scripts", func() {
 		examplesDir = filepath.Join(projectRoot, "examples")
 
 		// If we're already at project root, adjust
-		if _, err := os.Stat(examplesDir); os.IsNotExist(err) {
+		if _, err := os.Stat(examplesDir); errors.Is(err, fs.ErrNotExist) {
 			examplesDir = filepath.Join(wd, "examples")
 		}
-		if _, err := os.Stat(examplesDir); os.IsNotExist(err) {
+		if _, err := os.Stat(examplesDir); errors.Is(err, fs.ErrNotExist) {
 			examplesDir = filepath.Join(wd, "..", "..", "examples")
 		}
 	})

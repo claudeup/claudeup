@@ -5,6 +5,7 @@ package ext
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -484,7 +485,7 @@ func (m *Manager) findImportCandidates(activeDir string) ([]string, error) {
 
 	entries, err := os.ReadDir(activeDir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return candidates, nil
 		}
 		return nil, err

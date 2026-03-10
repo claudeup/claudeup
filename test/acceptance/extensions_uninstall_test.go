@@ -3,6 +3,8 @@
 package acceptance
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -46,14 +48,14 @@ var _ = Describe("extensions uninstall", func() {
 		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
 		_, err := os.Stat(filepath.Join(env.ClaudeupDir, "ext", "rules", "my-rule.md"))
-		Expect(os.IsNotExist(err)).To(BeTrue())
+		Expect(errors.Is(err, fs.ErrNotExist)).To(BeTrue())
 	})
 
 	It("removes the symlink from the active directory", func() {
 		env.Run("extensions", "uninstall", "rules", "my-rule.md")
 
 		_, err := os.Lstat(filepath.Join(env.ClaudeDir, "rules", "my-rule.md"))
-		Expect(os.IsNotExist(err)).To(BeTrue())
+		Expect(errors.Is(err, fs.ErrNotExist)).To(BeTrue())
 	})
 
 	It("does not affect other items", func() {

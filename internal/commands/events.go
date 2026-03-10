@@ -3,7 +3,9 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +78,7 @@ func runEvents(cmd *cobra.Command, args []string) error {
 	logPath := filepath.Join(eventsDir, "operations.log")
 
 	// Check if log file exists
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+	if _, err := os.Stat(logPath); errors.Is(err, fs.ErrNotExist) {
 		ui.PrintInfo("No events recorded yet.")
 		ui.PrintInfo("File operations will be tracked automatically.")
 		return nil

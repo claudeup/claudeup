@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1190,7 +1191,7 @@ func cleanupStalePlugins(claudeDir string) {
 	plugins, err := claude.LoadPlugins(claudeDir)
 	if err != nil {
 		// Only warn if not a simple "file not found" - that's expected on fresh installs
-		if !os.IsNotExist(err) {
+		if !errors.Is(err, fs.ErrNotExist) {
 			fmt.Fprintf(os.Stderr, "  Warning: could not load plugins for cleanup: %v\n", err)
 		}
 		return
@@ -2443,7 +2444,7 @@ func highestPrecedenceApplied(applied map[string]appliedProfileInfo) *appliedPro
 func getAllProfiles(profilesDir string) ([]*profile.Profile, error) {
 	// Load user profiles
 	userEntries, err := profile.List(profilesDir)
-	if err != nil && !os.IsNotExist(err) {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("failed to list user profiles: %w", err)
 	}
 
@@ -2544,7 +2545,7 @@ func validateNewProfileName(name, profilesDir string) error {
 func registryKeysFromInstalled() ([]string, error) {
 	registry, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to load marketplace registry: %w", err)

@@ -4,7 +4,9 @@ package commands
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,7 +86,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		// Fresh install - load and validate profile once, then apply
 		p, err := profile.Load(profilesDir, setupProfile)
 		if err != nil {
-			if os.IsNotExist(err) {
+			if errors.Is(err, fs.ErrNotExist) {
 				return fmt.Errorf("profile %q does not exist (use 'claudeup profile list' to see available profiles)", setupProfile)
 			}
 			return fmt.Errorf("failed to load profile %q: %w", setupProfile, err)
@@ -196,7 +198,7 @@ func applyProfileForFreshInstall(p *profile.Profile, claudeJSONPath string) erro
 
 // ensureClaudeDir checks if the claude directory exists and prompts to create it if not
 func ensureClaudeDir() error {
-	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
 		ui.PrintWarning(fmt.Sprintf("Directory %s does not exist.", claudeDir))
 		fmt.Println()
 		fmt.Println(ui.Bold("Options:"))

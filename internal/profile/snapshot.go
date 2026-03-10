@@ -4,6 +4,8 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -230,7 +232,7 @@ func ReadExtensions(claudeDir, claudeupHome string) (*ExtensionSettings, error) 
 				continue
 			}
 			// Verify the item exists in the active directory (skip stale entries)
-			if _, err := os.Stat(filepath.Join(activeDir, name)); os.IsNotExist(err) {
+			if _, err := os.Stat(filepath.Join(activeDir, name)); errors.Is(err, fs.ErrNotExist) {
 				continue
 			}
 			enabled = append(enabled, name)
@@ -296,7 +298,7 @@ func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 	data, err := os.ReadFile(mcpPath)
 	if err != nil {
 		// File not existing is not an error for optional scopes
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, nil
 		}
 		return nil, err

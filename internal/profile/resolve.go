@@ -3,8 +3,9 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
-	"os"
+	"io/fs"
 	"strings"
 )
 
@@ -34,7 +35,7 @@ func (l *DirLoader) LoadProfile(name string) (*Profile, error) {
 
 	// Only fall back to embedded when the profile is genuinely not found.
 	// Let AmbiguousProfileError, JSON parse errors, etc. propagate.
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return GetEmbeddedProfile(name)
 	}
 	return nil, err

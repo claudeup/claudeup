@@ -5,6 +5,7 @@ package commands
 import (
 	"encoding/json"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -284,7 +285,7 @@ func TestProfileDelete_DetectsActiveProfile(t *testing.T) {
 	// This test verifies that the delete command logic can detect if a profile is active
 	// The actual deletion is tested in acceptance tests
 	profilePath := filepath.Join(profilesDir, "test-active.json")
-	if _, err := os.Stat(profilePath); os.IsNotExist(err) {
+	if _, err := os.Stat(profilePath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Profile file should exist before deletion")
 	}
 }

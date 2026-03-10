@@ -3,7 +3,9 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"sort"
 
@@ -67,7 +69,7 @@ func RenderPluginsByScope(claudeDir, projectDir, filterScope string) error {
 		settings, err := claude.LoadSettingsForScope(scope, claudeDir, projectDir)
 		if err != nil {
 			// If file doesn't exist, show appropriate message
-			if os.IsNotExist(err) || (scope != "user" && err != nil) {
+			if errors.Is(err, fs.ErrNotExist) || (scope != "user" && err != nil) {
 				if filterScope == "" {
 					// When showing all scopes, mention it's not configured
 					fmt.Println(ui.RenderSection(fmt.Sprintf("Scope: %s (%s)", formatScopeName(scope), settingsPath), -1))
@@ -141,14 +143,14 @@ func clearScope(scope string, settingsPath string, claudeDir string) error {
 
 	case "project":
 		// Remove project settings file
-		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(settingsPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 		return nil
 
 	case "local":
 		// Remove local settings file
-		if err := os.Remove(settingsPath); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(settingsPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 		return nil

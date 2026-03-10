@@ -4,6 +4,8 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -356,7 +358,7 @@ func TestSaveSettingsForScope(t *testing.T) {
 
 	// Verify directory was created
 	projectSettingsPath := filepath.Join(projectDir, ".claude", "settings.json")
-	if _, err := os.Stat(projectSettingsPath); os.IsNotExist(err) {
+	if _, err := os.Stat(projectSettingsPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("Project settings file should have been created")
 	}
 

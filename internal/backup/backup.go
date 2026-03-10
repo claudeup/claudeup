@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -55,7 +56,7 @@ func copyFile(src, dst string) error {
 		if dstLstat.Mode()&os.ModeSymlink != 0 {
 			return fmt.Errorf("destination is a symlink, refusing to overwrite: %s", dst)
 		}
-	} else if !os.IsNotExist(err) {
+	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("failed to stat destination file: %w", err)
 	}
 
@@ -143,7 +144,7 @@ func RestoreScopeBackup(claudeupHome, scope, settingsPath string) error {
 
 	// Check backup exists
 	if _, err := os.Stat(backupPath); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return ErrNoBackup
 		}
 		return err
@@ -169,7 +170,7 @@ func RestoreLocalScopeBackup(claudeupHome, projectDir, settingsPath string) erro
 
 	// Check backup exists
 	if _, err := os.Stat(backupPath); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return ErrNoBackup
 		}
 		return err
@@ -199,7 +200,7 @@ func GetBackupInfo(claudeupHome, scope string) (*BackupInfo, error) {
 	info := &BackupInfo{Path: backupPath}
 
 	stat, err := os.Stat(backupPath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return info, nil
 	}
 	if err != nil {
@@ -246,7 +247,7 @@ func GetLocalBackupInfo(claudeupHome, projectDir string) (*BackupInfo, error) {
 	info := &BackupInfo{Path: backupPath}
 
 	stat, err := os.Stat(backupPath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		return info, nil
 	}
 	if err != nil {

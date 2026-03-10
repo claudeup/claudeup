@@ -3,6 +3,8 @@
 package ext
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,7 +79,7 @@ func TestCopyToProjectCreatesDirectories(t *testing.T) {
 
 	// Verify nested directory was created
 	destPath := filepath.Join(projectDir, ".claude", "agents", "review-team", "reviewer.md")
-	if _, err := os.Stat(destPath); os.IsNotExist(err) {
+	if _, err := os.Stat(destPath); errors.Is(err, fs.ErrNotExist) {
 		t.Errorf("expected file at %s", destPath)
 	}
 }
@@ -109,11 +111,11 @@ func TestCopyToProjectHandlesSkillDirectories(t *testing.T) {
 
 	// Verify entire directory was copied
 	destSkillMd := filepath.Join(projectDir, ".claude", "skills", "session-notes", "SKILL.md")
-	if _, err := os.Stat(destSkillMd); os.IsNotExist(err) {
+	if _, err := os.Stat(destSkillMd); errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected SKILL.md to be copied")
 	}
 	destHelperMd := filepath.Join(projectDir, ".claude", "skills", "session-notes", "helper.md")
-	if _, err := os.Stat(destHelperMd); os.IsNotExist(err) {
+	if _, err := os.Stat(destHelperMd); errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected helper.md to be copied")
 	}
 }
@@ -144,7 +146,7 @@ func TestCopyToProjectWithWildcards(t *testing.T) {
 
 	// bash.md should not be copied
 	bashPath := filepath.Join(projectDir, ".claude", "rules", "bash.md")
-	if _, err := os.Stat(bashPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(bashPath); !errors.Is(err, fs.ErrNotExist) {
 		t.Error("bash.md should not have been copied")
 	}
 }

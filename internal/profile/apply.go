@@ -4,7 +4,9 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"os/exec"
@@ -1039,7 +1041,7 @@ func RunHook(profile *Profile, opts HookOptions) error {
 			scriptPath = filepath.Join(opts.ScriptDir, scriptPath)
 		}
 		// Verify script exists before attempting to run
-		if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
+		if _, err := os.Stat(scriptPath); errors.Is(err, fs.ErrNotExist) {
 			return fmt.Errorf("hook script not found: %s", scriptPath)
 		}
 		cmd = exec.Command("bash", scriptPath)

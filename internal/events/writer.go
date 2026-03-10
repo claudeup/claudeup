@@ -5,6 +5,8 @@ package events
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -58,7 +60,7 @@ func (w *JSONLWriter) Query(filters EventFilters) ([]*FileOperation, error) {
 
 	// Check if log file exists
 	if _, err := os.Stat(w.logPath); err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return []*FileOperation{}, nil
 		}
 		return nil, err

@@ -5,7 +5,9 @@ package claude
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -315,13 +317,13 @@ type Settings struct {
 // LoadSettings reads the settings.json file from the Claude directory
 func LoadSettings(claudeDir string) (*Settings, error) {
 	// Check if Claude directory exists
-	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
 	}
 
 	settingsPath := filepath.Join(claudeDir, "settings.json")
 	data, err := os.ReadFile(settingsPath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// Claude installed but settings missing - suspicious
 		return nil, &PathNotFoundError{
 			Component:    "settings",
@@ -458,7 +460,7 @@ func LoadSettingsForScope(scope string, claudeDir string, projectDir string) (*S
 	}
 
 	// If file doesn't exist, return empty settings (not an error)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		return &Settings{
 			EnabledPlugins: make(map[string]bool),
 			raw:            make(map[string]interface{}),

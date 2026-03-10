@@ -3,6 +3,8 @@
 package profile
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -150,7 +152,7 @@ func TestEnsureDefaultProfiles(t *testing.T) {
 
 	// Check that default.json was created
 	defaultPath := filepath.Join(profilesDir, "default.json")
-	if _, err := os.Stat(defaultPath); os.IsNotExist(err) {
+	if _, err := os.Stat(defaultPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("default.json was not created")
 	}
 

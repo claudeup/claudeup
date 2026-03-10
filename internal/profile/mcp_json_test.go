@@ -2,6 +2,8 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,7 +41,7 @@ func TestWriteMCPJSON(t *testing.T) {
 
 	// Verify file exists
 	path := filepath.Join(tempDir, MCPConfigFile)
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
 		t.Fatal(".mcp.json was not created")
 	}
 

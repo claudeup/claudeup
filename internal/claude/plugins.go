@@ -4,7 +4,9 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -43,13 +45,13 @@ type ScopedPlugin struct {
 // Supports both V1 (single objects) and V2 (arrays with scopes) formats
 func LoadPlugins(claudeDir string) (*PluginRegistry, error) {
 	// Check if Claude directory exists
-	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist)", claudeDir)
 	}
 
 	pluginsPath := filepath.Join(claudeDir, "plugins", "installed_plugins.json")
 	data, err := os.ReadFile(pluginsPath)
-	if os.IsNotExist(err) {
+	if errors.Is(err, fs.ErrNotExist) {
 		// Fresh Claude install - no plugins installed yet
 		return &PluginRegistry{
 			Version: 2,

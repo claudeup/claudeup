@@ -3,7 +3,9 @@
 package ext
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -66,7 +68,7 @@ func validateDestPath(destPath, baseDir string) error {
 // listItems enumerates items in an extension storage directory.
 // Mirrors the listing logic from Manager.ListItems but without needing a Manager.
 func listItems(dir, category string) ([]string, error) {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
+	if _, err := os.Stat(dir); errors.Is(err, fs.ErrNotExist) {
 		return []string{}, nil
 	}
 

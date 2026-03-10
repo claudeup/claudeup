@@ -4,6 +4,8 @@ package claude
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -172,7 +174,7 @@ func TestLoadAndSavePlugins(t *testing.T) {
 
 	// Verify file exists
 	pluginsFile := filepath.Join(tempDir, "plugins", "installed_plugins.json")
-	if _, err := os.Stat(pluginsFile); os.IsNotExist(err) {
+	if _, err := os.Stat(pluginsFile); errors.Is(err, fs.ErrNotExist) {
 		t.Error("installed_plugins.json should exist after save")
 	}
 
