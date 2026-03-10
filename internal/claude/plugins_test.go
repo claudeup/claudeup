@@ -203,6 +203,30 @@ func TestLoadAndSavePlugins(t *testing.T) {
 	}
 }
 
+func TestLoadPluginsPermissionError(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission checks do not apply when running as root")
+	}
+	// Create a parent directory that is untraversable, making claudeDir inaccessible
+	parent := t.TempDir()
+	claudeDir := filepath.Join(parent, "claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(parent, 0000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(parent, 0755) // restore so TempDir cleanup can run
+
+	_, err := LoadPlugins(claudeDir)
+	if err == nil {
+		t.Fatal("LoadPlugins should return error when claudeDir is inaccessible")
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("expected permission error, not ErrNotExist, got: %v", err)
+	}
+}
+
 func TestLoadPluginsNonExistent(t *testing.T) {
 	// Try to load from non-existent directory
 	_, err := LoadPlugins("/non/existent/path")

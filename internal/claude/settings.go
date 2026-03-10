@@ -317,8 +317,11 @@ type Settings struct {
 // LoadSettings reads the settings.json file from the Claude directory
 func LoadSettings(claudeDir string) (*Settings, error) {
 	// Check if Claude directory exists
-	if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
+	if _, err := os.Stat(claudeDir); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("Claude CLI not found (directory %s does not exist): %w", claudeDir, err)
+		}
+		return nil, fmt.Errorf("cannot access Claude directory: %w", err)
 	}
 
 	settingsPath := filepath.Join(claudeDir, "settings.json")

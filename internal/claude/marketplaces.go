@@ -43,21 +43,16 @@ type MarketplacePluginInfo struct {
 
 // LoadMarketplaces reads and parses the known_marketplaces.json file
 func LoadMarketplaces(claudeDir string) (MarketplaceRegistry, error) {
-	// Check if plugins directory exists
 	pluginsDir := filepath.Join(claudeDir, "plugins")
-	if _, err := os.Stat(pluginsDir); errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-
 	marketplacesPath := filepath.Join(pluginsDir, "known_marketplaces.json")
 
 	data, err := os.ReadFile(marketplacesPath)
-	if errors.Is(err, fs.ErrNotExist) {
-		// Fresh Claude install - no marketplaces added yet
-		return make(MarketplaceRegistry), nil
-	}
 	if err != nil {
-		return nil, err
+		if errors.Is(err, fs.ErrNotExist) {
+			// No plugins directory or no marketplaces file yet - treat as fresh install
+			return make(MarketplaceRegistry), nil
+		}
+		return nil, fmt.Errorf("cannot read marketplaces from %s: %w", marketplacesPath, err)
 	}
 
 	var registry MarketplaceRegistry
