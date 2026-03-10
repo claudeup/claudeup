@@ -85,6 +85,60 @@ func TestLoadSettingsNonExistentDir(t *testing.T) {
 	}
 }
 
+func TestLoadSettingsOrEmpty_NonExistentDir(t *testing.T) {
+	settings, err := LoadSettingsOrEmpty("/non/existent/path")
+	if err != nil {
+		t.Fatalf("expected nil error for missing dir, got: %v", err)
+	}
+	if settings == nil {
+		t.Fatal("expected non-nil settings")
+	}
+	if settings.EnabledPlugins == nil {
+		t.Error("EnabledPlugins map must be initialized")
+	}
+}
+
+func TestLoadSettingsOrEmpty_MissingFile(t *testing.T) {
+	dir := t.TempDir()
+	settings, err := LoadSettingsOrEmpty(dir)
+	if err != nil {
+		t.Fatalf("expected nil error for missing settings.json, got: %v", err)
+	}
+	if settings == nil {
+		t.Fatal("expected non-nil settings")
+	}
+	if settings.EnabledPlugins == nil {
+		t.Error("EnabledPlugins map must be initialized")
+	}
+}
+
+func TestLoadSettingsOrEmpty_PermissionError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte(`{"model":"sonnet"}`), 0000); err != nil {
+		t.Fatal(err)
+	}
+	_, err := LoadSettingsOrEmpty(dir)
+	if err == nil {
+		t.Error("expected error for unreadable file")
+	}
+}
+
+func TestLoadSettingsOrEmpty_ValidFile(t *testing.T) {
+	dir := t.TempDir()
+	data := []byte(`{"enabledPlugins":{"foo@bar":true}}`)
+	if err := os.WriteFile(filepath.Join(dir, "settings.json"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	settings, err := LoadSettingsOrEmpty(dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !settings.IsPluginEnabled("foo@bar") {
+		t.Error("expected foo@bar to be enabled")
+	}
+}
+
 func TestIsPluginEnabled(t *testing.T) {
 	settings := &Settings{
 		EnabledPlugins: map[string]bool{
