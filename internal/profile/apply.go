@@ -120,14 +120,16 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		currentPlugins := toSet(current.Plugins)
 		profilePlugins := toSet(profile.Plugins)
 
-		for plugin := range currentPlugins {
+		// Iterate over current.Plugins slice (not the map) for stable ordering
+		for _, plugin := range current.Plugins {
 			if _, exists := profilePlugins[plugin]; !exists {
 				diff.PluginsToRemove = append(diff.PluginsToRemove, plugin)
 			}
 		}
 
 		// Plugins to install (in profile but not in current state, or all if reinstalling)
-		for plugin := range profilePlugins {
+		// Iterate over profile.Plugins slice (not the map) to preserve user-defined order
+		for _, plugin := range profile.Plugins {
 			_, exists := currentPlugins[plugin]
 			if opts.Reinstall || !exists {
 				diff.PluginsToInstall = append(diff.PluginsToInstall, plugin)

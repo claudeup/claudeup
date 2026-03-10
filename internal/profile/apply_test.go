@@ -244,6 +244,68 @@ func TestComputeDiffFreshInstall(t *testing.T) {
 	}
 }
 
+func TestComputeDiffPluginOrderPreserved(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Current state: plugin-existing is already installed
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-existing@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-existing@marketplace": true,
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	// Profile with many plugins in a specific order
+	profile := &Profile{
+		Name: "ordered",
+		Plugins: []string{
+			"plugin-alpha@marketplace",
+			"plugin-beta@marketplace",
+			"plugin-gamma@marketplace",
+			"plugin-delta@marketplace",
+			"plugin-epsilon@marketplace",
+		},
+	}
+
+	// Run multiple times to detect non-deterministic ordering
+	for i := 0; i < 20; i++ {
+		diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+		if err != nil {
+			t.Fatalf("ComputeDiff failed on iteration %d: %v", i, err)
+		}
+
+		expected := []string{
+			"plugin-alpha@marketplace",
+			"plugin-beta@marketplace",
+			"plugin-gamma@marketplace",
+			"plugin-delta@marketplace",
+			"plugin-epsilon@marketplace",
+		}
+
+		if len(diff.PluginsToInstall) != len(expected) {
+			t.Fatalf("iteration %d: expected %d plugins, got %d: %v", i, len(expected), len(diff.PluginsToInstall), diff.PluginsToInstall)
+		}
+		for j, plugin := range diff.PluginsToInstall {
+			if plugin != expected[j] {
+				t.Errorf("iteration %d: PluginsToInstall[%d] = %q, want %q (full list: %v)", i, j, plugin, expected[j], diff.PluginsToInstall)
+				break
+			}
+		}
+	}
+}
+
 func TestComputeDiffIdenticalStates(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
