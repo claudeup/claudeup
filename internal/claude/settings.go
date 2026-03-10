@@ -324,7 +324,7 @@ func LoadSettings(claudeDir string) (*Settings, error) {
 	settingsPath := filepath.Join(claudeDir, "settings.json")
 	data, err := os.ReadFile(settingsPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		// Claude installed but settings missing - suspicious
+		// Claude directory exists but settings.json is absent
 		return nil, &PathNotFoundError{
 			Component:    "settings",
 			ExpectedPath: settingsPath,

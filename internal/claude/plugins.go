@@ -127,8 +127,6 @@ func SavePlugins(claudeDir string, registry *PluginRegistry) error {
 	}
 
 	// Wrap file write with event tracking
-	// Note: Operation name is generic. Phase 2 will add context to distinguish
-	// between "profile apply", "plugin cleanup", and "plugin update" operations.
 	return events.GlobalTracker().RecordFileWrite(
 		"plugin update",
 		pluginsPath,
@@ -265,7 +263,6 @@ func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 		}
 	}
 
-	// No matching scope, append
 	r.Plugins[pluginName] = append(instances, metadata)
 }
 

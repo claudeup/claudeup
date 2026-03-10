@@ -669,8 +669,10 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 	// This ensures settings.json exactly matches the profile
 	// CRITICAL: Load existing settings to preserve non-plugin fields (mcpServers, etc.)
 	userSettings, err := claude.LoadSettings(claudeDir)
-	if err != nil {
-		// If settings don't exist, create new minimal settings
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return result, fmt.Errorf("failed to load settings: %w", err)
+	}
+	if userSettings == nil {
 		userSettings = &claude.Settings{
 			EnabledPlugins: make(map[string]bool),
 		}
@@ -1138,7 +1140,10 @@ func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string, repl
 
 	// Load existing user settings (preserves other fields)
 	settings, err := claude.LoadSettings(claudeDir)
-	if err != nil {
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("failed to load settings: %w", err)
+	}
+	if settings == nil {
 		settings = &claude.Settings{
 			EnabledPlugins: make(map[string]bool),
 		}
@@ -1337,8 +1342,10 @@ func applySettingsHooks(profile *Profile, claudeDir string) error {
 	}
 
 	settings, err := claude.LoadSettings(claudeDir)
-	if err != nil {
-		// Create new settings if none exist
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
+	if settings == nil {
 		settings = &claude.Settings{
 			EnabledPlugins: make(map[string]bool),
 		}
