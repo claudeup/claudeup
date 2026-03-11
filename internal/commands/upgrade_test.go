@@ -367,6 +367,22 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(err.Error()).To(ContainSubstring("not found in marketplace index"))
 		})
 
+		It("allows source pointing to marketplace root", func() {
+			// Some plugins use "./" meaning the plugin IS the marketplace
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, "plugin.json"), []byte(`{}`), 0644)).To(Succeed())
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "self-plugin", "version": "1.0.0", "source": "./"}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "self-plugin")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(Equal(filepath.Clean(marketplaceDir)))
+			Expect(version).To(Equal("1.0.0"))
+		})
+
 		It("rejects path traversal in source field", func() {
 			writeIndex(`{
 				"name": "test-marketplace",

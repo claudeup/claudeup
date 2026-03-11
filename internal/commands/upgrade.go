@@ -621,7 +621,8 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 		// Resolve relative path within marketplace, ensuring it stays within bounds
 		resolved := filepath.Join(marketplacePath, pluginInfo.Source.Source)
 		resolved = filepath.Clean(resolved)
-		if !strings.HasPrefix(resolved, filepath.Clean(marketplacePath)+string(filepath.Separator)) {
+		cleanMarketplace := filepath.Clean(marketplacePath)
+		if resolved != cleanMarketplace && !strings.HasPrefix(resolved, cleanMarketplace+string(filepath.Separator)) {
 			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.Source)
 		}
 		if _, err := os.Stat(resolved); err != nil {
