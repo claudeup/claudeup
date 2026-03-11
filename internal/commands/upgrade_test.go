@@ -3,8 +3,10 @@
 package commands
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
@@ -127,6 +129,313 @@ var _ = Describe("findUnmatchedTargets", func() {
 			pluginUpdates,
 		)
 		Expect(unmatched).To(BeEmpty())
+	})
+})
+
+var _ = Describe("findMarketplacePath", func() {
+	var marketplaces claude.MarketplaceRegistry
+
+	BeforeEach(func() {
+		marketplaces = claude.MarketplaceRegistry{
+			"superpowers": claude.MarketplaceMetadata{
+				InstallLocation: "/home/.claude/plugins/marketplaces/superpowers",
+			},
+			"community": claude.MarketplaceMetadata{
+				InstallLocation: "/home/.claude/plugins/marketplaces/community",
+			},
+		}
+	})
+
+	It("resolves marketplace from plugin name suffix", func() {
+		path := findMarketplacePath("hookify@superpowers", "/home/.claude/plugins/cache/hookify", marketplaces)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/superpowers"))
+	})
+
+	It("falls back to install path matching", func() {
+		path := findMarketplacePath("hookify", "/home/.claude/plugins/marketplaces/community/plugins/hookify", marketplaces)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/community"))
+	})
+
+	It("returns empty when no match found", func() {
+		path := findMarketplacePath("hookify", "/some/other/path", marketplaces)
+		Expect(path).To(BeEmpty())
+	})
+
+	It("does not false-match overlapping marketplace path prefixes", func() {
+		overlapping := claude.MarketplaceRegistry{
+			"community": claude.MarketplaceMetadata{
+				InstallLocation: "/home/.claude/plugins/marketplaces/community",
+			},
+			"community-extra": claude.MarketplaceMetadata{
+				InstallLocation: "/home/.claude/plugins/marketplaces/community-extra",
+			},
+		}
+		path := findMarketplacePath("hookify", "/home/.claude/plugins/marketplaces/community-extra/plugins/hookify", overlapping)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/community-extra"))
+	})
+
+	It("prefers name-based lookup over path matching", func() {
+		// Plugin name says superpowers, but path contains community
+		path := findMarketplacePath("hookify@superpowers", "/home/.claude/plugins/marketplaces/community/plugins/hookify", marketplaces)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/superpowers"))
+	})
+})
+
+var _ = Describe("updatePluginViaCLI", func() {
+	var (
+		tempDir     string
+		origPath    string
+		argsLogFile string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tempDir, err = os.MkdirTemp("", "cli-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		argsLogFile = filepath.Join(tempDir, "args.log")
+
+		// Create a fake "claude" binary that logs its arguments
+		fakeClaude := filepath.Join(tempDir, "claude")
+		script := "#!/bin/sh\necho \"$@\" > " + argsLogFile + "\n"
+		err = os.WriteFile(fakeClaude, []byte(script), 0755)
+		Expect(err).NotTo(HaveOccurred())
+
+		origPath = os.Getenv("PATH")
+		os.Setenv("PATH", tempDir+":"+origPath)
+	})
+
+	AfterEach(func() {
+		os.Setenv("PATH", origPath)
+		os.RemoveAll(tempDir)
+	})
+
+	It("passes --scope flag to claude plugin update", func() {
+		err := updatePluginViaCLI("hookify@superpowers", "project")
+		Expect(err).NotTo(HaveOccurred())
+
+		logged, err := os.ReadFile(argsLogFile)
+		Expect(err).NotTo(HaveOccurred())
+		args := strings.TrimSpace(string(logged))
+		Expect(args).To(Equal("plugin update --scope project hookify@superpowers"))
+	})
+
+	It("passes user scope by default convention", func() {
+		err := updatePluginViaCLI("tdd@marketplace", "user")
+		Expect(err).NotTo(HaveOccurred())
+
+		logged, err := os.ReadFile(argsLogFile)
+		Expect(err).NotTo(HaveOccurred())
+		args := strings.TrimSpace(string(logged))
+		Expect(args).To(Equal("plugin update --scope user tdd@marketplace"))
+	})
+
+	It("passes local scope correctly", func() {
+		err := updatePluginViaCLI("debug@tools", "local")
+		Expect(err).NotTo(HaveOccurred())
+
+		logged, err := os.ReadFile(argsLogFile)
+		Expect(err).NotTo(HaveOccurred())
+		args := strings.TrimSpace(string(logged))
+		Expect(args).To(Equal("plugin update --scope local debug@tools"))
+	})
+
+	It("includes command output in error on failure", func() {
+		// Replace fake claude with one that fails
+		fakeClaude := filepath.Join(tempDir, "claude")
+		script := "#!/bin/sh\necho 'plugin not found: bogus' >&2\nexit 1\n"
+		err := os.WriteFile(fakeClaude, []byte(script), 0755)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = updatePluginViaCLI("bogus@marketplace", "user")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("plugin not found: bogus"))
+	})
+
+	It("includes original error when command output is empty", func() {
+		// Replace fake claude with one that fails silently
+		fakeClaude := filepath.Join(tempDir, "claude")
+		script := "#!/bin/sh\nexit 1\n"
+		err := os.WriteFile(fakeClaude, []byte(script), 0755)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = updatePluginViaCLI("bogus@marketplace", "user")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("exit status"))
+	})
+})
+
+var _ = Describe("resolvePluginSource", func() {
+	var marketplaceDir string
+
+	BeforeEach(func() {
+		var err error
+		marketplaceDir, err = os.MkdirTemp("", "marketplace-*")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(marketplaceDir)
+	})
+
+	It("finds plugin in plugins/ subdirectory", func() {
+		pluginDir := filepath.Join(marketplaceDir, "plugins", "hookify")
+		Expect(os.MkdirAll(pluginDir, 0755)).To(Succeed())
+
+		sourcePath, version, err := resolvePluginSource(marketplaceDir, "hookify")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sourcePath).To(Equal(pluginDir))
+		Expect(version).To(BeEmpty())
+	})
+
+	It("finds plugin in skills/ subdirectory", func() {
+		skillDir := filepath.Join(marketplaceDir, "skills", "tdd")
+		Expect(os.MkdirAll(skillDir, 0755)).To(Succeed())
+
+		sourcePath, version, err := resolvePluginSource(marketplaceDir, "tdd")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(sourcePath).To(Equal(skillDir))
+		Expect(version).To(BeEmpty())
+	})
+
+	Context("with marketplace index", func() {
+		writeIndex := func(content string) {
+			indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+			Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(content), 0644)).To(Succeed())
+		}
+
+		It("resolves relative path from index", func() {
+			// Create the target directory
+			targetDir := filepath.Join(marketplaceDir, "plugins", "hookify")
+			Expect(os.MkdirAll(targetDir, 0755)).To(Succeed())
+
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "1.2.0", "source": "./plugins/hookify"}
+				]
+			}`)
+
+			// Source should come from directory scan, not index (directory takes priority)
+			sourcePath, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(Equal(targetDir))
+		})
+
+		It("resolves relative path from index when not in standard dirs", func() {
+			// Plugin is at a custom path, not under plugins/ or skills/
+			targetDir := filepath.Join(marketplaceDir, "custom", "hookify")
+			Expect(os.MkdirAll(targetDir, 0755)).To(Succeed())
+
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "2.0.0", "source": "./custom/hookify"}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(Equal(targetDir))
+			Expect(version).To(Equal("2.0.0"))
+		})
+
+		It("returns empty sourcePath for external URL source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "remote-plugin", "version": "3.0.0", "source": {"source": "git", "url": "https://github.com/org/repo"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "remote-plugin")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("3.0.0"))
+		})
+
+		It("returns error when plugin not in index", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "other-plugin", "version": "1.0.0", "source": "./plugins/other"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("not found in marketplace index"))
+		})
+
+		It("allows source pointing to marketplace root", func() {
+			// Some plugins use "./" meaning the plugin IS the marketplace
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, "plugin.json"), []byte(`{}`), 0644)).To(Succeed())
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "self-plugin", "version": "1.0.0", "source": "./"}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "self-plugin")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(Equal(filepath.Clean(marketplaceDir)))
+			Expect(version).To(Equal("1.0.0"))
+		})
+
+		It("rejects path traversal in source field", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "evil", "version": "1.0.0", "source": "../../etc/passwd"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "evil")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resolves outside marketplace directory"))
+		})
+
+		It("returns error when relative path does not exist", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "1.0.0", "source": "./nonexistent/hookify"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("does not exist"))
+		})
+	})
+
+	It("returns error when no index and not in standard dirs", func() {
+		_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cannot read index"))
+	})
+})
+
+var _ = Describe("isStalePluginError", func() {
+	It("matches 'not found in marketplace index' errors", func() {
+		err := fmt.Errorf("plugin %q not found in marketplace index", "ralph-wiggum")
+		Expect(isStalePluginError(err)).To(BeTrue())
+	})
+
+	It("matches 'not installed at scope' errors", func() {
+		err := fmt.Errorf("claude plugin update failed: not installed at scope project")
+		Expect(isStalePluginError(err)).To(BeTrue())
+	})
+
+	It("returns false for unrelated errors", func() {
+		err := fmt.Errorf("failed to get latest commit: exit status 1")
+		Expect(isStalePluginError(err)).To(BeFalse())
+	})
+
+	It("returns false for nil", func() {
+		Expect(isStalePluginError(nil)).To(BeFalse())
 	})
 })
 
