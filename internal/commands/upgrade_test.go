@@ -130,6 +130,42 @@ var _ = Describe("findUnmatchedTargets", func() {
 	})
 })
 
+var _ = Describe("findMarketplacePath", func() {
+	var marketplaces claude.MarketplaceRegistry
+
+	BeforeEach(func() {
+		marketplaces = claude.MarketplaceRegistry{
+			"superpowers": claude.MarketplaceMetadata{
+				InstallLocation: "/home/.claude/plugins/marketplaces/superpowers",
+			},
+			"community": claude.MarketplaceMetadata{
+				InstallLocation: "/home/.claude/plugins/marketplaces/community",
+			},
+		}
+	})
+
+	It("resolves marketplace from plugin name suffix", func() {
+		path := findMarketplacePath("hookify@superpowers", "/home/.claude/plugins/cache/hookify", marketplaces)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/superpowers"))
+	})
+
+	It("falls back to install path matching", func() {
+		path := findMarketplacePath("hookify", "/home/.claude/plugins/marketplaces/community/plugins/hookify", marketplaces)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/community"))
+	})
+
+	It("returns empty when no match found", func() {
+		path := findMarketplacePath("hookify", "/some/other/path", marketplaces)
+		Expect(path).To(BeEmpty())
+	})
+
+	It("prefers name-based lookup over path matching", func() {
+		// Plugin name says superpowers, but path contains community
+		path := findMarketplacePath("hookify@superpowers", "/home/.claude/plugins/marketplaces/community/plugins/hookify", marketplaces)
+		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/superpowers"))
+	})
+})
+
 var _ = Describe("availableScopes", func() {
 	It("returns all scopes when allFlag is true", func() {
 		scopes := availableScopes(true, "")
