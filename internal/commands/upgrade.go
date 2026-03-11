@@ -501,7 +501,7 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 
 		if sourcePath == "" {
 			// External-URL source: delegate to Claude Code's own update command
-			return updatePluginViaCLI(pluginBaseName)
+			return updatePluginViaCLI(pluginBaseName, scope)
 		}
 
 		// Determine cache destination. If the marketplace provides a new version,
@@ -536,11 +536,11 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 
 // updatePluginViaCLI delegates plugin updates to Claude Code's own `claude plugin update` command.
 // This handles external-URL-sourced plugins that claudeup cannot update by simple copy.
-func updatePluginViaCLI(pluginBaseName string) error {
+func updatePluginViaCLI(pluginBaseName, scope string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "plugin", "update", pluginBaseName)
+	cmd := exec.CommandContext(ctx, "claude", "plugin", "update", "--scope", scope, pluginBaseName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("claude plugin update failed: %s", strings.TrimSpace(string(output)))
