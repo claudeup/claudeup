@@ -5,6 +5,7 @@ package commands
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
@@ -163,6 +164,66 @@ var _ = Describe("findMarketplacePath", func() {
 		// Plugin name says superpowers, but path contains community
 		path := findMarketplacePath("hookify@superpowers", "/home/.claude/plugins/marketplaces/community/plugins/hookify", marketplaces)
 		Expect(path).To(Equal("/home/.claude/plugins/marketplaces/superpowers"))
+	})
+})
+
+var _ = Describe("updatePluginViaCLI", func() {
+	var (
+		tempDir     string
+		origPath    string
+		argsLogFile string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tempDir, err = os.MkdirTemp("", "cli-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		argsLogFile = filepath.Join(tempDir, "args.log")
+
+		// Create a fake "claude" binary that logs its arguments
+		fakeClaude := filepath.Join(tempDir, "claude")
+		script := "#!/bin/sh\necho \"$@\" > " + argsLogFile + "\n"
+		err = os.WriteFile(fakeClaude, []byte(script), 0755)
+		Expect(err).NotTo(HaveOccurred())
+
+		origPath = os.Getenv("PATH")
+		os.Setenv("PATH", tempDir+":"+origPath)
+	})
+
+	AfterEach(func() {
+		os.Setenv("PATH", origPath)
+		os.RemoveAll(tempDir)
+	})
+
+	It("passes --scope flag to claude plugin update", func() {
+		err := updatePluginViaCLI("hookify@superpowers", "project")
+		Expect(err).NotTo(HaveOccurred())
+
+		logged, err := os.ReadFile(argsLogFile)
+		Expect(err).NotTo(HaveOccurred())
+		args := strings.TrimSpace(string(logged))
+		Expect(args).To(Equal("plugin update --scope project hookify@superpowers"))
+	})
+
+	It("passes user scope by default convention", func() {
+		err := updatePluginViaCLI("tdd@marketplace", "user")
+		Expect(err).NotTo(HaveOccurred())
+
+		logged, err := os.ReadFile(argsLogFile)
+		Expect(err).NotTo(HaveOccurred())
+		args := strings.TrimSpace(string(logged))
+		Expect(args).To(Equal("plugin update --scope user tdd@marketplace"))
+	})
+
+	It("passes local scope correctly", func() {
+		err := updatePluginViaCLI("debug@tools", "local")
+		Expect(err).NotTo(HaveOccurred())
+
+		logged, err := os.ReadFile(argsLogFile)
+		Expect(err).NotTo(HaveOccurred())
+		args := strings.TrimSpace(string(logged))
+		Expect(args).To(Equal("plugin update --scope local debug@tools"))
 	})
 })
 
