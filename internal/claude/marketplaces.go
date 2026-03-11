@@ -34,11 +34,52 @@ type MarketplaceIndex struct {
 	Plugins []MarketplacePluginInfo `json:"plugins"`
 }
 
+// PluginSource represents a plugin's source location.
+// In marketplace.json, source can be a string (relative path) or an object (with url).
+type PluginSource struct {
+	Source string `json:"source,omitempty"`
+	URL    string `json:"url,omitempty"`
+}
+
+// UnmarshalJSON handles source being either a string or an object
+func (s *PluginSource) UnmarshalJSON(data []byte) error {
+	// Try string first (relative path like "./plugins/hookify")
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		s.Source = str
+		return nil
+	}
+
+	// Try object (like {"source": "url", "url": "https://..."})
+	type raw struct {
+		Source string `json:"source"`
+		URL    string `json:"url"`
+	}
+	var obj raw
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	s.Source = obj.Source
+	s.URL = obj.URL
+	return nil
+}
+
+// IsRelativePath returns true if the source is a local path within the marketplace
+func (s *PluginSource) IsRelativePath() bool {
+	return s.URL == "" && s.Source != ""
+}
+
+// IsURL returns true if the source is an external git URL
+func (s *PluginSource) IsURL() bool {
+	return s.URL != ""
+}
+
 // MarketplacePluginInfo represents a plugin entry in the marketplace index
 type MarketplacePluginInfo struct {
-	Name        string `json:"name"`
-	Description string `json:"description,omitempty"`
-	Version     string `json:"version,omitempty"`
+	Name        string        `json:"name"`
+	Description string        `json:"description,omitempty"`
+	Version     string        `json:"version,omitempty"`
+	Source      *PluginSource `json:"source,omitempty"`
 }
 
 // LoadMarketplaces reads and parses the known_marketplaces.json file.

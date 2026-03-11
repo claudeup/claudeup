@@ -487,7 +487,6 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 
 	// For cached plugins (isLocal: false), re-copy from marketplace to cache
 	if !plugin.IsLocal {
-		// Extract plugin name from full name (e.g., "hookify@claude-code-plugins" -> "hookify")
 		pluginBaseName := strings.Split(name, "@")[0]
 
 		// Sanitize: prevent path traversal attacks
@@ -495,22 +494,21 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 			return fmt.Errorf("invalid plugin name: %s", pluginBaseName)
 		}
 
-		// Find source plugin in marketplace (try /plugins/ and /skills/ subdirectories)
-		var sourcePath string
-		possiblePaths := []string{
-			filepath.Join(marketplacePath, "plugins", pluginBaseName),
-			filepath.Join(marketplacePath, "skills", pluginBaseName),
-		}
-
-		for _, path := range possiblePaths {
-			if _, err := os.Stat(path); err == nil {
-				sourcePath = path
-				break
-			}
+		sourcePath, newVersion, err := resolvePluginSource(marketplacePath, pluginBaseName)
+		if err != nil {
+			return err
 		}
 
 		if sourcePath == "" {
-			return fmt.Errorf("plugin source not found in marketplace")
+			// External-URL source: delegate to Claude Code's own update command
+			return updatePluginViaCLI(pluginBaseName)
+		}
+
+		// Determine cache destination. If the marketplace provides a new version,
+		// create a new versioned directory instead of overwriting in-place.
+		destPath := plugin.InstallPath
+		if newVersion != "" && newVersion != plugin.Version {
+			destPath = filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
 		}
 
 		// Remove old cached version
@@ -519,8 +517,13 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 		}
 
 		// Copy updated plugin to cache
-		if err := copyDir(sourcePath, plugin.InstallPath); err != nil {
+		if err := copyDir(sourcePath, destPath); err != nil {
 			return fmt.Errorf("failed to copy updated plugin: %w", err)
+		}
+
+		plugin.InstallPath = destPath
+		if newVersion != "" {
+			plugin.Version = newVersion
 		}
 	}
 
@@ -529,6 +532,65 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 	plugins.SetPlugin(name, plugin)
 
 	return nil
+}
+
+// updatePluginViaCLI delegates plugin updates to Claude Code's own `claude plugin update` command.
+// This handles external-URL-sourced plugins that claudeup cannot update by simple copy.
+func updatePluginViaCLI(pluginBaseName string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "claude", "plugin", "update", pluginBaseName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("claude plugin update failed: %s", strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+// resolvePluginSource finds the source directory for a plugin within its marketplace.
+// It checks local directories first, then reads the marketplace index for
+// relative-path sources. Returns (sourcePath, version, error).
+// Returns empty sourcePath (not an error) when the plugin uses an external URL
+// source, signaling the caller to delegate to `claude plugin update`.
+func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string, error) {
+	// Try local directories in marketplace (plugins/ and skills/)
+	for _, subdir := range []string{"plugins", "skills"} {
+		p := filepath.Join(marketplacePath, subdir, pluginBaseName)
+		if _, err := os.Stat(p); err == nil {
+			return p, "", nil
+		}
+	}
+
+	// Read marketplace index to find plugin source info
+	index, err := claude.LoadMarketplaceIndex(marketplacePath)
+	if err != nil {
+		return "", "", fmt.Errorf("plugin source not found in marketplace and cannot read index: %w", err)
+	}
+
+	var pluginInfo *claude.MarketplacePluginInfo
+	for i := range index.Plugins {
+		if index.Plugins[i].Name == pluginBaseName {
+			pluginInfo = &index.Plugins[i]
+			break
+		}
+	}
+
+	if pluginInfo == nil || pluginInfo.Source == nil {
+		return "", "", fmt.Errorf("plugin %q not found in marketplace index", pluginBaseName)
+	}
+
+	if pluginInfo.Source.IsRelativePath() {
+		// Resolve relative path within marketplace
+		resolved := filepath.Join(marketplacePath, pluginInfo.Source.Source)
+		if _, err := os.Stat(resolved); err != nil {
+			return "", "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
+		}
+		return resolved, pluginInfo.Version, nil
+	}
+
+	// External URL source -- return empty to signal delegation
+	return "", pluginInfo.Version, nil
 }
 
 // copyDir recursively copies a directory
