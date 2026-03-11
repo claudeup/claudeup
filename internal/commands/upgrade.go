@@ -293,7 +293,17 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		for _, update := range outdatedUpdates {
 			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
 			if err := updatePlugin(update.Name, update.Scope, plugins, marketplaces); err != nil {
-				ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
+				if isStalePluginError(err) {
+					ui.PrintWarning(fmt.Sprintf("%s: %v", displayName, err))
+					confirmed, promptErr := ui.ConfirmYesNo(
+						fmt.Sprintf("  Remove stale registry entry for %s?", displayName))
+					if promptErr == nil && confirmed {
+						plugins.RemovePluginAtScope(update.Name, update.Scope)
+						ui.PrintSuccess(fmt.Sprintf("%s: Removed stale entry", displayName))
+					}
+				} else {
+					ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
+				}
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("%s: Updated", displayName))
 			}
@@ -633,6 +643,17 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 
 	// External URL source -- return empty to signal delegation
 	return "", pluginInfo.Version, nil
+}
+
+// isStalePluginError returns true when the error indicates a registry entry
+// that no longer corresponds to an installed or indexed plugin.
+func isStalePluginError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "not found in marketplace index") ||
+		strings.Contains(msg, "not installed at scope")
 }
 
 // copyDir recursively copies a directory

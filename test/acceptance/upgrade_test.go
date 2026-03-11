@@ -246,6 +246,97 @@ var _ = Describe("upgrade", func() {
 		})
 	})
 
+	Describe("stale plugin registry cleanup", func() {
+		It("removes stale entries when confirmed with --yes", func() {
+			env = helpers.NewTestEnv(binaryPath)
+
+			// Create a bare git repo as remote
+			bareRepo := filepath.Join(env.TempDir, "bare-repo.git")
+			Expect(exec.Command("git", "init", "--bare", bareRepo).Run()).To(Succeed())
+
+			// Clone as marketplace
+			marketplacesDir := filepath.Join(env.ClaudeDir, "plugins", "marketplaces")
+			Expect(os.MkdirAll(marketplacesDir, 0755)).To(Succeed())
+			marketplaceDir := filepath.Join(marketplacesDir, "test-marketplace")
+			Expect(exec.Command("git", "clone", bareRepo, marketplaceDir).Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.name", "Test").Run()).To(Succeed())
+
+			// Create a plugin called "new-name" (simulating a rename from "old-name")
+			pluginDir := filepath.Join(marketplaceDir, "plugins", "new-name")
+			Expect(os.MkdirAll(pluginDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{"name":"new-name"}`), 0644)).To(Succeed())
+
+			// Create marketplace index that does NOT contain the old name
+			indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+			Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "new-name", "version": "1.0.0", "source": "./plugins/new-name"}
+				]
+			}`), 0644)).To(Succeed())
+
+			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "push", "origin", "HEAD").Run()).To(Succeed())
+
+			// Create a cached copy for the old-name plugin
+			cacheDir := filepath.Join(env.ClaudeDir, "plugins", "cache", "old-name")
+			Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(cacheDir, "plugin.json"), []byte(`{"name":"old-name"}`), 0644)).To(Succeed())
+
+			// Register marketplace
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source":          map[string]interface{}{"repo": bareRepo},
+					"installLocation": marketplaceDir,
+				},
+			})
+
+			// Use an older SHA so the plugin appears outdated
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"old-name@test-marketplace": []interface{}{
+					map[string]interface{}{
+						"scope":        "user",
+						"version":      "1.0.0",
+						"installedAt":  "2025-01-01T00:00:00Z",
+						"lastUpdated":  "2025-01-01T00:00:00Z",
+						"installPath":  cacheDir,
+						"gitCommitSha": strings.Repeat("0", 40), // Stale SHA forces update detection
+					},
+				},
+			})
+
+			// Push a new commit so the marketplace appears to have updates
+			tempClone := filepath.Join(env.TempDir, "temp-clone")
+			Expect(exec.Command("git", "clone", bareRepo, tempClone).Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", tempClone, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", tempClone, "config", "user.name", "Test").Run()).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(tempClone, "README.md"), []byte("update"), 0644)).To(Succeed())
+			Expect(exec.Command("git", "-C", tempClone, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", tempClone, "-c", "commit.gpgsign=false", "commit", "-m", "bump").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", tempClone, "push", "origin", "HEAD").Run()).To(Succeed())
+
+			// Run upgrade with --yes to auto-confirm stale entry removal
+			result := env.Run("upgrade", "--yes")
+
+			Expect(result.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("not found in marketplace index"), "should warn about stale plugin")
+			Expect(result.Stdout).To(ContainSubstring("Removed stale entry"), "should confirm removal")
+
+			// Verify the stale entry was removed from installed_plugins.json
+			pluginsData, err := os.ReadFile(filepath.Join(env.ClaudeDir, "plugins", "installed_plugins.json"))
+			Expect(err).NotTo(HaveOccurred())
+			var registry map[string]interface{}
+			Expect(json.Unmarshal(pluginsData, &registry)).To(Succeed())
+			plugins := registry["plugins"].(map[string]interface{})
+			_, exists := plugins["old-name@test-marketplace"]
+			Expect(exists).To(BeFalse(), "stale plugin entry should have been removed, got: %v", plugins)
+
+		})
+	})
+
 	Describe("help output", func() {
 		It("shows usage information", func() {
 			result := env.Run("upgrade", "--help")

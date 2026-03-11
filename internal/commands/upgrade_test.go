@@ -3,6 +3,7 @@
 package commands
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -414,6 +415,27 @@ var _ = Describe("resolvePluginSource", func() {
 		_, _, err := resolvePluginSource(marketplaceDir, "hookify")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cannot read index"))
+	})
+})
+
+var _ = Describe("isStalePluginError", func() {
+	It("matches 'not found in marketplace index' errors", func() {
+		err := fmt.Errorf("plugin %q not found in marketplace index", "ralph-wiggum")
+		Expect(isStalePluginError(err)).To(BeTrue())
+	})
+
+	It("matches 'not installed at scope' errors", func() {
+		err := fmt.Errorf("claude plugin update failed: not installed at scope project")
+		Expect(isStalePluginError(err)).To(BeTrue())
+	})
+
+	It("returns false for unrelated errors", func() {
+		err := fmt.Errorf("failed to get latest commit: exit status 1")
+		Expect(isStalePluginError(err)).To(BeFalse())
+	})
+
+	It("returns false for nil", func() {
+		Expect(isStalePluginError(nil)).To(BeFalse())
 	})
 })
 
