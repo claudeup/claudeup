@@ -186,6 +186,105 @@ func TestMarketplaceExists(t *testing.T) {
 	}
 }
 
+func TestPluginSourceUnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name       string
+		input      string
+		wantSource string
+		wantURL    string
+		wantErr    bool
+	}{
+		{
+			name:       "string source (relative path)",
+			input:      `"./plugins/hookify"`,
+			wantSource: "./plugins/hookify",
+			wantURL:    "",
+		},
+		{
+			name:       "object source with url",
+			input:      `{"source":"git","url":"https://github.com/org/repo"}`,
+			wantSource: "git",
+			wantURL:    "https://github.com/org/repo",
+		},
+		{
+			name:       "object source without url",
+			input:      `{"source":"./local/path"}`,
+			wantSource: "./local/path",
+			wantURL:    "",
+		},
+		{
+			name:    "invalid JSON (number)",
+			input:   `123`,
+			wantErr: true,
+		},
+		{
+			name:    "invalid JSON (array)",
+			input:   `[1,2,3]`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ps PluginSource
+			err := json.Unmarshal([]byte(tt.input), &ps)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("expected error for input %s, got nil", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if ps.Source != tt.wantSource {
+				t.Errorf("Source = %q, want %q", ps.Source, tt.wantSource)
+			}
+			if ps.URL != tt.wantURL {
+				t.Errorf("URL = %q, want %q", ps.URL, tt.wantURL)
+			}
+		})
+	}
+}
+
+func TestPluginSourceIsRelativePath(t *testing.T) {
+	tests := []struct {
+		name   string
+		source PluginSource
+		want   bool
+	}{
+		{"relative path", PluginSource{Source: "./plugins/hookify"}, true},
+		{"url source", PluginSource{Source: "git", URL: "https://github.com/org/repo"}, false},
+		{"empty source", PluginSource{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.source.IsRelativePath(); got != tt.want {
+				t.Errorf("IsRelativePath() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestPluginSourceIsURL(t *testing.T) {
+	tests := []struct {
+		name   string
+		source PluginSource
+		want   bool
+	}{
+		{"url source", PluginSource{Source: "git", URL: "https://github.com/org/repo"}, true},
+		{"relative path", PluginSource{Source: "./plugins/hookify"}, false},
+		{"empty source", PluginSource{}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.source.IsURL(); got != tt.want {
+				t.Errorf("IsURL() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetMarketplaceByRepo(t *testing.T) {
 	registry := MarketplaceRegistry{
 		"claude-mem": MarketplaceMetadata{

@@ -50,7 +50,7 @@ func (s *PluginSource) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	// Try object (like {"source": "url", "url": "https://..."})
+	// Try object (like {"source": "git", "url": "https://github.com/org/repo"})
 	type raw struct {
 		Source string `json:"source"`
 		URL    string `json:"url"`

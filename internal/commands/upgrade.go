@@ -395,6 +395,7 @@ func checkMarketplaceUpdates(marketplaces claude.MarketplaceRegistry, onResult f
 // findMarketplacePath resolves the marketplace install location for a plugin.
 // It first tries to extract the marketplace name from the plugin name (format: "plugin@marketplace"),
 // then falls back to checking if the plugin's install path is inside a marketplace directory.
+// Returns empty string when neither lookup matches.
 func findMarketplacePath(pluginName string, installPath string, marketplaces claude.MarketplaceRegistry) string {
 	if parts := strings.SplitN(pluginName, "@", 2); len(parts) == 2 {
 		if marketplace, ok := marketplaces[parts[1]]; ok {
@@ -402,7 +403,8 @@ func findMarketplacePath(pluginName string, installPath string, marketplaces cla
 		}
 	}
 	for _, marketplace := range marketplaces {
-		if strings.Contains(installPath, marketplace.InstallLocation) {
+		prefix := marketplace.InstallLocation + string(filepath.Separator)
+		if strings.HasPrefix(installPath, prefix) {
 			return marketplace.InstallLocation
 		}
 	}
@@ -500,12 +502,18 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 		}
 
 		if sourcePath == "" {
-			// External-URL source: delegate to Claude Code's own update command
-			return updatePluginViaCLI(pluginBaseName, scope)
+			// URL-sourced plugins require cloning from a remote repository.
+			// Delegate to Claude Code's plugin update command which handles this.
+			if err := updatePluginViaCLI(name, scope); err != nil {
+				return err
+			}
+			plugin.GitCommitSha = latestCommit
+			plugins.SetPlugin(name, plugin)
+			return nil
 		}
 
-		// Determine cache destination. If the marketplace provides a new version,
-		// create a new versioned directory instead of overwriting in-place.
+		// Determine cache destination. When the marketplace provides a new version,
+		// write to a new versioned directory. The old cache directory is removed either way.
 		destPath := plugin.InstallPath
 		if newVersion != "" && newVersion != plugin.Version {
 			destPath = filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
@@ -534,16 +542,23 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 	return nil
 }
 
-// updatePluginViaCLI delegates plugin updates to Claude Code's own `claude plugin update` command.
-// This handles external-URL-sourced plugins that claudeup cannot update by simple copy.
-func updatePluginViaCLI(pluginBaseName, scope string) error {
+// updatePluginViaCLI delegates plugin updates to Claude Code's `claude plugin update` command.
+// This handles URL-sourced plugins that require cloning from a remote repository.
+func updatePluginViaCLI(pluginName, scope string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "plugin", "update", "--scope", scope, pluginBaseName)
+	cmd := exec.CommandContext(ctx, "claude", "plugin", "update", "--scope", scope, pluginName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("claude plugin update failed: %s", strings.TrimSpace(string(output)))
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("claude plugin update timed out after 60s for %s", pluginName)
+		}
+		trimmed := strings.TrimSpace(string(output))
+		if trimmed != "" {
+			return fmt.Errorf("claude plugin update failed: %s", trimmed)
+		}
+		return fmt.Errorf("claude plugin update failed: %w", err)
 	}
 	return nil
 }
