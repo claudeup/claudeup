@@ -187,10 +187,32 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	// Apply marketplace updates before checking plugins.
 	// Plugin update detection compares against the marketplace's local HEAD,
 	// so marketplaces must be pulled first for plugins to see the latest commits.
-	if len(outdatedMarketplaces) > 0 {
-		fmt.Println()
-		fmt.Println(ui.RenderSection("Updating Marketplaces", len(outdatedMarketplaces)))
+	//
+	// When the user targets specific plugins, their parent marketplaces must
+	// still be pulled even though they aren't in the display list.
+	marketplacesToPull := outdatedMarketplaces
+	if hasTargets && len(targetPlugins) > 0 {
+		needed := make(map[string]bool)
 		for _, name := range outdatedMarketplaces {
+			needed[name] = true
+		}
+		for _, target := range targetPlugins {
+			if parts := strings.SplitN(target, "@", 2); len(parts) == 2 {
+				if _, ok := marketplaces[parts[1]]; ok && !needed[parts[1]] {
+					for _, update := range marketplaceUpdates {
+						if update.Name == parts[1] && update.HasUpdate {
+							marketplacesToPull = append(marketplacesToPull, parts[1])
+							needed[parts[1]] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	if len(marketplacesToPull) > 0 {
+		fmt.Println()
+		fmt.Println(ui.RenderSection("Updating Marketplaces", len(marketplacesToPull)))
+		for _, name := range marketplacesToPull {
 			if err := updateMarketplace(name, marketplaces[name].InstallLocation); err != nil {
 				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
 			} else {
@@ -596,8 +618,12 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 	}
 
 	if pluginInfo.Source.IsRelativePath() {
-		// Resolve relative path within marketplace
+		// Resolve relative path within marketplace, ensuring it stays within bounds
 		resolved := filepath.Join(marketplacePath, pluginInfo.Source.Source)
+		resolved = filepath.Clean(resolved)
+		if !strings.HasPrefix(resolved, filepath.Clean(marketplacePath)+string(filepath.Separator)) {
+			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.Source)
+		}
 		if _, err := os.Stat(resolved); err != nil {
 			return "", "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
 		}

@@ -367,6 +367,19 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(err.Error()).To(ContainSubstring("not found in marketplace index"))
 		})
 
+		It("rejects path traversal in source field", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "evil", "version": "1.0.0", "source": "../../etc/passwd"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "evil")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resolves outside marketplace directory"))
+		})
+
 		It("returns error when relative path does not exist", func() {
 			writeIndex(`{
 				"name": "test-marketplace",

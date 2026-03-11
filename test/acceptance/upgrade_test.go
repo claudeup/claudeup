@@ -174,7 +174,7 @@ var _ = Describe("upgrade", func() {
 			Expect(os.MkdirAll(pluginDir, 0755)).To(Succeed())
 			Expect(os.WriteFile(filepath.Join(pluginDir, "plugin.json"), []byte(`{"name":"test-plugin","version":"1.0.0"}`), 0644)).To(Succeed())
 			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
-			Expect(exec.Command("git", "-C", marketplaceDir, "commit", "-m", "initial").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
 			Expect(exec.Command("git", "-C", marketplaceDir, "push", "origin", "HEAD").Run()).To(Succeed())
 
 			// Record the initial commit SHA
@@ -218,7 +218,7 @@ var _ = Describe("upgrade", func() {
 			pluginInClone := filepath.Join(tempClone, "plugins", "test-plugin")
 			Expect(os.WriteFile(filepath.Join(pluginInClone, "plugin.json"), []byte(`{"name":"test-plugin","version":"2.0.0"}`), 0644)).To(Succeed())
 			Expect(exec.Command("git", "-C", tempClone, "add", ".").Run()).To(Succeed())
-			Expect(exec.Command("git", "-C", tempClone, "commit", "-m", "bump version").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", tempClone, "-c", "commit.gpgsign=false", "commit", "-m", "bump version").Run()).To(Succeed())
 			Expect(exec.Command("git", "-C", tempClone, "push", "origin", "HEAD").Run()).To(Succeed())
 
 			// Run upgrade
