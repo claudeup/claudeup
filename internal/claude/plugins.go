@@ -257,16 +257,15 @@ func (r *PluginRegistry) SetPlugin(pluginName string, metadata PluginMetadata) {
 		return
 	}
 
-	// Update existing instance at the same scope, or append if not found
-	for i, inst := range instances {
-		if inst.Scope == metadata.Scope {
-			instances[i] = metadata
-			r.Plugins[pluginName] = instances
-			return
+	// Remove all existing instances at this scope (handles duplicates)
+	filtered := instances[:0]
+	for _, inst := range instances {
+		if inst.Scope != metadata.Scope {
+			filtered = append(filtered, inst)
 		}
 	}
 
-	r.Plugins[pluginName] = append(instances, metadata)
+	r.Plugins[pluginName] = append(filtered, metadata)
 }
 
 // DisablePlugin removes a plugin from the registry

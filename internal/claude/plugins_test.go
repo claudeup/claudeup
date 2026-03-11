@@ -545,6 +545,58 @@ func TestRemovePluginAtScope(t *testing.T) {
 	}
 }
 
+func TestSetPluginDeduplicatesScopeEntries(t *testing.T) {
+	registry := &PluginRegistry{
+		Version: 2,
+		Plugins: map[string][]PluginMetadata{
+			"commit-commands@claude-plugins-official": {
+				{Scope: "user", Version: "1.0.0", GitCommitSha: "aaa111", InstallPath: "/old/path1"},
+				{Scope: "user", Version: "1.0.0", GitCommitSha: "bbb222", InstallPath: "/old/path2"},
+				{Scope: "project", Version: "1.0.0", GitCommitSha: "ccc333", InstallPath: "/project/path"},
+			},
+		},
+	}
+
+	// Update with new metadata at user scope
+	registry.SetPlugin("commit-commands@claude-plugins-official", PluginMetadata{
+		Scope:        "user",
+		Version:      "2.0.0",
+		GitCommitSha: "ddd444",
+		InstallPath:  "/new/path",
+	})
+
+	instances := registry.GetPluginInstances("commit-commands@claude-plugins-official")
+
+	// Should have exactly 2 entries: one user, one project
+	if len(instances) != 2 {
+		t.Fatalf("expected 2 instances after dedup, got %d: %+v", len(instances), instances)
+	}
+
+	// The surviving user entry should have the updated metadata
+	userPlugin, exists := registry.GetPluginAtScope("commit-commands@claude-plugins-official", "user")
+	if !exists {
+		t.Fatal("user-scope entry should exist")
+	}
+	if userPlugin.GitCommitSha != "ddd444" {
+		t.Errorf("expected SHA ddd444, got %s", userPlugin.GitCommitSha)
+	}
+	if userPlugin.Version != "2.0.0" {
+		t.Errorf("expected version 2.0.0, got %s", userPlugin.Version)
+	}
+	if userPlugin.InstallPath != "/new/path" {
+		t.Errorf("expected path /new/path, got %s", userPlugin.InstallPath)
+	}
+
+	// Project-scope entry should be untouched
+	projectPlugin, exists := registry.GetPluginAtScope("commit-commands@claude-plugins-official", "project")
+	if !exists {
+		t.Fatal("project-scope entry should still exist")
+	}
+	if projectPlugin.GitCommitSha != "ccc333" {
+		t.Errorf("expected project SHA ccc333, got %s", projectPlugin.GitCommitSha)
+	}
+}
+
 func TestGetPluginsForContext(t *testing.T) {
 	registry := &PluginRegistry{
 		Version: 2,
