@@ -150,13 +150,61 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(ConsistOf("user", "project"))
 			Expect(info.InstalledAt).To(HaveLen(2))
-			// Project scope has higher precedence
+			// Active source reflects highest-precedence enablement (project)
+			Expect(info.ActiveSource).To(Equal("project"))
+		})
+	})
+
+	Context("with plugin installed at user only but enabled at user and project", func() {
+		It("shows project as active source based on enablement precedence", func() {
+			// Set up project context
+			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
+
+			// Install at user scope ONLY (single installation)
+			registry := &claude.PluginRegistry{
+				Version: 2,
+				Plugins: map[string][]claude.PluginMetadata{
+					"user-installed@marketplace": {
+						{
+							Scope:       "user",
+							Version:     "1.0.0",
+							InstalledAt: "2024-01-01",
+							InstallPath: filepath.Join(claudeDir, "plugins", "cache", "user-installed"),
+						},
+					},
+				},
+			}
+			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
+
+			// Enable at BOTH user and project scopes
+			userSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"user-installed@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettings(claudeDir, userSettings)).To(Succeed())
+
+			projectSettings := &claude.Settings{
+				EnabledPlugins: map[string]bool{
+					"user-installed@marketplace": true,
+				},
+			}
+			Expect(claude.SaveSettingsForScope("project", claudeDir, projectDir, projectSettings)).To(Succeed())
+
+			analysis, err := claude.AnalyzePluginScopesWithOrphans(claudeDir, projectDir)
+			Expect(err).NotTo(HaveOccurred())
+
+			info := analysis.Installed["user-installed@marketplace"]
+			Expect(info).NotTo(BeNil())
+			Expect(info.EnabledAt).To(ConsistOf("user", "project"))
+			// Active source should be "project" (highest-precedence enablement),
+			// NOT "user" (where it's installed)
 			Expect(info.ActiveSource).To(Equal("project"))
 		})
 	})
 
 	Context("with plugin enabled at local scope", func() {
-		It("uses local installation with highest precedence", func() {
+		It("shows local as active source when enabled at local scope", func() {
 			// Install at all three scopes
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -201,7 +249,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"local"}))
 			Expect(info.InstalledAt).To(HaveLen(3))
-			// Local scope has highest precedence
+			// Active source reflects highest-precedence enablement (local)
 			Expect(info.ActiveSource).To(Equal("local"))
 		})
 	})
@@ -250,11 +298,12 @@ var _ = Describe("AnalyzePluginScopes", func() {
 		})
 	})
 
-	// Fallback path tests: these exercise the logic when installation and enablement
-	// are at different scopes (not an exact match)
-	Context("fallback: installed at higher precedence than enabled", func() {
-		It("uses project installation when only enabled at user", func() {
-			// Set up project context (required for project/local scope analysis)
+	// Cross-scope tests: installation and enablement are at different scopes.
+	// Active source is determined by the highest-precedence enablement scope,
+	// independent of where the plugin is installed.
+	Context("cross-scope: enabled at one scope, installed at another", func() {
+		It("shows user as active source when only enabled at user (installed at project)", func() {
+			// Set up project context
 			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
 
 			// Install at project scope only
@@ -273,7 +322,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
 
-			// Enable at user scope only (lower precedence than installation)
+			// Enable at user scope only
 			userSettings := &claude.Settings{
 				EnabledPlugins: map[string]bool{
 					"cross-scope@marketplace": true,
@@ -287,13 +336,12 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			info := analysis.Installed["cross-scope@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"user"}))
-			Expect(info.InstalledAt).To(HaveLen(1))
-			// Project installation should be used (higher precedence)
-			Expect(info.ActiveSource).To(Equal("project"))
+			// Active source reflects enablement, not installation
+			Expect(info.ActiveSource).To(Equal("user"))
 		})
 
-		It("uses local installation when only enabled at user", func() {
-			// Set up project context (required for project/local scope analysis)
+		It("shows user as active source when only enabled at user (installed at local)", func() {
+			// Set up project context
 			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
 
 			// Install at local scope only
@@ -326,13 +374,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			info := analysis.Installed["local-cross@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"user"}))
-			// Local installation should be used (highest precedence)
-			Expect(info.ActiveSource).To(Equal("local"))
+			// Active source reflects enablement, not installation
+			Expect(info.ActiveSource).To(Equal("user"))
 		})
-	})
 
-	Context("fallback: installed at lower precedence than enabled", func() {
-		It("uses user installation when only enabled at local", func() {
+		It("shows local as active source when only enabled at local (installed at user)", func() {
 			// Install at user scope only
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -349,7 +395,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
 
-			// Enable at local scope only (higher precedence than installation)
+			// Enable at local scope only
 			localSettings := &claude.Settings{
 				EnabledPlugins: map[string]bool{
 					"user-only@marketplace": true,
@@ -363,11 +409,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			info := analysis.Installed["user-only@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"local"}))
-			// User installation should be used (only available option)
-			Expect(info.ActiveSource).To(Equal("user"))
+			// Active source reflects enablement (local), not installation (user)
+			Expect(info.ActiveSource).To(Equal("local"))
 		})
 
-		It("uses user installation when only enabled at project", func() {
+		It("shows project as active source when only enabled at project (installed at user)", func() {
 			// Install at user scope only
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -398,13 +444,11 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			info := analysis.Installed["user-proj@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"project"}))
-			// User installation should be used (only available option)
-			Expect(info.ActiveSource).To(Equal("user"))
+			// Active source reflects enablement (project), not installation (user)
+			Expect(info.ActiveSource).To(Equal("project"))
 		})
-	})
 
-	Context("fallback: multiple installations with cross-scope enablement", func() {
-		It("uses highest precedence installation regardless of where enabled", func() {
+		It("shows project as active source when enabled at project (installed at user+local)", func() {
 			// Install at user and local scopes
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -427,7 +471,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			}
 			Expect(claude.SavePlugins(claudeDir, registry)).To(Succeed())
 
-			// Enable at project scope only (between user and local in precedence)
+			// Enable at project scope only
 			projectSettings := &claude.Settings{
 				EnabledPlugins: map[string]bool{
 					"multi-install@marketplace": true,
@@ -442,8 +486,8 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"project"}))
 			Expect(info.InstalledAt).To(HaveLen(2))
-			// Local installation should be used (highest precedence available)
-			Expect(info.ActiveSource).To(Equal("local"))
+			// Active source reflects enablement (project), not installation (local)
+			Expect(info.ActiveSource).To(Equal("project"))
 		})
 	})
 
@@ -589,7 +633,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info.ActiveSource).To(Equal("user"))
 		})
 
-		It("does not report project as active source for project-scoped installations", func() {
+		It("shows user as active source when enabled at user only (not in project context)", func() {
 			// Plugin was installed at project scope in some other project,
 			// but we're running from a non-project directory
 			nonProjectDir := filepath.Join(tempDir, "not-a-project")
@@ -635,7 +679,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info.ActiveSource).To(Equal("user"))
 		})
 
-		It("only reports user-scoped installations as active source", func() {
+		It("shows user as active source even when only installed at local scope", func() {
 			// Plugin installed at local scope only, but we're not in a project
 			nonProjectDir := filepath.Join(tempDir, "no-project-here")
 			Expect(os.MkdirAll(nonProjectDir, 0755)).To(Succeed())
@@ -669,8 +713,8 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			info := result.Installed["local-only@marketplace"]
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"user"}))
-			// No user-scope installation exists, so no active source
-			Expect(info.ActiveSource).To(Equal(""))
+			// Active source reflects enablement (user), regardless of installation scope
+			Expect(info.ActiveSource).To(Equal("user"))
 		})
 	})
 })

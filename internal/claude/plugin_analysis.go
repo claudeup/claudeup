@@ -19,7 +19,7 @@ type PluginScopeInfo struct {
 	Name         string           // Plugin name (e.g., "my-plugin@marketplace")
 	EnabledAt    []string         // Scopes where plugin is enabled: "user", "project", "local"
 	InstalledAt  []PluginMetadata // All installation instances across scopes
-	ActiveSource string           // Which scope's installation is used (based on precedence: local > project > user)
+	ActiveSource string           // Highest-precedence scope where plugin is enabled (local > project > user)
 }
 
 // analysisContext holds intermediate data needed for plugin analysis
@@ -115,10 +115,10 @@ func buildInstalledAnalysis(ctx *analysisContext) map[string]*PluginScopeInfo {
 			}
 		}
 
-		// Determine active source based on precedence (local > project > user)
+		// Determine active source based on enablement precedence (local > project > user)
 		// Only set if plugin is enabled at least somewhere
 		if len(info.EnabledAt) > 0 {
-			info.ActiveSource = determineActiveSource(instances, ctx.scopes)
+			info.ActiveSource = determineActiveSource(info.EnabledAt)
 		}
 
 		analysis[pluginName] = info
@@ -163,40 +163,25 @@ func AnalyzePluginScopesWithOrphans(claudeDir string, projectDir string) (*Plugi
 	}, nil
 }
 
-// determineActiveSource finds which installation is active based on scope precedence.
-// Only installations whose scope is in availableScopes are considered.
+// determineActiveSource returns the highest-precedence scope where the plugin is enabled.
 //
 // Claude Code's precedence model (from docs.claude.com/settings):
 //   - More specific scopes always take precedence: local > project > user
-//   - When a plugin is enabled at any scope, it uses the highest-precedence installation available
+//   - When a plugin is enabled at multiple scopes, the most specific scope wins
 //
-// Examples (when in a project directory, all scopes available):
-//   - Installed at project, enabled at user → uses project (higher precedence installation)
-//   - Installed at user, enabled at local → uses user (only available installation)
-//   - Installed at local+user, enabled at project → uses local (highest precedence)
-//
-// When not in a project directory (only "user" scope available):
-//   - Installed at project+user, enabled at user → uses user (project scope not available)
-//   - Installed at project only, enabled at user → no active source (no user installation)
-func determineActiveSource(installations []PluginMetadata, availableScopes []string) string {
-	// Build set of available scopes for filtering
-	availableSet := make(map[string]bool)
-	for _, s := range availableScopes {
-		availableSet[s] = true
+// Examples:
+//   - Enabled at user and project → active source is "project"
+//   - Enabled at user, project, and local → active source is "local"
+//   - Enabled at user only → active source is "user"
+func determineActiveSource(enabledAt []string) string {
+	enabledSet := make(map[string]bool)
+	for _, s := range enabledAt {
+		enabledSet[s] = true
 	}
 
-	// Build map of installations, filtered to available scopes
-	installMap := make(map[string]bool)
-	for _, inst := range installations {
-		if availableSet[inst.Scope] {
-			installMap[inst.Scope] = true
-		}
-	}
-
-	// Return highest-precedence installation available
 	precedence := []string{"local", "project", "user"}
 	for _, scope := range precedence {
-		if installMap[scope] {
+		if enabledSet[scope] {
 			return scope
 		}
 	}
