@@ -540,6 +540,10 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 				return err
 			}
 			plugin.GitCommitSha = latestCommit
+			if newVersion != "" && newVersion != plugin.Version {
+				plugin.Version = newVersion
+				plugin.InstallPath = filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
+			}
 			plugins.SetPlugin(name, plugin)
 			return nil
 		}

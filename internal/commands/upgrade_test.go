@@ -1,10 +1,11 @@
-// ABOUTME: Unit tests for upgrade command argument parsing
-// ABOUTME: Tests target detection (marketplace vs plugin) and scope resolution
+// ABOUTME: Unit tests for upgrade command internals
+// ABOUTME: Tests target parsing, plugin update logic, source resolution, and scope handling
 package commands
 
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -415,6 +416,131 @@ var _ = Describe("resolvePluginSource", func() {
 		_, _, err := resolvePluginSource(marketplaceDir, "hookify")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cannot read index"))
+	})
+})
+
+var _ = Describe("updatePlugin", func() {
+	var (
+		tempDir        string
+		marketplaceDir string
+		cacheDir       string
+		origPath       string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tempDir, err = os.MkdirTemp("", "update-plugin-test-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create a fake marketplace git repo
+		marketplaceDir = filepath.Join(tempDir, "marketplace")
+		Expect(os.MkdirAll(marketplaceDir, 0755)).To(Succeed())
+
+		cmd := exec.Command("git", "-C", marketplaceDir, "init")
+		Expect(cmd.Run()).To(Succeed())
+		cmd = exec.Command("git", "-C", marketplaceDir, "-c", "user.name=test", "-c", "user.email=test@test.com", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "initial")
+		Expect(cmd.Run()).To(Succeed())
+
+		// Create marketplace index with URL-sourced plugin
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		// Create cache directory for existing plugin version
+		cacheDir = filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.0")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		// Create a fake "claude" binary that succeeds
+		fakeClaude := filepath.Join(tempDir, "claude")
+		script := "#!/bin/sh\nexit 0\n"
+		Expect(os.WriteFile(fakeClaude, []byte(script), 0755)).To(Succeed())
+
+		origPath = os.Getenv("PATH")
+		os.Setenv("PATH", tempDir+":"+origPath)
+	})
+
+	AfterEach(func() {
+		os.Setenv("PATH", origPath)
+		os.RemoveAll(tempDir)
+	})
+
+	It("updates version for URL-sourced plugins", func() {
+		// Get the marketplace HEAD commit
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		// Set up registry with old version and old SHA
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("superpowers@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "5.0.0",
+			InstallPath:  cacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		err = updatePlugin("superpowers@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify version and installPath were updated
+		updated, exists := plugins.GetPluginAtScope("superpowers@test-marketplace", "user")
+		Expect(exists).To(BeTrue())
+		Expect(updated.Version).To(Equal("5.0.2"), "version should be updated from marketplace index")
+		Expect(updated.GitCommitSha).To(Equal(headSha), "SHA should be updated to marketplace HEAD")
+		expectedPath := filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.2")
+		Expect(updated.InstallPath).To(Equal(expectedPath), "installPath should point to new versioned directory")
+	})
+
+	It("preserves installPath when version has not changed", func() {
+		// Get the marketplace HEAD commit
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		// Set up registry with same version as marketplace index (5.0.2)
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("superpowers@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "5.0.2",
+			InstallPath:  cacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		err = updatePlugin("superpowers@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred())
+
+		updated, exists := plugins.GetPluginAtScope("superpowers@test-marketplace", "user")
+		Expect(exists).To(BeTrue())
+		Expect(updated.Version).To(Equal("5.0.2"))
+		Expect(updated.GitCommitSha).To(Equal(headSha))
+		Expect(updated.InstallPath).To(Equal(cacheDir), "installPath should not change when version matches")
 	})
 })
 
