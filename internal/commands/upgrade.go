@@ -446,6 +446,9 @@ func findMarketplacePath(pluginName string, installPath string, marketplaces cla
 func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude.MarketplaceRegistry) []PluginUpdate {
 	var updates []PluginUpdate
 
+	// Cache marketplace indexes to avoid re-reading for each plugin
+	indexCache := make(map[string]*claude.MarketplaceIndex)
+
 	for _, sp := range scopedPlugins {
 		name := sp.Name
 		plugin := sp.PluginMetadata
@@ -479,6 +482,15 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 
 		// Compare with plugin's gitCommitSha
 		hasUpdate := plugin.GitCommitSha != currentCommit
+
+		// When the SHA matches, check for version mismatch from a previous
+		// buggy upgrade that updated the SHA but not the version.
+		if !hasUpdate {
+			if indexVersion := marketplaceIndexVersion(marketplacePath, name, indexCache); indexVersion != "" {
+				hasUpdate = indexVersion != plugin.Version
+			}
+		}
+
 		updates = append(updates, PluginUpdate{
 			Name:          name,
 			Scope:         plugin.Scope,
@@ -489,6 +501,35 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 	}
 
 	return updates
+}
+
+// marketplaceIndexVersion looks up a plugin's version from the marketplace index.
+// Returns empty string if the index cannot be loaded or the plugin is not found.
+func marketplaceIndexVersion(marketplacePath, qualifiedName string, cache map[string]*claude.MarketplaceIndex) string {
+	index, ok := cache[marketplacePath]
+	if !ok {
+		loaded, err := claude.LoadMarketplaceIndex(marketplacePath)
+		if err != nil {
+			cache[marketplacePath] = nil
+			return ""
+		}
+		index = loaded
+		cache[marketplacePath] = index
+	}
+	if index == nil {
+		return ""
+	}
+
+	baseName := qualifiedName
+	if parts := strings.SplitN(qualifiedName, "@", 2); len(parts) == 2 {
+		baseName = parts[0]
+	}
+	for _, p := range index.Plugins {
+		if p.Name == baseName {
+			return p.Version
+		}
+	}
+	return ""
 }
 
 func updateMarketplace(name, path string) error {

@@ -544,6 +544,118 @@ var _ = Describe("updatePlugin", func() {
 	})
 })
 
+var _ = Describe("checkPluginUpdates", func() {
+	var (
+		tempDir        string
+		marketplaceDir string
+	)
+
+	BeforeEach(func() {
+		var err error
+		tempDir, err = os.MkdirTemp("", "check-plugin-updates-*")
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create a marketplace git repo
+		marketplaceDir = filepath.Join(tempDir, "marketplace")
+		Expect(os.MkdirAll(marketplaceDir, 0755)).To(Succeed())
+
+		cmd := exec.Command("git", "-C", marketplaceDir, "init")
+		Expect(cmd.Run()).To(Succeed())
+		cmd = exec.Command("git", "-C", marketplaceDir, "-c", "user.name=test", "-c", "user.email=test@test.com", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "initial")
+		Expect(cmd.Run()).To(Succeed())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(tempDir)
+	})
+
+	It("detects version mismatch even when SHA matches", func() {
+		// Get marketplace HEAD
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		// Write marketplace index with version 5.0.2
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		// Create cache directory so PathExists returns true
+		cacheDir := filepath.Join(tempDir, "cache", "superpowers", "5.0.0")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		// Plugin has matching SHA but stale version
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "superpowers@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "5.0.0",
+					InstallPath:  cacheDir,
+					GitCommitSha: headSha,
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].HasUpdate).To(BeTrue(), "should detect version mismatch even when SHA matches")
+	})
+
+	It("reports no update when both SHA and version match", func() {
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		cacheDir := filepath.Join(tempDir, "cache", "superpowers", "5.0.2")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "superpowers@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "5.0.2",
+					InstallPath:  cacheDir,
+					GitCommitSha: headSha,
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].HasUpdate).To(BeFalse(), "should not flag update when SHA and version both match")
+	})
+})
+
 var _ = Describe("isStalePluginError", func() {
 	It("matches 'not found in marketplace index' errors", func() {
 		err := fmt.Errorf("plugin %q not found in marketplace index", "ralph-wiggum")
