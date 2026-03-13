@@ -514,6 +514,10 @@ var _ = Describe("updatePlugin", func() {
 		Expect(err).NotTo(HaveOccurred())
 		headSha := strings.TrimSpace(string(headOutput))
 
+		// Create cache directory matching the current marketplace index version
+		cacheDir502 := filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.2")
+		Expect(os.MkdirAll(cacheDir502, 0755)).To(Succeed())
+
 		// Set up registry with same version as marketplace index (5.0.2)
 		plugins := &claude.PluginRegistry{
 			Version: 2,
@@ -522,7 +526,7 @@ var _ = Describe("updatePlugin", func() {
 		plugins.SetPlugin("superpowers@test-marketplace", claude.PluginMetadata{
 			Scope:        "user",
 			Version:      "5.0.2",
-			InstallPath:  cacheDir,
+			InstallPath:  cacheDir502,
 			GitCommitSha: "oldsha123",
 			IsLocal:      false,
 		})
@@ -540,7 +544,7 @@ var _ = Describe("updatePlugin", func() {
 		Expect(exists).To(BeTrue())
 		Expect(updated.Version).To(Equal("5.0.2"))
 		Expect(updated.GitCommitSha).To(Equal(headSha))
-		Expect(updated.InstallPath).To(Equal(cacheDir), "installPath should not change when version matches")
+		Expect(updated.InstallPath).To(Equal(cacheDir502), "installPath should not change when version matches")
 	})
 })
 
