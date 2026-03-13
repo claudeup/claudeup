@@ -150,7 +150,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(ConsistOf("user", "project"))
 			Expect(info.InstalledAt).To(HaveLen(2))
-			// Project scope has higher precedence
+			// Active source reflects highest-precedence enablement (project)
 			Expect(info.ActiveSource).To(Equal("project"))
 		})
 	})
@@ -204,7 +204,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 	})
 
 	Context("with plugin enabled at local scope", func() {
-		It("uses local installation with highest precedence", func() {
+		It("shows local as active source when enabled at local scope", func() {
 			// Install at all three scopes
 			registry := &claude.PluginRegistry{
 				Version: 2,
@@ -249,7 +249,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info).NotTo(BeNil())
 			Expect(info.EnabledAt).To(Equal([]string{"local"}))
 			Expect(info.InstalledAt).To(HaveLen(3))
-			// Local scope has highest precedence
+			// Active source reflects highest-precedence enablement (local)
 			Expect(info.ActiveSource).To(Equal("local"))
 		})
 	})
@@ -633,7 +633,7 @@ var _ = Describe("AnalyzePluginScopes", func() {
 			Expect(info.ActiveSource).To(Equal("user"))
 		})
 
-		It("does not report project as active source for project-scoped installations", func() {
+		It("shows user as active source when enabled at user only (not in project context)", func() {
 			// Plugin was installed at project scope in some other project,
 			// but we're running from a non-project directory
 			nonProjectDir := filepath.Join(tempDir, "not-a-project")
