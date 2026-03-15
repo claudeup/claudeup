@@ -92,6 +92,25 @@ func ValidateCreateSpec(description string, marketplaces []string, plugins []str
 	return nil
 }
 
+// setScopeSettings assigns scope-specific settings to a profile's PerScope field.
+// The scope must be a valid value (user, project, local).
+func setScopeSettings(p *Profile, scope string, settings *ScopeSettings) error {
+	if p.PerScope == nil {
+		p.PerScope = &PerScopeSettings{}
+	}
+	switch scope {
+	case "user":
+		p.PerScope.User = settings
+	case "project":
+		p.PerScope.Project = settings
+	case "local":
+		p.PerScope.Local = settings
+	default:
+		return fmt.Errorf("invalid scope %q: must be user, project, or local", scope)
+	}
+	return nil
+}
+
 // CreateFromFlags creates a profile from CLI flag values.
 // Uses ValidateCreateSpec for input validation and ParseMarketplaceArg
 // to convert marketplace strings to Marketplace structs.
@@ -115,7 +134,6 @@ func CreateFromFlags(name, description string, marketplaceArgs, plugins []string
 		Name:         name,
 		Description:  description,
 		Marketplaces: marketplaces,
-		PerScope:     &PerScopeSettings{},
 	}
 
 	settings := &ScopeSettings{
@@ -123,13 +141,8 @@ func CreateFromFlags(name, description string, marketplaceArgs, plugins []string
 		MCPServers: []MCPServer{},
 	}
 
-	switch scope {
-	case "project":
-		p.PerScope.Project = settings
-	case "local":
-		p.PerScope.Local = settings
-	default:
-		p.PerScope.User = settings
+	if err := setScopeSettings(p, scope, settings); err != nil {
+		return nil, err
 	}
 
 	return p, nil
@@ -250,7 +263,18 @@ func CreateFromReader(name string, r io.Reader, descOverride string, scope strin
 	}
 
 	if spec.PerScope != nil {
-		// Input already has multi-scope format, use directly
+		// Input already has multi-scope format, use directly.
+		// Validate plugin formats in all scopes.
+		for _, s := range []*ScopeSettings{spec.PerScope.User, spec.PerScope.Project, spec.PerScope.Local} {
+			if s == nil {
+				continue
+			}
+			for _, plugin := range s.Plugins {
+				if err := ValidatePluginFormat(plugin); err != nil {
+					return nil, err
+				}
+			}
+		}
 		p.PerScope = spec.PerScope
 	} else {
 		// Wrap flat fields into PerScope under the specified scope
@@ -268,14 +292,8 @@ func CreateFromReader(name string, r io.Reader, descOverride string, scope strin
 			MCPServers: mcpServers,
 		}
 
-		p.PerScope = &PerScopeSettings{}
-		switch scope {
-		case "project":
-			p.PerScope.Project = settings
-		case "local":
-			p.PerScope.Local = settings
-		default:
-			p.PerScope.User = settings
+		if err := setScopeSettings(p, scope, settings); err != nil {
+			return nil, err
 		}
 	}
 

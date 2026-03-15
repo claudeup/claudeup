@@ -162,6 +162,15 @@ func TestCreateFromFlags(t *testing.T) {
 			scope:       "user",
 			wantErr:     true,
 		},
+		{
+			name:        "rejects invalid scope",
+			profileName: "test",
+			description: "Test",
+			markets:     []string{"owner/repo"},
+			plugins:     []string{"p@ref"},
+			scope:       "invalid",
+			wantErr:     true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -337,6 +346,44 @@ func TestCreateFromReader(t *testing.T) {
 			}`,
 			scope:   "user",
 			wantErr: "cannot specify both flat plugins/mcpServers and perScope",
+		},
+		{
+			name:        "rejects ambiguous input with mcpServers and perScope",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"mcpServers": [{"name": "test", "command": "test"}],
+				"perScope": {
+					"user": { "plugins": ["plugin@ref"] }
+				}
+			}`,
+			scope:   "user",
+			wantErr: "cannot specify both flat plugins/mcpServers and perScope",
+		},
+		{
+			name:        "rejects invalid plugin format inside perScope",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"perScope": {
+					"user": { "plugins": ["no-at-sign"] }
+				}
+			}`,
+			scope:   "user",
+			wantErr: "invalid plugin format",
+		},
+		{
+			name:        "rejects invalid scope for flat input",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"plugins": ["plugin@ref"]
+			}`,
+			scope:   "invalid",
+			wantErr: "invalid scope",
 		},
 		// Object-format marketplace validation
 		{

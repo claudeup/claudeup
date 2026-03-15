@@ -31,7 +31,7 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.Stdout).To(ContainSubstring("created successfully"))
 			Expect(env.ProfileExists("test-profile")).To(BeTrue())
 
-			// Verify profile contents (multi-scope format)
+			// Verify profile contents
 			p := env.LoadProfile("test-profile")
 			Expect(p.Description).To(Equal("Test description"))
 			Expect(p.Marketplaces).To(HaveLen(1))
@@ -82,6 +82,32 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(p.IsMultiScope()).To(BeTrue())
 			combined := p.CombinedScopes()
 			Expect(combined.Plugins).To(BeEmpty())
+		})
+
+		It("creates profile with project scope flag", func() {
+			result := env.Run("profile", "create", "project-profile",
+				"--description", "Project tools",
+				"--marketplace", "anthropics/claude-code-plugins",
+				"--plugin", "plugin-dev@claude-code-plugins",
+				"--scope", "project",
+			)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("project-profile")
+			Expect(p.IsMultiScope()).To(BeTrue())
+			Expect(p.PerScope.Project).NotTo(BeNil())
+			Expect(p.PerScope.Project.Plugins).To(HaveLen(1))
+			Expect(p.PerScope.User).To(BeNil())
+		})
+
+		It("rejects invalid scope value", func() {
+			result := env.Run("profile", "create", "bad-scope",
+				"--description", "Test",
+				"--marketplace", "owner/repo",
+				"--scope", "invalid",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("invalid scope"))
 		})
 
 		It("fails without description in flags mode", func() {

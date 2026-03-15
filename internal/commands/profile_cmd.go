@@ -2580,7 +2580,7 @@ func saveAndPrintNewProfile(p *profile.Profile, profilesDir string) error {
 	}
 	fmt.Printf("Profile %q created successfully.\n\n", p.Name)
 	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
-	fmt.Printf("  Plugins: %d\n", len(p.Plugins))
+	fmt.Printf("  Plugins: %d\n", len(p.CombinedScopes().Plugins))
 	fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", p.Name)
 	return nil
 }
@@ -2595,6 +2595,9 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	}
 	if resolvedScope == "" {
 		resolvedScope = "user"
+	}
+	if _, err := profile.ParseScope(resolvedScope); err != nil {
+		return err
 	}
 
 	// Detect mode: file, flags, or wizard
@@ -2715,26 +2718,14 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get description: %w", err)
 	}
 
-	// Step 5: Create profile with multi-scope format
-	newProfile := &profile.Profile{
-		Name:         name,
-		Description:  description,
-		Marketplaces: selectedMarketplaces,
-		PerScope:     &profile.PerScopeSettings{},
+	// Step 5: Create profile
+	marketplaceArgs := make([]string, len(selectedMarketplaces))
+	for i, m := range selectedMarketplaces {
+		marketplaceArgs[i] = m.Repo
 	}
-
-	settings := &profile.ScopeSettings{
-		Plugins:    allPlugins,
-		MCPServers: []profile.MCPServer{},
-	}
-
-	switch resolvedScope {
-	case "project":
-		newProfile.PerScope.Project = settings
-	case "local":
-		newProfile.PerScope.Local = settings
-	default:
-		newProfile.PerScope.User = settings
+	newProfile, err := profile.CreateFromFlags(name, description, marketplaceArgs, allPlugins, resolvedScope)
+	if err != nil {
+		return fmt.Errorf("failed to create profile: %w", err)
 	}
 
 	// Step 6: Show summary
