@@ -124,14 +124,34 @@ func TestCreateFromFlags(t *testing.T) {
 		description string
 		markets     []string
 		plugins     []string
+		scope       string
 		wantErr     bool
 	}{
 		{
-			name:        "creates valid profile",
+			name:        "creates profile with user scope by default",
 			profileName: "test-profile",
 			description: "Test description",
 			markets:     []string{"anthropics/claude-code", "obra/superpowers"},
 			plugins:     []string{"plugin-dev@claude-code-plugins"},
+			scope:       "user",
+			wantErr:     false,
+		},
+		{
+			name:        "creates profile with project scope",
+			profileName: "project-profile",
+			description: "Project tools",
+			markets:     []string{"anthropics/claude-code"},
+			plugins:     []string{"plugin-dev@claude-code-plugins"},
+			scope:       "project",
+			wantErr:     false,
+		},
+		{
+			name:        "creates profile with local scope",
+			profileName: "local-profile",
+			description: "Local tools",
+			markets:     []string{"anthropics/claude-code"},
+			plugins:     []string{"plugin-dev@claude-code-plugins"},
+			scope:       "local",
 			wantErr:     false,
 		},
 		{
@@ -139,13 +159,23 @@ func TestCreateFromFlags(t *testing.T) {
 			profileName: "test",
 			description: "",
 			markets:     []string{"owner/repo"},
+			scope:       "user",
+			wantErr:     true,
+		},
+		{
+			name:        "rejects invalid scope",
+			profileName: "test",
+			description: "Test",
+			markets:     []string{"owner/repo"},
+			plugins:     []string{"p@ref"},
+			scope:       "invalid",
 			wantErr:     true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := CreateFromFlags(tt.profileName, tt.description, tt.markets, tt.plugins)
+			p, err := CreateFromFlags(tt.profileName, tt.description, tt.markets, tt.plugins, tt.scope)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("CreateFromFlags() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -160,8 +190,32 @@ func TestCreateFromFlags(t *testing.T) {
 				if len(p.Marketplaces) != len(tt.markets) {
 					t.Errorf("CreateFromFlags() marketplaces = %v, want %v", len(p.Marketplaces), len(tt.markets))
 				}
-				if len(p.Plugins) != len(tt.plugins) {
-					t.Errorf("CreateFromFlags() plugins = %v, want %v", len(p.Plugins), len(tt.plugins))
+				// Verify multi-scope format
+				if !p.IsMultiScope() {
+					t.Fatal("CreateFromFlags() should produce multi-scope profile")
+				}
+				// Verify flat fields are empty
+				if len(p.Plugins) > 0 {
+					t.Errorf("CreateFromFlags() flat Plugins should be empty, got %v", p.Plugins)
+				}
+				if len(p.MCPServers) > 0 {
+					t.Errorf("CreateFromFlags() flat MCPServers should be empty, got %v", p.MCPServers)
+				}
+				// Verify plugins are placed under the correct scope
+				var scopeSettings *ScopeSettings
+				switch tt.scope {
+				case "user":
+					scopeSettings = p.PerScope.User
+				case "project":
+					scopeSettings = p.PerScope.Project
+				case "local":
+					scopeSettings = p.PerScope.Local
+				}
+				if scopeSettings == nil {
+					t.Fatalf("CreateFromFlags() PerScope.%s should not be nil", tt.scope)
+				}
+				if len(scopeSettings.Plugins) != len(tt.plugins) {
+					t.Errorf("CreateFromFlags() PerScope.%s.Plugins = %v, want %v", tt.scope, len(scopeSettings.Plugins), len(tt.plugins))
 				}
 			}
 		})
@@ -237,21 +291,114 @@ func TestValidateCreateSpec(t *testing.T) {
 
 func TestCreateFromReader(t *testing.T) {
 	tests := []struct {
-		name         string
-		profileName  string
-		json         string
-		descOverride string
-		wantErr      string
+		name          string
+		profileName   string
+		json          string
+		descOverride  string
+		scope         string
+		scopeExplicit bool
+		wantErr       string
 	}{
 		{
-			name:        "valid JSON with object marketplaces",
+			name:        "flat input converts to multi-scope under user",
 			profileName: "my-profile",
 			json: `{
 				"description": "Test profile",
 				"marketplaces": [{"source": "github", "repo": "owner/repo"}],
 				"plugins": ["plugin@ref"]
 			}`,
+			scope:   "user",
 			wantErr: "",
+		},
+		{
+			name:        "flat input converts to multi-scope under project",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"plugins": ["plugin@ref"]
+			}`,
+			scope:   "project",
+			wantErr: "",
+		},
+		{
+			name:        "perScope input passes through directly",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"perScope": {
+					"user": { "plugins": ["plugin@ref"] }
+				}
+			}`,
+			scope:   "user",
+			wantErr: "",
+		},
+		{
+			name:        "rejects ambiguous input with both flat and perScope",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"plugins": ["plugin@ref"],
+				"perScope": {
+					"user": { "plugins": ["other@ref"] }
+				}
+			}`,
+			scope:   "user",
+			wantErr: "cannot specify both flat plugins/mcpServers and perScope",
+		},
+		{
+			name:        "rejects ambiguous input with mcpServers and perScope",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"mcpServers": [{"name": "test", "command": "test"}],
+				"perScope": {
+					"user": { "plugins": ["plugin@ref"] }
+				}
+			}`,
+			scope:   "user",
+			wantErr: "cannot specify both flat plugins/mcpServers and perScope",
+		},
+		{
+			name:        "rejects invalid plugin format inside perScope",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"perScope": {
+					"user": { "plugins": ["no-at-sign"] }
+				}
+			}`,
+			scope:   "user",
+			wantErr: "invalid plugin format",
+		},
+		{
+			name:        "rejects explicit scope with perScope input",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"perScope": {
+					"user": { "plugins": ["plugin@ref"] }
+				}
+			}`,
+			scope:         "local",
+			scopeExplicit: true,
+			wantErr:       "cannot be used with input that already contains perScope",
+		},
+		{
+			name:        "rejects invalid scope for flat input",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"plugins": ["plugin@ref"]
+			}`,
+			scope:   "invalid",
+			wantErr: "invalid scope",
 		},
 		// Object-format marketplace validation
 		{
@@ -261,6 +408,7 @@ func TestCreateFromReader(t *testing.T) {
 				"description": "Test profile",
 				"marketplaces": [{"source": "github", "repo": ""}]
 			}`,
+			scope:   "user",
 			wantErr: "marketplace repo cannot be empty",
 		},
 		{
@@ -270,6 +418,7 @@ func TestCreateFromReader(t *testing.T) {
 				"description": "Test profile",
 				"marketplaces": [{"source": "github"}]
 			}`,
+			scope:   "user",
 			wantErr: "marketplace repo cannot be empty",
 		},
 		{
@@ -280,6 +429,7 @@ func TestCreateFromReader(t *testing.T) {
 				"marketplaces": ["owner/repo"],
 				"plugins": []
 			}`,
+			scope:   "user",
 			wantErr: "",
 		},
 		{
@@ -290,12 +440,14 @@ func TestCreateFromReader(t *testing.T) {
 				"marketplaces": ["owner/repo"]
 			}`,
 			descOverride: "Overridden",
+			scope:        "user",
 			wantErr:      "",
 		},
 		{
 			name:        "invalid JSON",
 			profileName: "my-profile",
 			json:        `{invalid`,
+			scope:       "user",
 			wantErr:     "invalid JSON",
 		},
 		{
@@ -304,6 +456,7 @@ func TestCreateFromReader(t *testing.T) {
 			json: `{
 				"marketplaces": ["owner/repo"]
 			}`,
+			scope:   "user",
 			wantErr: "description is required",
 		},
 		{
@@ -312,6 +465,7 @@ func TestCreateFromReader(t *testing.T) {
 			json: `{
 				"description": "Test"
 			}`,
+			scope:   "user",
 			wantErr: "at least one marketplace is required",
 		},
 	}
@@ -319,7 +473,7 @@ func TestCreateFromReader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := strings.NewReader(tt.json)
-			p, err := CreateFromReader(tt.profileName, r, tt.descOverride)
+			p, err := CreateFromReader(tt.profileName, r, tt.descOverride, tt.scope, tt.scopeExplicit)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Errorf("CreateFromReader() unexpected error = %v", err)
@@ -330,6 +484,10 @@ func TestCreateFromReader(t *testing.T) {
 				}
 				if tt.descOverride != "" && p.Description != tt.descOverride {
 					t.Errorf("CreateFromReader() description = %v, want %v", p.Description, tt.descOverride)
+				}
+				// Verify multi-scope format
+				if !p.IsMultiScope() {
+					t.Fatal("CreateFromReader() should produce multi-scope profile")
 				}
 			} else {
 				if err == nil {
@@ -349,7 +507,7 @@ func TestCreateFromReaderSizeLimit(t *testing.T) {
 		strings.Repeat("x", 11*1024*1024) + `@ref"]}`
 
 	r := strings.NewReader(oversizedJSON)
-	_, err := CreateFromReader("test", r, "")
+	_, err := CreateFromReader("test", r, "", "user", false)
 
 	if err == nil {
 		t.Error("CreateFromReader() expected error for oversized input, got nil")
@@ -360,29 +518,35 @@ func TestCreateFromReaderSizeLimit(t *testing.T) {
 }
 
 func TestCreateFromReaderNilSlices(t *testing.T) {
-	// Verify that omitting plugins/mcpServers results in empty slices, not nil
+	// Verify that omitting plugins/mcpServers results in empty slices in PerScope
 	json := `{
 		"description": "Test profile",
 		"marketplaces": ["owner/repo"]
 	}`
 
 	r := strings.NewReader(json)
-	p, err := CreateFromReader("test", r, "")
+	p, err := CreateFromReader("test", r, "", "user", false)
 	if err != nil {
 		t.Fatalf("CreateFromReader() unexpected error = %v", err)
 	}
 
-	if p.Plugins == nil {
-		t.Error("CreateFromReader() Plugins should be empty slice, not nil")
+	if !p.IsMultiScope() {
+		t.Fatal("CreateFromReader() should produce multi-scope profile")
 	}
-	if len(p.Plugins) != 0 {
-		t.Errorf("CreateFromReader() Plugins should be empty, got %v", p.Plugins)
+	if p.PerScope.User == nil {
+		t.Fatal("CreateFromReader() PerScope.User should not be nil")
 	}
-	if p.MCPServers == nil {
-		t.Error("CreateFromReader() MCPServers should be empty slice, not nil")
+	if p.PerScope.User.Plugins == nil {
+		t.Error("CreateFromReader() PerScope.User.Plugins should be empty slice, not nil")
 	}
-	if len(p.MCPServers) != 0 {
-		t.Errorf("CreateFromReader() MCPServers should be empty, got %v", p.MCPServers)
+	if len(p.PerScope.User.Plugins) != 0 {
+		t.Errorf("CreateFromReader() PerScope.User.Plugins should be empty, got %v", p.PerScope.User.Plugins)
+	}
+	if p.PerScope.User.MCPServers == nil {
+		t.Error("CreateFromReader() PerScope.User.MCPServers should be empty slice, not nil")
+	}
+	if len(p.PerScope.User.MCPServers) != 0 {
+		t.Errorf("CreateFromReader() PerScope.User.MCPServers should be empty, got %v", p.PerScope.User.MCPServers)
 	}
 }
 

@@ -92,10 +92,30 @@ func ValidateCreateSpec(description string, marketplaces []string, plugins []str
 	return nil
 }
 
+// setScopeSettings assigns scope-specific settings to a profile's PerScope field.
+// The scope must be a valid value (user, project, local).
+func setScopeSettings(p *Profile, scope string, settings *ScopeSettings) error {
+	if p.PerScope == nil {
+		p.PerScope = &PerScopeSettings{}
+	}
+	switch scope {
+	case "user":
+		p.PerScope.User = settings
+	case "project":
+		p.PerScope.Project = settings
+	case "local":
+		p.PerScope.Local = settings
+	default:
+		return fmt.Errorf("invalid scope %q: must be user, project, or local", scope)
+	}
+	return nil
+}
+
 // CreateFromFlags creates a profile from CLI flag values.
 // Uses ValidateCreateSpec for input validation and ParseMarketplaceArg
 // to convert marketplace strings to Marketplace structs.
-func CreateFromFlags(name, description string, marketplaceArgs, plugins []string) (*Profile, error) {
+// Plugins and MCPServers are placed under the specified scope in PerScope.
+func CreateFromFlags(name, description string, marketplaceArgs, plugins []string, scope string) (*Profile, error) {
 	if err := ValidateCreateSpec(description, marketplaceArgs, plugins); err != nil {
 		return nil, err
 	}
@@ -106,13 +126,26 @@ func CreateFromFlags(name, description string, marketplaceArgs, plugins []string
 		marketplaces = append(marketplaces, m)
 	}
 
-	return &Profile{
+	if plugins == nil {
+		plugins = []string{}
+	}
+
+	p := &Profile{
 		Name:         name,
 		Description:  description,
 		Marketplaces: marketplaces,
-		Plugins:      plugins,
-		MCPServers:   []MCPServer{},
-	}, nil
+	}
+
+	settings := &ScopeSettings{
+		Plugins:    plugins,
+		MCPServers: []MCPServer{},
+	}
+
+	if err := setScopeSettings(p, scope, settings); err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
 // ValidatePluginMarketplaces checks that every plugin's marketplace ref resolves
@@ -163,18 +196,24 @@ func matchesRegistryKey(ref string, registryKeys []string) bool {
 
 // CreateSpec is the input format for file/stdin profile creation
 type CreateSpec struct {
-	Description  string          `json:"description"`
-	Marketplaces json.RawMessage `json:"marketplaces"`
-	Plugins      []string        `json:"plugins"`
-	MCPServers   []MCPServer     `json:"mcpServers,omitempty"`
-	Detect       DetectRules     `json:"detect,omitempty"`
+	Description  string            `json:"description"`
+	Marketplaces json.RawMessage   `json:"marketplaces"`
+	Plugins      []string          `json:"plugins"`
+	MCPServers   []MCPServer       `json:"mcpServers,omitempty"`
+	PerScope     *PerScopeSettings `json:"perScope,omitempty"`
+	Detect       DetectRules       `json:"detect,omitempty"`
 }
 
 // MaxInputSize is the maximum size for JSON input (10MB)
 const MaxInputSize = 10 * 1024 * 1024
 
-// CreateFromReader creates a profile from JSON input
-func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, error) {
+// CreateFromReader creates a profile from JSON input.
+// If the input contains perScope, it is used directly and the scope argument is unused.
+// If scopeExplicit is true and the input contains perScope, an error is returned
+// because the caller's explicit scope flag would be silently disregarded.
+// If the input uses flat plugins/mcpServers, they are wrapped into perScope under the specified scope.
+// It is an error to specify both flat fields and perScope.
+func CreateFromReader(name string, r io.Reader, descOverride string, scope string, scopeExplicit bool) (*Profile, error) {
 	// Limit input size to prevent memory exhaustion
 	limitedReader := io.LimitReader(r, MaxInputSize+1)
 	data, err := io.ReadAll(limitedReader)
@@ -188,6 +227,12 @@ func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, 
 	var spec CreateSpec
 	if err := json.Unmarshal(data, &spec); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	// Reject ambiguous input with both flat and perScope fields
+	hasFlatFields := len(spec.Plugins) > 0 || len(spec.MCPServers) > 0
+	if hasFlatFields && spec.PerScope != nil {
+		return nil, fmt.Errorf("cannot specify both flat plugins/mcpServers and perScope")
 	}
 
 	// Parse marketplaces (can be strings or objects)
@@ -212,24 +257,53 @@ func CreateFromReader(name string, r io.Reader, descOverride string) (*Profile, 
 		return nil, err
 	}
 
-	// Initialize nil slices to empty slices for consistent JSON serialization
-	plugins := spec.Plugins
-	if plugins == nil {
-		plugins = []string{}
-	}
-	mcpServers := spec.MCPServers
-	if mcpServers == nil {
-		mcpServers = []MCPServer{}
-	}
-
-	return &Profile{
+	p := &Profile{
 		Name:         name,
 		Description:  description,
 		Marketplaces: marketplaces,
-		Plugins:      plugins,
-		MCPServers:   mcpServers,
 		Detect:       spec.Detect,
-	}, nil
+	}
+
+	if spec.PerScope != nil {
+		// Input already has multi-scope format. Reject if caller explicitly set a scope
+		// flag, since the input's perScope takes precedence and the flag would be ignored.
+		if scopeExplicit {
+			return nil, fmt.Errorf("--scope flag cannot be used with input that already contains perScope")
+		}
+		// Validate plugin formats in all scopes.
+		for _, s := range []*ScopeSettings{spec.PerScope.User, spec.PerScope.Project, spec.PerScope.Local} {
+			if s == nil {
+				continue
+			}
+			for _, plugin := range s.Plugins {
+				if err := ValidatePluginFormat(plugin); err != nil {
+					return nil, err
+				}
+			}
+		}
+		p.PerScope = spec.PerScope
+	} else {
+		// Wrap flat fields into PerScope under the specified scope
+		plugins := spec.Plugins
+		if plugins == nil {
+			plugins = []string{}
+		}
+		mcpServers := spec.MCPServers
+		if mcpServers == nil {
+			mcpServers = []MCPServer{}
+		}
+
+		settings := &ScopeSettings{
+			Plugins:    plugins,
+			MCPServers: mcpServers,
+		}
+
+		if err := setScopeSettings(p, scope, settings); err != nil {
+			return nil, err
+		}
+	}
+
+	return p, nil
 }
 
 // parseMarketplacesJSON handles both string and object marketplace formats

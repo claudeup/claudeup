@@ -335,6 +335,10 @@ var (
 	profileCreatePlugins      []string
 	profileCreateFromFile     string
 	profileCreateFromStdin    bool
+	profileCreateScope        string
+	profileCreateUser         bool
+	profileCreateProject      bool
+	profileCreateLocal        bool
 )
 
 var profileCleanCmd = &cobra.Command{
@@ -552,6 +556,10 @@ func init() {
 	profileCreateCmd.Flags().StringSliceVar(&profileCreatePlugins, "plugin", nil, "Plugin in name@marketplace-ref format (can be repeated)")
 	profileCreateCmd.Flags().StringVar(&profileCreateFromFile, "from-file", "", "Create profile from JSON file")
 	profileCreateCmd.Flags().BoolVar(&profileCreateFromStdin, "from-stdin", false, "Create profile from JSON on stdin")
+	profileCreateCmd.Flags().StringVar(&profileCreateScope, "scope", "", "Target scope for plugins/MCP servers: user, project, or local (default: user)")
+	profileCreateCmd.Flags().BoolVar(&profileCreateUser, "user", false, "Place plugins/MCP servers in user scope")
+	profileCreateCmd.Flags().BoolVar(&profileCreateProject, "project", false, "Place plugins/MCP servers in project scope")
+	profileCreateCmd.Flags().BoolVar(&profileCreateLocal, "local", false, "Place plugins/MCP servers in local scope")
 
 	profileCloneCmd.Flags().StringVar(&profileCloneFromFlag, "from", "", "Source profile to copy from")
 	profileCloneCmd.Flags().StringVar(&profileCloneDescription, "description", "", "Custom description for the profile")
@@ -2572,13 +2580,25 @@ func saveAndPrintNewProfile(p *profile.Profile, profilesDir string) error {
 	}
 	fmt.Printf("Profile %q created successfully.\n\n", p.Name)
 	fmt.Printf("  Marketplaces: %d\n", len(p.Marketplaces))
-	fmt.Printf("  Plugins: %d\n", len(p.Plugins))
+	fmt.Printf("  Plugins: %d\n", len(p.CombinedScopes().Plugins))
 	fmt.Printf("\nRun 'claudeup profile apply %s' to use it.\n", p.Name)
 	return nil
 }
 
 func runProfileCreate(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
+
+	// Resolve scope from flags (default to "user")
+	resolvedScope, err := resolveScopeFlags(profileCreateScope, profileCreateUser, profileCreateProject, profileCreateLocal)
+	if err != nil {
+		return err
+	}
+	if resolvedScope == "" {
+		resolvedScope = "user"
+	}
+	if _, err := profile.ParseScope(resolvedScope); err != nil {
+		return err
+	}
 
 	// Detect mode: file, flags, or wizard
 	hasFileInput := profileCreateFromFile != "" || profileCreateFromStdin
@@ -2604,7 +2624,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		newProfile, err := profile.CreateFromFlags(name, profileCreateDescription, profileCreateMarketplaces, profileCreatePlugins)
+		newProfile, err := profile.CreateFromFlags(name, profileCreateDescription, profileCreateMarketplaces, profileCreatePlugins, resolvedScope)
 		if err != nil {
 			return err
 		}
@@ -2631,7 +2651,8 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			reader = f
 		}
 
-		newProfile, err := profile.CreateFromReader(name, reader, profileCreateDescription)
+		scopeExplicit := cmd.Flags().Changed("scope") || cmd.Flags().Changed("user") || cmd.Flags().Changed("project") || cmd.Flags().Changed("local")
+		newProfile, err := profile.CreateFromReader(name, reader, profileCreateDescription, resolvedScope, scopeExplicit)
 		if err != nil {
 			return err
 		}
@@ -2699,12 +2720,13 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Step 5: Create profile
-	newProfile := &profile.Profile{
-		Name:         name,
-		Description:  description,
-		Marketplaces: selectedMarketplaces,
-		Plugins:      allPlugins,
-		MCPServers:   []profile.MCPServer{},
+	marketplaceArgs := make([]string, len(selectedMarketplaces))
+	for i, m := range selectedMarketplaces {
+		marketplaceArgs[i] = m.Repo
+	}
+	newProfile, err := profile.CreateFromFlags(name, description, marketplaceArgs, allPlugins, resolvedScope)
+	if err != nil {
+		return fmt.Errorf("failed to create profile: %w", err)
 	}
 
 	// Step 6: Show summary
@@ -2716,7 +2738,14 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(allPlugins))), 1))
 	fmt.Println()
 
-	// Step 7: Save profile
+	// Step 7: Validate and save profile
+	registryKeys, err := registryKeysFromInstalled()
+	if err != nil {
+		return fmt.Errorf("cannot validate plugin marketplaces: %w", err)
+	}
+	if err := newProfile.ValidateMarketplaceRefs(registryKeys); err != nil {
+		return fmt.Errorf("invalid profile: %w", err)
+	}
 	if err := profile.Save(profilesDir, newProfile); err != nil {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}
@@ -2736,10 +2765,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
 
 	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {
-		// Apply the profile at user scope (not project scope).
-		// This prevents accidentally overwriting existing project configs when
-		// the user just wants to create and try a new profile.
-		if err := applyProfileWithScope(name, profile.ScopeUser, true); err != nil {
+		if err := applyProfileWithScope(name, profile.Scope(resolvedScope), true); err != nil {
 			return err
 		}
 

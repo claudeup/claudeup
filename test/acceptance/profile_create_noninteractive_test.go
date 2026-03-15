@@ -36,8 +36,10 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(p.Description).To(Equal("Test description"))
 			Expect(p.Marketplaces).To(HaveLen(1))
 			Expect(p.Marketplaces[0].Repo).To(Equal("anthropics/claude-code-plugins"))
-			Expect(p.Plugins).To(HaveLen(1))
-			Expect(p.Plugins[0]).To(Equal("plugin-dev@claude-code-plugins"))
+			Expect(p.IsMultiScope()).To(BeTrue())
+			combined := p.CombinedScopes()
+			Expect(combined.Plugins).To(HaveLen(1))
+			Expect(combined.Plugins[0]).To(Equal("plugin-dev@claude-code-plugins"))
 		})
 
 		It("creates profile with multiple marketplaces", func() {
@@ -62,8 +64,9 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
 
 			p := env.LoadProfile("multi-plugin")
-			Expect(p.Plugins).To(HaveLen(2))
-			Expect(p.Plugins).To(ContainElements("plugin-a@claude-code", "plugin-b@claude-code"))
+			combined := p.CombinedScopes()
+			Expect(combined.Plugins).To(HaveLen(2))
+			Expect(combined.Plugins).To(ContainElements("plugin-a@claude-code", "plugin-b@claude-code"))
 		})
 
 		It("creates profile with description and marketplace only (no plugins)", func() {
@@ -76,7 +79,61 @@ var _ = Describe("profile create non-interactive", func() {
 			p := env.LoadProfile("no-plugins")
 			Expect(p.Description).To(Equal("Profile without plugins"))
 			Expect(p.Marketplaces).To(HaveLen(1))
-			Expect(p.Plugins).To(BeEmpty())
+			Expect(p.IsMultiScope()).To(BeTrue())
+			combined := p.CombinedScopes()
+			Expect(combined.Plugins).To(BeEmpty())
+		})
+
+		It("creates profile with project scope flag", func() {
+			result := env.Run("profile", "create", "project-profile",
+				"--description", "Project tools",
+				"--marketplace", "anthropics/claude-code-plugins",
+				"--plugin", "plugin-dev@claude-code-plugins",
+				"--scope", "project",
+			)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("project-profile")
+			Expect(p.IsMultiScope()).To(BeTrue())
+			Expect(p.PerScope.Project).NotTo(BeNil())
+			Expect(p.PerScope.Project.Plugins).To(HaveLen(1))
+			Expect(p.PerScope.User).To(BeNil())
+		})
+
+		It("creates profile with --local boolean flag", func() {
+			result := env.Run("profile", "create", "local-profile",
+				"--description", "Local tools",
+				"--marketplace", "anthropics/claude-code-plugins",
+				"--plugin", "plugin-dev@claude-code-plugins",
+				"--local",
+			)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("local-profile")
+			Expect(p.IsMultiScope()).To(BeTrue())
+			Expect(p.PerScope.Local).NotTo(BeNil())
+			Expect(p.PerScope.Local.Plugins).To(HaveLen(1))
+			Expect(p.PerScope.User).To(BeNil())
+		})
+
+		It("rejects conflicting scope flags", func() {
+			result := env.Run("profile", "create", "scope-conflict",
+				"--description", "Test",
+				"--marketplace", "owner/repo",
+				"--user", "--project",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot specify multiple scope flags"))
+		})
+
+		It("rejects invalid scope value", func() {
+			result := env.Run("profile", "create", "bad-scope",
+				"--description", "Test",
+				"--marketplace", "owner/repo",
+				"--scope", "invalid",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("invalid scope"))
 		})
 
 		It("fails without description in flags mode", func() {
@@ -252,6 +309,46 @@ var _ = Describe("profile create non-interactive", func() {
 			result := env.RunWithInput(spec, "profile", "create", "bad-ref-stdin", "--from-stdin")
 			Expect(result.ExitCode).NotTo(Equal(0))
 			Expect(result.Stderr).To(ContainSubstring("my-tool@nonexistent-marketplace"))
+		})
+
+		It("creates profile from file with perScope input", func() {
+			specPath := filepath.Join(env.TempDir, "perscope-spec.json")
+			spec := `{
+				"description": "PerScope input",
+				"marketplaces": ["anthropics/claude-code"],
+				"perScope": {
+					"project": { "plugins": ["plugin@claude-code"] }
+				}
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "perscope-profile", "--from-file", specPath)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("perscope-profile")
+			Expect(p.IsMultiScope()).To(BeTrue())
+			Expect(p.PerScope.Project).NotTo(BeNil())
+			Expect(p.PerScope.Project.Plugins).To(HaveLen(1))
+			Expect(p.PerScope.User).To(BeNil())
+		})
+
+		It("rejects explicit --scope with perScope input", func() {
+			specPath := filepath.Join(env.TempDir, "scope-conflict.json")
+			spec := `{
+				"description": "Conflicting",
+				"marketplaces": ["anthropics/claude-code"],
+				"perScope": {
+					"user": { "plugins": ["plugin@claude-code"] }
+				}
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "conflict-profile",
+				"--from-file", specPath,
+				"--scope", "local",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot be used with input that already contains perScope"))
 		})
 
 		It("rejects combining --from-file with --from-stdin", func() {
