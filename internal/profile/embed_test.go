@@ -51,7 +51,13 @@ func TestGetEmbeddedFrontendProfile(t *testing.T) {
 		t.Errorf("Expected 3 marketplaces, got %d", len(p.Marketplaces))
 	}
 
-	// Verify plugins match exactly (order and values)
+	// Verify multi-scope format
+	if !p.IsMultiScope() {
+		t.Fatal("Expected frontend profile to use multi-scope format")
+	}
+
+	// Verify plugins match exactly via CombinedScopes (order and values)
+	combined := p.CombinedScopes()
 	expectedPlugins := []string{
 		"frontend-design@claude-plugins-official",
 		"nextjs-vercel-pro@claude-code-templates",
@@ -59,12 +65,12 @@ func TestGetEmbeddedFrontendProfile(t *testing.T) {
 		"episodic-memory@superpowers-marketplace",
 		"commit-commands@claude-plugins-official",
 	}
-	if len(p.Plugins) != len(expectedPlugins) {
-		t.Fatalf("Expected %d plugins, got %d: %v", len(expectedPlugins), len(p.Plugins), p.Plugins)
+	if len(combined.Plugins) != len(expectedPlugins) {
+		t.Fatalf("Expected %d plugins, got %d: %v", len(expectedPlugins), len(combined.Plugins), combined.Plugins)
 	}
 	for i, expected := range expectedPlugins {
-		if p.Plugins[i] != expected {
-			t.Errorf("Plugin %d: expected %q, got %q", i, expected, p.Plugins[i])
+		if combined.Plugins[i] != expected {
+			t.Errorf("Plugin %d: expected %q, got %q", i, expected, combined.Plugins[i])
 		}
 	}
 
@@ -84,7 +90,13 @@ func TestGetEmbeddedFrontendFullProfile(t *testing.T) {
 		t.Errorf("Expected name 'frontend-full', got %q", p.Name)
 	}
 
-	// Verify plugins match exactly (order and values)
+	// Verify multi-scope format
+	if !p.IsMultiScope() {
+		t.Fatal("Expected frontend-full profile to use multi-scope format")
+	}
+
+	// Verify plugins match exactly via CombinedScopes (order and values)
+	combined := p.CombinedScopes()
 	expectedPlugins := []string{
 		"frontend-design@claude-plugins-official",
 		"nextjs-vercel-pro@claude-code-templates",
@@ -96,12 +108,12 @@ func TestGetEmbeddedFrontendFullProfile(t *testing.T) {
 		"commit-commands@claude-plugins-official",
 		"code-review@claude-plugins-official",
 	}
-	if len(p.Plugins) != len(expectedPlugins) {
-		t.Fatalf("Expected %d plugins, got %d: %v", len(expectedPlugins), len(p.Plugins), p.Plugins)
+	if len(combined.Plugins) != len(expectedPlugins) {
+		t.Fatalf("Expected %d plugins, got %d: %v", len(expectedPlugins), len(combined.Plugins), combined.Plugins)
 	}
 	for i, expected := range expectedPlugins {
-		if p.Plugins[i] != expected {
-			t.Errorf("Plugin %d: expected %q, got %q", i, expected, p.Plugins[i])
+		if combined.Plugins[i] != expected {
+			t.Errorf("Plugin %d: expected %q, got %q", i, expected, combined.Plugins[i])
 		}
 	}
 }
@@ -137,6 +149,13 @@ func TestAllEmbeddedProfilesAreValid(t *testing.T) {
 	for _, expected := range expectedProfiles {
 		if !names[expected] {
 			t.Errorf("Expected embedded profile %q not found", expected)
+		}
+	}
+
+	// Verify all embedded profiles use multi-scope format
+	for _, p := range profiles {
+		if !p.IsMultiScope() {
+			t.Errorf("Embedded profile %q should use multi-scope format", p.Name)
 		}
 	}
 }

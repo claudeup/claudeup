@@ -1,23 +1,27 @@
 {
   "name": "frontend-full",
   "description": "Complete frontend development with E2E testing: Next.js, Tailwind, shadcn, Vercel, Playwright",
-  "mcpServers": [],
   "marketplaces": [
     { "source": "github", "repo": "anthropics/claude-plugins-official" },
     { "source": "github", "repo": "obra/superpowers-marketplace" },
     { "source": "github", "repo": "davila7/claude-code-templates" }
   ],
-  "plugins": [
-    "frontend-design@claude-plugins-official",
-    "nextjs-vercel-pro@claude-code-templates",
-    "testing-suite@claude-code-templates",
-    "performance-optimizer@claude-code-templates",
-    "superpowers@superpowers-marketplace",
-    "superpowers-chrome@superpowers-marketplace",
-    "episodic-memory@superpowers-marketplace",
-    "commit-commands@claude-plugins-official",
-    "code-review@claude-plugins-official"
-  ],
+  "perScope": {
+    "user": {
+      "plugins": [
+        "frontend-design@claude-plugins-official",
+        "nextjs-vercel-pro@claude-code-templates",
+        "testing-suite@claude-code-templates",
+        "performance-optimizer@claude-code-templates",
+        "superpowers@superpowers-marketplace",
+        "superpowers-chrome@superpowers-marketplace",
+        "episodic-memory@superpowers-marketplace",
+        "commit-commands@claude-plugins-official",
+        "code-review@claude-plugins-official"
+      ],
+      "mcpServers": []
+    }
+  },
   "detect": {
     "files": [
       "next.config.js",

@@ -55,7 +55,8 @@ func TestLoadProfileWithFallback_FallsBackToEmbedded(t *testing.T) {
 		t.Errorf("Expected embedded frontend profile, got: %q", p.Name)
 	}
 
-	if len(p.Plugins) == 0 {
+	combined := p.CombinedScopes()
+	if len(combined.Plugins) == 0 {
 		t.Error("Expected embedded profile to have plugins")
 	}
 }

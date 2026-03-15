@@ -31,13 +31,15 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.Stdout).To(ContainSubstring("created successfully"))
 			Expect(env.ProfileExists("test-profile")).To(BeTrue())
 
-			// Verify profile contents
+			// Verify profile contents (multi-scope format)
 			p := env.LoadProfile("test-profile")
 			Expect(p.Description).To(Equal("Test description"))
 			Expect(p.Marketplaces).To(HaveLen(1))
 			Expect(p.Marketplaces[0].Repo).To(Equal("anthropics/claude-code-plugins"))
-			Expect(p.Plugins).To(HaveLen(1))
-			Expect(p.Plugins[0]).To(Equal("plugin-dev@claude-code-plugins"))
+			Expect(p.IsMultiScope()).To(BeTrue())
+			combined := p.CombinedScopes()
+			Expect(combined.Plugins).To(HaveLen(1))
+			Expect(combined.Plugins[0]).To(Equal("plugin-dev@claude-code-plugins"))
 		})
 
 		It("creates profile with multiple marketplaces", func() {
@@ -62,8 +64,9 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
 
 			p := env.LoadProfile("multi-plugin")
-			Expect(p.Plugins).To(HaveLen(2))
-			Expect(p.Plugins).To(ContainElements("plugin-a@claude-code", "plugin-b@claude-code"))
+			combined := p.CombinedScopes()
+			Expect(combined.Plugins).To(HaveLen(2))
+			Expect(combined.Plugins).To(ContainElements("plugin-a@claude-code", "plugin-b@claude-code"))
 		})
 
 		It("creates profile with description and marketplace only (no plugins)", func() {
@@ -76,7 +79,9 @@ var _ = Describe("profile create non-interactive", func() {
 			p := env.LoadProfile("no-plugins")
 			Expect(p.Description).To(Equal("Profile without plugins"))
 			Expect(p.Marketplaces).To(HaveLen(1))
-			Expect(p.Plugins).To(BeEmpty())
+			Expect(p.IsMultiScope()).To(BeTrue())
+			combined := p.CombinedScopes()
+			Expect(combined.Plugins).To(BeEmpty())
 		})
 
 		It("fails without description in flags mode", func() {

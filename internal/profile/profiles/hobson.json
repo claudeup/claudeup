@@ -1,9 +1,13 @@
 {
   "name": "hobson",
   "description": "Full access to wshobson/agents plugin marketplace with interactive category selection",
-  "marketplaces": [
-    {"source": "github", "repo": "wshobson/agents"}
-  ],
+  "marketplaces": [{ "source": "github", "repo": "wshobson/agents" }],
+  "perScope": {
+    "user": {
+      "plugins": [],
+      "mcpServers": []
+    }
+  },
   "skipPluginDiff": true,
   "postApply": {
     "script": "hobson-setup.sh",

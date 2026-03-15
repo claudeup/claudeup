@@ -71,8 +71,8 @@ var _ = Describe("profile apply hobson", func() {
 			result := env.Run("profile", "apply", "hobson", "-y", "--no-interactive")
 
 			Expect(result.ExitCode).To(Equal(0))
-			// Should still set up the marketplace
-			Expect(result.Stdout).To(ContainSubstring("marketplace"))
+			// Should still apply the profile (multi-scope format)
+			Expect(result.Stdout).To(ContainSubstring("Profile applied"))
 		})
 	})
 
