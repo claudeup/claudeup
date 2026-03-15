@@ -2738,7 +2738,14 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", fmt.Sprintf("%d", len(allPlugins))), 1))
 	fmt.Println()
 
-	// Step 7: Save profile
+	// Step 7: Validate and save profile
+	registryKeys, err := registryKeysFromInstalled()
+	if err != nil {
+		return fmt.Errorf("cannot validate plugin marketplaces: %w", err)
+	}
+	if err := newProfile.ValidateMarketplaceRefs(registryKeys); err != nil {
+		return fmt.Errorf("invalid profile: %w", err)
+	}
 	if err := profile.Save(profilesDir, newProfile); err != nil {
 		return fmt.Errorf("failed to save profile: %w", err)
 	}

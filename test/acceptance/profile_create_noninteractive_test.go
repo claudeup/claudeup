@@ -100,6 +100,32 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(p.PerScope.User).To(BeNil())
 		})
 
+		It("creates profile with --local boolean flag", func() {
+			result := env.Run("profile", "create", "local-profile",
+				"--description", "Local tools",
+				"--marketplace", "anthropics/claude-code-plugins",
+				"--plugin", "plugin-dev@claude-code-plugins",
+				"--local",
+			)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("local-profile")
+			Expect(p.IsMultiScope()).To(BeTrue())
+			Expect(p.PerScope.Local).NotTo(BeNil())
+			Expect(p.PerScope.Local.Plugins).To(HaveLen(1))
+			Expect(p.PerScope.User).To(BeNil())
+		})
+
+		It("rejects conflicting scope flags", func() {
+			result := env.Run("profile", "create", "scope-conflict",
+				"--description", "Test",
+				"--marketplace", "owner/repo",
+				"--user", "--project",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot specify multiple scope flags"))
+		})
+
 		It("rejects invalid scope value", func() {
 			result := env.Run("profile", "create", "bad-scope",
 				"--description", "Test",

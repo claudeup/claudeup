@@ -208,10 +208,11 @@ type CreateSpec struct {
 const MaxInputSize = 10 * 1024 * 1024
 
 // CreateFromReader creates a profile from JSON input.
-// If the input contains perScope, it is used directly and scope/scopeExplicit are ignored.
+// If the input contains perScope, it is used directly and the scope argument is unused.
+// If scopeExplicit is true and the input contains perScope, an error is returned
+// because the caller's explicit scope flag would be silently disregarded.
 // If the input uses flat plugins/mcpServers, they are wrapped into perScope under the specified scope.
-// It is an error to specify both flat fields and perScope, or to explicitly set scope
-// when the input already contains perScope.
+// It is an error to specify both flat fields and perScope.
 func CreateFromReader(name string, r io.Reader, descOverride string, scope string, scopeExplicit bool) (*Profile, error) {
 	// Limit input size to prevent memory exhaustion
 	limitedReader := io.LimitReader(r, MaxInputSize+1)
