@@ -291,12 +291,13 @@ func TestValidateCreateSpec(t *testing.T) {
 
 func TestCreateFromReader(t *testing.T) {
 	tests := []struct {
-		name         string
-		profileName  string
-		json         string
-		descOverride string
-		scope        string
-		wantErr      string
+		name          string
+		profileName   string
+		json          string
+		descOverride  string
+		scope         string
+		scopeExplicit bool
+		wantErr       string
 	}{
 		{
 			name:        "flat input converts to multi-scope under user",
@@ -373,6 +374,20 @@ func TestCreateFromReader(t *testing.T) {
 			}`,
 			scope:   "user",
 			wantErr: "invalid plugin format",
+		},
+		{
+			name:        "rejects explicit scope with perScope input",
+			profileName: "my-profile",
+			json: `{
+				"description": "Test profile",
+				"marketplaces": ["owner/repo"],
+				"perScope": {
+					"user": { "plugins": ["plugin@ref"] }
+				}
+			}`,
+			scope:         "local",
+			scopeExplicit: true,
+			wantErr:       "cannot be used with input that already contains perScope",
 		},
 		{
 			name:        "rejects invalid scope for flat input",
@@ -458,7 +473,7 @@ func TestCreateFromReader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := strings.NewReader(tt.json)
-			p, err := CreateFromReader(tt.profileName, r, tt.descOverride, tt.scope)
+			p, err := CreateFromReader(tt.profileName, r, tt.descOverride, tt.scope, tt.scopeExplicit)
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Errorf("CreateFromReader() unexpected error = %v", err)
@@ -492,7 +507,7 @@ func TestCreateFromReaderSizeLimit(t *testing.T) {
 		strings.Repeat("x", 11*1024*1024) + `@ref"]}`
 
 	r := strings.NewReader(oversizedJSON)
-	_, err := CreateFromReader("test", r, "", "user")
+	_, err := CreateFromReader("test", r, "", "user", false)
 
 	if err == nil {
 		t.Error("CreateFromReader() expected error for oversized input, got nil")
@@ -510,7 +525,7 @@ func TestCreateFromReaderNilSlices(t *testing.T) {
 	}`
 
 	r := strings.NewReader(json)
-	p, err := CreateFromReader("test", r, "", "user")
+	p, err := CreateFromReader("test", r, "", "user", false)
 	if err != nil {
 		t.Fatalf("CreateFromReader() unexpected error = %v", err)
 	}

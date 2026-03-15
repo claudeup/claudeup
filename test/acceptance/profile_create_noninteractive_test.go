@@ -285,6 +285,46 @@ var _ = Describe("profile create non-interactive", func() {
 			Expect(result.Stderr).To(ContainSubstring("my-tool@nonexistent-marketplace"))
 		})
 
+		It("creates profile from file with perScope input", func() {
+			specPath := filepath.Join(env.TempDir, "perscope-spec.json")
+			spec := `{
+				"description": "PerScope input",
+				"marketplaces": ["anthropics/claude-code"],
+				"perScope": {
+					"project": { "plugins": ["plugin@claude-code"] }
+				}
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "perscope-profile", "--from-file", specPath)
+			Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+			p := env.LoadProfile("perscope-profile")
+			Expect(p.IsMultiScope()).To(BeTrue())
+			Expect(p.PerScope.Project).NotTo(BeNil())
+			Expect(p.PerScope.Project.Plugins).To(HaveLen(1))
+			Expect(p.PerScope.User).To(BeNil())
+		})
+
+		It("rejects explicit --scope with perScope input", func() {
+			specPath := filepath.Join(env.TempDir, "scope-conflict.json")
+			spec := `{
+				"description": "Conflicting",
+				"marketplaces": ["anthropics/claude-code"],
+				"perScope": {
+					"user": { "plugins": ["plugin@claude-code"] }
+				}
+			}`
+			Expect(os.WriteFile(specPath, []byte(spec), 0644)).To(Succeed())
+
+			result := env.Run("profile", "create", "conflict-profile",
+				"--from-file", specPath,
+				"--scope", "local",
+			)
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("cannot be used with input that already contains perScope"))
+		})
+
 		It("rejects combining --from-file with --from-stdin", func() {
 			specPath := filepath.Join(env.TempDir, "spec.json")
 			spec := `{"description": "Test", "marketplaces": ["owner/repo"]}`

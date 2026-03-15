@@ -2651,7 +2651,8 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			reader = f
 		}
 
-		newProfile, err := profile.CreateFromReader(name, reader, profileCreateDescription, resolvedScope)
+		scopeExplicit := cmd.Flags().Changed("scope") || cmd.Flags().Changed("user") || cmd.Flags().Changed("project") || cmd.Flags().Changed("local")
+		newProfile, err := profile.CreateFromReader(name, reader, profileCreateDescription, resolvedScope, scopeExplicit)
 		if err != nil {
 			return err
 		}
@@ -2757,9 +2758,12 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	applyChoice := strings.TrimSpace(strings.ToLower(applyInput))
 
 	if applyChoice == "" || applyChoice == "y" || applyChoice == "yes" {
-		// Apply the profile at user scope (not project scope).
+		// Apply at user scope regardless of the profile's target scope.
 		// This prevents accidentally overwriting existing project configs when
 		// the user just wants to create and try a new profile.
+		if resolvedScope != "user" {
+			ui.PrintInfo(fmt.Sprintf("Applying at user scope. To apply at %s scope, run: claudeup profile apply %s --%s", resolvedScope, name, resolvedScope))
+		}
 		if err := applyProfileWithScope(name, profile.ScopeUser, true); err != nil {
 			return err
 		}

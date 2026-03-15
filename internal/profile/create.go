@@ -208,10 +208,11 @@ type CreateSpec struct {
 const MaxInputSize = 10 * 1024 * 1024
 
 // CreateFromReader creates a profile from JSON input.
-// If the input contains perScope, it is used directly.
+// If the input contains perScope, it is used directly and scope/scopeExplicit are ignored.
 // If the input uses flat plugins/mcpServers, they are wrapped into perScope under the specified scope.
-// It is an error to specify both flat fields and perScope.
-func CreateFromReader(name string, r io.Reader, descOverride string, scope string) (*Profile, error) {
+// It is an error to specify both flat fields and perScope, or to explicitly set scope
+// when the input already contains perScope.
+func CreateFromReader(name string, r io.Reader, descOverride string, scope string, scopeExplicit bool) (*Profile, error) {
 	// Limit input size to prevent memory exhaustion
 	limitedReader := io.LimitReader(r, MaxInputSize+1)
 	data, err := io.ReadAll(limitedReader)
@@ -263,7 +264,11 @@ func CreateFromReader(name string, r io.Reader, descOverride string, scope strin
 	}
 
 	if spec.PerScope != nil {
-		// Input already has multi-scope format, use directly.
+		// Input already has multi-scope format. Reject if caller explicitly set a scope
+		// flag, since the input's perScope takes precedence and the flag would be ignored.
+		if scopeExplicit {
+			return nil, fmt.Errorf("--scope flag cannot be used with input that already contains perScope")
+		}
 		// Validate plugin formats in all scopes.
 		for _, s := range []*ScopeSettings{spec.PerScope.User, spec.PerScope.Project, spec.PerScope.Local} {
 			if s == nil {
