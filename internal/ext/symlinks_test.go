@@ -598,6 +598,64 @@ func TestSyncSkipsMissingSourceFiles(t *testing.T) {
 	}
 }
 
+func TestSyncAgentsSkipsMissingSources(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	extDir := filepath.Join(claudeupHome, "ext")
+	// Create one flat agent, skip the other
+	os.MkdirAll(filepath.Join(extDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(extDir, "agents", "exists.md"), []byte("# exists"), 0644)
+	// Deliberately NOT creating "missing.md"
+
+	// Create one grouped agent, skip the other
+	os.MkdirAll(filepath.Join(extDir, "agents", "mygroup"), 0755)
+	os.WriteFile(filepath.Join(extDir, "agents", "mygroup", "present.md"), []byte("# present"), 0644)
+	// Deliberately NOT creating "mygroup/gone.md"
+
+	manager := NewManager(claudeDir, claudeupHome)
+	config := Config{
+		"agents": {
+			"exists.md":          true,
+			"missing.md":         true,
+			"mygroup/present.md": true,
+			"mygroup/gone.md":    true,
+		},
+	}
+	manager.SaveConfig(config)
+
+	skipped, err := manager.Sync()
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	if len(skipped) != 2 {
+		t.Fatalf("Sync() skipped = %v, want 2 items", skipped)
+	}
+
+	// Verify present items have symlinks
+	existsPath := filepath.Join(claudeDir, "agents", "exists.md")
+	if _, err := os.Lstat(existsPath); err != nil {
+		t.Errorf("Expected symlink for exists.md: %v", err)
+	}
+
+	presentPath := filepath.Join(claudeDir, "agents", "mygroup", "present.md")
+	if _, err := os.Lstat(presentPath); err != nil {
+		t.Errorf("Expected symlink for mygroup/present.md: %v", err)
+	}
+
+	// Verify missing items have no symlinks
+	missingPath := filepath.Join(claudeDir, "agents", "missing.md")
+	if _, err := os.Lstat(missingPath); err == nil {
+		t.Error("Expected no symlink for missing.md")
+	}
+
+	gonePath := filepath.Join(claudeDir, "agents", "mygroup", "gone.md")
+	if _, err := os.Lstat(gonePath); err == nil {
+		t.Error("Expected no symlink for mygroup/gone.md")
+	}
+}
+
 func TestImportAllNoPattern(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()

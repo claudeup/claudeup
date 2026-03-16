@@ -166,9 +166,11 @@ func (m *Manager) Enable(category string, patterns []string) ([]string, []string
 		if err := m.SaveConfig(config); err != nil {
 			return nil, nil, err
 		}
-		if _, err := m.syncCategory(category, config); err != nil {
+		skippedSync, err := m.syncCategory(category, config)
+		if err != nil {
 			return nil, nil, err
 		}
+		notFound = append(notFound, skippedSync...)
 	}
 
 	return enabled, notFound, nil
@@ -224,15 +226,18 @@ func (m *Manager) Disable(category string, patterns []string) ([]string, []strin
 		if err := m.SaveConfig(config); err != nil {
 			return nil, nil, err
 		}
-		if _, err := m.syncCategory(category, config); err != nil {
+		skippedSync, err := m.syncCategory(category, config)
+		if err != nil {
 			return nil, nil, err
 		}
+		notFound = append(notFound, skippedSync...)
 	}
 
 	return disabled, notFound, nil
 }
 
-// syncCategory creates/removes symlinks based on config state
+// syncCategory creates/removes symlinks based on config state.
+// Returns skipped items in "category/item" format where source files were missing.
 func (m *Manager) syncCategory(category string, config Config) ([]string, error) {
 	targetDir := filepath.Join(m.claudeDir, category)
 
@@ -253,6 +258,7 @@ func (m *Manager) syncCategory(category string, config Config) ([]string, error)
 	return m.syncFlatCategory(category, targetDir, catConfig)
 }
 
+// syncFlatCategory syncs non-agent categories. Returns skipped items in "category/item" format.
 func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig map[string]bool) ([]string, error) {
 	// Validate all items before making any changes (fail fast)
 	for item, enabled := range catConfig {
@@ -275,9 +281,12 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 		}
 
 		source := filepath.Join(m.extDir, category, item)
-		if _, err := os.Stat(source); os.IsNotExist(err) {
-			skipped = append(skipped, category+"/"+item)
-			continue
+		if _, err := os.Stat(source); err != nil {
+			if os.IsNotExist(err) {
+				skipped = append(skipped, category+"/"+item)
+				continue
+			}
+			return skipped, fmt.Errorf("checking source %s: %w", source, err)
 		}
 
 		target := filepath.Join(targetDir, item)
@@ -321,6 +330,7 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) {
 	}
 }
 
+// syncAgents syncs the agents category (supports grouped agents). Returns skipped items in "agents/item" format.
 func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]string, error) {
 	// Validate all items before making any changes (fail fast)
 	for item, enabled := range catConfig {
@@ -374,9 +384,12 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]str
 			group, agent := parts[0], parts[1]
 
 			source := filepath.Join(m.extDir, "agents", group, agent)
-			if _, err := os.Stat(source); os.IsNotExist(err) {
-				skipped = append(skipped, "agents/"+item)
-				continue
+			if _, err := os.Stat(source); err != nil {
+				if os.IsNotExist(err) {
+					skipped = append(skipped, "agents/"+item)
+					continue
+				}
+				return skipped, fmt.Errorf("checking source %s: %w", source, err)
 			}
 
 			groupTargetDir := filepath.Join(targetDir, group)
@@ -391,9 +404,12 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]str
 		} else {
 			// Flat agent
 			source := filepath.Join(m.extDir, "agents", item)
-			if _, err := os.Stat(source); os.IsNotExist(err) {
-				skipped = append(skipped, "agents/"+item)
-				continue
+			if _, err := os.Stat(source); err != nil {
+				if os.IsNotExist(err) {
+					skipped = append(skipped, "agents/"+item)
+					continue
+				}
+				return skipped, fmt.Errorf("checking source %s: %w", source, err)
 			}
 
 			target := filepath.Join(targetDir, item)

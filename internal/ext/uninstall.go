@@ -72,9 +72,11 @@ func (m *Manager) Uninstall(category string, patterns []string) ([]string, []str
 		if err := m.SaveConfig(config); err != nil {
 			return nil, nil, err
 		}
-		if _, err := m.syncCategory(category, config); err != nil {
+		skippedSync, err := m.syncCategory(category, config)
+		if err != nil {
 			return nil, nil, err
 		}
+		notFound = append(notFound, skippedSync...)
 	}
 
 	return removed, notFound, nil

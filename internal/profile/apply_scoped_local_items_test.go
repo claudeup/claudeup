@@ -350,8 +350,8 @@ func TestApplyExtensionsScopedReportsNotFound(t *testing.T) {
 		t.Fatalf("applyExtensionsScoped() error = %v", err)
 	}
 
-	if len(notFound) != 1 {
-		t.Errorf("applyExtensionsScoped() notFound = %v, want 1 item", notFound)
+	if len(notFound) != 1 || notFound[0] != "rules/missing.md" {
+		t.Errorf("applyExtensionsScoped() notFound = %v, want [rules/missing.md]", notFound)
 	}
 }
 
