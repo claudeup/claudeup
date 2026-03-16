@@ -317,7 +317,7 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 	return nil
 }
 
-// writeLocalScopeConfigs writes settings.ext.json for local scope
+// writeLocalScopeConfigs writes settings.local.json for local scope
 func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
 	localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
@@ -894,8 +894,13 @@ func installPluginsForScope(plugins []string, scope string, reinstall bool, exec
 		if claudeDir != "" {
 			if registry, err := claude.LoadPlugins(claudeDir); err == nil {
 				installed := make(map[string]bool)
+				// Normalize scope for lookup: empty string means user scope
+				lookupScope := scope
+				if lookupScope == "" {
+					lookupScope = "user"
+				}
 				for _, p := range plugins {
-					if registry.PluginExistsAtScope(p, scope) {
+					if registry.PluginExistsAtScope(p, lookupScope) {
 						installed[p] = true
 					}
 				}
@@ -1379,7 +1384,7 @@ func applyProjectScopeSettingsOnly(profile *Profile, claudeDir, projectDir strin
 	return nil
 }
 
-// applyLocalScopeSettingsOnly writes plugins to local-scope settings.ext.json
+// applyLocalScopeSettingsOnly writes plugins to local-scope settings.local.json
 // without tracking them as "installed" in ApplyResult. Use when CLI install follows.
 func applyLocalScopeSettingsOnly(profile *Profile, claudeDir, projectDir string) error {
 	settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)

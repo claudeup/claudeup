@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
+	"github.com/claudeup/claudeup/v5/internal/secrets"
 )
 
 func TestApplyAllScopesMultiScope(t *testing.T) {
@@ -865,11 +866,12 @@ func TestApplyAllScopesMCPSecretResolution(t *testing.T) {
 		},
 	}
 
-	// Set the env var so it can be resolved
+	// Set the env var and create a real secret chain to resolve it
 	t.Setenv("MY_SECRET_TOKEN", "resolved-value")
+	chain := secrets.NewChain(secrets.NewEnvResolver())
 
 	opts := &ApplyAllScopesOptions{Executor: executor}
-	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, opts)
+	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, chain, opts)
 	if err != nil {
 		t.Fatalf("ApplyAllScopes failed: %v", err)
 	}
