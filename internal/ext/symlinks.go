@@ -237,7 +237,7 @@ func (m *Manager) Disable(category string, patterns []string) ([]string, []strin
 }
 
 // syncCategory creates/removes symlinks based on config state.
-// Returns skipped items in "category/item" format where source files were missing.
+// Returns skipped item names (bare, without category prefix) where source files were missing.
 func (m *Manager) syncCategory(category string, config Config) ([]string, error) {
 	targetDir := filepath.Join(m.claudeDir, category)
 
@@ -258,7 +258,7 @@ func (m *Manager) syncCategory(category string, config Config) ([]string, error)
 	return m.syncFlatCategory(category, targetDir, catConfig)
 }
 
-// syncFlatCategory syncs non-agent categories. Returns skipped items in "category/item" format.
+// syncFlatCategory syncs non-agent categories. Returns skipped item names (bare, without category prefix).
 func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig map[string]bool) ([]string, error) {
 	// Validate all items before making any changes (fail fast)
 	for item, enabled := range catConfig {
@@ -283,7 +283,7 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 		source := filepath.Join(m.extDir, category, item)
 		if _, err := os.Stat(source); err != nil {
 			if os.IsNotExist(err) {
-				skipped = append(skipped, category+"/"+item)
+				skipped = append(skipped, item)
 				continue
 			}
 			return skipped, fmt.Errorf("checking source %s: %w", source, err)
@@ -330,7 +330,7 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) {
 	}
 }
 
-// syncAgents syncs the agents category (supports grouped agents). Returns skipped items in "agents/item" format.
+// syncAgents syncs the agents category (supports grouped agents). Returns skipped item names (bare, without category prefix).
 func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]string, error) {
 	// Validate all items before making any changes (fail fast)
 	for item, enabled := range catConfig {
@@ -386,7 +386,7 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]str
 			source := filepath.Join(m.extDir, "agents", group, agent)
 			if _, err := os.Stat(source); err != nil {
 				if os.IsNotExist(err) {
-					skipped = append(skipped, "agents/"+item)
+					skipped = append(skipped, item)
 					continue
 				}
 				return skipped, fmt.Errorf("checking source %s: %w", source, err)
@@ -406,7 +406,7 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]str
 			source := filepath.Join(m.extDir, "agents", item)
 			if _, err := os.Stat(source); err != nil {
 				if os.IsNotExist(err) {
-					skipped = append(skipped, "agents/"+item)
+					skipped = append(skipped, item)
 					continue
 				}
 				return skipped, fmt.Errorf("checking source %s: %w", source, err)
@@ -436,7 +436,9 @@ func (m *Manager) Sync() ([]string, error) {
 		if err != nil {
 			return allSkipped, err
 		}
-		allSkipped = append(allSkipped, skipped...)
+		for _, item := range skipped {
+			allSkipped = append(allSkipped, category+"/"+item)
+		}
 	}
 
 	return allSkipped, nil
