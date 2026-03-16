@@ -87,7 +87,7 @@ func TestExtensionIntegration(t *testing.T) {
 	}
 
 	// Test: Sync
-	err = manager.Sync()
+	_, err = manager.Sync()
 	if err != nil {
 		t.Fatalf("Sync() error = %v", err)
 	}

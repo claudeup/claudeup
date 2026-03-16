@@ -492,8 +492,18 @@ func runExtensionsSync(cmd *cobra.Command, args []string) error {
 	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	fmt.Println("Syncing extensions from enabled.json...")
-	if err := manager.Sync(); err != nil {
+	skipped, err := manager.Sync()
+	if err != nil {
 		return fmt.Errorf("sync failed: %w", err)
+	}
+
+	for _, item := range skipped {
+		ui.PrintWarning(fmt.Sprintf("Source not found, skipping: %s", item))
+	}
+
+	if len(skipped) > 0 {
+		ui.PrintWarning(fmt.Sprintf("%d extension(s) skipped due to missing source files: %s",
+			len(skipped), strings.Join(skipped, ", ")))
 	}
 
 	ui.PrintSuccess("Sync complete")
