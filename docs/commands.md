@@ -84,6 +84,7 @@ claudeup profile diff <name> --original      # Compare customized built-in to it
 claudeup profile save                        # Save to last-applied profile name
 claudeup profile save <name>                 # Save current setup as profile (all scopes)
 claudeup profile create <name>               # Create profile with interactive wizard
+claudeup profile create <name> --scope project  # Create profile targeting project scope
 claudeup profile clone <name>                # Clone an existing profile
 claudeup profile apply <name>                # Apply a profile (user scope); alias: use
 claudeup profile suggest                     # Suggest profile based on project files

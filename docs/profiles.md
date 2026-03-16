@@ -70,6 +70,60 @@ Marketplaces:
 
 Multi-scope profiles group plugins, MCP servers, and extensions under scope headers (`User scope`, `Project scope`, `Local scope`).
 
+## What Apply Does
+
+When you run `claudeup profile apply <name>`, claudeup performs these operations in order:
+
+### 1. Marketplace registration
+
+Marketplaces listed in the profile are registered via `claude plugin marketplace add`. This writes to `~/.claude/settings.json` (marketplaces are always user-scoped regardless of the `--scope` flag). Already-registered marketplaces are skipped.
+
+### 2. Plugin enablement
+
+Plugins are enabled by writing `enabledPlugins` entries into the scope-specific settings file:
+
+| Scope   | Settings file                 |
+| ------- | ----------------------------- |
+| user    | `~/.claude/settings.json`     |
+| project | `.claude/settings.json`       |
+| local   | `.claude/settings.local.json` |
+
+Each plugin entry is set to `true` in the `enabledPlugins` map. By default, apply is **additive** -- existing plugins in the target scope are preserved. Use `--replace` to clear the scope before writing.
+
+### 3. MCP server configuration
+
+MCP servers defined in the profile are added via `claude mcp add`. The target file depends on scope:
+
+| Scope   | MCP config file  |
+| ------- | ---------------- |
+| user    | `~/.claude.json` |
+| project | `.mcp.json`      |
+| local   | `~/.claude.json` |
+
+Secret references (`$KEY` in args) are resolved at apply time using the profile's `secrets` metadata. The resolved values are written to the MCP config file, not the secret references.
+
+### 4. Extension symlinks/copies
+
+Extensions (agents, commands, skills, hooks, rules, output-styles) listed in the profile are activated:
+
+- **User scope:** Symlinks are created from `~/.claude/<category>/` pointing to `~/.claudeup/ext/<category>/`
+- **Project scope:** Files are **copied** into `.claude/<category>/` (only `agents` and `rules` are supported at project scope)
+
+### 5. Settings hooks
+
+Hook entries from the profile's `settingsHooks` field are merged into the appropriate `settings.json` file under the `hooks` key.
+
+### 6. Multi-scope profiles
+
+Multi-scope profiles (with `perScope`) apply each scope in order: user, then project, then local. Each scope's plugins, MCP servers, and extensions are written to their respective files. A single `profile apply` can touch files across all three scopes.
+
+### What apply does NOT do
+
+- **Does not install plugin code.** Plugin enablement writes a config entry; Claude Code fetches plugin code on first use.
+- **Does not create marketplace indexes.** Marketplace registration triggers Claude CLI to sync the index.
+- **Does not modify `CLAUDE.md` or rules files** (beyond extension symlinks/copies).
+- **Does not touch settings fields outside of `enabledPlugins`, `mcpServers`, and `hooks`.** Other fields in settings files (like `permissions`, `model`, etc.) are preserved.
+
 ## Profile Scopes
 
 Profiles can be applied at different scopes, allowing you to layer configurations:
@@ -629,12 +683,25 @@ The wizard prompts you to select marketplaces, plugins, and configure MCP server
 For automation or scripting, use flags to create profiles without the wizard:
 
 ```bash
-# Create profile with flags
+# Create profile with flags (defaults to user scope)
 claudeup profile create my-profile \
   --description "My development setup" \
   --marketplace "anthropics/claude-code-plugins" \
   --marketplace "obra/superpowers-marketplace" \
   --plugin "plugin-dev@claude-code-plugins"
+
+# Create profile targeting project scope
+claudeup profile create my-project-profile \
+  --description "Project tools" \
+  --marketplace "anthropics/claude-code-plugins" \
+  --plugin "backend-dev@claude-code-plugins" \
+  --scope project
+
+# Boolean shorthand for scope
+claudeup profile create my-local-profile \
+  --description "Local tools" \
+  --marketplace "anthropics/claude-code-plugins" \
+  --local
 ```
 
 You can also create profiles from JSON files or stdin:
@@ -651,15 +718,26 @@ echo '{"description": "Piped profile", "marketplaces": ["owner/repo"]}' | \
 claudeup profile create my-profile --from-file spec.json --description "Custom description"
 ```
 
-The JSON format supports both shorthand and full marketplace syntax:
+The JSON format supports both flat and multi-scope syntax. Flat input is automatically placed under the specified scope (default: user):
 
 ```json
 {
   "description": "Example profile",
   "marketplaces": ["anthropics/claude-code-plugins"],
-  "plugins": ["plugin-dev@claude-code-plugins"],
-  "mcpServers": [],
-  "detect": {}
+  "plugins": ["plugin-dev@claude-code-plugins"]
+}
+```
+
+Multi-scope input with `perScope` is used directly (the `--scope` flag must not be set):
+
+```json
+{
+  "description": "Multi-scope profile",
+  "marketplaces": ["anthropics/claude-code-plugins"],
+  "perScope": {
+    "user": { "plugins": ["superpowers@superpowers-marketplace"] },
+    "project": { "plugins": ["backend-dev@claude-code-plugins"] }
+  }
 }
 ```
 
