@@ -2711,7 +2711,15 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
 		}
 
-		allPlugins = append(allPlugins, plugins...)
+		// Qualify each plugin with the marketplace repo name (not owner/repo).
+		// The Claude CLI expects "plugin@repo-name" format.
+		ref := marketplace.Repo
+		if idx := strings.LastIndex(ref, "/"); idx != -1 {
+			ref = ref[idx+1:]
+		}
+		for _, p := range plugins {
+			allPlugins = append(allPlugins, p+"@"+ref)
+		}
 	}
 
 	// Step 4: Generate and edit description
