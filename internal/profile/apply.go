@@ -900,6 +900,9 @@ func installPluginsForScope(plugins []string, scope string, reinstall bool, exec
 					}
 				}
 				installOpts.InstalledPlugins = installed
+			} else {
+				result.Warnings = append(result.Warnings,
+					fmt.Errorf("could not read installed plugins (reinstalling all): %w", err))
 			}
 		}
 	}
@@ -945,6 +948,9 @@ func installMCPServersCLI(servers []MCPServer, scope string, secretChain *secret
 				}
 				if value != "" {
 					resolved[envVar] = value
+				} else {
+					result.Warnings = append(result.Warnings,
+						fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
 				}
 			}
 		}
