@@ -72,7 +72,7 @@ func (m *Manager) Uninstall(category string, patterns []string) ([]string, []str
 		if err := m.SaveConfig(config); err != nil {
 			return nil, nil, err
 		}
-		if err := m.syncCategory(category, config); err != nil {
+		if _, err := m.syncCategory(category, config); err != nil {
 			return nil, nil, err
 		}
 	}

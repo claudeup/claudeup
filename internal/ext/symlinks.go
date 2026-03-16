@@ -166,7 +166,7 @@ func (m *Manager) Enable(category string, patterns []string) ([]string, []string
 		if err := m.SaveConfig(config); err != nil {
 			return nil, nil, err
 		}
-		if err := m.syncCategory(category, config); err != nil {
+		if _, err := m.syncCategory(category, config); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -224,7 +224,7 @@ func (m *Manager) Disable(category string, patterns []string) ([]string, []strin
 		if err := m.SaveConfig(config); err != nil {
 			return nil, nil, err
 		}
-		if err := m.syncCategory(category, config); err != nil {
+		if _, err := m.syncCategory(category, config); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -233,12 +233,12 @@ func (m *Manager) Disable(category string, patterns []string) ([]string, []strin
 }
 
 // syncCategory creates/removes symlinks based on config state
-func (m *Manager) syncCategory(category string, config Config) error {
+func (m *Manager) syncCategory(category string, config Config) ([]string, error) {
 	targetDir := filepath.Join(m.claudeDir, category)
 
 	// Ensure target directory exists
 	if err := os.MkdirAll(targetDir, 0755); err != nil {
-		return err
+		return nil, err
 	}
 
 	catConfig := config[category]
@@ -253,14 +253,14 @@ func (m *Manager) syncCategory(category string, config Config) error {
 	return m.syncFlatCategory(category, targetDir, catConfig)
 }
 
-func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig map[string]bool) error {
+func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig map[string]bool) ([]string, error) {
 	// Validate all items before making any changes (fail fast)
 	for item, enabled := range catConfig {
 		if !enabled {
 			continue
 		}
 		if err := validateItemPath(item); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -268,8 +268,15 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 	m.cleanupSymlinksRecursive(targetDir)
 
 	// Create symlinks for enabled items
+	var skipped []string
 	for item, enabled := range catConfig {
 		if !enabled {
+			continue
+		}
+
+		source := filepath.Join(m.extDir, category, item)
+		if _, err := os.Stat(source); os.IsNotExist(err) {
+			skipped = append(skipped, category+"/"+item)
 			continue
 		}
 
@@ -279,17 +286,16 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 		if strings.Contains(item, "/") {
 			parentDir := filepath.Dir(target)
 			if err := os.MkdirAll(parentDir, 0755); err != nil {
-				return err
+				return skipped, err
 			}
 		}
 
-		source := filepath.Join(m.extDir, category, item)
 		if err := createOrVerifySymlink(source, target); err != nil {
-			return err
+			return skipped, err
 		}
 	}
 
-	return nil
+	return skipped, nil
 }
 
 // cleanupSymlinksRecursive removes symlinks in a directory and its subdirectories
@@ -315,14 +321,14 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) {
 	}
 }
 
-func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error {
+func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]string, error) {
 	// Validate all items before making any changes (fail fast)
 	for item, enabled := range catConfig {
 		if !enabled {
 			continue
 		}
 		if err := validateItemPath(item); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -356,6 +362,7 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 	}
 
 	// Create symlinks for enabled agents
+	var skipped []string
 	for item, enabled := range catConfig {
 		if !enabled {
 			continue
@@ -366,43 +373,57 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) error 
 			parts := strings.SplitN(item, "/", 2)
 			group, agent := parts[0], parts[1]
 
+			source := filepath.Join(m.extDir, "agents", group, agent)
+			if _, err := os.Stat(source); os.IsNotExist(err) {
+				skipped = append(skipped, "agents/"+item)
+				continue
+			}
+
 			groupTargetDir := filepath.Join(targetDir, group)
 			if err := os.MkdirAll(groupTargetDir, 0755); err != nil {
-				return err
+				return skipped, err
 			}
 
 			target := filepath.Join(groupTargetDir, agent)
-			source := filepath.Join(m.extDir, "agents", group, agent)
 			if err := createOrVerifySymlink(source, target); err != nil {
-				return err
+				return skipped, err
 			}
 		} else {
 			// Flat agent
-			target := filepath.Join(targetDir, item)
 			source := filepath.Join(m.extDir, "agents", item)
+			if _, err := os.Stat(source); os.IsNotExist(err) {
+				skipped = append(skipped, "agents/"+item)
+				continue
+			}
+
+			target := filepath.Join(targetDir, item)
 			if err := createOrVerifySymlink(source, target); err != nil {
-				return err
+				return skipped, err
 			}
 		}
 	}
 
-	return nil
+	return skipped, nil
 }
 
-// Sync synchronizes all categories from config to symlinks
-func (m *Manager) Sync() error {
+// Sync synchronizes all categories from config to symlinks.
+// Returns a list of skipped items (category/item format) where source files were missing.
+func (m *Manager) Sync() ([]string, error) {
 	config, err := m.LoadConfig()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var allSkipped []string
 	for _, category := range AllCategories() {
-		if err := m.syncCategory(category, config); err != nil {
-			return err
+		skipped, err := m.syncCategory(category, config)
+		if err != nil {
+			return allSkipped, err
 		}
+		allSkipped = append(allSkipped, skipped...)
 	}
 
-	return nil
+	return allSkipped, nil
 }
 
 // Import moves items from active directory to extension storage and enables them.

@@ -538,7 +538,7 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	manager.SaveConfig(config)
 
 	// Sync should reject path traversal attempts
-	err := manager.Sync()
+	_, err := manager.Sync()
 	if err == nil {
 		t.Fatal("Sync() should have rejected path traversal, got nil error")
 	}
@@ -553,6 +553,48 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	legitPath := filepath.Join(claudeDir, "commands", "legit.md")
 	if _, err := os.Lstat(legitPath); err == nil {
 		t.Error("Sync should fail fast - no symlinks created when traversal detected")
+	}
+}
+
+func TestSyncSkipsMissingSourceFiles(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	// Create ext directory structure but only one of two source files
+	extDir := filepath.Join(claudeupHome, "ext")
+	os.MkdirAll(filepath.Join(extDir, "rules"), 0755)
+	os.WriteFile(filepath.Join(extDir, "rules", "exists.md"), []byte("# exists"), 0644)
+	// Deliberately NOT creating "missing.md"
+
+	manager := NewManager(claudeDir, claudeupHome)
+	config := Config{
+		"rules": {
+			"exists.md":  true,
+			"missing.md": true,
+		},
+	}
+	manager.SaveConfig(config)
+
+	skipped, err := manager.Sync()
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	// Should report the missing item
+	if len(skipped) != 1 || skipped[0] != "rules/missing.md" {
+		t.Errorf("Sync() skipped = %v, want [rules/missing.md]", skipped)
+	}
+
+	// Existing item should have symlink
+	existsPath := filepath.Join(claudeDir, "rules", "exists.md")
+	if _, err := os.Lstat(existsPath); err != nil {
+		t.Errorf("Expected symlink for exists.md, got error: %v", err)
+	}
+
+	// Missing item should NOT have symlink
+	missingPath := filepath.Join(claudeDir, "rules", "missing.md")
+	if _, err := os.Lstat(missingPath); err == nil {
+		t.Error("Expected no symlink for missing.md, but one exists")
 	}
 }
 
