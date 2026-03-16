@@ -38,7 +38,7 @@ func TestApplyExtensionsProjectScopeCopiesFiles(t *testing.T) {
 	}
 
 	// Apply at project scope
-	err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
+	_, err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err != nil {
 		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestApplyExtensionsProjectScopeRejectsUnsupportedCategories(t *testing.T) {
 	}
 
 	// Apply at project scope should fail for unsupported category
-	err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
+	_, err := applyExtensionsScoped(profile, extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
 	if err == nil {
 		t.Fatal("expected error for unsupported category at project scope")
 	}
@@ -114,7 +114,7 @@ func TestApplyExtensionsUserScopeUsesSymlinks(t *testing.T) {
 	}
 
 	// Apply at user scope should use symlinks (existing behavior)
-	err := applyExtensionsScoped(profile, extensions, ScopeUser, claudeDir, claudeupHome, "")
+	_, err := applyExtensionsScoped(profile, extensions, ScopeUser, claudeDir, claudeupHome, "")
 	if err != nil {
 		t.Fatalf("applyExtensionsScoped failed: %v", err)
 	}
@@ -266,6 +266,116 @@ func TestApplyAllScopesWithScopedExtensions(t *testing.T) {
 	projectAgentPath := filepath.Join(projectDir, ".claude", "agents", "reviewer.md")
 	if _, err := os.Stat(projectAgentPath); errors.Is(err, fs.ErrNotExist) {
 		t.Error("expected reviewer.md copied to project .claude/agents/")
+	}
+}
+
+func TestApplyExtensionsSymlinkReportsNotFound(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	// Create ext dir with only one of two items
+	extDir := filepath.Join(claudeupHome, "ext")
+	mustMkdir(t, filepath.Join(extDir, "rules"))
+	mustWriteFile(t, filepath.Join(extDir, "rules", "exists.md"), "# exists")
+	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
+
+	items := &ExtensionSettings{
+		Rules: []string{"exists.md", "missing.md"},
+	}
+
+	notFound, err := applyExtensionsSymlink(items, claudeDir, claudeupHome)
+	if err != nil {
+		t.Fatalf("applyExtensionsSymlink() error = %v", err)
+	}
+
+	if len(notFound) != 1 || notFound[0] != "rules/missing.md" {
+		t.Errorf("applyExtensionsSymlink() notFound = %v, want [rules/missing.md]", notFound)
+	}
+
+	// Verify the existing one was still enabled
+	existsPath := filepath.Join(claudeDir, "rules", "exists.md")
+	if _, err := os.Lstat(existsPath); err != nil {
+		t.Errorf("Expected symlink for exists.md: %v", err)
+	}
+}
+
+func TestApplyExtensionsCopyReportsNotFound(t *testing.T) {
+	claudeupHome := t.TempDir()
+	projectDir := t.TempDir()
+
+	// Create ext dir with only one of two items
+	extDir := filepath.Join(claudeupHome, "ext")
+	mustMkdir(t, filepath.Join(extDir, "rules"))
+	mustWriteFile(t, filepath.Join(extDir, "rules", "exists.md"), "# exists")
+
+	// Create project .claude dir
+	mustMkdir(t, filepath.Join(projectDir, ".claude"))
+
+	items := &ExtensionSettings{
+		Rules: []string{"exists.md", "missing.md"},
+	}
+
+	notFound, err := applyExtensionsCopy(items, claudeupHome, projectDir)
+	if err != nil {
+		t.Fatalf("applyExtensionsCopy() error = %v", err)
+	}
+
+	if len(notFound) != 1 || notFound[0] != "rules/missing.md" {
+		t.Errorf("applyExtensionsCopy() notFound = %v, want [rules/missing.md]", notFound)
+	}
+
+	// Verify the existing one was still copied
+	existsPath := filepath.Join(projectDir, ".claude", "rules", "exists.md")
+	if _, err := os.Stat(existsPath); err != nil {
+		t.Errorf("Expected copied file for exists.md: %v", err)
+	}
+}
+
+func TestApplyExtensionsScopedReportsNotFound(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	// Create ext dir with only one of two items
+	extDir := filepath.Join(claudeupHome, "ext")
+	mustMkdir(t, filepath.Join(extDir, "rules"))
+	mustWriteFile(t, filepath.Join(extDir, "rules", "exists.md"), "# exists")
+	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
+
+	items := &ExtensionSettings{
+		Rules: []string{"exists.md", "missing.md"},
+	}
+
+	notFound, err := applyExtensionsScoped(nil, items, ScopeUser, claudeDir, claudeupHome, "")
+	if err != nil {
+		t.Fatalf("applyExtensionsScoped() error = %v", err)
+	}
+
+	if len(notFound) != 1 || notFound[0] != "rules/missing.md" {
+		t.Errorf("applyExtensionsScoped() notFound = %v, want [rules/missing.md]", notFound)
+	}
+}
+
+func TestApplyExtensionsScopedNoWarningsWhenAllPresent(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	extDir := filepath.Join(claudeupHome, "ext")
+	mustMkdir(t, filepath.Join(extDir, "rules"))
+	mustWriteFile(t, filepath.Join(extDir, "rules", "one.md"), "# one")
+	mustWriteFile(t, filepath.Join(extDir, "rules", "two.md"), "# two")
+	mustWriteFile(t, filepath.Join(claudeupHome, "enabled.json"), "{}")
+
+	items := &ExtensionSettings{
+		Rules: []string{"one.md", "two.md"},
+	}
+
+	notFound, err := applyExtensionsScoped(nil, items, ScopeUser, claudeDir, claudeupHome, "")
+	if err != nil {
+		t.Fatalf("applyExtensionsScoped() error = %v", err)
+	}
+
+	if len(notFound) != 0 {
+		t.Errorf("applyExtensionsScoped() notFound = %v, want empty", notFound)
 	}
 }
 

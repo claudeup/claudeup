@@ -538,7 +538,7 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	manager.SaveConfig(config)
 
 	// Sync should reject path traversal attempts
-	err := manager.Sync()
+	_, err := manager.Sync()
 	if err == nil {
 		t.Fatal("Sync() should have rejected path traversal, got nil error")
 	}
@@ -553,6 +553,106 @@ func TestEnableRejectsPathTraversal(t *testing.T) {
 	legitPath := filepath.Join(claudeDir, "commands", "legit.md")
 	if _, err := os.Lstat(legitPath); err == nil {
 		t.Error("Sync should fail fast - no symlinks created when traversal detected")
+	}
+}
+
+func TestSyncSkipsMissingSourceFiles(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	// Create ext directory structure but only one of two source files
+	extDir := filepath.Join(claudeupHome, "ext")
+	os.MkdirAll(filepath.Join(extDir, "rules"), 0755)
+	os.WriteFile(filepath.Join(extDir, "rules", "exists.md"), []byte("# exists"), 0644)
+	// Deliberately NOT creating "missing.md"
+
+	manager := NewManager(claudeDir, claudeupHome)
+	config := Config{
+		"rules": {
+			"exists.md":  true,
+			"missing.md": true,
+		},
+	}
+	manager.SaveConfig(config)
+
+	skipped, err := manager.Sync()
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	// Should report the missing item
+	if len(skipped) != 1 || skipped[0] != "rules/missing.md" {
+		t.Errorf("Sync() skipped = %v, want [rules/missing.md]", skipped)
+	}
+
+	// Existing item should have symlink
+	existsPath := filepath.Join(claudeDir, "rules", "exists.md")
+	if _, err := os.Lstat(existsPath); err != nil {
+		t.Errorf("Expected symlink for exists.md, got error: %v", err)
+	}
+
+	// Missing item should NOT have symlink
+	missingPath := filepath.Join(claudeDir, "rules", "missing.md")
+	if _, err := os.Lstat(missingPath); err == nil {
+		t.Error("Expected no symlink for missing.md, but one exists")
+	}
+}
+
+func TestSyncAgentsSkipsMissingSources(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+
+	extDir := filepath.Join(claudeupHome, "ext")
+	// Create one flat agent, skip the other
+	os.MkdirAll(filepath.Join(extDir, "agents"), 0755)
+	os.WriteFile(filepath.Join(extDir, "agents", "exists.md"), []byte("# exists"), 0644)
+	// Deliberately NOT creating "missing.md"
+
+	// Create one grouped agent, skip the other
+	os.MkdirAll(filepath.Join(extDir, "agents", "mygroup"), 0755)
+	os.WriteFile(filepath.Join(extDir, "agents", "mygroup", "present.md"), []byte("# present"), 0644)
+	// Deliberately NOT creating "mygroup/gone.md"
+
+	manager := NewManager(claudeDir, claudeupHome)
+	config := Config{
+		"agents": {
+			"exists.md":          true,
+			"missing.md":         true,
+			"mygroup/present.md": true,
+			"mygroup/gone.md":    true,
+		},
+	}
+	manager.SaveConfig(config)
+
+	skipped, err := manager.Sync()
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+
+	if len(skipped) != 2 {
+		t.Fatalf("Sync() skipped = %v, want 2 items", skipped)
+	}
+
+	// Verify present items have symlinks
+	existsPath := filepath.Join(claudeDir, "agents", "exists.md")
+	if _, err := os.Lstat(existsPath); err != nil {
+		t.Errorf("Expected symlink for exists.md: %v", err)
+	}
+
+	presentPath := filepath.Join(claudeDir, "agents", "mygroup", "present.md")
+	if _, err := os.Lstat(presentPath); err != nil {
+		t.Errorf("Expected symlink for mygroup/present.md: %v", err)
+	}
+
+	// Verify missing items have no symlinks
+	missingPath := filepath.Join(claudeDir, "agents", "missing.md")
+	if _, err := os.Lstat(missingPath); err == nil {
+		t.Error("Expected no symlink for missing.md")
+	}
+
+	gonePath := filepath.Join(claudeDir, "agents", "mygroup", "gone.md")
+	if _, err := os.Lstat(gonePath); err == nil {
+		t.Error("Expected no symlink for mygroup/gone.md")
 	}
 }
 
