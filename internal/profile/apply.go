@@ -18,6 +18,7 @@ import (
 	"github.com/claudeup/claudeup/v5/internal/config"
 	"github.com/claudeup/claudeup/v5/internal/ext"
 	"github.com/claudeup/claudeup/v5/internal/secrets"
+	"github.com/claudeup/claudeup/v5/internal/ui"
 )
 
 // ApplyOptions controls how a profile is applied
@@ -1244,8 +1245,10 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		installMCPServersCLI(scopeProfile.MCPServers, "", secretChain, executor, result)
 
 		if profile.PerScope.User.Extensions != nil {
-			if err := applyExtensionsScoped(profile, profile.PerScope.User.Extensions, ScopeUser, claudeDir, claudeupHome, projectDir); err != nil {
+			if notFound, err := applyExtensionsScoped(profile, profile.PerScope.User.Extensions, ScopeUser, claudeDir, claudeupHome, projectDir); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("user-scope extensions: %w", err))
+			} else {
+				warnNotFoundExtensions(notFound)
 			}
 		}
 	}
@@ -1271,8 +1274,10 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		installPluginsForScope(scopeProfile.Plugins, "project", opts.Reinstall, executor, result)
 
 		if profile.PerScope.Project.Extensions != nil {
-			if err := applyExtensionsScoped(profile, profile.PerScope.Project.Extensions, ScopeProject, claudeDir, claudeupHome, projectDir); err != nil {
+			if notFound, err := applyExtensionsScoped(profile, profile.PerScope.Project.Extensions, ScopeProject, claudeDir, claudeupHome, projectDir); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("project-scope extensions: %w", err))
+			} else {
+				warnNotFoundExtensions(notFound)
 			}
 		}
 	}
@@ -1288,8 +1293,10 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		installMCPServersCLI(scopeProfile.MCPServers, "local", secretChain, executor, result)
 
 		if profile.PerScope.Local.Extensions != nil {
-			if err := applyExtensionsScoped(profile, profile.PerScope.Local.Extensions, ScopeLocal, claudeDir, claudeupHome, projectDir); err != nil {
+			if notFound, err := applyExtensionsScoped(profile, profile.PerScope.Local.Extensions, ScopeLocal, claudeDir, claudeupHome, projectDir); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("local-scope extensions: %w", err))
+			} else {
+				warnNotFoundExtensions(notFound)
 			}
 		}
 	}
@@ -1408,15 +1415,21 @@ func applyExtensions(profile *Profile, claudeDir, claudeupHome string) error {
 	if profile.Extensions == nil {
 		return nil
 	}
-	return applyExtensionsScoped(profile, profile.Extensions, ScopeUser, claudeDir, claudeupHome, "")
+	notFound, err := applyExtensionsScoped(profile, profile.Extensions, ScopeUser, claudeDir, claudeupHome, "")
+	if err != nil {
+		return err
+	}
+	warnNotFoundExtensions(notFound)
+	return nil
 }
 
 // applyExtensionsScoped enables extensions at the specified scope.
-// User scope: creates symlinks from claudeDir to claudeupHome/ext (existing behavior).
+// User scope: creates symlinks from claudeDir to claudeupHome/ext.
 // Project/local scope: copies files from claudeupHome/ext into projectDir/.claude/.
-func applyExtensionsScoped(_ *Profile, items *ExtensionSettings, scope Scope, claudeDir, claudeupHome, projectDir string) error {
+// Returns a list of not-found items in "category/item" format.
+func applyExtensionsScoped(_ *Profile, items *ExtensionSettings, scope Scope, claudeDir, claudeupHome, projectDir string) ([]string, error) {
 	if items == nil {
-		return nil
+		return nil, nil
 	}
 
 	if scope == ScopeProject || scope == ScopeLocal {
@@ -1426,8 +1439,20 @@ func applyExtensionsScoped(_ *Profile, items *ExtensionSettings, scope Scope, cl
 	return applyExtensionsSymlink(items, claudeDir, claudeupHome)
 }
 
+// warnNotFoundExtensions emits per-item and summary warnings for missing extensions.
+func warnNotFoundExtensions(notFound []string) {
+	for _, item := range notFound {
+		ui.PrintWarning(fmt.Sprintf("Extension %q not found, skipping", item))
+	}
+	if len(notFound) > 0 {
+		ui.PrintWarning(fmt.Sprintf("%d extension(s) from profile not found and skipped: %s",
+			len(notFound), strings.Join(notFound, ", ")))
+	}
+}
+
 // applyExtensionsSymlink enables extensions via symlinks (user scope).
-func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome string) error {
+// Returns a list of not-found items in "category/item" format.
+func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome string) ([]string, error) {
 	manager := ext.NewManager(claudeDir, claudeupHome)
 
 	type categoryItems struct {
@@ -1444,20 +1469,25 @@ func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome st
 		{ext.CategoryOutputStyles, items.OutputStyles},
 	}
 
+	var allNotFound []string
 	for _, ci := range categories {
 		if len(ci.patterns) > 0 {
-			if _, _, err := manager.Enable(ci.category, ci.patterns); err != nil {
-				return fmt.Errorf("failed to enable %s: %w", ci.category, err)
+			_, notFound, err := manager.Enable(ci.category, ci.patterns)
+			if err != nil {
+				return allNotFound, fmt.Errorf("failed to enable %s: %w", ci.category, err)
+			}
+			for _, item := range notFound {
+				allNotFound = append(allNotFound, ci.category+"/"+item)
 			}
 		}
 	}
 
-	return nil
+	return allNotFound, nil
 }
 
 // applyExtensionsCopy copies extensions into the project's .claude/ directory.
-// Only categories that Claude Code reads from project scope are allowed.
-func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir string) error {
+// Returns a list of not-found items in "category/item" format.
+func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir string) ([]string, error) {
 	localDir := filepath.Join(claudeupHome, "ext")
 
 	type categoryItems struct {
@@ -1474,21 +1504,26 @@ func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir stri
 		{ext.CategoryOutputStyles, items.OutputStyles},
 	}
 
+	var allNotFound []string
 	for _, ci := range categories {
 		if len(ci.patterns) == 0 {
 			continue
 		}
 
 		if err := ext.ValidateProjectScope(ci.category); err != nil {
-			return fmt.Errorf("cannot copy %s to project scope: %w", ci.category, err)
+			return allNotFound, fmt.Errorf("cannot copy %s to project scope: %w", ci.category, err)
 		}
 
-		if _, _, err := ext.CopyToProject(localDir, ci.category, ci.patterns, projectDir); err != nil {
-			return fmt.Errorf("failed to copy %s to project: %w", ci.category, err)
+		_, notFound, err := ext.CopyToProject(localDir, ci.category, ci.patterns, projectDir)
+		if err != nil {
+			return allNotFound, fmt.Errorf("failed to copy %s to project: %w", ci.category, err)
+		}
+		for _, item := range notFound {
+			allNotFound = append(allNotFound, ci.category+"/"+item)
 		}
 	}
 
-	return nil
+	return allNotFound, nil
 }
 
 // applySettingsHooks merges profile hooks into settings.json
