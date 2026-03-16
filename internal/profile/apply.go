@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/url"
 	"os"
@@ -316,7 +317,7 @@ func writeProjectScopeConfigs(profile *Profile, claudeDir, projectDir string) er
 	return nil
 }
 
-// writeLocalScopeConfigs writes settings.ext.json for local scope
+// writeLocalScopeConfigs writes settings.local.json for local scope
 func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) error {
 	localSettings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
@@ -874,6 +875,124 @@ func filterValidMarketplaceKeys(marketplaces []Marketplace) []string {
 	return keys
 }
 
+// installPluginsForScope installs plugins via CLI at the given scope and
+// aggregates results into the target ApplyResult.
+func installPluginsForScope(plugins []string, scope string, reinstall bool, executor CommandExecutor, result *ApplyResult) {
+	if len(plugins) == 0 {
+		return
+	}
+	installOpts := InstallPluginsOptions{
+		Scope: scope,
+	}
+	// When not reinstalling, pre-filter using installed_plugins.json to skip
+	// already-installed plugins without hitting the CLI for each one.
+	if !reinstall {
+		claudeDir := ""
+		if de, ok := executor.(*DefaultExecutor); ok {
+			claudeDir = de.ClaudeDir
+		}
+		if claudeDir != "" {
+			if registry, err := claude.LoadPlugins(claudeDir); err == nil {
+				installed := make(map[string]bool)
+				// Normalize scope for lookup: empty string means user scope
+				lookupScope := scope
+				if lookupScope == "" {
+					lookupScope = "user"
+				}
+				for _, p := range plugins {
+					if registry.PluginExistsAtScope(p, lookupScope) {
+						installed[p] = true
+					}
+				}
+				installOpts.InstalledPlugins = installed
+			} else {
+				result.Warnings = append(result.Warnings,
+					fmt.Errorf("could not read installed plugins (reinstalling all): %w", err))
+			}
+		}
+	}
+	installResult := InstallPluginsWithProgress(plugins, executor, installOpts)
+	result.PluginsInstalled = append(result.PluginsInstalled, installResult.Installed...)
+	result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, installResult.Skipped...)
+	result.Errors = append(result.Errors, installResult.Errors...)
+}
+
+// installMCPServersCLI installs MCP servers via CLI and aggregates results.
+// For user scope (scope="" or "user"), the MCPServer's original Scope field is
+// preserved. For project/local scope, it is overridden to the target scope.
+// If secretChain is non-nil, secrets are resolved before building CLI args.
+func installMCPServersCLI(servers []MCPServer, scope string, secretChain *secrets.Chain, executor CommandExecutor, result *ApplyResult) {
+	for _, mcp := range servers {
+		if scope != "" && scope != "user" {
+			mcp.Scope = scope
+		}
+
+		// Resolve secrets for this MCP server
+		var resolved map[string]string
+		if len(mcp.Secrets) > 0 && secretChain != nil {
+			resolved = make(map[string]string)
+			for envVar, ref := range mcp.Secrets {
+				var value string
+				var resolveErr error
+				for _, source := range ref.Sources {
+					switch source.Type {
+					case "env":
+						value, _, resolveErr = secretChain.Resolve(source.Key)
+					case "1password":
+						value, _, resolveErr = secretChain.Resolve(source.Ref)
+					case "keychain":
+						keychainRef := source.Service
+						if source.Account != "" {
+							keychainRef = source.Service + ":" + source.Account
+						}
+						value, _, resolveErr = secretChain.Resolve(keychainRef)
+					}
+					if resolveErr == nil && value != "" {
+						break
+					}
+				}
+				if value != "" {
+					resolved[envVar] = value
+				} else {
+					result.Warnings = append(result.Warnings,
+						fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
+				}
+			}
+		}
+
+		args := buildMCPAddArgs(mcp, resolved)
+		output, err := executor.RunWithOutput(args...)
+		if err != nil {
+			result.Errors = append(result.Errors, fmt.Errorf("MCP %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
+		} else {
+			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		}
+	}
+}
+
+// installMarketplaces registers marketplaces via CLI. Marketplaces are always
+// user-scoped and must be registered before plugins that reference them.
+// Progress messages are written to w; pass nil to suppress output.
+func installMarketplaces(marketplaces []Marketplace, executor CommandExecutor, w io.Writer) (added []string, errs []error) {
+	validKeys := filterValidMarketplaceKeys(marketplaces)
+	for i, key := range validKeys {
+		if w != nil {
+			fmt.Fprintf(w, "  [%d/%d] Adding marketplace %s\n", i+1, len(validKeys), key)
+		}
+		output, err := executor.RunWithOutput("plugin", "marketplace", "add", key)
+		if err != nil {
+			if strings.Contains(output, "already installed") {
+				added = append(added, key)
+			} else {
+				errs = append(errs, fmt.Errorf("marketplace %s: %w\n  Output: %s", key, err, strings.TrimSpace(output)))
+			}
+		} else {
+			added = append(added, key)
+		}
+	}
+	return added, errs
+}
+
 // marketplaceName extracts the marketplace name from a repo path or URL
 func marketplaceName(m Marketplace) string {
 	key := m.Repo
@@ -1065,10 +1184,16 @@ type ApplyAllScopesOptions struct {
 	// or merged additively (false). Default is false (additive).
 	// Project and local scopes always use declarative (replace) semantics.
 	ReplaceUserScope bool
+	Reinstall        bool            // Force reinstall of plugins even if already installed
+	ShowProgress     bool            // Reserved; concurrent progress UI not yet integrated
+	Executor         CommandExecutor // CLI executor; nil = create DefaultExecutor
+	Output           io.Writer       // Progress output destination; nil = os.Stdout
 }
 
 // ApplyAllScopes applies a profile to all scope levels.
-// For multi-scope profiles (with PerScope), it applies each scope independently.
+// For multi-scope profiles (with PerScope), it applies each scope independently:
+// settings files, plugin CLI installs, and extensions per scope. Project-scope
+// MCP servers are written as .mcp.json; user/local MCP servers are installed via CLI.
 // For legacy profiles (flat format), it applies to user scope only.
 // The secretChain parameter is optional and used for MCP server secret resolution.
 func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, claudeupHome string, secretChain *secrets.Chain, opts *ApplyAllScopesOptions) (*ApplyResult, error) {
@@ -1078,18 +1203,45 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		opts = &ApplyAllScopesOptions{}
 	}
 
+	executor := opts.Executor
+	if executor == nil {
+		executor = &DefaultExecutor{ClaudeDir: claudeDir}
+	}
+
+	output := opts.Output
+	if output == nil {
+		output = os.Stdout
+	}
+
 	// If legacy profile (no PerScope), apply to user scope only
 	if !profile.IsMultiScope() {
 		return applyUserScopeSettings(profile, claudeDir, projectDir, opts.ReplaceUserScope)
 	}
 
+	// Register marketplaces before any plugin installs. Marketplaces are always
+	// user-scoped and provide the registries that Claude CLI uses to resolve
+	// plugin names (e.g. "plugin-name@marketplace").
+	if len(profile.Marketplaces) > 0 {
+		added, errs := installMarketplaces(profile.Marketplaces, executor, output)
+		result.MarketplacesAdded = append(result.MarketplacesAdded, added...)
+		result.Errors = append(result.Errors, errs...)
+	}
+
 	// Apply each scope in order: user → project → local
+	// Each scope: (1) writes settings files (enabledPlugins), (2) installs plugins
+	// via CLI, (3) configures MCP servers, and (4) applies extensions.
+	// The settings-write step records plugins as "enabled" but not "installed" --
+	// only CLI install results are tracked in PluginsInstalled.
+
 	if profile.PerScope.User != nil {
-		userResult, err := applyUserScopeSettings(profile.ForScope("user"), claudeDir, projectDir, opts.ReplaceUserScope)
-		if err != nil {
+		scopeProfile := profile.ForScope("user")
+
+		if err := applyUserScopeSettingsOnly(scopeProfile, claudeDir, projectDir, opts.ReplaceUserScope); err != nil {
 			return nil, fmt.Errorf("failed to apply user scope: %w", err)
 		}
-		aggregateResults(result, userResult)
+
+		installPluginsForScope(scopeProfile.Plugins, "", opts.Reinstall, executor, result)
+		installMCPServersCLI(scopeProfile.MCPServers, "", secretChain, executor, result)
 
 		if profile.PerScope.User.Extensions != nil {
 			if err := applyExtensionsScoped(profile, profile.PerScope.User.Extensions, ScopeUser, claudeDir, claudeupHome, projectDir); err != nil {
@@ -1099,11 +1251,24 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 	}
 
 	if profile.PerScope.Project != nil && projectDir != "" {
-		projectResult, err := applyProjectScopeSettings(profile.ForScope("project"), claudeDir, projectDir)
-		if err != nil {
+		scopeProfile := profile.ForScope("project")
+
+		if err := applyProjectScopeSettingsOnly(scopeProfile, claudeDir, projectDir); err != nil {
 			return nil, fmt.Errorf("failed to apply project scope: %w", err)
 		}
-		aggregateResults(result, projectResult)
+
+		// Write .mcp.json for project-scope MCP servers (file-based, not CLI)
+		if len(scopeProfile.MCPServers) > 0 {
+			if err := WriteMCPJSON(projectDir, scopeProfile.MCPServers); err != nil {
+				result.Errors = append(result.Errors, fmt.Errorf("failed to write %s: %w", MCPConfigFile, err))
+			} else {
+				for _, mcp := range scopeProfile.MCPServers {
+					result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+				}
+			}
+		}
+
+		installPluginsForScope(scopeProfile.Plugins, "project", opts.Reinstall, executor, result)
 
 		if profile.PerScope.Project.Extensions != nil {
 			if err := applyExtensionsScoped(profile, profile.PerScope.Project.Extensions, ScopeProject, claudeDir, claudeupHome, projectDir); err != nil {
@@ -1113,17 +1278,25 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 	}
 
 	if profile.PerScope.Local != nil && projectDir != "" {
-		localResult, err := applyLocalScopeSettings(profile.ForScope("local"), claudeDir, projectDir)
-		if err != nil {
+		scopeProfile := profile.ForScope("local")
+
+		if err := applyLocalScopeSettingsOnly(scopeProfile, claudeDir, projectDir); err != nil {
 			return nil, fmt.Errorf("failed to apply local scope: %w", err)
 		}
-		aggregateResults(result, localResult)
+
+		installPluginsForScope(scopeProfile.Plugins, "local", opts.Reinstall, executor, result)
+		installMCPServersCLI(scopeProfile.MCPServers, "local", secretChain, executor, result)
 
 		if profile.PerScope.Local.Extensions != nil {
 			if err := applyExtensionsScoped(profile, profile.PerScope.Local.Extensions, ScopeLocal, claudeDir, claudeupHome, projectDir); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("local-scope extensions: %w", err))
 			}
 		}
+	}
+
+	// Merge profile hooks into settings.json (always user-scoped)
+	if err := applySettingsHooks(profile, claudeDir); err != nil {
+		result.Errors = append(result.Errors, err)
 	}
 
 	return result, nil
@@ -1169,71 +1342,65 @@ func applyUserScopeSettings(profile *Profile, claudeDir, projectDir string, repl
 	return result, nil
 }
 
-// applyProjectScopeSettings writes plugins to project-scope settings.json
-func applyProjectScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
-	result := &ApplyResult{}
+// applyUserScopeSettingsOnly writes plugins to user-scope settings.json without
+// tracking them as "installed" in ApplyResult. Use when CLI install follows.
+func applyUserScopeSettingsOnly(profile *Profile, claudeDir, projectDir string, replace bool) error {
+	settings, err := claude.LoadSettingsOrEmpty(claudeDir)
+	if err != nil {
+		return fmt.Errorf("failed to load settings: %w", err)
+	}
 
-	// Load existing project settings (preserves other fields)
+	if replace {
+		settings.EnabledPlugins = make(map[string]bool)
+	} else if settings.EnabledPlugins == nil {
+		settings.EnabledPlugins = make(map[string]bool)
+	}
+	for _, plugin := range profile.Plugins {
+		settings.EnabledPlugins[plugin] = true
+	}
+
+	if err := claude.SaveSettings(claudeDir, settings); err != nil {
+		return fmt.Errorf("failed to save user settings: %w", err)
+	}
+	return nil
+}
+
+// applyProjectScopeSettingsOnly writes plugins to project-scope settings.json
+// without tracking them as "installed" in ApplyResult. Use when CLI install follows.
+func applyProjectScopeSettingsOnly(profile *Profile, claudeDir, projectDir string) error {
 	settings, err := claude.LoadSettingsForScope("project", claudeDir, projectDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load project settings: %w", err)
+		return fmt.Errorf("failed to load project settings: %w", err)
 	}
 
-	// Update enabledPlugins with profile plugins
 	settings.EnabledPlugins = make(map[string]bool)
 	for _, plugin := range profile.Plugins {
 		settings.EnabledPlugins[plugin] = true
-		result.PluginsInstalled = append(result.PluginsInstalled, plugin)
 	}
 
-	// Save settings
 	if err := claude.SaveSettingsForScope("project", claudeDir, projectDir, settings); err != nil {
-		return nil, fmt.Errorf("failed to save project settings: %w", err)
+		return fmt.Errorf("failed to save project settings: %w", err)
 	}
-
-	return result, nil
+	return nil
 }
 
-// applyLocalScopeSettings writes plugins to local-scope settings.ext.json
-func applyLocalScopeSettings(profile *Profile, claudeDir, projectDir string) (*ApplyResult, error) {
-	result := &ApplyResult{}
-
-	// Load existing local settings (preserves other fields)
+// applyLocalScopeSettingsOnly writes plugins to local-scope settings.local.json
+// without tracking them as "installed" in ApplyResult. Use when CLI install follows.
+func applyLocalScopeSettingsOnly(profile *Profile, claudeDir, projectDir string) error {
 	settings, err := claude.LoadSettingsForScope("local", claudeDir, projectDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load local settings: %w", err)
+		return fmt.Errorf("failed to load local settings: %w", err)
 	}
 
-	// Update enabledPlugins with profile plugins
 	settings.EnabledPlugins = make(map[string]bool)
 	for _, plugin := range profile.Plugins {
 		settings.EnabledPlugins[plugin] = true
-		result.PluginsInstalled = append(result.PluginsInstalled, plugin)
 	}
 
-	// Save settings
 	if err := claude.SaveSettingsForScope("local", claudeDir, projectDir, settings); err != nil {
-		return nil, fmt.Errorf("failed to save local settings: %w", err)
+		return fmt.Errorf("failed to save local settings: %w", err)
 	}
-
-	return result, nil
-}
-
-// aggregateResults combines results from multiple scope applications
-func aggregateResults(target, source *ApplyResult) {
-	if source == nil || target == nil {
-		return
-	}
-	target.PluginsInstalled = append(target.PluginsInstalled, source.PluginsInstalled...)
-	target.PluginsRemoved = append(target.PluginsRemoved, source.PluginsRemoved...)
-	target.PluginsAlreadyPresent = append(target.PluginsAlreadyPresent, source.PluginsAlreadyPresent...)
-	target.PluginsAlreadyRemoved = append(target.PluginsAlreadyRemoved, source.PluginsAlreadyRemoved...)
-	target.MCPServersInstalled = append(target.MCPServersInstalled, source.MCPServersInstalled...)
-	target.MCPServersRemoved = append(target.MCPServersRemoved, source.MCPServersRemoved...)
-	target.MarketplacesAdded = append(target.MarketplacesAdded, source.MarketplacesAdded...)
-	target.MarketplacesRemoved = append(target.MarketplacesRemoved, source.MarketplacesRemoved...)
-	target.Warnings = append(target.Warnings, source.Warnings...)
-	target.Errors = append(target.Errors, source.Errors...)
+	return nil
 }
 
 // applyExtensions enables extensions from the profile at user scope (backward compat).

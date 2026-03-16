@@ -1081,6 +1081,8 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		ui.PrintInfo("Applying profile (all scopes)...")
 		applyOpts := &profile.ApplyAllScopesOptions{
 			ReplaceUserScope: profileApplyReplace, // --replace flag controls user scope behavior
+			Reinstall:        profileApplyReinstall,
+			ShowProgress:     !profileApplyNoProgress,
 		}
 		result, err = profile.ApplyAllScopes(p, claudeDir, claudeJSONPath, cwd, claudeupHome, chain, applyOpts)
 		if err != nil {
