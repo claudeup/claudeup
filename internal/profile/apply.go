@@ -1268,6 +1268,16 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			return nil, fmt.Errorf("failed to apply user scope: %w", err)
 		}
 
+		// When replacing user scope, remove existing MCP servers before re-adding
+		if opts.ReplaceUserScope && len(scopeProfile.MCPServers) > 0 {
+			existing, readErr := ReadMCPServersForScope(claudeJSONPath, "", "user")
+			if readErr == nil {
+				for _, srv := range existing {
+					executor.RunWithOutput("mcp", "remove", srv.Name)
+				}
+			}
+		}
+
 		installPluginsForScope(scopeProfile.Plugins, "", opts.Reinstall, executor, result)
 		installMCPServersCLI(scopeProfile.MCPServers, "", secretChain, executor, result)
 
