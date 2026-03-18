@@ -283,12 +283,13 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath, claudeupHome 
 // convertConcurrentResult converts ConcurrentApplyResult to ApplyResult
 func convertConcurrentResult(cr *ConcurrentApplyResult) *ApplyResult {
 	return &ApplyResult{
-		PluginsInstalled:      cr.PluginsInstalled,
-		PluginsAlreadyPresent: cr.PluginsSkipped,
-		MCPServersInstalled:   cr.MCPServersInstalled,
-		MarketplacesAdded:     cr.MarketplacesInstalled,
-		Warnings:              cr.Warnings,
-		Errors:                cr.Errors,
+		PluginsInstalled:         cr.PluginsInstalled,
+		PluginsAlreadyPresent:    cr.PluginsSkipped,
+		MCPServersInstalled:      cr.MCPServersInstalled,
+		MCPServersAlreadyPresent: cr.MCPServersSkipped,
+		MarketplacesAdded:        cr.MarketplacesInstalled,
+		Warnings:                 cr.Warnings,
+		Errors:                   cr.Errors,
 	}
 }
 
@@ -1273,7 +1274,10 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			existing, readErr := ReadMCPServersForScope(claudeJSONPath, "", "user")
 			if readErr == nil {
 				for _, srv := range existing {
-					executor.RunWithOutput("mcp", "remove", srv.Name)
+					if _, removeErr := executor.RunWithOutput("mcp", "remove", srv.Name); removeErr != nil {
+						result.Warnings = append(result.Warnings,
+							fmt.Errorf("could not remove MCP server %s before replace: %w", srv.Name, removeErr))
+					}
 				}
 			}
 		}
