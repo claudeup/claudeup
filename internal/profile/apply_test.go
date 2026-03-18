@@ -2126,3 +2126,40 @@ func TestApplyUserScopeMCPAlreadyExists(t *testing.T) {
 		t.Errorf("Expected context7 in MCPServersAlreadyPresent, got: %v", result.MCPServersAlreadyPresent)
 	}
 }
+
+func TestApplyLocalScopeMCPAlreadyExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{"enabledPlugins": map[string]bool{}})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	profile := &Profile{
+		Name: "test-local-mcp",
+		MCPServers: []MCPServer{
+			{Name: "local-server", Command: "npx", Args: []string{"server-pkg"}, Scope: "local"},
+		},
+	}
+
+	executor := &mockExecutorWithOutput{
+		outputs: map[string]string{
+			"mcp add local-server -s local -- npx server-pkg": "MCP server local-server already exists in local config",
+		},
+	}
+
+	result, err := applyLocalScope(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, nil, ApplyOptions{ProjectDir: tmpDir}, executor)
+	if err != nil {
+		t.Fatalf("applyLocalScope failed: %v", err)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+	if len(result.MCPServersAlreadyPresent) != 1 || result.MCPServersAlreadyPresent[0] != "local-server" {
+		t.Errorf("Expected local-server in MCPServersAlreadyPresent, got: %v", result.MCPServersAlreadyPresent)
+	}
+}
