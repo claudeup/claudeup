@@ -27,8 +27,9 @@ type ConcurrentApplyResult struct {
 	PluginsInstalled      []string
 	PluginsSkipped        []string
 	MCPServersInstalled   []string
-	Warnings              []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
-	Errors                []error // Actual install/operation failures
+	MCPServersSkipped     []string // MCP servers skipped (already configured)
+	Warnings              []error  // Non-fatal pre-operation notices (e.g. load failures with fallback)
+	Errors                []error  // Actual install/operation failures
 }
 
 // ApplyConcurrently installs marketplaces and plugins concurrently with progress tracking

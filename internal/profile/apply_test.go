@@ -2054,3 +2054,38 @@ func TestFilterValidMarketplaceKeys(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckMCPAlreadyExists(t *testing.T) {
+	t.Run("nil error returns nil", func(t *testing.T) {
+		err := checkMCPAlreadyExists("some output", nil)
+		if err != nil {
+			t.Errorf("expected nil, got %v", err)
+		}
+	})
+
+	t.Run("already exists returns sentinel", func(t *testing.T) {
+		err := checkMCPAlreadyExists(
+			"MCP server context7 already exists in user config",
+			fmt.Errorf("exit status 1"),
+		)
+		if !errors.Is(err, errMCPAlreadyExists) {
+			t.Errorf("expected errMCPAlreadyExists, got %v", err)
+		}
+	})
+
+	t.Run("other error passes through with output", func(t *testing.T) {
+		err := checkMCPAlreadyExists(
+			"connection refused",
+			fmt.Errorf("exit status 1"),
+		)
+		if errors.Is(err, errMCPAlreadyExists) {
+			t.Error("should not be errMCPAlreadyExists")
+		}
+		if err == nil {
+			t.Error("expected non-nil error")
+		}
+		if !strings.Contains(err.Error(), "connection refused") {
+			t.Errorf("expected output in error, got %v", err)
+		}
+	})
+}

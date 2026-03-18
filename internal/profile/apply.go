@@ -54,16 +54,17 @@ func (e *DefaultExecutor) RunWithOutput(args ...string) (string, error) {
 
 // ApplyResult contains the results of applying a profile
 type ApplyResult struct {
-	PluginsRemoved        []string
-	PluginsInstalled      []string
-	PluginsAlreadyRemoved []string // Plugins that were already uninstalled
-	PluginsAlreadyPresent []string // Plugins that were already installed
-	MCPServersRemoved     []string
-	MCPServersInstalled   []string
-	MarketplacesAdded     []string
-	MarketplacesRemoved   []string
-	Warnings              []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
-	Errors                []error // Actual install/operation failures
+	PluginsRemoved           []string
+	PluginsInstalled         []string
+	PluginsAlreadyRemoved    []string // Plugins that were already uninstalled
+	PluginsAlreadyPresent    []string // Plugins that were already installed
+	MCPServersRemoved        []string
+	MCPServersInstalled      []string
+	MCPServersAlreadyPresent []string // MCP servers that were already configured
+	MarketplacesAdded        []string
+	MarketplacesRemoved      []string
+	Warnings                 []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
+	Errors                   []error // Actual install/operation failures
 }
 
 // Diff represents what needs to change to apply a profile
@@ -916,6 +917,23 @@ func installPluginsForScope(plugins []string, scope string, reinstall bool, exec
 	result.PluginsInstalled = append(result.PluginsInstalled, installResult.Installed...)
 	result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, installResult.Skipped...)
 	result.Errors = append(result.Errors, installResult.Errors...)
+}
+
+// errMCPAlreadyExists is returned when `claude mcp add` reports a server
+// is already configured at the target scope.
+var errMCPAlreadyExists = errors.New("MCP server already exists")
+
+// checkMCPAlreadyExists inspects the output and error from a `claude mcp add`
+// command. Returns nil if the command succeeded, errMCPAlreadyExists if the
+// server was already configured, or the original error with output context.
+func checkMCPAlreadyExists(output string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(output, "already exists") {
+		return errMCPAlreadyExists
+	}
+	return fmt.Errorf("%w\n  Output: %s", err, strings.TrimSpace(output))
 }
 
 // installMCPServersCLI installs MCP servers via CLI and aggregates results.
