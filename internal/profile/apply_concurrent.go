@@ -3,6 +3,7 @@
 package profile
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -161,8 +162,8 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 					mcpCopy.Scope = opts.Scope
 				}
 				args := buildMCPAddArgs(mcpCopy, nil)
-				_, err := opts.Executor.RunWithOutput(args...)
-				return err
+				output, err := opts.Executor.RunWithOutput(args...)
+				return checkMCPAlreadyExists(output, err)
 			},
 		}
 	}
@@ -198,6 +199,8 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 			} else if jr.Type == "mcp" {
 				if jr.Success {
 					result.MCPServersInstalled = append(result.MCPServersInstalled, jr.Name)
+				} else if errors.Is(jr.Error, errMCPAlreadyExists) {
+					result.MCPServersSkipped = append(result.MCPServersSkipped, jr.Name)
 				} else {
 					result.Errors = append(result.Errors, fmt.Errorf("mcp %s: %w", jr.Name, jr.Error))
 				}
