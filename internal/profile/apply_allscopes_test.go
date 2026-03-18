@@ -5,6 +5,7 @@ package profile
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -925,6 +926,46 @@ func TestApplyAllScopesMarketplaceErrorIncludesOutput(t *testing.T) {
 	errMsg := result.Errors[0].Error()
 	if !strings.Contains(errMsg, "network timeout") {
 		t.Errorf("expected error to include CLI output, got: %s", errMsg)
+	}
+}
+
+func TestApplyAllScopesMCPAlreadyExists(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	executor := &allScopesMockExecutor{
+		failOnWithOutput: map[string]string{
+			"mcp add context7": "MCP server context7 already exists in user config",
+		},
+	}
+
+	p := &Profile{
+		Name: "test-mcp-exists",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "context7", Command: "npx", Args: []string{"-y", "@context7/mcp"}},
+				},
+			},
+		},
+	}
+
+	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, &ApplyAllScopesOptions{
+		Executor: executor,
+		Output:   io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+
+	if len(result.MCPServersAlreadyPresent) != 1 || result.MCPServersAlreadyPresent[0] != "context7" {
+		t.Errorf("Expected context7 in MCPServersAlreadyPresent, got: %v", result.MCPServersAlreadyPresent)
+	}
+
+	if len(result.MCPServersInstalled) > 0 {
+		t.Errorf("Expected no MCPServersInstalled, got: %v", result.MCPServersInstalled)
 	}
 }
 
