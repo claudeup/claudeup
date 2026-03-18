@@ -692,10 +692,13 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 	for _, mcp := range diff.MCPToInstall {
 		args := buildMCPAddArgs(mcp, resolvedMCP[mcp.Name])
 		output, err := executor.RunWithOutput(args...)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to add MCP server %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
-		} else {
+		switch mcpErr := checkMCPAlreadyExists(output, err); {
+		case mcpErr == nil:
 			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		case errors.Is(mcpErr, errMCPAlreadyExists):
+			result.MCPServersAlreadyPresent = append(result.MCPServersAlreadyPresent, mcp.Name)
+		default:
+			result.Errors = append(result.Errors, fmt.Errorf("failed to add MCP server %s: %w", mcp.Name, mcpErr))
 		}
 	}
 
