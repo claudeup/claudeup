@@ -5,6 +5,7 @@ package profile
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -925,6 +926,164 @@ func TestApplyAllScopesMarketplaceErrorIncludesOutput(t *testing.T) {
 	errMsg := result.Errors[0].Error()
 	if !strings.Contains(errMsg, "network timeout") {
 		t.Errorf("expected error to include CLI output, got: %s", errMsg)
+	}
+}
+
+func TestApplyAllScopesMCPAlreadyExists(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	executor := &allScopesMockExecutor{
+		failOnWithOutput: map[string]string{
+			"mcp add context7": "MCP server context7 already exists in user config",
+		},
+	}
+
+	p := &Profile{
+		Name: "test-mcp-exists",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "context7", Command: "npx", Args: []string{"-y", "@context7/mcp"}},
+				},
+			},
+		},
+	}
+
+	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, &ApplyAllScopesOptions{
+		Executor: executor,
+		Output:   io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+
+	if len(result.MCPServersAlreadyPresent) != 1 || result.MCPServersAlreadyPresent[0] != "context7" {
+		t.Errorf("Expected context7 in MCPServersAlreadyPresent, got: %v", result.MCPServersAlreadyPresent)
+	}
+
+	if len(result.MCPServersInstalled) > 0 {
+		t.Errorf("Expected no MCPServersInstalled, got: %v", result.MCPServersInstalled)
+	}
+}
+
+func TestApplyAllScopesReplaceRemovesMCPServers(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+
+	// Write existing MCP servers to .claude.json
+	claudeJSON := map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"old-server": map[string]interface{}{
+				"command": "npx",
+				"args":    []string{"old-pkg"},
+			},
+		},
+	}
+	writeTestJSON(t, env.claudeJSONPath, claudeJSON)
+
+	executor := &allScopesMockExecutor{}
+
+	p := &Profile{
+		Name: "test-replace-mcp",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "new-server", Command: "npx", Args: []string{"new-pkg"}},
+				},
+			},
+		},
+	}
+
+	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, &ApplyAllScopesOptions{
+		Executor:         executor,
+		Output:           io.Discard,
+		ReplaceUserScope: true,
+	})
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	// Should have issued mcp remove for old-server
+	if !executor.hasCommand("mcp", "remove", "old-server") {
+		t.Errorf("Expected 'mcp remove old-server' command, got commands: %v", executor.commands)
+	}
+
+	// Should have issued mcp add for new-server
+	if !executor.hasCommand("mcp", "add", "new-server") {
+		t.Errorf("Expected 'mcp add new-server' command, got commands: %v", executor.commands)
+	}
+
+	// mcp remove should come before mcp add
+	removeIdx := -1
+	addIdx := -1
+	for i, cmd := range executor.commands {
+		cmdStr := strings.Join(cmd, " ")
+		if strings.HasPrefix(cmdStr, "mcp remove old-server") && removeIdx == -1 {
+			removeIdx = i
+		}
+		if strings.HasPrefix(cmdStr, "mcp add new-server") && addIdx == -1 {
+			addIdx = i
+		}
+	}
+	if removeIdx == -1 {
+		t.Fatal("mcp remove command not found")
+	}
+	if addIdx == -1 {
+		t.Fatal("mcp add command not found")
+	}
+	if removeIdx >= addIdx {
+		t.Errorf("Expected mcp remove (%d) before mcp add (%d)", removeIdx, addIdx)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+}
+
+func TestApplyAllScopesReplaceClearsMCPWithEmptyProfile(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+
+	// Write existing MCP servers to .claude.json
+	claudeJSON := map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"old-server": map[string]interface{}{
+				"command": "npx",
+				"args":    []string{"old-pkg"},
+			},
+		},
+	}
+	writeTestJSON(t, env.claudeJSONPath, claudeJSON)
+
+	executor := &allScopesMockExecutor{}
+
+	// Profile with user scope but NO MCP servers
+	p := &Profile{
+		Name: "test-replace-empty-mcp",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{},
+			},
+		},
+	}
+
+	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, &ApplyAllScopesOptions{
+		Executor:         executor,
+		Output:           io.Discard,
+		ReplaceUserScope: true,
+	})
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	// Should still remove old-server even though profile has no MCP servers
+	if !executor.hasCommand("mcp", "remove", "old-server") {
+		t.Errorf("Expected 'mcp remove old-server' command, got commands: %v", executor.commands)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
 	}
 }
 

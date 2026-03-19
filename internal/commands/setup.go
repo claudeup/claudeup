@@ -564,6 +564,9 @@ func showApplyResults(result *profile.ApplyResult) {
 	if len(result.MCPServersInstalled) > 0 {
 		fmt.Printf("  %s Installed %d MCP servers\n", ui.Success(ui.SymbolSuccess), len(result.MCPServersInstalled))
 	}
+	if len(result.MCPServersAlreadyPresent) > 0 {
+		fmt.Printf("  %s %d MCP servers were already configured\n", ui.Muted(ui.SymbolSuccess), len(result.MCPServersAlreadyPresent))
+	}
 	if len(result.MarketplacesAdded) > 0 {
 		fmt.Printf("  %s Added %d marketplaces\n", ui.Success(ui.SymbolSuccess), len(result.MarketplacesAdded))
 	}

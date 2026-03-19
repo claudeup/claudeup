@@ -4,6 +4,8 @@ package profile
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,5 +223,69 @@ func TestApplyConcurrentlyWithLoadError(t *testing.T) {
 	// No actual install errors should exist (mock executor succeeds)
 	if len(result.Errors) != 0 {
 		t.Errorf("expected 0 errors, got %d: %v", len(result.Errors), result.Errors)
+	}
+}
+
+// failingMockExecutor returns a specified output and error for matching commands
+type failingMockExecutor struct {
+	mu               sync.Mutex
+	failOnWithOutput map[string]string // command prefix -> output to return alongside an error
+}
+
+func (m *failingMockExecutor) Run(args ...string) error {
+	_, err := m.RunWithOutput(args...)
+	return err
+}
+
+func (m *failingMockExecutor) RunWithOutput(args ...string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	key := strings.Join(args, " ")
+	for prefix, output := range m.failOnWithOutput {
+		if strings.HasPrefix(key, prefix) {
+			return output, errors.New("exit status 1")
+		}
+	}
+	return "", nil
+}
+
+func TestApplyConcurrentlyMCPAlreadyExists(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), map[string]interface{}{"version": 2, "plugins": map[string]interface{}{}})
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), map[string]interface{}{"enabledPlugins": map[string]bool{}})
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+
+	executor := &failingMockExecutor{
+		failOnWithOutput: map[string]string{
+			"mcp add context7": "MCP server context7 already exists in user config",
+		},
+	}
+
+	p := &Profile{
+		Name: "test-concurrent-mcp",
+		MCPServers: []MCPServer{
+			{Name: "context7", Command: "npx", Args: []string{"-y", "@context7/mcp"}},
+		},
+	}
+
+	result, err := ApplyConcurrently(p, ConcurrentApplyOptions{
+		ClaudeDir: claudeDir,
+		Scope:     "user",
+		Output:    io.Discard,
+		Executor:  executor,
+	})
+	if err != nil {
+		t.Fatalf("ApplyConcurrently failed: %v", err)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+	if len(result.MCPServersSkipped) != 1 || result.MCPServersSkipped[0] != "context7" {
+		t.Errorf("Expected context7 in MCPServersSkipped, got: %v", result.MCPServersSkipped)
 	}
 }

@@ -54,16 +54,17 @@ func (e *DefaultExecutor) RunWithOutput(args ...string) (string, error) {
 
 // ApplyResult contains the results of applying a profile
 type ApplyResult struct {
-	PluginsRemoved        []string
-	PluginsInstalled      []string
-	PluginsAlreadyRemoved []string // Plugins that were already uninstalled
-	PluginsAlreadyPresent []string // Plugins that were already installed
-	MCPServersRemoved     []string
-	MCPServersInstalled   []string
-	MarketplacesAdded     []string
-	MarketplacesRemoved   []string
-	Warnings              []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
-	Errors                []error // Actual install/operation failures
+	PluginsRemoved           []string
+	PluginsInstalled         []string
+	PluginsAlreadyRemoved    []string // Plugins that were already uninstalled
+	PluginsAlreadyPresent    []string // Plugins that were already installed
+	MCPServersRemoved        []string
+	MCPServersInstalled      []string
+	MCPServersAlreadyPresent []string // MCP servers that were already configured
+	MarketplacesAdded        []string
+	MarketplacesRemoved      []string
+	Warnings                 []error // Non-fatal pre-operation notices (e.g. load failures with fallback)
+	Errors                   []error // Actual install/operation failures
 }
 
 // Diff represents what needs to change to apply a profile
@@ -282,12 +283,13 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath, claudeupHome 
 // convertConcurrentResult converts ConcurrentApplyResult to ApplyResult
 func convertConcurrentResult(cr *ConcurrentApplyResult) *ApplyResult {
 	return &ApplyResult{
-		PluginsInstalled:      cr.PluginsInstalled,
-		PluginsAlreadyPresent: cr.PluginsSkipped,
-		MCPServersInstalled:   cr.MCPServersInstalled,
-		MarketplacesAdded:     cr.MarketplacesInstalled,
-		Warnings:              cr.Warnings,
-		Errors:                cr.Errors,
+		PluginsInstalled:         cr.PluginsInstalled,
+		PluginsAlreadyPresent:    cr.PluginsSkipped,
+		MCPServersInstalled:      cr.MCPServersInstalled,
+		MCPServersAlreadyPresent: cr.MCPServersSkipped,
+		MarketplacesAdded:        cr.MarketplacesInstalled,
+		Warnings:                 cr.Warnings,
+		Errors:                   cr.Errors,
 	}
 }
 
@@ -455,10 +457,13 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome s
 		mcpCopy.Scope = "local" // Override to local
 		args := buildMCPAddArgs(mcpCopy, resolvedMCP[mcp.Name])
 		output, err := executor.RunWithOutput(args...)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("MCP %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
-		} else {
+		switch mcpErr := checkMCPAlreadyExists(output, err); {
+		case mcpErr == nil:
 			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		case errors.Is(mcpErr, errMCPAlreadyExists):
+			result.MCPServersAlreadyPresent = append(result.MCPServersAlreadyPresent, mcp.Name)
+		default:
+			result.Errors = append(result.Errors, fmt.Errorf("MCP %s: %w", mcp.Name, mcpErr))
 		}
 	}
 
@@ -691,10 +696,13 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 	for _, mcp := range diff.MCPToInstall {
 		args := buildMCPAddArgs(mcp, resolvedMCP[mcp.Name])
 		output, err := executor.RunWithOutput(args...)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("failed to add MCP server %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
-		} else {
+		switch mcpErr := checkMCPAlreadyExists(output, err); {
+		case mcpErr == nil:
 			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		case errors.Is(mcpErr, errMCPAlreadyExists):
+			result.MCPServersAlreadyPresent = append(result.MCPServersAlreadyPresent, mcp.Name)
+		default:
+			result.Errors = append(result.Errors, fmt.Errorf("failed to add MCP server %s: %w", mcp.Name, mcpErr))
 		}
 	}
 
@@ -918,6 +926,23 @@ func installPluginsForScope(plugins []string, scope string, reinstall bool, exec
 	result.Errors = append(result.Errors, installResult.Errors...)
 }
 
+// errMCPAlreadyExists is returned when `claude mcp add` reports a server
+// is already configured at the target scope.
+var errMCPAlreadyExists = errors.New("MCP server already exists")
+
+// checkMCPAlreadyExists inspects the output and error from a `claude mcp add`
+// command. Returns nil if the command succeeded, errMCPAlreadyExists if the
+// server was already configured, or the original error with output context.
+func checkMCPAlreadyExists(output string, err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(output, "already exists") {
+		return errMCPAlreadyExists
+	}
+	return fmt.Errorf("%w\n  Output: %s", err, strings.TrimSpace(output))
+}
+
 // installMCPServersCLI installs MCP servers via CLI and aggregates results.
 // For user scope (scope="" or "user"), the MCPServer's original Scope field is
 // preserved. For project/local scope, it is overridden to the target scope.
@@ -963,10 +988,13 @@ func installMCPServersCLI(servers []MCPServer, scope string, secretChain *secret
 
 		args := buildMCPAddArgs(mcp, resolved)
 		output, err := executor.RunWithOutput(args...)
-		if err != nil {
-			result.Errors = append(result.Errors, fmt.Errorf("MCP %s: %w\n  Output: %s", mcp.Name, err, strings.TrimSpace(output)))
-		} else {
+		switch mcpErr := checkMCPAlreadyExists(output, err); {
+		case mcpErr == nil:
 			result.MCPServersInstalled = append(result.MCPServersInstalled, mcp.Name)
+		case errors.Is(mcpErr, errMCPAlreadyExists):
+			result.MCPServersAlreadyPresent = append(result.MCPServersAlreadyPresent, mcp.Name)
+		default:
+			result.Errors = append(result.Errors, fmt.Errorf("MCP %s: %w", mcp.Name, mcpErr))
 		}
 	}
 }
@@ -1239,6 +1267,23 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 
 		if err := applyUserScopeSettingsOnly(scopeProfile, claudeDir, projectDir, opts.ReplaceUserScope); err != nil {
 			return nil, fmt.Errorf("failed to apply user scope: %w", err)
+		}
+
+		// When replacing user scope, remove existing MCP servers so reality
+		// matches the profile. An empty MCP list means "no MCP servers wanted."
+		if opts.ReplaceUserScope {
+			existing, readErr := ReadMCPServersForScope(claudeJSONPath, "", "user")
+			if readErr != nil {
+				result.Warnings = append(result.Warnings,
+					fmt.Errorf("could not read existing MCP servers for replace: %w", readErr))
+			} else {
+				for _, srv := range existing {
+					if _, removeErr := executor.RunWithOutput("mcp", "remove", srv.Name); removeErr != nil {
+						result.Warnings = append(result.Warnings,
+							fmt.Errorf("could not remove MCP server %s before replace: %w", srv.Name, removeErr))
+					}
+				}
+			}
 		}
 
 		installPluginsForScope(scopeProfile.Plugins, "", opts.Reinstall, executor, result)
