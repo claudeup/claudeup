@@ -1042,6 +1042,51 @@ func TestApplyAllScopesReplaceRemovesMCPServers(t *testing.T) {
 	}
 }
 
+func TestApplyAllScopesReplaceClearsMCPWithEmptyProfile(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+
+	// Write existing MCP servers to .claude.json
+	claudeJSON := map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"old-server": map[string]interface{}{
+				"command": "npx",
+				"args":    []string{"old-pkg"},
+			},
+		},
+	}
+	writeTestJSON(t, env.claudeJSONPath, claudeJSON)
+
+	executor := &allScopesMockExecutor{}
+
+	// Profile with user scope but NO MCP servers
+	p := &Profile{
+		Name: "test-replace-empty-mcp",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{},
+			},
+		},
+	}
+
+	result, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, &ApplyAllScopesOptions{
+		Executor:         executor,
+		Output:           io.Discard,
+		ReplaceUserScope: true,
+	})
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	// Should still remove old-server even though profile has no MCP servers
+	if !executor.hasCommand("mcp", "remove", "old-server") {
+		t.Errorf("Expected 'mcp remove old-server' command, got commands: %v", executor.commands)
+	}
+
+	if len(result.Errors) > 0 {
+		t.Errorf("Expected no errors, got: %v", result.Errors)
+	}
+}
+
 func TestApplyAllScopesInstallMarketplacesOutput(t *testing.T) {
 	env := setupAllScopesTestEnv(t)
 	var buf strings.Builder
