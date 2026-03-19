@@ -1272,7 +1272,10 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 		// When replacing user scope, remove existing MCP servers before re-adding
 		if opts.ReplaceUserScope && len(scopeProfile.MCPServers) > 0 {
 			existing, readErr := ReadMCPServersForScope(claudeJSONPath, "", "user")
-			if readErr == nil {
+			if readErr != nil {
+				result.Warnings = append(result.Warnings,
+					fmt.Errorf("could not read existing MCP servers for replace: %w", readErr))
+			} else {
 				for _, srv := range existing {
 					if _, removeErr := executor.RunWithOutput("mcp", "remove", srv.Name); removeErr != nil {
 						result.Warnings = append(result.Warnings,
