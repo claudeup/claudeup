@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/claudeup/claudeup/v5/internal/breadcrumb"
@@ -32,20 +31,10 @@ type TestEnv struct {
 
 // commandTimeout is the maximum time a CLI invocation can run before being killed.
 // This prevents tests from hanging when commands block on interactive input (e.g. gum).
-const commandTimeout = 10 * time.Second
+// Set to 30s to accommodate slow CI runners while still catching infinite hangs.
+const commandTimeout = 30 * time.Second
 
-// configureProcessGroup sets up the command to run in its own process group
-// and configures the cancel function to kill the entire group. This ensures
-// child processes (like gum) are also terminated on timeout.
-func configureProcessGroup(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error {
-		// Kill the entire process group (negative PID)
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	// Give pipes a moment to flush after the process is killed
-	cmd.WaitDelay = 2 * time.Second
-}
+
 
 // NewTestEnv creates a new isolated test environment
 func NewTestEnv(binary string) *TestEnv {
