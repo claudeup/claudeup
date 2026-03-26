@@ -15,9 +15,15 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/claudeup/claudeup/v5/internal/events"
+	"github.com/claudeup/claudeup/v5/internal/ui"
 )
 
 func TestEvents(t *testing.T) {
+	// Disable ANSI styling so diff output assertions match plain text
+	// regardless of terminal capabilities (CI has no TTY, local dev does).
+	t.Setenv("NO_COLOR", "1")
+	ui.InitColorProfile()
+
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Events Suite")
 }

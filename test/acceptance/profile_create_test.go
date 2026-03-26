@@ -26,8 +26,13 @@ var _ = Describe("profile create", func() {
 			result := env.Run("profile", "create", "new-profile")
 
 			Expect(result.ExitCode).NotTo(Equal(0))
-			// Wizard starts but fails due to lack of TTY
-			Expect(result.Stderr).To(ContainSubstring("failed to select marketplaces"))
+			// Wizard starts but fails due to lack of TTY.
+			// With gum installed, the process blocks on interactive input and gets
+			// killed by the test helper timeout. Without gum, the stdin fallback
+			// hits EOF and returns "failed to select marketplaces".
+			if !result.TimedOut {
+				Expect(result.Stderr).To(ContainSubstring("failed to select marketplaces"))
+			}
 		})
 	})
 

@@ -31,10 +31,14 @@ var (
 )
 
 func init() {
-	initColorProfile()
+	InitColorProfile()
 }
 
-func initColorProfile() {
+// InitColorProfile configures lipgloss color output based on environment.
+// Disables ANSI colors when NO_COLOR is set (https://no-color.org/) or TERM=dumb.
+// Called automatically at init time. Tests can call this after setting either
+// variable to force plain-text output regardless of terminal capabilities.
+func InitColorProfile() {
 	// Respect NO_COLOR standard (https://no-color.org/)
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {
 		lipgloss.SetColorProfile(termenv.Ascii)

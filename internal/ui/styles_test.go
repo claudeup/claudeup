@@ -45,13 +45,16 @@ func TestSymbolsAreDefined(t *testing.T) {
 func TestNoColorEnvironmentVariable(t *testing.T) {
 	// Save original value
 	original := os.Getenv("NO_COLOR")
-	defer os.Setenv("NO_COLOR", original)
+	defer func() {
+		os.Setenv("NO_COLOR", original)
+		InitColorProfile() // Restore original color profile
+	}()
 
 	// Set NO_COLOR
 	os.Setenv("NO_COLOR", "1")
 
 	// Re-initialize to pick up env change
-	initColorProfile()
+	InitColorProfile()
 
 	// Verify colors are still defined even with NO_COLOR
 	if ColorSuccess == "" {
@@ -68,12 +71,12 @@ func TestNoColorStripsANSICodes(t *testing.T) {
 		} else {
 			os.Setenv("NO_COLOR", original)
 		}
-		initColorProfile() // Restore original color profile
+		InitColorProfile() // Restore original color profile
 	}()
 
 	// Set NO_COLOR
 	os.Setenv("NO_COLOR", "1")
-	initColorProfile()
+	InitColorProfile()
 
 	// Render styled text - should NOT contain ANSI escape codes
 	result := Success("test message")
@@ -104,13 +107,13 @@ func TestTermDumbStripsANSICodes(t *testing.T) {
 		} else {
 			os.Setenv("TERM", originalTerm)
 		}
-		initColorProfile()
+		InitColorProfile()
 	}()
 
 	// Clear NO_COLOR, set TERM=dumb
 	os.Unsetenv("NO_COLOR")
 	os.Setenv("TERM", "dumb")
-	initColorProfile()
+	InitColorProfile()
 
 	result := Error("error text")
 
