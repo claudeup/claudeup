@@ -4,12 +4,14 @@ package helpers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/claudeup/claudeup/v5/internal/breadcrumb"
@@ -26,6 +28,23 @@ type TestEnv struct {
 	ProfilesDir string // Fake ~/.claudeup/profiles
 	ConfigFile  string // Fake ~/.claudeup/config.json
 	Binary      string // Path to claudeup binary
+}
+
+// commandTimeout is the maximum time a CLI invocation can run before being killed.
+// This prevents tests from hanging when commands block on interactive input (e.g. gum).
+const commandTimeout = 10 * time.Second
+
+// configureProcessGroup sets up the command to run in its own process group
+// and configures the cancel function to kill the entire group. This ensures
+// child processes (like gum) are also terminated on timeout.
+func configureProcessGroup(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		// Kill the entire process group (negative PID)
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
+	// Give pipes a moment to flush after the process is killed
+	cmd.WaitDelay = 2 * time.Second
 }
 
 // NewTestEnv creates a new isolated test environment
@@ -54,18 +73,30 @@ func NewTestEnv(binary string) *TestEnv {
 	return env
 }
 
+// baseEnv returns the standard environment variables for CLI invocations.
+// Includes NO_COLOR=1 so output assertions don't need to account for ANSI codes.
+func (e *TestEnv) baseEnv() []string {
+	return append(os.Environ(),
+		"CLAUDEUP_HOME="+e.ClaudeupDir,
+		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
+		"NO_COLOR=1",
+	)
+}
+
 // Run executes the CLI with the given arguments
 func (e *TestEnv) Run(args ...string) *Result {
 	return e.RunWithInput("", args...)
 }
 
-// RunWithInput executes the CLI with stdin input
+// RunWithInput executes the CLI with stdin input.
+// Commands are killed after commandTimeout to prevent hangs on interactive prompts.
 func (e *TestEnv) RunWithInput(input string, args ...string) *Result {
-	cmd := exec.Command(e.Binary, args...)
-	cmd.Env = append(os.Environ(),
-		"CLAUDEUP_HOME="+e.ClaudeupDir,
-		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, e.Binary, args...)
+	configureProcessGroup(cmd)
+	cmd.Env = e.baseEnv()
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -79,7 +110,10 @@ func (e *TestEnv) RunWithInput(input string, args ...string) *Result {
 
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		if ctx.Err() == context.DeadlineExceeded {
+			exitCode = 1
+			stderr.WriteString("\n[test helper] command timed out after " + commandTimeout.String())
+		} else if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			exitCode = 1
@@ -154,13 +188,15 @@ func (e *TestEnv) RunWithEnv(extraEnv map[string]string, args ...string) *Result
 	return e.RunWithEnvAndInput(extraEnv, "", args...)
 }
 
-// RunWithEnvAndInput executes the CLI with additional env vars and stdin input
+// RunWithEnvAndInput executes the CLI with additional env vars and stdin input.
+// Commands are killed after commandTimeout to prevent hangs on interactive prompts.
 func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, args ...string) *Result {
-	cmd := exec.Command(e.Binary, args...)
-	cmd.Env = append(os.Environ(),
-		"CLAUDEUP_HOME="+e.ClaudeupDir,
-		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
-	)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, e.Binary, args...)
+	configureProcessGroup(cmd)
+	cmd.Env = e.baseEnv()
 
 	for k, v := range extraEnv {
 		cmd.Env = append(cmd.Env, k+"="+v)
@@ -178,7 +214,10 @@ func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, a
 
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		if ctx.Err() == context.DeadlineExceeded {
+			exitCode = 1
+			stderr.WriteString("\n[test helper] command timed out after " + commandTimeout.String())
+		} else if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			exitCode = 1
@@ -327,45 +366,22 @@ func (e *TestEnv) WriteFile(dir, filename, content string) {
 	Expect(os.WriteFile(filepath.Join(dir, filename), []byte(content), 0644)).To(Succeed())
 }
 
-// RunInDir executes the CLI with a specific working directory
+// RunInDir executes the CLI with a specific working directory.
+// Commands are killed after commandTimeout to prevent hangs on interactive prompts.
 func (e *TestEnv) RunInDir(dir string, args ...string) *Result {
-	cmd := exec.Command(e.Binary, args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"CLAUDEUP_HOME="+e.ClaudeupDir,
-		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
-	)
-
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-
-	err := cmd.Run()
-
-	exitCode := 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
-		} else {
-			exitCode = 1
-		}
-	}
-
-	return &Result{
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
-		ExitCode: exitCode,
-	}
+	return e.RunInDirWithInput(dir, "", args...)
 }
 
-// RunInDirWithInput executes the CLI with a specific working directory and stdin input
+// RunInDirWithInput executes the CLI with a specific working directory and stdin input.
+// Commands are killed after commandTimeout to prevent hangs on interactive prompts.
 func (e *TestEnv) RunInDirWithInput(dir, input string, args ...string) *Result {
-	cmd := exec.Command(e.Binary, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, e.Binary, args...)
+	configureProcessGroup(cmd)
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(),
-		"CLAUDEUP_HOME="+e.ClaudeupDir,
-		"CLAUDE_CONFIG_DIR="+e.ClaudeDir,
-	)
+	cmd.Env = e.baseEnv()
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -379,7 +395,10 @@ func (e *TestEnv) RunInDirWithInput(dir, input string, args ...string) *Result {
 
 	exitCode := 0
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		if ctx.Err() == context.DeadlineExceeded {
+			exitCode = 1
+			stderr.WriteString("\n[test helper] command timed out after " + commandTimeout.String())
+		} else if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			exitCode = 1
