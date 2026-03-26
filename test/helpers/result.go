@@ -7,6 +7,7 @@ type Result struct {
 	Stdout   string
 	Stderr   string
 	ExitCode int
+	TimedOut bool // true when killed by commandTimeout
 }
 
 // Success returns true if the command exited with code 0

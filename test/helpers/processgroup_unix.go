@@ -16,10 +16,12 @@ import (
 func configureProcessGroup(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
-		// Safe to access cmd.Process here: Go's exec.CommandContext guarantees
-		// Cancel is only invoked after Start() succeeds, so Process is non-nil.
+		if cmd.Process == nil {
+			return nil
+		}
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
-	// Give pipes a moment to flush after the process is killed
+	// WaitDelay bounds how long Go waits for I/O pipes to drain after the
+	// process is killed; prevents test hangs if a child leaves pipes open.
 	cmd.WaitDelay = 2 * time.Second
 }

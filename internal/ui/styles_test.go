@@ -45,7 +45,10 @@ func TestSymbolsAreDefined(t *testing.T) {
 func TestNoColorEnvironmentVariable(t *testing.T) {
 	// Save original value
 	original := os.Getenv("NO_COLOR")
-	defer os.Setenv("NO_COLOR", original)
+	defer func() {
+		os.Setenv("NO_COLOR", original)
+		InitColorProfile() // Restore original color profile
+	}()
 
 	// Set NO_COLOR
 	os.Setenv("NO_COLOR", "1")

@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -98,14 +99,19 @@ func (e *TestEnv) RunWithInput(input string, args ...string) *Result {
 	err := cmd.Run()
 
 	exitCode := 0
+	timedOut := false
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			exitCode = 1
+			timedOut = true
 			stderr.WriteString("\n[test helper] command timed out after " + commandTimeout.String())
-		} else if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
 		} else {
-			exitCode = 1
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = exitErr.ExitCode()
+			} else {
+				exitCode = 1
+			}
 		}
 	}
 
@@ -113,6 +119,7 @@ func (e *TestEnv) RunWithInput(input string, args ...string) *Result {
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		ExitCode: exitCode,
+		TimedOut: timedOut,
 	}
 }
 
@@ -202,14 +209,19 @@ func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, a
 	err := cmd.Run()
 
 	exitCode := 0
+	timedOut := false
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			exitCode = 1
+			timedOut = true
 			stderr.WriteString("\n[test helper] command timed out after " + commandTimeout.String())
-		} else if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
 		} else {
-			exitCode = 1
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = exitErr.ExitCode()
+			} else {
+				exitCode = 1
+			}
 		}
 	}
 
@@ -217,6 +229,7 @@ func (e *TestEnv) RunWithEnvAndInput(extraEnv map[string]string, input string, a
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		ExitCode: exitCode,
+		TimedOut: timedOut,
 	}
 }
 
@@ -383,14 +396,19 @@ func (e *TestEnv) RunInDirWithInput(dir, input string, args ...string) *Result {
 	err := cmd.Run()
 
 	exitCode := 0
+	timedOut := false
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			exitCode = 1
+			timedOut = true
 			stderr.WriteString("\n[test helper] command timed out after " + commandTimeout.String())
-		} else if exitErr, ok := err.(*exec.ExitError); ok {
-			exitCode = exitErr.ExitCode()
 		} else {
-			exitCode = 1
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
+				exitCode = exitErr.ExitCode()
+			} else {
+				exitCode = 1
+			}
 		}
 	}
 
@@ -398,6 +416,7 @@ func (e *TestEnv) RunInDirWithInput(dir, input string, args ...string) *Result {
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 		ExitCode: exitCode,
+		TimedOut: timedOut,
 	}
 }
 
