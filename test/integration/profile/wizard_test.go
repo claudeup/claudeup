@@ -106,6 +106,16 @@ var _ = Describe("Wizard", func() {
 			// Should have printed an error for the invalid name
 			Expect(out.String()).To(ContainSubstring("Error:"))
 		})
+
+		It("re-prompts on empty input then accepts valid name", func() {
+			// First line is blank (empty name), second is valid
+			wio, out := testWizardIO("\nmy-profile\n")
+
+			name, err := profile.PromptForName(wio)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(name).To(Equal("my-profile"))
+			Expect(out.String()).To(ContainSubstring("Error: profile name cannot be empty"))
+		})
 	})
 
 	Describe("SelectMarketplaces", func() {
@@ -171,17 +181,14 @@ var _ = Describe("Wizard", func() {
 	Describe("SelectPluginsForMarketplace", func() {
 		It("returns error on EOF for category-based marketplace", func() {
 			// wshobson/agents has categories — the fallback category selection
-			// will hit EOF and return an empty category list (graceful skip).
+			// hits EOF and surfaces a "failed to read input" error.
 			marketplace := profile.Marketplace{
 				Source: "github",
 				Repo:   "wshobson/agents",
 			}
 			wio, _ := testWizardIO("")
 
-			// Empty input in fallbackCategorySelection returns empty categories (q/skip behavior)
-			// which means no plugins are collected — empty result, no error
 			_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
-			// EOF on the category fallback returns "failed to read input" error
 			Expect(err).To(HaveOccurred())
 		})
 
