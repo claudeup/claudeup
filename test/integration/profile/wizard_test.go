@@ -3,6 +3,7 @@
 package profile_test
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"strings"
@@ -20,8 +21,10 @@ func noGumLookPath(name string) (string, error) {
 // testWizardIO creates a WizardIO with piped input and no gum.
 func testWizardIO(input string) (profile.WizardIO, *bytes.Buffer) {
 	out := &bytes.Buffer{}
+	in := strings.NewReader(input)
 	return profile.WizardIO{
-		In:       strings.NewReader(input),
+		In:       in,
+		BufIn:    bufio.NewReader(in),
 		Out:      out,
 		Err:      &bytes.Buffer{},
 		LookPath: noGumLookPath,
@@ -182,19 +185,17 @@ var _ = Describe("Wizard", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("selects categories then returns plugins on EOF refinement", func() {
+		It("selects categories then returns selected plugins", func() {
 			marketplace := profile.Marketplace{
 				Source: "github",
 				Repo:   "wshobson/agents",
 			}
-			// Select category 1 (Core Development), then empty input for plugin refinement
-			// accepts pre-selected (none installed → empty)
-			wio, _ := testWizardIO("1\n\n")
+			// Select category 1 (Core Development), then plugin 1 from refinement list
+			wio, _ := testWizardIO("1\n1\n")
 
 			plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 			Expect(err).NotTo(HaveOccurred())
-			// Should have plugins from Core Development category
-			Expect(plugins).NotTo(BeEmpty())
+			Expect(plugins).To(HaveLen(1))
 		})
 
 		It("uses flat selection for marketplaces without categories", func() {
