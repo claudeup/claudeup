@@ -73,7 +73,7 @@ func (wio WizardIO) gumExec(args ...string) error {
 func warnIfGumCrash(err error, w io.Writer, context string) {
 	var exitErr *exec.ExitError
 	if !errors.As(err, &exitErr) {
-		fmt.Fprintf(w, "Warning: %s (%v), using default\n", context, err)
+		fmt.Fprintf(w, "Warning: %s (%v)\n", context, err)
 	}
 }
 

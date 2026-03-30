@@ -446,6 +446,22 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 				Expect(errBuf.String()).To(ContainSubstring("signal killed"))
 			})
+
+			It("does not warn on user cancellation", func() {
+				exitErr := makeExitError()
+				runner := func(args ...string) ([]byte, error) {
+					return nil, exitErr
+				}
+				wio, _, errBuf := gumWizardIO("", runner)
+
+				marketplace := profile.Marketplace{
+					Source: "github",
+					Repo:   "wshobson/agents",
+				}
+				_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
+				Expect(err).To(HaveOccurred())
+				Expect(errBuf.String()).To(BeEmpty())
+			})
 		})
 	})
 })
