@@ -43,7 +43,8 @@ func NewWizardIO(in io.Reader, out, errW io.Writer, lookPath func(string) (strin
 func (wio WizardIO) BufIn() *bufio.Reader { return wio.bufIn }
 
 // gumOutput executes a gum command and captures stdout.
-// Uses GumRun if set, otherwise shells out to gum.
+// Uses GumRun if set; otherwise shells out to gum with wio.In wired
+// to the subprocess stdin and wio.Err to its stderr.
 func (wio WizardIO) gumOutput(args ...string) ([]byte, error) {
 	if wio.GumRun != nil {
 		return wio.GumRun(args...)
@@ -56,26 +57,34 @@ func (wio WizardIO) gumOutput(args ...string) ([]byte, error) {
 
 // gumExec executes a gum command without capturing stdout.
 // Intended for commands like "gum confirm" where only the exit code matters.
-// Uses GumRun if set, otherwise shells out to gum.
 func (wio WizardIO) gumExec(args ...string) error {
-	if wio.GumRun != nil {
-		_, err := wio.GumRun(args...)
-		return err
-	}
-	cmd := exec.Command("gum", args...)
-	cmd.Stdin = wio.In
-	cmd.Stderr = wio.Err
-	return cmd.Run()
+	_, err := wio.gumOutput(args...)
+	return err
 }
 
-// warnIfGumCrash writes a warning to stderr if err is not a user cancellation.
-// Gum exits with a non-zero status (ExitError) when the user cancels; other
-// errors indicate a crash, permission problem, or version incompatibility.
-func warnIfGumCrash(err error, w io.Writer, context string) {
-	var exitErr *exec.ExitError
-	if !errors.As(err, &exitErr) {
-		fmt.Fprintf(w, "Warning: %s (%v)\n", context, err)
+// warnIfGumCrash writes a warning to w if err does not look like a
+// deliberate user cancellation.
+//
+// Gum signals user cancellation via specific exit codes:
+//   - 1:   user answered "no", pressed Esc, or declined
+//   - 130: user pressed Ctrl+C (SIGINT)
+//
+// Other ExitError codes and non-ExitError failures (binary not found,
+// permission denied, broken pipe) indicate an unexpected problem.
+// A gum internal crash that happens to exit 1 would be misclassified
+// as a cancellation; this is accepted given gum's exit code conventions.
+func warnIfGumCrash(err error, w io.Writer, action string) {
+	if err == nil {
+		return
 	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		code := exitErr.ExitCode()
+		if code == 1 || code == 130 {
+			return
+		}
+	}
+	fmt.Fprintf(w, "Warning: %s (%v)\n", action, err)
 }
 
 // DefaultWizardIO returns a WizardIO wired to the real OS streams.

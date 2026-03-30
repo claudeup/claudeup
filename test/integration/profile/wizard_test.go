@@ -31,7 +31,7 @@ func gumLookPath(name string) (string, error) {
 }
 
 // gumWizardIO creates a WizardIO with gum available and a custom GumRun.
-// Returns the WizardIO and the stderr buffer for assertion.
+// Returns the WizardIO, the stdout buffer, and the stderr buffer for assertion.
 func gumWizardIO(input string, runner func(args ...string) ([]byte, error)) (profile.WizardIO, *bytes.Buffer, *bytes.Buffer) {
 	out := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
@@ -41,13 +41,13 @@ func gumWizardIO(input string, runner func(args ...string) ([]byte, error)) (pro
 	return wio, out, errBuf
 }
 
-// makeExitError returns an *exec.ExitError by running a command that exits non-zero.
-// Panics with a descriptive message if "false" is not on PATH.
-func makeExitError() *exec.ExitError {
-	err := exec.Command("false").Run()
+// makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
+// Panics with a descriptive message if the shell command fails unexpectedly.
+func makeExitErrorWithCode(code int) *exec.ExitError {
+	err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
 	exitErr, ok := err.(*exec.ExitError)
 	if !ok {
-		panic(fmt.Sprintf("exec.Command(\"false\").Run() returned %T, not *exec.ExitError; is \"false\" on PATH?", err))
+		panic(fmt.Sprintf("exec.Command(\"sh\", \"-c\", \"exit %d\").Run() returned %T, not *exec.ExitError", code, err))
 	}
 	return exitErr
 }
@@ -351,7 +351,7 @@ var _ = Describe("Wizard", func() {
 			})
 
 			It("does not warn on user cancellation", func() {
-				exitErr := makeExitError()
+				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
 						return nil, nil // user said "yes"
@@ -383,7 +383,7 @@ var _ = Describe("Wizard", func() {
 			})
 
 			It("does not warn when user says no", func() {
-				exitErr := makeExitError()
+				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr // user said "no"
 				}
@@ -417,7 +417,7 @@ var _ = Describe("Wizard", func() {
 			})
 
 			It("does not warn on user cancellation", func() {
-				exitErr := makeExitError()
+				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
 				}
@@ -451,7 +451,7 @@ var _ = Describe("Wizard", func() {
 			})
 
 			It("does not warn on user cancellation", func() {
-				exitErr := makeExitError()
+				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
 				}
@@ -463,6 +463,57 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 				Expect(err).To(HaveOccurred())
+				Expect(errBuf.String()).To(BeEmpty())
+			})
+		})
+
+		Describe("non-cancel ExitError (exit code 2)", func() {
+			It("warns on ExitError with non-cancel exit code in editDescription", func() {
+				exitErr := makeExitErrorWithCode(2)
+				runner := func(args ...string) ([]byte, error) {
+					if args[0] == "confirm" {
+						return nil, nil // user said "yes" to editing
+					}
+					return nil, exitErr // gum write crashed with exit 2
+				}
+				wio, _, errBuf := gumWizardIO("", runner)
+
+				desc, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(desc).To(Equal("Auto description"))
+				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
+			})
+
+			It("warns on ExitError with non-cancel exit code in SelectMarketplaces", func() {
+				exitErr := makeExitErrorWithCode(2)
+				runner := func(args ...string) ([]byte, error) {
+					return nil, exitErr
+				}
+				wio, _, errBuf := gumWizardIO("", runner)
+
+				marketplaces := []profile.Marketplace{
+					{Source: "github", Repo: "owner/first"},
+				}
+				_, err := profile.SelectMarketplaces(wio, marketplaces)
+				Expect(err).To(HaveOccurred())
+				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
+			})
+		})
+
+		Describe("happy path via PromptForDescription", func() {
+			It("returns edited description when both gum steps succeed", func() {
+				runner := func(args ...string) ([]byte, error) {
+					if args[0] == "confirm" {
+						return nil, nil // user said "yes"
+					}
+					// gum write returns edited description
+					return []byte("My custom description"), nil
+				}
+				wio, _, errBuf := gumWizardIO("", runner)
+
+				desc, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).NotTo(HaveOccurred())
+				Expect(desc).To(Equal("My custom description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})

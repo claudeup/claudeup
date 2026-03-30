@@ -75,6 +75,7 @@ func TestGenerateWizardDescription(t *testing.T) {
 }
 
 // testGumWizardIO creates a WizardIO with gum available and a custom GumRun.
+// Returns the WizardIO and the stderr buffer for assertion.
 func testGumWizardIO(runner func(args ...string) ([]byte, error)) (WizardIO, *bytes.Buffer) {
 	errBuf := &bytes.Buffer{}
 	wio := NewWizardIO(
@@ -85,6 +86,18 @@ func testGumWizardIO(runner func(args ...string) ([]byte, error)) (WizardIO, *by
 	)
 	wio.GumRun = runner
 	return wio, errBuf
+}
+
+// makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
+// Panics with a descriptive message if the shell command fails unexpectedly.
+func makeExitErrorWithCode(t *testing.T, code int) *exec.ExitError {
+	t.Helper()
+	err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		t.Fatalf("exec.Command(\"sh\", \"-c\", \"exit %d\").Run() returned %T, not *exec.ExitError", code, err)
+	}
+	return exitErr
 }
 
 func TestWarnIfGumCrash(t *testing.T) {
@@ -99,12 +112,38 @@ func TestWarnIfGumCrash(t *testing.T) {
 		}
 	})
 
-	t.Run("silent for ExitError (user cancel)", func(t *testing.T) {
+	t.Run("silent for ExitError code 1 (user cancel)", func(t *testing.T) {
 		var buf bytes.Buffer
-		exitErr := exec.Command("false").Run()
+		exitErr := makeExitErrorWithCode(t, 1)
 		warnIfGumCrash(exitErr, &buf, "editor failed")
 		if buf.String() != "" {
 			t.Errorf("expected no output for user cancel, got %q", buf.String())
+		}
+	})
+
+	t.Run("silent for ExitError code 130 (SIGINT)", func(t *testing.T) {
+		var buf bytes.Buffer
+		exitErr := makeExitErrorWithCode(t, 130)
+		warnIfGumCrash(exitErr, &buf, "editor failed")
+		if buf.String() != "" {
+			t.Errorf("expected no output for SIGINT cancel, got %q", buf.String())
+		}
+	})
+
+	t.Run("warns for ExitError with non-cancel exit code", func(t *testing.T) {
+		var buf bytes.Buffer
+		exitErr := makeExitErrorWithCode(t, 2)
+		warnIfGumCrash(exitErr, &buf, "editor failed")
+		if !strings.Contains(buf.String(), "Warning:") {
+			t.Errorf("expected warning for exit code 2, got %q", buf.String())
+		}
+	})
+
+	t.Run("silent for nil error", func(t *testing.T) {
+		var buf bytes.Buffer
+		warnIfGumCrash(nil, &buf, "editor failed")
+		if buf.String() != "" {
+			t.Errorf("expected no output for nil error, got %q", buf.String())
 		}
 	})
 }
@@ -121,7 +160,6 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// Should return pre-selected plugins (installed ones)
 		if len(result) == 0 {
 			t.Fatal("expected pre-selected plugins, got empty")
 		}
@@ -133,8 +171,25 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		}
 	})
 
+	t.Run("warns on non-cancel ExitError", func(t *testing.T) {
+		exitErr := makeExitErrorWithCode(t, 2)
+		wio, errBuf := testGumWizardIO(func(args ...string) ([]byte, error) {
+			return nil, exitErr
+		})
+
+		available := []string{"plugin-a", "plugin-b"}
+		installed := map[string]bool{"plugin-a@marketplace": true}
+		_, err := refinePluginSelection(wio, available, installed)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(errBuf.String(), "Warning:") {
+			t.Errorf("expected warning for exit code 2, got %q", errBuf.String())
+		}
+	})
+
 	t.Run("silent on user cancellation", func(t *testing.T) {
-		exitErr := exec.Command("false").Run()
+		exitErr := makeExitErrorWithCode(t, 1)
 		wio, errBuf := testGumWizardIO(func(args ...string) ([]byte, error) {
 			return nil, exitErr
 		})
