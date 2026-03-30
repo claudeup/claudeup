@@ -2662,14 +2662,15 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return saveAndPrintNewProfile(newProfile, profilesDir)
 	}
 
-	// Wizard mode (interactive) - existing code continues...
+	// Shared across all wizard steps to preserve buffered reader state.
+	wio := profile.DefaultWizardIO()
 
 	// Step 1: Get profile name
 	var name string
 	if len(args) > 0 {
 		name = args[0]
 	} else {
-		promptedName, err := profile.PromptForName()
+		promptedName, err := profile.PromptForName(wio)
 		if err != nil {
 			return fmt.Errorf("failed to get profile name: %w", err)
 		}
@@ -2691,7 +2692,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 	// Step 2: Select marketplaces
 	availableMarketplaces := profile.GetAvailableMarketplaces()
-	selectedMarketplaces, err := profile.SelectMarketplaces(availableMarketplaces)
+	selectedMarketplaces, err := profile.SelectMarketplaces(wio, availableMarketplaces)
 	if err != nil {
 		return fmt.Errorf("failed to select marketplaces: %w", err)
 	}
@@ -2706,7 +2707,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		fmt.Println()
 		fmt.Printf("Selecting plugins from %s...\n", marketplace.DisplayName())
 
-		plugins, err := profile.SelectPluginsForMarketplace(marketplace)
+		plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 		if err != nil {
 			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
 		}
@@ -2724,7 +2725,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 	// Step 4: Generate and edit description
 	autoDesc := profile.GenerateWizardDescription(len(selectedMarketplaces), len(allPlugins))
-	description, err := profile.PromptForDescription(autoDesc)
+	description, err := profile.PromptForDescription(wio, autoDesc)
 	if err != nil {
 		return fmt.Errorf("failed to get description: %w", err)
 	}

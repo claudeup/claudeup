@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,36 @@ import (
 	"strconv"
 	"strings"
 )
+
+// WizardIO provides I/O dependencies for interactive wizard functions.
+// All wizard steps in a sequence must share one WizardIO so the buffered
+// reader state is preserved between prompts.
+type WizardIO struct {
+	In       io.Reader
+	bufIn    *bufio.Reader // derived from In; use BufIn() accessor
+	Out      io.Writer
+	Err      io.Writer
+	LookPath func(string) (string, error) // resolves gum binary path
+}
+
+// NewWizardIO constructs a WizardIO, deriving the buffered reader from in.
+func NewWizardIO(in io.Reader, out, errW io.Writer, lookPath func(string) (string, error)) WizardIO {
+	return WizardIO{
+		In:       in,
+		bufIn:    bufio.NewReader(in),
+		Out:      out,
+		Err:      errW,
+		LookPath: lookPath,
+	}
+}
+
+// BufIn returns the shared buffered reader over In.
+func (wio WizardIO) BufIn() *bufio.Reader { return wio.bufIn }
+
+// DefaultWizardIO returns a WizardIO wired to the real OS streams.
+func DefaultWizardIO() WizardIO {
+	return NewWizardIO(os.Stdin, os.Stdout, os.Stderr, exec.LookPath)
+}
 
 // validNameRegex matches valid profile names: alphanumeric, hyphens, underscores
 var validNameRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
@@ -125,7 +156,7 @@ func filterValidMarketplaces(marketplaces []Marketplace) []Marketplace {
 
 // installedPluginsFile represents the structure of installed_plugins.json
 type installedPluginsFile struct {
-	Version int                                `json:"version"`
+	Version int                         `json:"version"`
 	Plugins map[string][]map[string]any `json:"plugins"`
 }
 
@@ -158,11 +189,11 @@ func getInstalledPlugins() map[string]bool {
 
 // PromptForName prompts the user to enter a profile name
 // Returns the validated name or an error
-func PromptForName() (string, error) {
-	reader := bufio.NewReader(os.Stdin)
+func PromptForName(wio WizardIO) (string, error) {
+	reader := wio.BufIn()
 
 	for {
-		fmt.Print("Profile name: ")
+		fmt.Fprint(wio.Out, "Profile name: ")
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return "", fmt.Errorf("failed to read input: %w", err)
@@ -170,12 +201,12 @@ func PromptForName() (string, error) {
 
 		name := strings.TrimSpace(input)
 		if name == "" {
-			fmt.Println("Error: profile name cannot be empty")
+			fmt.Fprintln(wio.Out, "Error: profile name cannot be empty")
 			continue // Re-prompt on empty input
 		}
 
 		if err := ValidateName(name); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			fmt.Fprintf(wio.Out, "Error: %v\n", err)
 			continue // Re-prompt on validation error
 		}
 
@@ -185,14 +216,14 @@ func PromptForName() (string, error) {
 
 // SelectMarketplaces prompts user to select marketplaces
 // Returns selected marketplaces or error
-func SelectMarketplaces(available []Marketplace) ([]Marketplace, error) {
+func SelectMarketplaces(wio WizardIO, available []Marketplace) ([]Marketplace, error) {
 	if len(available) == 0 {
 		return nil, fmt.Errorf("no marketplaces available")
 	}
 
 	// Check if gum is available
-	if _, err := exec.LookPath("gum"); err != nil {
-		return fallbackMarketplaceSelection(available)
+	if _, err := wio.LookPath("gum"); err != nil {
+		return fallbackMarketplaceSelection(wio, available)
 	}
 
 	// Build gum command with marketplace choices
@@ -208,8 +239,8 @@ func SelectMarketplaces(available []Marketplace) ([]Marketplace, error) {
 	}
 
 	cmd := exec.Command("gum", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = wio.In
+	cmd.Stderr = wio.Err
 	output, err := cmd.Output()
 	if err != nil {
 		// User cancelled or gum error
@@ -242,14 +273,14 @@ func SelectMarketplaces(available []Marketplace) ([]Marketplace, error) {
 }
 
 // fallbackMarketplaceSelection provides simple numbered menu when gum unavailable
-func fallbackMarketplaceSelection(available []Marketplace) ([]Marketplace, error) {
-	fmt.Println("\nSelect marketplaces (enter numbers separated by commas):")
+func fallbackMarketplaceSelection(wio WizardIO, available []Marketplace) ([]Marketplace, error) {
+	fmt.Fprintln(wio.Out, "\nSelect marketplaces (enter numbers separated by commas):")
 	for i, m := range available {
-		fmt.Printf("  %d) %s\n", i+1, m.DisplayName())
+		fmt.Fprintf(wio.Out, "  %d) %s\n", i+1, m.DisplayName())
 	}
-	fmt.Print("\nYour selection: ")
+	fmt.Fprint(wio.Out, "\nYour selection: ")
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read input: %w", err)
@@ -284,22 +315,22 @@ func fallbackMarketplaceSelection(available []Marketplace) ([]Marketplace, error
 
 // SelectPluginsForMarketplace prompts user to select plugins from a marketplace
 // Uses category-based selection if marketplace has categories, otherwise flat list
-func SelectPluginsForMarketplace(marketplace Marketplace) ([]string, error) {
+func SelectPluginsForMarketplace(wio WizardIO, marketplace Marketplace) ([]string, error) {
 	if HasCategories(marketplace.Repo) {
-		return selectPluginsByCategory(marketplace)
+		return selectPluginsByCategory(wio, marketplace)
 	}
-	return selectPluginsFlat(marketplace)
+	return selectPluginsFlat(wio, marketplace)
 }
 
 // selectPluginsByCategory shows category selection, then collects plugins from selected categories
-func selectPluginsByCategory(marketplace Marketplace) ([]string, error) {
+func selectPluginsByCategory(wio WizardIO, marketplace Marketplace) ([]string, error) {
 	categories := GetCategories(marketplace.Repo)
 	if len(categories) == 0 {
-		return selectPluginsFlat(marketplace)
+		return selectPluginsFlat(wio, marketplace)
 	}
 
 	// Select categories using gum
-	selectedCategories, err := selectCategories(categories)
+	selectedCategories, err := selectCategories(wio, categories)
 	if err != nil {
 		return nil, err
 	}
@@ -322,14 +353,14 @@ func selectPluginsByCategory(marketplace Marketplace) ([]string, error) {
 	installed := getInstalledPlugins()
 
 	// Let user refine plugin selection with installed ones pre-selected
-	return refinePluginSelection(marketplace, availablePlugins, installed)
+	return refinePluginSelection(wio, availablePlugins, installed)
 }
 
 // selectCategories prompts user to select categories
-func selectCategories(categories []Category) ([]Category, error) {
+func selectCategories(wio WizardIO, categories []Category) ([]Category, error) {
 	// Check if gum is available
-	if _, err := exec.LookPath("gum"); err != nil {
-		return fallbackCategorySelection(categories)
+	if _, err := wio.LookPath("gum"); err != nil {
+		return fallbackCategorySelection(wio, categories)
 	}
 
 	// Build gum command
@@ -343,8 +374,8 @@ func selectCategories(categories []Category) ([]Category, error) {
 	}
 
 	cmd := exec.Command("gum", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = wio.In
+	cmd.Stderr = wio.Err
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("category selection cancelled")
@@ -372,14 +403,14 @@ func selectCategories(categories []Category) ([]Category, error) {
 }
 
 // fallbackCategorySelection provides numbered menu when gum unavailable
-func fallbackCategorySelection(categories []Category) ([]Category, error) {
-	fmt.Println("\nSelect categories (enter numbers separated by commas, or 'q' to skip):")
+func fallbackCategorySelection(wio WizardIO, categories []Category) ([]Category, error) {
+	fmt.Fprintln(wio.Out, "\nSelect categories (enter numbers separated by commas, or 'q' to skip):")
 	for i, cat := range categories {
-		fmt.Printf("  %d) %s - %s\n", i+1, cat.Name, cat.Description)
+		fmt.Fprintf(wio.Out, "  %d) %s - %s\n", i+1, cat.Name, cat.Description)
 	}
-	fmt.Print("\nYour selection: ")
+	fmt.Fprint(wio.Out, "\nYour selection: ")
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read input: %w", err)
@@ -414,17 +445,14 @@ func fallbackCategorySelection(categories []Category) ([]Category, error) {
 
 // refinePluginSelection allows user to select/deselect plugins from available list
 // Installed plugins are pre-selected by default
-func refinePluginSelection(marketplace Marketplace, availablePlugins []string, installed map[string]bool) ([]string, error) {
+func refinePluginSelection(wio WizardIO, availablePlugins []string, installed map[string]bool) ([]string, error) {
 	if len(availablePlugins) == 0 {
 		return []string{}, nil
 	}
 
-	// Build full plugin names with marketplace suffix for checking installation
-	marketplaceName := marketplace.DisplayName()
-
 	// Check if gum is available
-	if _, err := exec.LookPath("gum"); err != nil {
-		return fallbackPluginRefinement(availablePlugins, installed, marketplaceName)
+	if _, err := wio.LookPath("gum"); err != nil {
+		return fallbackPluginRefinement(wio, availablePlugins, installed)
 	}
 
 	// Build gum command with plugin choices
@@ -466,8 +494,8 @@ func refinePluginSelection(marketplace Marketplace, availablePlugins []string, i
 	args = append(args, validPlugins...)
 
 	cmd := exec.Command("gum", args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = wio.In
+	cmd.Stderr = wio.Err
 	output, err := cmd.Output()
 	if err != nil {
 		// User cancelled or gum error - return pre-selected plugins
@@ -488,8 +516,8 @@ func refinePluginSelection(marketplace Marketplace, availablePlugins []string, i
 }
 
 // fallbackPluginRefinement provides simple plugin selection when gum unavailable
-func fallbackPluginRefinement(availablePlugins []string, installed map[string]bool, marketplaceName string) ([]string, error) {
-	fmt.Println("\nSelect plugins (enter numbers separated by commas, or press Enter to select all pre-selected):")
+func fallbackPluginRefinement(wio WizardIO, availablePlugins []string, installed map[string]bool) ([]string, error) {
+	fmt.Fprintln(wio.Out, "\nSelect plugins (enter numbers separated by commas, or press Enter to select all pre-selected):")
 
 	preselected := make([]int, 0)
 	for i, plugin := range availablePlugins {
@@ -508,7 +536,7 @@ func fallbackPluginRefinement(availablePlugins []string, installed map[string]bo
 			marker = "*"
 			preselected = append(preselected, i+1)
 		}
-		fmt.Printf(" %s %d) %s\n", marker, i+1, plugin)
+		fmt.Fprintf(wio.Out, " %s %d) %s\n", marker, i+1, plugin)
 	}
 
 	if len(preselected) > 0 {
@@ -516,19 +544,14 @@ func fallbackPluginRefinement(availablePlugins []string, installed map[string]bo
 		for i, num := range preselected {
 			preselectedNums[i] = fmt.Sprintf("%d", num)
 		}
-		fmt.Printf("\n* = installed (pre-selected: %s)\n", strings.Join(preselectedNums, ","))
+		fmt.Fprintf(wio.Out, "\n* = installed (pre-selected: %s)\n", strings.Join(preselectedNums, ","))
 	}
-	fmt.Print("\nYour selection: ")
+	fmt.Fprint(wio.Out, "\nYour selection: ")
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		// On error, return pre-selected plugins
-		result := make([]string, len(preselected))
-		for i, idx := range preselected {
-			result[i] = availablePlugins[idx-1]
-		}
-		return result, nil
+		return nil, fmt.Errorf("failed to read input: %w", err)
 	}
 
 	input = strings.TrimSpace(input)
@@ -641,18 +664,18 @@ func listPluginsFromMarketplace(marketplace Marketplace) ([]string, error) {
 }
 
 // selectPluginsFlat shows flat plugin list for marketplaces without categories
-func selectPluginsFlat(marketplace Marketplace) ([]string, error) {
+func selectPluginsFlat(wio WizardIO, marketplace Marketplace) ([]string, error) {
 	// List available plugins from marketplace metadata
 	availablePlugins, err := listPluginsFromMarketplace(marketplace)
 	if err != nil {
-		fmt.Printf("Warning: Failed to list plugins from marketplace %q: %v\n", marketplace.DisplayName(), err)
-		fmt.Println("Profile will be created without any plugins from this marketplace.")
-		fmt.Println()
+		fmt.Fprintf(wio.Err, "Warning: Failed to list plugins from marketplace %q: %v\n", marketplace.DisplayName(), err)
+		fmt.Fprintln(wio.Err, "Profile will be created without any plugins from this marketplace.")
+		fmt.Fprintln(wio.Err)
 		return []string{}, nil
 	}
 
 	if len(availablePlugins) == 0 {
-		fmt.Printf("No plugins found in marketplace %q\n", marketplace.DisplayName())
+		fmt.Fprintf(wio.Out, "No plugins found in marketplace %q\n", marketplace.DisplayName())
 		return []string{}, nil
 	}
 
@@ -660,7 +683,7 @@ func selectPluginsFlat(marketplace Marketplace) ([]string, error) {
 	installed := getInstalledPlugins()
 
 	// Let user select plugins with installed ones pre-selected
-	return refinePluginSelection(marketplace, availablePlugins, installed)
+	return refinePluginSelection(wio, availablePlugins, installed)
 }
 
 // GenerateWizardDescription creates description based on wizard selections
@@ -678,31 +701,31 @@ func GenerateWizardDescription(marketplaceCount, pluginCount int) string {
 }
 
 // PromptForDescription shows auto-generated description and allows editing
-func PromptForDescription(autoGenerated string) (string, error) {
+func PromptForDescription(wio WizardIO, autoGenerated string) (string, error) {
 	// Check if gum is available
-	if _, err := exec.LookPath("gum"); err != nil {
-		return fallbackDescriptionPrompt(autoGenerated)
+	if _, err := wio.LookPath("gum"); err != nil {
+		return fallbackDescriptionPrompt(wio, autoGenerated)
 	}
 
 	// Ask if user wants to edit (Yes = edit, No = use auto-generated)
 	confirmMsg := fmt.Sprintf("Edit description?\n  Auto-generated: %s", autoGenerated)
 	cmd := exec.Command("gum", "confirm", confirmMsg)
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = wio.In
+	cmd.Stderr = wio.Err
 	if err := cmd.Run(); err != nil {
 		// User said no or cancelled - use auto-generated
 		return autoGenerated, nil
 	}
 
 	// User said yes - open editor
-	return editDescription(autoGenerated)
+	return editDescription(wio, autoGenerated)
 }
 
 // editDescription opens gum write for editing the description
-func editDescription(placeholder string) (string, error) {
+func editDescription(wio WizardIO, placeholder string) (string, error) {
 	cmd := exec.Command("gum", "write", "--placeholder", placeholder, "--header=Edit description (Ctrl+D to save):")
-	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
+	cmd.Stdin = wio.In
+	cmd.Stderr = wio.Err
 	output, err := cmd.Output()
 	if err != nil {
 		// User cancelled, use placeholder
@@ -718,23 +741,26 @@ func editDescription(placeholder string) (string, error) {
 }
 
 // fallbackDescriptionPrompt provides simple prompt when gum unavailable
-func fallbackDescriptionPrompt(autoGenerated string) (string, error) {
-	fmt.Printf("Edit description?\n  Auto-generated: %s\n", autoGenerated)
-	fmt.Print("[y/N]: ")
+func fallbackDescriptionPrompt(wio WizardIO, autoGenerated string) (string, error) {
+	fmt.Fprintf(wio.Out, "Edit description?\n  Auto-generated: %s\n", autoGenerated)
+	fmt.Fprint(wio.Out, "[y/N]: ")
 
-	reader := bufio.NewReader(os.Stdin)
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		return autoGenerated, nil
+		if err == io.EOF {
+			return autoGenerated, nil
+		}
+		return "", fmt.Errorf("failed to read input: %w", err)
 	}
 
 	choice := strings.TrimSpace(strings.ToLower(input))
 	if choice == "y" || choice == "yes" {
 		// User wants to edit
-		fmt.Print("\nEnter custom description: ")
+		fmt.Fprint(wio.Out, "\nEnter custom description: ")
 		newInput, err := reader.ReadString('\n')
 		if err != nil {
-			return autoGenerated, nil
+			return "", fmt.Errorf("failed to read input: %w", err)
 		}
 
 		description := strings.TrimSpace(newInput)
