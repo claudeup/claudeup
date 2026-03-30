@@ -42,9 +42,14 @@ func gumWizardIO(input string, runner func(args ...string) ([]byte, error)) (pro
 }
 
 // makeExitError returns an *exec.ExitError by running a command that exits non-zero.
+// Panics with a descriptive message if "false" is not on PATH.
 func makeExitError() *exec.ExitError {
 	err := exec.Command("false").Run()
-	return err.(*exec.ExitError)
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok {
+		panic(fmt.Sprintf("exec.Command(\"false\").Run() returned %T, not *exec.ExitError; is \"false\" on PATH?", err))
+	}
+	return exitErr
 }
 
 var _ = Describe("Wizard", func() {
@@ -329,9 +334,7 @@ var _ = Describe("Wizard", func() {
 		Describe("editDescription via PromptForDescription", func() {
 			It("warns on gum crash and falls back to placeholder", func() {
 				crashErr := fmt.Errorf("gum: permission denied")
-				callCount := 0
 				runner := func(args ...string) ([]byte, error) {
-					callCount++
 					if args[0] == "confirm" {
 						return nil, nil // user said "yes" to editing
 					}

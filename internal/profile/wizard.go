@@ -55,6 +55,7 @@ func (wio WizardIO) gumOutput(args ...string) ([]byte, error) {
 }
 
 // gumExec executes a gum command without capturing stdout.
+// Intended for commands like "gum confirm" where only the exit code matters.
 // Uses GumRun if set, otherwise shells out to gum.
 func (wio WizardIO) gumExec(args ...string) error {
 	if wio.GumRun != nil {
