@@ -89,7 +89,7 @@ func testGumWizardIO(runner func(args ...string) ([]byte, error)) (WizardIO, *by
 }
 
 // makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
-// Panics with a descriptive message if the shell command fails unexpectedly.
+// Fails the test if the shell command does not produce an ExitError.
 func makeExitErrorWithCode(t *testing.T, code int) *exec.ExitError {
 	t.Helper()
 	err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
@@ -196,9 +196,12 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 
 		available := []string{"plugin-a", "plugin-b"}
 		installed := map[string]bool{"plugin-a@marketplace": true}
-		_, err := refinePluginSelection(wio, available, installed)
+		result, err := refinePluginSelection(wio, available, installed)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) == 0 {
+			t.Error("expected pre-selected plugins on cancel, got empty")
 		}
 		if errBuf.String() != "" {
 			t.Errorf("expected no warning for user cancel, got %q", errBuf.String())

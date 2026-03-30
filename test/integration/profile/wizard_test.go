@@ -42,13 +42,12 @@ func gumWizardIO(input string, runner func(args ...string) ([]byte, error)) (pro
 }
 
 // makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
-// Panics with a descriptive message if the shell command fails unexpectedly.
+// Fails the current Ginkgo spec if the shell command does not produce an ExitError.
 func makeExitErrorWithCode(code int) *exec.ExitError {
 	err := exec.Command("sh", "-c", fmt.Sprintf("exit %d", code)).Run()
 	exitErr, ok := err.(*exec.ExitError)
-	if !ok {
-		panic(fmt.Sprintf("exec.Command(\"sh\", \"-c\", \"exit %d\").Run() returned %T, not *exec.ExitError", code, err))
-	}
+	Expect(ok).To(BeTrue(), fmt.Sprintf(
+		"exec.Command(\"sh\", \"-c\", \"exit %d\").Run() returned %T, not *exec.ExitError", code, err))
 	return exitErr
 }
 

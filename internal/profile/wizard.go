@@ -25,7 +25,7 @@ type WizardIO struct {
 	Out      io.Writer
 	Err      io.Writer
 	LookPath func(string) (string, error)         // resolves gum binary path
-	GumRun   func(args ...string) ([]byte, error) // executes gum commands; nil = real exec
+	GumRun   func(args ...string) ([]byte, error) // executes gum commands; nil = shell out with In/Err wired
 }
 
 // NewWizardIO constructs a WizardIO, deriving the buffered reader from in.
@@ -55,7 +55,7 @@ func (wio WizardIO) gumOutput(args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
-// gumExec executes a gum command without capturing stdout.
+// gumExec executes a gum command, discarding stdout.
 // Intended for commands like "gum confirm" where only the exit code matters.
 func (wio WizardIO) gumExec(args ...string) error {
 	_, err := wio.gumOutput(args...)
