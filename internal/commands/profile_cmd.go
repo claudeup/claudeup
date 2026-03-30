@@ -2662,9 +2662,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		return saveAndPrintNewProfile(newProfile, profilesDir)
 	}
 
-	// Wizard mode (interactive) - existing code continues...
-	// Single WizardIO shared across all wizard steps so the buffered reader
-	// is not re-created between sequential interactive prompts.
+	// Shared across all wizard steps to preserve buffered reader state.
 	wio := profile.DefaultWizardIO()
 
 	// Step 1: Get profile name

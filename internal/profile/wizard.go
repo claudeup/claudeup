@@ -15,52 +15,34 @@ import (
 	"strings"
 )
 
-// WizardIO encapsulates I/O dependencies for interactive wizard functions.
-// Production code uses DefaultWizardIO(); tests inject readers/writers for
-// deterministic behavior without TTY or gum.
-//
-// BufIn is a shared *bufio.Reader over In. Multiple wizard functions called
-// in sequence must share a single buffered reader; creating separate
-// bufio.NewReader instances causes data loss because each one buffers ahead
-// from the underlying io.Reader.
+// WizardIO provides I/O dependencies for interactive wizard functions.
+// All wizard steps in a sequence must share one WizardIO so the buffered
+// reader state is preserved between prompts.
 type WizardIO struct {
-	In       io.Reader                      // raw stdin (used by gum subprocesses)
-	BufIn    *bufio.Reader                  // buffered reader for fallback line reads
-	Out      io.Writer                      // stdout for menus and messages
-	Err      io.Writer                      // stderr for gum subprocess UI
-	LookPath func(string) (string, error)   // gum detection (allows mocking)
+	In       io.Reader
+	bufIn    *bufio.Reader // derived from In; use BufIn() accessor
+	Out      io.Writer
+	Err      io.Writer
+	LookPath func(string) (string, error) // resolves gum binary path
 }
+
+// NewWizardIO constructs a WizardIO, deriving the buffered reader from in.
+func NewWizardIO(in io.Reader, out, errW io.Writer, lookPath func(string) (string, error)) WizardIO {
+	return WizardIO{
+		In:       in,
+		bufIn:    bufio.NewReader(in),
+		Out:      out,
+		Err:      errW,
+		LookPath: lookPath,
+	}
+}
+
+// BufIn returns the shared buffered reader over In.
+func (wio WizardIO) BufIn() *bufio.Reader { return wio.bufIn }
 
 // DefaultWizardIO returns a WizardIO wired to the real OS streams.
 func DefaultWizardIO() WizardIO {
-	return WizardIO{
-		In:       os.Stdin,
-		BufIn:    bufio.NewReader(os.Stdin),
-		Out:      os.Stdout,
-		Err:      os.Stderr,
-		LookPath: exec.LookPath,
-	}
-}
-
-// withDefaults returns a copy with nil fields filled from DefaultWizardIO().
-// This prevents panics when callers construct a partial WizardIO.
-func (wio WizardIO) withDefaults() WizardIO {
-	if wio.In == nil {
-		wio.In = os.Stdin
-	}
-	if wio.BufIn == nil {
-		wio.BufIn = bufio.NewReader(wio.In)
-	}
-	if wio.Out == nil {
-		wio.Out = os.Stdout
-	}
-	if wio.Err == nil {
-		wio.Err = os.Stderr
-	}
-	if wio.LookPath == nil {
-		wio.LookPath = exec.LookPath
-	}
-	return wio
+	return NewWizardIO(os.Stdin, os.Stdout, os.Stderr, exec.LookPath)
 }
 
 // validNameRegex matches valid profile names: alphanumeric, hyphens, underscores
@@ -174,7 +156,7 @@ func filterValidMarketplaces(marketplaces []Marketplace) []Marketplace {
 
 // installedPluginsFile represents the structure of installed_plugins.json
 type installedPluginsFile struct {
-	Version int                                `json:"version"`
+	Version int                         `json:"version"`
 	Plugins map[string][]map[string]any `json:"plugins"`
 }
 
@@ -208,8 +190,7 @@ func getInstalledPlugins() map[string]bool {
 // PromptForName prompts the user to enter a profile name
 // Returns the validated name or an error
 func PromptForName(wio WizardIO) (string, error) {
-	wio = wio.withDefaults()
-	reader := wio.BufIn
+	reader := wio.BufIn()
 
 	for {
 		fmt.Fprint(wio.Out, "Profile name: ")
@@ -236,7 +217,6 @@ func PromptForName(wio WizardIO) (string, error) {
 // SelectMarketplaces prompts user to select marketplaces
 // Returns selected marketplaces or error
 func SelectMarketplaces(wio WizardIO, available []Marketplace) ([]Marketplace, error) {
-	wio = wio.withDefaults()
 	if len(available) == 0 {
 		return nil, fmt.Errorf("no marketplaces available")
 	}
@@ -300,7 +280,7 @@ func fallbackMarketplaceSelection(wio WizardIO, available []Marketplace) ([]Mark
 	}
 	fmt.Fprint(wio.Out, "\nYour selection: ")
 
-	reader := wio.BufIn
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read input: %w", err)
@@ -336,7 +316,6 @@ func fallbackMarketplaceSelection(wio WizardIO, available []Marketplace) ([]Mark
 // SelectPluginsForMarketplace prompts user to select plugins from a marketplace
 // Uses category-based selection if marketplace has categories, otherwise flat list
 func SelectPluginsForMarketplace(wio WizardIO, marketplace Marketplace) ([]string, error) {
-	wio = wio.withDefaults()
 	if HasCategories(marketplace.Repo) {
 		return selectPluginsByCategory(wio, marketplace)
 	}
@@ -431,7 +410,7 @@ func fallbackCategorySelection(wio WizardIO, categories []Category) ([]Category,
 	}
 	fmt.Fprint(wio.Out, "\nYour selection: ")
 
-	reader := wio.BufIn
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read input: %w", err)
@@ -572,15 +551,10 @@ func fallbackPluginRefinement(wio WizardIO, availablePlugins []string, installed
 	}
 	fmt.Fprint(wio.Out, "\nYour selection: ")
 
-	reader := wio.BufIn
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
-		// On error, return pre-selected plugins
-		result := make([]string, len(preselected))
-		for i, idx := range preselected {
-			result[i] = availablePlugins[idx-1]
-		}
-		return result, nil
+		return nil, fmt.Errorf("failed to read input: %w", err)
 	}
 
 	input = strings.TrimSpace(input)
@@ -731,7 +705,6 @@ func GenerateWizardDescription(marketplaceCount, pluginCount int) string {
 
 // PromptForDescription shows auto-generated description and allows editing
 func PromptForDescription(wio WizardIO, autoGenerated string) (string, error) {
-	wio = wio.withDefaults()
 	// Check if gum is available
 	if _, err := wio.LookPath("gum"); err != nil {
 		return fallbackDescriptionPrompt(wio, autoGenerated)
@@ -775,7 +748,7 @@ func fallbackDescriptionPrompt(wio WizardIO, autoGenerated string) (string, erro
 	fmt.Fprintf(wio.Out, "Edit description?\n  Auto-generated: %s\n", autoGenerated)
 	fmt.Fprint(wio.Out, "[y/N]: ")
 
-	reader := wio.BufIn
+	reader := wio.BufIn()
 	input, err := reader.ReadString('\n')
 	if err != nil {
 		return autoGenerated, nil
@@ -787,7 +760,7 @@ func fallbackDescriptionPrompt(wio WizardIO, autoGenerated string) (string, erro
 		fmt.Fprint(wio.Out, "\nEnter custom description: ")
 		newInput, err := reader.ReadString('\n')
 		if err != nil {
-			return autoGenerated, nil
+			return "", fmt.Errorf("failed to read input: %w", err)
 		}
 
 		description := strings.TrimSpace(newInput)

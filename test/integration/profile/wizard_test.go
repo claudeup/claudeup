@@ -3,7 +3,6 @@
 package profile_test
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"strings"
@@ -22,13 +21,7 @@ func noGumLookPath(name string) (string, error) {
 func testWizardIO(input string) (profile.WizardIO, *bytes.Buffer) {
 	out := &bytes.Buffer{}
 	in := strings.NewReader(input)
-	return profile.WizardIO{
-		In:       in,
-		BufIn:    bufio.NewReader(in),
-		Out:      out,
-		Err:      &bytes.Buffer{},
-		LookPath: noGumLookPath,
-	}, out
+	return profile.NewWizardIO(in, out, &bytes.Buffer{}, noGumLookPath), out
 }
 
 var _ = Describe("Wizard", func() {
@@ -176,6 +169,41 @@ var _ = Describe("Wizard", func() {
 			_, err := profile.SelectMarketplaces(wio, marketplaces)
 			Expect(err).To(HaveOccurred())
 		})
+
+		It("returns error on out-of-range selection", func() {
+			marketplaces := []profile.Marketplace{
+				{Source: "github", Repo: "owner/first"},
+				{Source: "github", Repo: "owner/second"},
+			}
+			wio, _ := testWizardIO("99\n")
+
+			_, err := profile.SelectMarketplaces(wio, marketplaces)
+			Expect(err).To(MatchError("invalid selection: 99"))
+		})
+
+		It("returns error on non-numeric selection", func() {
+			marketplaces := []profile.Marketplace{
+				{Source: "github", Repo: "owner/first"},
+			}
+			wio, _ := testWizardIO("abc\n")
+
+			_, err := profile.SelectMarketplaces(wio, marketplaces)
+			Expect(err).To(MatchError("invalid selection: abc"))
+		})
+
+		It("deduplicates repeated marketplace numbers", func() {
+			marketplaces := []profile.Marketplace{
+				{Source: "github", Repo: "owner/first"},
+				{Source: "github", Repo: "owner/second"},
+			}
+			wio, _ := testWizardIO("1,1,2\n")
+
+			selected, err := profile.SelectMarketplaces(wio, marketplaces)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(selected).To(HaveLen(2))
+			Expect(selected[0].Repo).To(Equal("owner/first"))
+			Expect(selected[1].Repo).To(Equal("owner/second"))
+		})
 	})
 
 	Describe("SelectPluginsForMarketplace", func() {
@@ -203,6 +231,18 @@ var _ = Describe("Wizard", func() {
 			plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(plugins).To(HaveLen(1))
+		})
+
+		It("returns empty plugins when 'q' skips category selection", func() {
+			marketplace := profile.Marketplace{
+				Source: "github",
+				Repo:   "wshobson/agents",
+			}
+			wio, _ := testWizardIO("q\n")
+
+			plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(plugins).To(BeEmpty())
 		})
 
 		It("uses flat selection for marketplaces without categories", func() {
@@ -243,6 +283,14 @@ var _ = Describe("Wizard", func() {
 			desc, err := profile.PromptForDescription(wio, "Auto description")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(desc).To(Equal("My custom description"))
+		})
+
+		It("returns error when user says yes but input ends", func() {
+			wio, _ := testWizardIO("y\n")
+
+			_, err := profile.PromptForDescription(wio, "Auto description")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to read input"))
 		})
 
 		It("uses auto-generated if user says yes but enters empty description", func() {
