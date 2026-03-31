@@ -2694,6 +2694,9 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	availableMarketplaces := profile.GetAvailableMarketplaces()
 	selectedMarketplaces, err := profile.SelectMarketplaces(wio, availableMarketplaces)
 	if err != nil {
+		if errors.Is(err, profile.ErrGumCancelled) {
+			return fmt.Errorf("profile creation cancelled")
+		}
 		return fmt.Errorf("failed to select marketplaces: %w", err)
 	}
 
@@ -2709,6 +2712,12 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 		plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 		if err != nil {
+			// ErrGumCancelled propagates from selectCategories for category-based
+			// marketplaces. For flat marketplaces, refinePluginSelection returns
+			// preselected plugins on cancel (no error).
+			if errors.Is(err, profile.ErrGumCancelled) {
+				return fmt.Errorf("profile creation cancelled")
+			}
 			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
 		}
 
@@ -2726,7 +2735,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	// Step 4: Generate and edit description
 	autoDesc := profile.GenerateWizardDescription(len(selectedMarketplaces), len(allPlugins))
 	description, err := profile.PromptForDescription(wio, autoDesc)
-	if err != nil {
+	if err != nil && !errors.Is(err, profile.ErrGumCancelled) {
 		return fmt.Errorf("failed to get description: %w", err)
 	}
 

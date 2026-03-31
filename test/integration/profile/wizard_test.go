@@ -349,7 +349,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("does not warn on user cancellation", func() {
+			It("returns placeholder and ErrGumCancelled on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -360,7 +360,9 @@ var _ = Describe("Wizard", func() {
 				wio, _, errBuf := gumWizardIO("", runner)
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCancelled")
 				Expect(desc).To(Equal("Auto description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
@@ -380,7 +382,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("does not warn when user says no", func() {
+			It("returns auto-generated and ErrGumCancelled when user says no", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr // user said "no"
@@ -388,7 +390,9 @@ var _ = Describe("Wizard", func() {
 				wio, _, errBuf := gumWizardIO("", runner)
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCancelled")
 				Expect(desc).To(Equal("Auto description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
@@ -414,7 +418,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("does not warn on user cancellation", func() {
+			It("wraps ErrGumCancelled on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -426,10 +430,12 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCancelled")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("treats SIGINT (exit code 130) as cancellation", func() {
+			It("treats SIGINT (exit code 130) as cancellation with ErrGumCancelled", func() {
 				exitErr := makeExitErrorWithCode(130)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -441,7 +447,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("cancelled"))
+				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
+					"SIGINT cancel should wrap ErrGumCancelled")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
@@ -481,7 +488,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("does not warn on user cancellation", func() {
+			It("wraps ErrGumCancelled on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -494,6 +501,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCancelled")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})
