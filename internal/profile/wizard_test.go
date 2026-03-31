@@ -100,54 +100,6 @@ func makeExitErrorWithCode(t *testing.T, code int) *exec.ExitError {
 	return exitErr
 }
 
-func TestWarnIfGumCrash(t *testing.T) {
-	t.Run("writes warning for non-ExitError", func(t *testing.T) {
-		var buf bytes.Buffer
-		warnIfGumCrash(fmt.Errorf("permission denied"), &buf, "editor failed")
-		if !strings.Contains(buf.String(), "Warning:") {
-			t.Errorf("expected warning, got %q", buf.String())
-		}
-		if !strings.Contains(buf.String(), "permission denied") {
-			t.Errorf("expected error detail in warning, got %q", buf.String())
-		}
-	})
-
-	t.Run("silent for ExitError code 1 (user cancel)", func(t *testing.T) {
-		var buf bytes.Buffer
-		exitErr := makeExitErrorWithCode(t, 1)
-		warnIfGumCrash(exitErr, &buf, "editor failed")
-		if buf.String() != "" {
-			t.Errorf("expected no output for user cancel, got %q", buf.String())
-		}
-	})
-
-	t.Run("silent for ExitError code 130 (SIGINT)", func(t *testing.T) {
-		var buf bytes.Buffer
-		exitErr := makeExitErrorWithCode(t, 130)
-		warnIfGumCrash(exitErr, &buf, "editor failed")
-		if buf.String() != "" {
-			t.Errorf("expected no output for SIGINT cancel, got %q", buf.String())
-		}
-	})
-
-	t.Run("warns for ExitError with non-cancel exit code", func(t *testing.T) {
-		var buf bytes.Buffer
-		exitErr := makeExitErrorWithCode(t, 2)
-		warnIfGumCrash(exitErr, &buf, "editor failed")
-		if !strings.Contains(buf.String(), "Warning:") {
-			t.Errorf("expected warning for exit code 2, got %q", buf.String())
-		}
-	})
-
-	t.Run("silent for nil error", func(t *testing.T) {
-		var buf bytes.Buffer
-		warnIfGumCrash(nil, &buf, "editor failed")
-		if buf.String() != "" {
-			t.Errorf("expected no output for nil error, got %q", buf.String())
-		}
-	})
-}
-
 func TestIsGumCancel(t *testing.T) {
 	t.Run("true for exit code 1 (user declined)", func(t *testing.T) {
 		exitErr := makeExitErrorWithCode(t, 1)
@@ -202,8 +154,8 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		if result != nil {
 			t.Errorf("expected nil result on crash, got %v", result)
 		}
-		if !strings.Contains(errBuf.String(), "Warning:") {
-			t.Errorf("expected warning on stderr, got %q", errBuf.String())
+		if errBuf.String() != "" {
+			t.Errorf("expected no stderr output (error propagated via return), got %q", errBuf.String())
 		}
 	})
 
@@ -225,8 +177,8 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		if result != nil {
 			t.Errorf("expected nil result on crash, got %v", result)
 		}
-		if !strings.Contains(errBuf.String(), "Warning:") {
-			t.Errorf("expected warning for exit code 2, got %q", errBuf.String())
+		if errBuf.String() != "" {
+			t.Errorf("expected no stderr output (error propagated via return), got %q", errBuf.String())
 		}
 	})
 
