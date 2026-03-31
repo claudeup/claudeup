@@ -187,23 +187,23 @@ func TestParseNumberedSelection(t *testing.T) {
 	}
 }
 
-func TestErrGumCancelled(t *testing.T) {
+func TestErrGumCanceled(t *testing.T) {
 	t.Run("sentinel unwraps from wrapped error", func(t *testing.T) {
-		wrapped := fmt.Errorf("marketplace selection cancelled: %w", ErrGumCancelled)
-		if !errors.Is(wrapped, ErrGumCancelled) {
-			t.Error("expected errors.Is to match ErrGumCancelled in wrapped error")
+		wrapped := fmt.Errorf("marketplace selection cancelled: %w", ErrGumCanceled)
+		if !errors.Is(wrapped, ErrGumCanceled) {
+			t.Error("expected errors.Is to match ErrGumCanceled in wrapped error")
 		}
 	})
 
 	t.Run("does not match unrelated errors", func(t *testing.T) {
 		unrelated := fmt.Errorf("something else went wrong")
-		if errors.Is(unrelated, ErrGumCancelled) {
-			t.Error("expected errors.Is to NOT match ErrGumCancelled in unrelated error")
+		if errors.Is(unrelated, ErrGumCanceled) {
+			t.Error("expected errors.Is to NOT match ErrGumCanceled in unrelated error")
 		}
 	})
 }
 
-func TestSelectMarketplaces_CancelWrapsErrGumCancelled(t *testing.T) {
+func TestSelectMarketplaces_CancelWrapsErrGumCanceled(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
 	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
 		return nil, exitErr
@@ -216,12 +216,12 @@ func TestSelectMarketplaces_CancelWrapsErrGumCancelled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on cancel, got nil")
 	}
-	if !errors.Is(err, ErrGumCancelled) {
-		t.Errorf("expected error to wrap ErrGumCancelled, got: %v", err)
+	if !errors.Is(err, ErrGumCanceled) {
+		t.Errorf("expected error to wrap ErrGumCanceled, got: %v", err)
 	}
 }
 
-func TestSelectCategories_CancelWrapsErrGumCancelled(t *testing.T) {
+func TestSelectCategories_CancelWrapsErrGumCanceled(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
 	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
 		return nil, exitErr
@@ -234,12 +234,12 @@ func TestSelectCategories_CancelWrapsErrGumCancelled(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error on cancel, got nil")
 	}
-	if !errors.Is(err, ErrGumCancelled) {
-		t.Errorf("expected error to wrap ErrGumCancelled, got: %v", err)
+	if !errors.Is(err, ErrGumCanceled) {
+		t.Errorf("expected error to wrap ErrGumCanceled, got: %v", err)
 	}
 }
 
-func TestPromptForDescription_CancelWrapsErrGumCancelled(t *testing.T) {
+func TestPromptForDescription_CancelWrapsErrGumCanceled(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
 	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
 		return nil, exitErr // user says "no" to confirm
@@ -250,13 +250,13 @@ func TestPromptForDescription_CancelWrapsErrGumCancelled(t *testing.T) {
 	if desc != "Auto description" {
 		t.Errorf("expected auto description on cancel, got %q", desc)
 	}
-	// Error should wrap ErrGumCancelled for structural detection
-	if err == nil || !errors.Is(err, ErrGumCancelled) {
-		t.Errorf("expected error wrapping ErrGumCancelled, got: %v", err)
+	// Error should wrap ErrGumCanceled for structural detection
+	if err == nil || !errors.Is(err, ErrGumCanceled) {
+		t.Errorf("expected error wrapping ErrGumCanceled, got: %v", err)
 	}
 }
 
-func TestEditDescription_CancelWrapsErrGumCancelled(t *testing.T) {
+func TestEditDescription_CancelWrapsErrGumCanceled(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
 	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
 		if args[0] == "confirm" {
@@ -270,9 +270,9 @@ func TestEditDescription_CancelWrapsErrGumCancelled(t *testing.T) {
 	if desc != "Auto description" {
 		t.Errorf("expected placeholder on cancel, got %q", desc)
 	}
-	// Error should wrap ErrGumCancelled for structural detection
-	if err == nil || !errors.Is(err, ErrGumCancelled) {
-		t.Errorf("expected error wrapping ErrGumCancelled, got: %v", err)
+	// Error should wrap ErrGumCanceled for structural detection
+	if err == nil || !errors.Is(err, ErrGumCanceled) {
+		t.Errorf("expected error wrapping ErrGumCanceled, got: %v", err)
 	}
 }
 

@@ -349,7 +349,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("returns placeholder and ErrGumCancelled on user cancellation", func() {
+			It("returns placeholder and ErrGumCanceled on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -361,8 +361,8 @@ var _ = Describe("Wizard", func() {
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
 				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
-					"cancel error should wrap ErrGumCancelled")
+				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCanceled")
 				Expect(desc).To(Equal("Auto description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
@@ -382,7 +382,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("returns auto-generated and ErrGumCancelled when user says no", func() {
+			It("returns auto-generated and ErrGumCanceled when user says no", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr // user said "no"
@@ -391,8 +391,8 @@ var _ = Describe("Wizard", func() {
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
 				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
-					"cancel error should wrap ErrGumCancelled")
+				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCanceled")
 				Expect(desc).To(Equal("Auto description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
@@ -418,7 +418,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("wraps ErrGumCancelled on user cancellation", func() {
+			It("wraps ErrGumCanceled on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -430,12 +430,12 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
-					"cancel error should wrap ErrGumCancelled")
+				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCanceled")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("treats SIGINT (exit code 130) as cancellation with ErrGumCancelled", func() {
+			It("treats SIGINT (exit code 130) as cancellation with ErrGumCanceled", func() {
 				exitErr := makeExitErrorWithCode(130)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -447,8 +447,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
-					"SIGINT cancel should wrap ErrGumCancelled")
+				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
+					"SIGINT cancel should wrap ErrGumCanceled")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
@@ -488,7 +488,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("wraps ErrGumCancelled on user cancellation", func() {
+			It("wraps ErrGumCanceled on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -501,8 +501,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCancelled)).To(BeTrue(),
-					"cancel error should wrap ErrGumCancelled")
+				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
+					"cancel error should wrap ErrGumCanceled")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})

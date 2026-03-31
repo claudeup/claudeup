@@ -2694,7 +2694,7 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	availableMarketplaces := profile.GetAvailableMarketplaces()
 	selectedMarketplaces, err := profile.SelectMarketplaces(wio, availableMarketplaces)
 	if err != nil {
-		if errors.Is(err, profile.ErrGumCancelled) {
+		if errors.Is(err, profile.ErrGumCanceled) {
 			return fmt.Errorf("profile creation cancelled")
 		}
 		return fmt.Errorf("failed to select marketplaces: %w", err)
@@ -2712,10 +2712,10 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 		plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 		if err != nil {
-			// ErrGumCancelled propagates from selectCategories for category-based
+			// ErrGumCanceled propagates from selectCategories for category-based
 			// marketplaces. For flat marketplaces, refinePluginSelection returns
 			// preselected plugins on cancel (no error).
-			if errors.Is(err, profile.ErrGumCancelled) {
+			if errors.Is(err, profile.ErrGumCanceled) {
 				return fmt.Errorf("profile creation cancelled")
 			}
 			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
@@ -2734,8 +2734,11 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 	// Step 4: Generate and edit description
 	autoDesc := profile.GenerateWizardDescription(len(selectedMarketplaces), len(allPlugins))
+	// PromptForDescription returns a valid auto-generated description alongside
+	// ErrGumCanceled when the user declines to edit. Use the returned value;
+	// only abort on non-cancel errors (e.g., gum crash).
 	description, err := profile.PromptForDescription(wio, autoDesc)
-	if err != nil && !errors.Is(err, profile.ErrGumCancelled) {
+	if err != nil && !errors.Is(err, profile.ErrGumCanceled) {
 		return fmt.Errorf("failed to get description: %w", err)
 	}
 
