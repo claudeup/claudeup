@@ -16,8 +16,8 @@ import (
 	"strings"
 )
 
-// ErrGumCanceled indicates the user canceled a gum prompt (Esc, Ctrl+C, or decline).
-// Callers can use errors.Is(err, ErrGumCanceled) for structural cancel detection
+// ErrGumCanceled indicates the user canceled a gum prompt.
+// Callers use errors.Is(err, ErrGumCanceled) for structural cancel detection
 // instead of string-matching on error messages.
 var ErrGumCanceled = errors.New("user canceled")
 

@@ -28,8 +28,8 @@ var _ = Describe("profile create", func() {
 			Expect(result.ExitCode).NotTo(Equal(0))
 			// Wizard starts but fails due to lack of TTY.
 			// With gum installed, gum exits 1 (no TTY), classified as user
-			// cancellation via ErrGumCanceled → "profile creation cancelled".
-			// Without gum, the stdin fallback hits EOF → "failed to select marketplaces".
+			// cancellation via ErrGumCanceled -- "profile creation cancelled".
+			// Without gum, the stdin fallback hits EOF -- "failed to select marketplaces".
 			// The test helper may also time out if gum blocks on input.
 			if !result.TimedOut {
 				Expect(result.Stderr).To(SatisfyAny(
