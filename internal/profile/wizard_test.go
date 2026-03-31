@@ -155,6 +155,9 @@ func TestParseNumberedSelection(t *testing.T) {
 		{"empty invalid", "", 3, nil, "no selection"},
 		{"negative invalid", "-1", 3, nil, "invalid selection: -1"},
 		{"mixed valid and invalid", "1,abc", 3, nil, "invalid selection: abc"},
+		{"trailing comma", "1,2,", 3, nil, "invalid selection: "},
+		{"whitespace only", "   ", 3, nil, "no selection"},
+		{"max zero rejects all", "1", 0, nil, "invalid selection: 1"},
 	}
 
 	for _, tt := range tests {
