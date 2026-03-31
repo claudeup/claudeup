@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "claudeup",
+  "project_id": "725fe7ab-b1c1-4284-8202-c0ced7155688"
+}

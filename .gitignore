@@ -61,3 +61,8 @@ kuzu-memories/
 # Jekyll
 docs/_site/
 
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
