@@ -353,8 +353,7 @@ func fallbackMarketplaceSelection(wio WizardIO, available []Marketplace) ([]Mark
 		return nil, fmt.Errorf("failed to read input: %w", err)
 	}
 
-	input = strings.TrimSpace(input)
-	if input == "" {
+	if strings.TrimSpace(input) == "" {
 		return nil, fmt.Errorf("no marketplaces selected")
 	}
 
