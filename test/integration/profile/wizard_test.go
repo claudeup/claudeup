@@ -4,6 +4,7 @@ package profile_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -331,7 +332,7 @@ var _ = Describe("Wizard", func() {
 
 	Describe("Gum error classification", func() {
 		Describe("editDescription via PromptForDescription", func() {
-			It("warns on gum crash and falls back to placeholder", func() {
+			It("returns error on gum crash", func() {
 				crashErr := fmt.Errorf("gum: permission denied")
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -342,11 +343,10 @@ var _ = Describe("Wizard", func() {
 				}
 				wio, _, errBuf := gumWizardIO("", runner)
 
-				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(desc).To(Equal("Auto description"))
-				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
-				Expect(errBuf.String()).To(ContainSubstring("permission denied"))
+				_, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("editor failed"))
+				Expect(errBuf.String()).To(BeEmpty())
 			})
 
 			It("does not warn on user cancellation", func() {
@@ -367,18 +367,17 @@ var _ = Describe("Wizard", func() {
 		})
 
 		Describe("PromptForDescription confirm step", func() {
-			It("warns on gum crash during confirmation", func() {
+			It("returns error on gum crash during confirmation", func() {
 				crashErr := fmt.Errorf("gum: TTY required")
 				runner := func(args ...string) ([]byte, error) {
 					return nil, crashErr
 				}
 				wio, _, errBuf := gumWizardIO("", runner)
 
-				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(desc).To(Equal("Auto description"))
-				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
-				Expect(errBuf.String()).To(ContainSubstring("TTY required"))
+				_, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("confirmation prompt failed"))
+				Expect(errBuf.String()).To(BeEmpty())
 			})
 
 			It("does not warn when user says no", func() {
@@ -399,7 +398,7 @@ var _ = Describe("Wizard", func() {
 		// (same package, can access unexported function)
 
 		Describe("SelectMarketplaces", func() {
-			It("warns on gum crash", func() {
+			It("returns error on gum crash", func() {
 				crashErr := fmt.Errorf("gum: broken pipe")
 				runner := func(args ...string) ([]byte, error) {
 					return nil, crashErr
@@ -411,8 +410,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
-				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
-				Expect(errBuf.String()).To(ContainSubstring("broken pipe"))
+				Expect(err.Error()).To(ContainSubstring("marketplace selection failed"))
+				Expect(errBuf.String()).To(BeEmpty())
 			})
 
 			It("does not warn on user cancellation", func() {
@@ -429,10 +428,43 @@ var _ = Describe("Wizard", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(errBuf.String()).To(BeEmpty())
 			})
+
+			It("treats SIGINT (exit code 130) as cancellation", func() {
+				exitErr := makeExitErrorWithCode(130)
+				runner := func(args ...string) ([]byte, error) {
+					return nil, exitErr
+				}
+				wio, _, errBuf := gumWizardIO("", runner)
+
+				marketplaces := []profile.Marketplace{
+					{Source: "github", Repo: "owner/first"},
+				}
+				_, err := profile.SelectMarketplaces(wio, marketplaces)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("cancelled"))
+				Expect(errBuf.String()).To(BeEmpty())
+			})
+
+			It("preserves wrapped ExitError for crash callers", func() {
+				exitErr := makeExitErrorWithCode(2)
+				runner := func(args ...string) ([]byte, error) {
+					return nil, exitErr
+				}
+				wio, _, _ := gumWizardIO("", runner)
+
+				marketplaces := []profile.Marketplace{
+					{Source: "github", Repo: "owner/first"},
+				}
+				_, err := profile.SelectMarketplaces(wio, marketplaces)
+				Expect(err).To(HaveOccurred())
+				var unwrapped *exec.ExitError
+				Expect(errors.As(err, &unwrapped)).To(BeTrue(),
+					"crash error should wrap *exec.ExitError for caller inspection")
+			})
 		})
 
 		Describe("selectCategories via SelectPluginsForMarketplace", func() {
-			It("warns on gum crash during category selection", func() {
+			It("returns error on gum crash during category selection", func() {
 				crashErr := fmt.Errorf("gum: signal killed")
 				runner := func(args ...string) ([]byte, error) {
 					return nil, crashErr
@@ -445,8 +477,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 				Expect(err).To(HaveOccurred())
-				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
-				Expect(errBuf.String()).To(ContainSubstring("signal killed"))
+				Expect(err.Error()).To(ContainSubstring("category selection failed"))
+				Expect(errBuf.String()).To(BeEmpty())
 			})
 
 			It("does not warn on user cancellation", func() {
@@ -467,7 +499,7 @@ var _ = Describe("Wizard", func() {
 		})
 
 		Describe("non-cancel ExitError (exit code 2)", func() {
-			It("warns on ExitError with non-cancel exit code in editDescription", func() {
+			It("returns error on ExitError with non-cancel exit code in editDescription", func() {
 				exitErr := makeExitErrorWithCode(2)
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -477,13 +509,13 @@ var _ = Describe("Wizard", func() {
 				}
 				wio, _, errBuf := gumWizardIO("", runner)
 
-				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(desc).To(Equal("Auto description"))
-				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
+				_, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("editor failed"))
+				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("warns on ExitError with non-cancel exit code in SelectMarketplaces", func() {
+			It("returns error on ExitError with non-cancel exit code in SelectMarketplaces", func() {
 				exitErr := makeExitErrorWithCode(2)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -495,7 +527,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
-				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
+				Expect(err.Error()).To(ContainSubstring("marketplace selection failed"))
+				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})
 
