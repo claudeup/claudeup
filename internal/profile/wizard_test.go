@@ -239,24 +239,22 @@ func TestSelectCategories_CancelWrapsErrGumCanceled(t *testing.T) {
 	}
 }
 
-func TestPromptForDescription_CancelWrapsErrGumCanceled(t *testing.T) {
+func TestPromptForDescription_CancelReturnsDefault(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
 	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
 		return nil, exitErr // user says "no" to confirm
 	})
 
 	desc, err := PromptForDescription(wio, "Auto description")
-	// Should return auto-generated value even on cancel
+	if err != nil {
+		t.Fatalf("expected nil error on description cancel, got: %v", err)
+	}
 	if desc != "Auto description" {
 		t.Errorf("expected auto description on cancel, got %q", desc)
 	}
-	// Error should wrap ErrGumCanceled for structural detection
-	if err == nil || !errors.Is(err, ErrGumCanceled) {
-		t.Errorf("expected error wrapping ErrGumCanceled, got: %v", err)
-	}
 }
 
-func TestEditDescription_CancelWrapsErrGumCanceled(t *testing.T) {
+func TestEditDescription_CancelReturnsPlaceholder(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
 	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
 		if args[0] == "confirm" {
@@ -266,13 +264,11 @@ func TestEditDescription_CancelWrapsErrGumCanceled(t *testing.T) {
 	})
 
 	desc, err := PromptForDescription(wio, "Auto description")
-	// Should return placeholder value even on cancel
+	if err != nil {
+		t.Fatalf("expected nil error on editor cancel, got: %v", err)
+	}
 	if desc != "Auto description" {
 		t.Errorf("expected placeholder on cancel, got %q", desc)
-	}
-	// Error should wrap ErrGumCanceled for structural detection
-	if err == nil || !errors.Is(err, ErrGumCanceled) {
-		t.Errorf("expected error wrapping ErrGumCanceled, got: %v", err)
 	}
 }
 

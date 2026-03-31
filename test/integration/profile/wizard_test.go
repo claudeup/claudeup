@@ -349,7 +349,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("returns placeholder and ErrGumCanceled on user cancellation", func() {
+			It("returns placeholder on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -360,9 +360,7 @@ var _ = Describe("Wizard", func() {
 				wio, _, errBuf := gumWizardIO("", runner)
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
-					"cancel error should wrap ErrGumCanceled")
+				Expect(err).NotTo(HaveOccurred())
 				Expect(desc).To(Equal("Auto description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
@@ -382,7 +380,7 @@ var _ = Describe("Wizard", func() {
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 
-			It("returns auto-generated and ErrGumCanceled when user says no", func() {
+			It("returns auto-generated description when user says no", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr // user said "no"
@@ -390,9 +388,7 @@ var _ = Describe("Wizard", func() {
 				wio, _, errBuf := gumWizardIO("", runner)
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).To(HaveOccurred())
-				Expect(errors.Is(err, profile.ErrGumCanceled)).To(BeTrue(),
-					"cancel error should wrap ErrGumCanceled")
+				Expect(err).NotTo(HaveOccurred())
 				Expect(desc).To(Equal("Auto description"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
@@ -556,6 +552,37 @@ var _ = Describe("Wizard", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(desc).To(Equal("My custom description"))
 				Expect(errBuf.String()).To(BeEmpty())
+			})
+		})
+
+		Describe("description cancel does not propagate ErrGumCanceled", func() {
+			It("returns auto-generated description with nil error when confirm is declined", func() {
+				exitErr := makeExitErrorWithCode(1)
+				runner := func(args ...string) ([]byte, error) {
+					return nil, exitErr // user said "no" to confirm
+				}
+				wio, _, _ := gumWizardIO("", runner)
+
+				desc, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).NotTo(HaveOccurred(),
+					"description cancel should not propagate ErrGumCanceled -- declining to edit is not a failure")
+				Expect(desc).To(Equal("Auto description"))
+			})
+
+			It("returns placeholder with nil error when editor is cancelled", func() {
+				exitErr := makeExitErrorWithCode(1)
+				runner := func(args ...string) ([]byte, error) {
+					if args[0] == "confirm" {
+						return nil, nil // user said "yes" to editing
+					}
+					return nil, exitErr // user cancelled the editor
+				}
+				wio, _, _ := gumWizardIO("", runner)
+
+				desc, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).NotTo(HaveOccurred(),
+					"editor cancel should not propagate ErrGumCanceled -- declining to edit is not a failure")
+				Expect(desc).To(Equal("Auto description"))
 			})
 		})
 	})
