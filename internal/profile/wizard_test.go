@@ -137,6 +137,53 @@ func TestIsGumCancel(t *testing.T) {
 	})
 }
 
+func TestParseNumberedSelection(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		max     int
+		want    []int
+		wantErr string
+	}{
+		{"single valid", "2", 3, []int{1}, ""},
+		{"multiple valid", "1,3", 3, []int{0, 2}, ""},
+		{"with spaces", " 1 , 2 ", 3, []int{0, 1}, ""},
+		{"deduplicates", "1,1,2", 3, []int{0, 1}, ""},
+		{"zero invalid", "0", 3, nil, "invalid selection: 0"},
+		{"over max invalid", "4", 3, nil, "invalid selection: 4"},
+		{"non-numeric invalid", "abc", 3, nil, "invalid selection: abc"},
+		{"empty invalid", "", 3, nil, "no selection"},
+		{"negative invalid", "-1", 3, nil, "invalid selection: -1"},
+		{"mixed valid and invalid", "1,abc", 3, nil, "invalid selection: abc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseNumberedSelection(tt.input, tt.max)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Errorf("error = %q, want containing %q", err.Error(), tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %v (len %d), want %v (len %d)", got, len(got), tt.want, len(tt.want))
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Errorf("got[%d] = %d, want %d", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
 func TestRefinePluginSelection_GumCrash(t *testing.T) {
 	t.Run("returns error on gum crash", func(t *testing.T) {
 		wio, errBuf := testGumWizardIO(func(args ...string) ([]byte, error) {
