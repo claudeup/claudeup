@@ -2694,6 +2694,9 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 	availableMarketplaces := profile.GetAvailableMarketplaces()
 	selectedMarketplaces, err := profile.SelectMarketplaces(wio, availableMarketplaces)
 	if err != nil {
+		if errors.Is(err, profile.ErrGumCanceled) {
+			return fmt.Errorf("profile creation cancelled")
+		}
 		return fmt.Errorf("failed to select marketplaces: %w", err)
 	}
 
@@ -2709,6 +2712,12 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 		plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 		if err != nil {
+			// Cancel at plugin refinement returns pre-selected plugins with no error
+			// (both flat and category-based paths). The sentinel is only returned
+			// by the category selection step itself.
+			if errors.Is(err, profile.ErrGumCanceled) {
+				return fmt.Errorf("profile creation cancelled")
+			}
 			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
 		}
 
