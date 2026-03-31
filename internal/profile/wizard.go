@@ -536,8 +536,7 @@ func refinePluginSelection(wio WizardIO, availablePlugins []string, installed ma
 	if err != nil {
 		if isGumCancel(err) {
 			// Cancelling refinement keeps current selections (preselected).
-			// Other cancel sites return an error because there is no
-			// meaningful default to fall back to.
+			// Sites without a meaningful default return a cancel error instead.
 			return preselected, nil
 		}
 		return nil, fmt.Errorf("plugin selection failed: %w", err)

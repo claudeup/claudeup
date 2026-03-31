@@ -4,6 +4,7 @@ package profile
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -179,6 +180,10 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		}
 		if errBuf.String() != "" {
 			t.Errorf("expected no stderr output (error propagated via return), got %q", errBuf.String())
+		}
+		var unwrapped *exec.ExitError
+		if !errors.As(err, &unwrapped) {
+			t.Error("expected crash error to wrap *exec.ExitError for caller inspection")
 		}
 	})
 
