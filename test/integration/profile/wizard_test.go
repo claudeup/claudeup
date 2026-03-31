@@ -331,7 +331,7 @@ var _ = Describe("Wizard", func() {
 
 	Describe("Gum error classification", func() {
 		Describe("editDescription via PromptForDescription", func() {
-			It("warns on gum crash and falls back to placeholder", func() {
+			It("returns error on gum crash after user confirmed edit", func() {
 				crashErr := fmt.Errorf("gum: permission denied")
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -342,9 +342,9 @@ var _ = Describe("Wizard", func() {
 				}
 				wio, _, errBuf := gumWizardIO("", runner)
 
-				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(desc).To(Equal("Auto description"))
+				_, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("editor failed"))
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 				Expect(errBuf.String()).To(ContainSubstring("permission denied"))
 			})
@@ -367,16 +367,16 @@ var _ = Describe("Wizard", func() {
 		})
 
 		Describe("PromptForDescription confirm step", func() {
-			It("warns on gum crash during confirmation", func() {
+			It("returns error on gum crash during confirmation", func() {
 				crashErr := fmt.Errorf("gum: TTY required")
 				runner := func(args ...string) ([]byte, error) {
 					return nil, crashErr
 				}
 				wio, _, errBuf := gumWizardIO("", runner)
 
-				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(desc).To(Equal("Auto description"))
+				_, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("confirmation prompt failed"))
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 				Expect(errBuf.String()).To(ContainSubstring("TTY required"))
 			})
@@ -399,7 +399,7 @@ var _ = Describe("Wizard", func() {
 		// (same package, can access unexported function)
 
 		Describe("SelectMarketplaces", func() {
-			It("warns on gum crash", func() {
+			It("returns wrapping error on gum crash", func() {
 				crashErr := fmt.Errorf("gum: broken pipe")
 				runner := func(args ...string) ([]byte, error) {
 					return nil, crashErr
@@ -411,11 +411,13 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("marketplace selection failed"))
+				Expect(err.Error()).NotTo(ContainSubstring("cancelled"))
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 				Expect(errBuf.String()).To(ContainSubstring("broken pipe"))
 			})
 
-			It("does not warn on user cancellation", func() {
+			It("returns cancelled error without warning on user cancellation", func() {
 				exitErr := makeExitErrorWithCode(1)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -427,12 +429,13 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("cancelled"))
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})
 
 		Describe("selectCategories via SelectPluginsForMarketplace", func() {
-			It("warns on gum crash during category selection", func() {
+			It("returns wrapping error on gum crash during category selection", func() {
 				crashErr := fmt.Errorf("gum: signal killed")
 				runner := func(args ...string) ([]byte, error) {
 					return nil, crashErr
@@ -445,6 +448,8 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("category selection failed"))
+				Expect(err.Error()).NotTo(ContainSubstring("cancelled"))
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 				Expect(errBuf.String()).To(ContainSubstring("signal killed"))
 			})
@@ -467,7 +472,7 @@ var _ = Describe("Wizard", func() {
 		})
 
 		Describe("non-cancel ExitError (exit code 2)", func() {
-			It("warns on ExitError with non-cancel exit code in editDescription", func() {
+			It("returns error on ExitError with non-cancel exit code in editDescription", func() {
 				exitErr := makeExitErrorWithCode(2)
 				runner := func(args ...string) ([]byte, error) {
 					if args[0] == "confirm" {
@@ -477,13 +482,13 @@ var _ = Describe("Wizard", func() {
 				}
 				wio, _, errBuf := gumWizardIO("", runner)
 
-				desc, err := profile.PromptForDescription(wio, "Auto description")
-				Expect(err).NotTo(HaveOccurred())
-				Expect(desc).To(Equal("Auto description"))
+				_, err := profile.PromptForDescription(wio, "Auto description")
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("editor failed"))
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 			})
 
-			It("warns on ExitError with non-cancel exit code in SelectMarketplaces", func() {
+			It("returns error on ExitError with non-cancel exit code in SelectMarketplaces", func() {
 				exitErr := makeExitErrorWithCode(2)
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr
@@ -495,6 +500,7 @@ var _ = Describe("Wizard", func() {
 				}
 				_, err := profile.SelectMarketplaces(wio, marketplaces)
 				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("marketplace selection failed"))
 				Expect(errBuf.String()).To(ContainSubstring("Warning:"))
 			})
 		})
