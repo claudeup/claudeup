@@ -311,6 +311,34 @@ func SelectMarketplaces(wio WizardIO, available []Marketplace) ([]Marketplace, e
 	return selected, nil
 }
 
+// parseNumberedSelection parses a comma-separated string of 1-based menu numbers,
+// validates each is in range [1, max], deduplicates, and returns 0-based indices.
+func parseNumberedSelection(input string, max int) ([]int, error) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return nil, fmt.Errorf("no selection")
+	}
+
+	parts := strings.Split(input, ",")
+	indices := make([]int, 0, len(parts))
+	seen := make(map[int]bool)
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		num, err := strconv.Atoi(part)
+		if err != nil || num < 1 || num > max {
+			return nil, fmt.Errorf("invalid selection: %s", part)
+		}
+		if seen[num] {
+			continue
+		}
+		seen[num] = true
+		indices = append(indices, num-1)
+	}
+
+	return indices, nil
+}
+
 // fallbackMarketplaceSelection provides simple numbered menu when gum unavailable
 func fallbackMarketplaceSelection(wio WizardIO, available []Marketplace) ([]Marketplace, error) {
 	fmt.Fprintln(wio.Out, "\nSelect marketplaces (enter numbers separated by commas):")
@@ -325,28 +353,18 @@ func fallbackMarketplaceSelection(wio WizardIO, available []Marketplace) ([]Mark
 		return nil, fmt.Errorf("failed to read input: %w", err)
 	}
 
-	// Parse comma-separated numbers
-	input = strings.TrimSpace(input)
-	if input == "" {
+	if strings.TrimSpace(input) == "" {
 		return nil, fmt.Errorf("no marketplaces selected")
 	}
 
-	parts := strings.Split(input, ",")
-	selected := make([]Marketplace, 0)
-	seen := make(map[int]bool)
+	indices, err := parseNumberedSelection(input, len(available))
+	if err != nil {
+		return nil, err
+	}
 
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		idx, err := strconv.Atoi(part)
-		if err != nil || idx < 1 || idx > len(available) {
-			return nil, fmt.Errorf("invalid selection: %s", part)
-		}
-		// Skip duplicates
-		if seen[idx] {
-			continue
-		}
-		seen[idx] = true
-		selected = append(selected, available[idx-1])
+	selected := make([]Marketplace, 0, len(indices))
+	for _, idx := range indices {
+		selected = append(selected, available[idx])
 	}
 
 	return selected, nil
@@ -461,22 +479,14 @@ func fallbackCategorySelection(wio WizardIO, categories []Category) ([]Category,
 		return []Category{}, nil
 	}
 
-	parts := strings.Split(input, ",")
-	selected := make([]Category, 0)
-	seen := make(map[int]bool)
+	indices, err := parseNumberedSelection(input, len(categories))
+	if err != nil {
+		return nil, err
+	}
 
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		idx, err := strconv.Atoi(part)
-		if err != nil || idx < 1 || idx > len(categories) {
-			return nil, fmt.Errorf("invalid selection: %s", part)
-		}
-		// Skip duplicates
-		if seen[idx] {
-			continue
-		}
-		seen[idx] = true
-		selected = append(selected, categories[idx-1])
+	selected := make([]Category, 0, len(indices))
+	for _, idx := range indices {
+		selected = append(selected, categories[idx])
 	}
 
 	return selected, nil
@@ -605,23 +615,14 @@ func fallbackPluginRefinement(wio WizardIO, availablePlugins []string, installed
 		return result, nil
 	}
 
-	// Parse comma-separated numbers
-	parts := strings.Split(input, ",")
-	selected := make([]string, 0)
-	seen := make(map[int]bool)
+	indices, err := parseNumberedSelection(input, len(availablePlugins))
+	if err != nil {
+		return nil, err
+	}
 
-	for _, part := range parts {
-		part = strings.TrimSpace(part)
-		idx, err := strconv.Atoi(part)
-		if err != nil || idx < 1 || idx > len(availablePlugins) {
-			return nil, fmt.Errorf("invalid selection: %s", part)
-		}
-		// Skip duplicates
-		if seen[idx] {
-			continue
-		}
-		seen[idx] = true
-		selected = append(selected, availablePlugins[idx-1])
+	selected := make([]string, 0, len(indices))
+	for _, idx := range indices {
+		selected = append(selected, availablePlugins[idx])
 	}
 
 	return selected, nil
