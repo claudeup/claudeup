@@ -5,6 +5,7 @@ package acceptance
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/profile"
@@ -24,12 +25,40 @@ func pathWithoutExecutable(name string) string {
 		if dir == "" {
 			continue
 		}
-		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+		if dirContainsExecutable(dir, name) {
 			continue
 		}
 		kept = append(kept, dir)
 	}
 	return strings.Join(kept, string(os.PathListSeparator))
+}
+
+func dirContainsExecutable(dir, name string) bool {
+	for _, candidate := range executableCandidates(name) {
+		if _, err := os.Stat(filepath.Join(dir, candidate)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func executableCandidates(name string) []string {
+	candidates := []string{name}
+	if runtime.GOOS != "windows" || filepath.Ext(name) != "" {
+		return candidates
+	}
+
+	pathExt := os.Getenv("PATHEXT")
+	if pathExt == "" {
+		pathExt = ".COM;.EXE;.BAT;.CMD"
+	}
+	for _, ext := range filepath.SplitList(strings.ReplaceAll(pathExt, ";", string(os.PathListSeparator))) {
+		if ext == "" {
+			continue
+		}
+		candidates = append(candidates, name+ext)
+	}
+	return candidates
 }
 
 var _ = Describe("profile create", func() {
