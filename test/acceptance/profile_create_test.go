@@ -40,7 +40,11 @@ func pathWithoutExecutable(name string) string {
 
 func dirContainsExecutable(dir, name string) bool {
 	for _, candidate := range executableCandidates(name) {
-		if _, err := os.Stat(filepath.Join(dir, candidate)); err == nil {
+		info, err := os.Stat(filepath.Join(dir, candidate))
+		if err != nil {
+			continue
+		}
+		if runtime.GOOS == "windows" || info.Mode()&0111 != 0 {
 			return true
 		}
 	}
