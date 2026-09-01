@@ -18,6 +18,11 @@ import (
 // provides an executable named `name` removed. Acceptance tests use this to
 // guarantee gum is never found on PATH, regardless of what happens to be
 // installed on the host running the test -- see #292.
+//
+// Pass the result as an extraEnv["PATH"] override to RunWithEnv: Cmd.Env
+// keeps only the last value for a duplicate key, so this override replaces
+// baseEnv()'s unfiltered PATH for the child process rather than merging
+// with it.
 func pathWithoutExecutable(name string) string {
 	dirs := filepath.SplitList(os.Getenv("PATH"))
 	kept := make([]string, 0, len(dirs))
