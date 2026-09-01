@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -93,6 +94,54 @@ var _ = Describe("setup", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			// Should show existing installation prompt (not profile error)
 			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+		})
+
+		It("preserves existing installation when settings.json is corrupted but other config has content", func() {
+			// Marketplace content is present, but settings.json is corrupted so
+			// the plugin read fails. Before the fix, a snapshot read error
+			// unconditionally meant "treat as fresh install" (see setup.go's
+			// hasExisting logic), which would have applied a default profile on
+			// top of a real, if partially unreadable, existing installation.
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source": map[string]interface{}{
+						"source": "github",
+						"repo":   "test-org/test-marketplace",
+					},
+				},
+			})
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, "settings.json"), []byte("{not valid json"), 0644)).To(Succeed())
+
+			result := env.RunWithInput("a\n", "setup")
+
+			Expect(result.Stdout).To(ContainSubstring("Could not fully read existing configuration"))
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No existing Claude Code configuration found"))
+		})
+
+		It("detects extension-only existing installations", func() {
+			extAgentsDir := filepath.Join(env.ClaudeupDir, "ext", "agents")
+			Expect(os.MkdirAll(extAgentsDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(extAgentsDir, "test-agent.md"), []byte("# Test Agent"), 0644)).To(Succeed())
+
+			activeAgentsDir := filepath.Join(env.ClaudeDir, "agents")
+			Expect(os.MkdirAll(activeAgentsDir, 0755)).To(Succeed())
+			Expect(os.Symlink(
+				filepath.Join(extAgentsDir, "test-agent.md"),
+				filepath.Join(activeAgentsDir, "test-agent.md"),
+			)).To(Succeed())
+
+			enabledConfig := map[string]map[string]bool{
+				"agents": {"test-agent.md": true},
+			}
+			data, err := json.MarshalIndent(enabledConfig, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), data, 0644)).To(Succeed())
+
+			result := env.RunWithInput("a\n", "setup")
+
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No existing Claude Code configuration found"))
 		})
 
 		It("validates profile for fresh installations", func() {

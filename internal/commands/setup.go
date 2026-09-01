@@ -75,7 +75,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 
 	existing, err := profile.Snapshot("existing", claudeDir, claudeJSONPath, claudeupHome)
-	hasExisting := err == nil && hasContent(existing)
+	if err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not fully read existing configuration: %v", err))
+	}
+	// A read error means we can't be sure there's nothing there; treat it as
+	// an existing (if partially unreadable) install rather than risk
+	// clobbering it with a fresh-install profile apply.
+	hasExisting := err != nil || hasContent(existing)
 
 	if hasExisting {
 		// User has existing Claude Code setup - preserve it
@@ -388,7 +394,7 @@ func getProfilesDir() string {
 }
 
 func hasContent(p *profile.Profile) bool {
-	return len(p.Plugins) > 0 || len(p.MCPServers) > 0 || len(p.Marketplaces) > 0
+	return p != nil && p.HasConfigFields()
 }
 
 func showProfileSummary(p *profile.Profile) {

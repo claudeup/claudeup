@@ -113,9 +113,16 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		current, err = Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 	}
 
-	if err != nil {
-		// If we can't read current state, treat as empty
-		current = &Profile{}
+	requiredSnapshotComponents := []snapshotComponent{
+		snapshotComponentMarketplaces,
+		snapshotComponentMCPServers,
+	}
+	if !profile.SkipPluginDiff {
+		requiredSnapshotComponents = append(requiredSnapshotComponents, snapshotComponentPlugins)
+	}
+	relevantSnapshotErr := filterSnapshotReadErrors(err, requiredSnapshotComponents...)
+	if relevantSnapshotErr != nil {
+		return nil, fmt.Errorf("failed to read current state: %w", relevantSnapshotErr)
 	}
 
 	diff := &Diff{}
@@ -838,7 +845,7 @@ func ShouldRunHook(profile *Profile, claudeDir, claudeJSONPath, claudeupHome str
 // isFirstRun checks if any plugins from the profile's marketplaces are enabled
 func isFirstRun(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string) bool {
 	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
-	if err != nil {
+	if relevantSnapshotErr := filterSnapshotReadErrors(err, snapshotComponentPlugins); relevantSnapshotErr != nil {
 		// Can't read current state - treat as first run
 		return true
 	}
@@ -1069,9 +1076,8 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 
 	// Get current state to find installed plugins
 	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
-	if err != nil {
-		// Can't read current state - nothing to remove
-		return result, nil
+	if relevantSnapshotErr := filterSnapshotReadErrors(err, snapshotComponentPlugins); relevantSnapshotErr != nil {
+		return nil, fmt.Errorf("failed to read current state: %w", relevantSnapshotErr)
 	}
 
 	// Build lookup from repo to marketplace name for removal

@@ -5,6 +5,7 @@ package profile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -49,6 +50,28 @@ type SnapshotOptions struct {
 	ProjectDir string // Required for project/local scope
 }
 
+type snapshotComponent string
+
+const (
+	snapshotComponentPlugins      snapshotComponent = "plugins"
+	snapshotComponentMarketplaces snapshotComponent = "marketplaces"
+	snapshotComponentMCPServers   snapshotComponent = "MCP servers"
+	snapshotComponentExtensions   snapshotComponent = "extensions"
+)
+
+type snapshotReadError struct {
+	component snapshotComponent
+	err       error
+}
+
+func (e *snapshotReadError) Error() string {
+	return fmt.Sprintf("reading %s: %v", e.component, e.err)
+}
+
+func (e *snapshotReadError) Unwrap() error {
+	return e.err
+}
+
 // Snapshot creates a Profile from the current Claude Code state (user scope)
 func Snapshot(name, claudeDir, claudeJSONPath, claudeupHome string) (*Profile, error) {
 	return SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome, SnapshotOptions{
@@ -66,15 +89,21 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 		opts.Scope = "user"
 	}
 
+	var errs []error
+
 	// Read plugins from scope-specific settings
 	plugins, err := readPluginsForScope(claudeDir, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.Plugins = plugins
+	} else {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: err})
 	}
 
 	marketplaces, err := readAllMarketplaces(claudeDir)
 	if err == nil {
 		p.Marketplaces = marketplaces
+	} else {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentMarketplaces, err: err})
 	}
 
 	// Read MCP servers
@@ -82,18 +111,67 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 	mcpServers, err := ReadMCPServersForScope(claudeJSONPath, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.MCPServers = mcpServers
+	} else {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: err})
 	}
 
 	// Read extensions from enabled.json
 	extensions, err := ReadExtensions(claudeDir, claudeupHome)
-	if err == nil && extensions != nil {
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentExtensions, err: err})
+	} else if extensions != nil {
 		p.Extensions = extensions
 	}
 
 	// Auto-generate description based on contents
 	p.Description = p.GenerateDescription()
 
-	return p, nil
+	return p, errors.Join(errs...)
+}
+
+func filterSnapshotReadErrors(err error, components ...snapshotComponent) error {
+	if err == nil || len(components) == 0 {
+		return nil
+	}
+
+	required := make(map[snapshotComponent]struct{}, len(components))
+	for _, component := range components {
+		required[component] = struct{}{}
+	}
+
+	var matches []error
+	collectSnapshotReadErrors(err, required, &matches)
+	return errors.Join(matches...)
+}
+
+func collectSnapshotReadErrors(err error, required map[snapshotComponent]struct{}, matches *[]error) {
+	if err == nil {
+		return
+	}
+
+	if readErr, ok := err.(*snapshotReadError); ok {
+		if _, ok := required[readErr.component]; ok {
+			*matches = append(*matches, readErr)
+		}
+		return
+	}
+
+	type multiUnwrapper interface {
+		Unwrap() []error
+	}
+	if joined, ok := err.(multiUnwrapper); ok {
+		for _, inner := range joined.Unwrap() {
+			collectSnapshotReadErrors(inner, required, matches)
+		}
+		return
+	}
+
+	type singleUnwrapper interface {
+		Unwrap() error
+	}
+	if wrapped, ok := err.(singleUnwrapper); ok {
+		collectSnapshotReadErrors(wrapped.Unwrap(), required, matches)
+	}
 }
 
 func readPluginsForScope(claudeDir, projectDir, scope string) ([]string, error) {
@@ -154,6 +232,11 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 
 	data, err := os.ReadFile(marketplacesPath)
 	if err != nil {
+		// File not existing is not an error: a fresh install has no
+		// marketplace registry yet.
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 

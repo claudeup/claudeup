@@ -130,6 +130,40 @@ var _ = Describe("SnapshotCapturesGitURLMarketplace", func() {
 	})
 })
 
+var _ = Describe("SnapshotWithScopePropagatesReadErrors", func() {
+	var env *snapshotTestEnv
+
+	BeforeEach(func() {
+		env = setupSnapshotTestEnv()
+
+		marketplaces := map[string]interface{}{
+			"git-marketplace": map[string]interface{}{
+				"source": map[string]interface{}{
+					"source": "git",
+					"url":    "https://example.com/plugin.git",
+				},
+			},
+		}
+		env.createMarketplaceRegistry(marketplaces)
+		env.createPluginRegistry(map[string]interface{}{})
+		env.createClaudeJSON(map[string]interface{}{"mcpServers": map[string]interface{}{}})
+
+		// Corrupt settings.json so readPluginsForScope's underlying read fails.
+		err := os.WriteFile(filepath.Join(env.claudeDir, "settings.json"), []byte("{not valid json"), 0644)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("returns a non-nil error instead of silently discarding it", func() {
+		p, err := profile.Snapshot("test-snapshot", env.claudeDir, env.claudeJSON, env.claudeupHome)
+		Expect(err).To(HaveOccurred())
+		Expect(p).NotTo(BeNil())
+
+		// The unrelated marketplaces read succeeded and should still be
+		// reflected in the partial result.
+		Expect(p.Marketplaces).To(HaveLen(1))
+	})
+})
+
 var _ = Describe("SnapshotSaveLoadRoundTrip", func() {
 	var env *snapshotTestEnv
 
