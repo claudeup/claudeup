@@ -845,7 +845,7 @@ func ShouldRunHook(profile *Profile, claudeDir, claudeJSONPath, claudeupHome str
 // isFirstRun checks if any plugins from the profile's marketplaces are enabled
 func isFirstRun(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string) bool {
 	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
-	if err != nil {
+	if relevantSnapshotErr := filterSnapshotReadErrors(err, snapshotComponentPlugins); relevantSnapshotErr != nil {
 		// Can't read current state - treat as first run
 		return true
 	}

@@ -968,6 +968,43 @@ func TestShouldRunHook(t *testing.T) {
 	}
 }
 
+func TestIsFirstRunIgnoresUnrelatedSnapshotErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"agent@wshobson-agents": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"agent@wshobson-agents": true,
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+	if err := os.WriteFile(filepath.Join(claudeDir, "enabled.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatalf("failed to write invalid enabled.json: %v", err)
+	}
+
+	profile := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "wshobson/agents"},
+		},
+	}
+
+	if got := isFirstRun(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir); got {
+		t.Fatal("expected isFirstRun to ignore unrelated extension snapshot errors when plugin state is readable")
+	}
+}
+
 func TestRunHookWithCommand(t *testing.T) {
 	profile := &Profile{
 		Name: "test",

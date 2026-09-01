@@ -3,6 +3,7 @@
 package acceptance
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -114,6 +115,31 @@ var _ = Describe("setup", func() {
 			result := env.RunWithInput("a\n", "setup")
 
 			Expect(result.Stdout).To(ContainSubstring("Could not fully read existing configuration"))
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No existing Claude Code configuration found"))
+		})
+
+		It("detects extension-only existing installations", func() {
+			extAgentsDir := filepath.Join(env.ClaudeupDir, "ext", "agents")
+			Expect(os.MkdirAll(extAgentsDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(extAgentsDir, "test-agent.md"), []byte("# Test Agent"), 0644)).To(Succeed())
+
+			activeAgentsDir := filepath.Join(env.ClaudeDir, "agents")
+			Expect(os.MkdirAll(activeAgentsDir, 0755)).To(Succeed())
+			Expect(os.Symlink(
+				filepath.Join(extAgentsDir, "test-agent.md"),
+				filepath.Join(activeAgentsDir, "test-agent.md"),
+			)).To(Succeed())
+
+			enabledConfig := map[string]map[string]bool{
+				"agents": {"test-agent.md": true},
+			}
+			data, err := json.MarshalIndent(enabledConfig, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(filepath.Join(env.ClaudeupDir, "enabled.json"), data, 0644)).To(Succeed())
+
+			result := env.RunWithInput("a\n", "setup")
+
 			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
 			Expect(result.Stdout).NotTo(ContainSubstring("No existing Claude Code configuration found"))
 		})

@@ -394,7 +394,7 @@ func getProfilesDir() string {
 }
 
 func hasContent(p *profile.Profile) bool {
-	return len(p.Plugins) > 0 || len(p.MCPServers) > 0 || len(p.Marketplaces) > 0
+	return p != nil && p.HasConfigFields()
 }
 
 func showProfileSummary(p *profile.Profile) {
