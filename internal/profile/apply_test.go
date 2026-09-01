@@ -61,6 +61,27 @@ func TestComputeDiffPlugins(t *testing.T) {
 	}
 }
 
+func TestComputeDiffWithScopePropagatesSnapshotError(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Corrupt settings.json so the underlying current-state snapshot read fails.
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatalf("failed to write corrupt settings.json: %v", err)
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	profile := &Profile{Name: "test"}
+
+	_, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+	if err == nil {
+		t.Fatal("expected ComputeDiff to return an error when the current-state snapshot fails, got nil")
+	}
+}
+
 func TestComputeDiffMCPServers(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
@@ -1167,6 +1188,37 @@ func TestResetRemovesPluginsFromMarketplace(t *testing.T) {
 	}
 	if marketplaceRemoves != 1 {
 		t.Errorf("Expected 1 marketplace remove command, got %d", marketplaceRemoves)
+	}
+}
+
+func TestResetWithExecutorPropagatesSnapshotError(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	// Corrupt settings.json so the underlying current-state snapshot read fails.
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatalf("failed to write corrupt settings.json: %v", err)
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+
+	profile := &Profile{
+		Name:         "test",
+		Marketplaces: []Marketplace{{Source: "github", Repo: "wshobson/agents"}},
+	}
+	executor := &mockExecutor{}
+
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, executor)
+	if err == nil {
+		t.Fatal("expected ResetWithExecutor to return an error when the current-state snapshot fails, got nil")
+	}
+	if result != nil {
+		t.Errorf("expected nil result on error, got %+v", result)
+	}
+	if len(executor.commands) != 0 {
+		t.Errorf("expected no commands to be issued when the current state can't be read, got %v", executor.commands)
 	}
 }
 

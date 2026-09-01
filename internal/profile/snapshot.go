@@ -95,12 +95,10 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 
 	// Read extensions from enabled.json
 	extensions, err := ReadExtensions(claudeDir, claudeupHome)
-	if err == nil {
-		if extensions != nil {
-			p.Extensions = extensions
-		}
-	} else {
+	if err != nil {
 		errs = append(errs, fmt.Errorf("reading extensions: %w", err))
+	} else if extensions != nil {
+		p.Extensions = extensions
 	}
 
 	// Auto-generate description based on contents

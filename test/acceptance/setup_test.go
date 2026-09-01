@@ -95,6 +95,29 @@ var _ = Describe("setup", func() {
 			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
 		})
 
+		It("preserves existing installation when settings.json is corrupted but other config has content", func() {
+			// Marketplace content is present, but settings.json is corrupted so
+			// the plugin read fails. Before the fix, a snapshot read error
+			// unconditionally meant "treat as fresh install" (see setup.go's
+			// hasExisting logic), which would have applied a default profile on
+			// top of a real, if partially unreadable, existing installation.
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source": map[string]interface{}{
+						"source": "github",
+						"repo":   "test-org/test-marketplace",
+					},
+				},
+			})
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, "settings.json"), []byte("{not valid json"), 0644)).To(Succeed())
+
+			result := env.RunWithInput("a\n", "setup")
+
+			Expect(result.Stdout).To(ContainSubstring("Could not fully read existing configuration"))
+			Expect(result.Stdout).To(ContainSubstring("Existing Claude Code installation detected"))
+			Expect(result.Stdout).NotTo(ContainSubstring("No existing Claude Code configuration found"))
+		})
+
 		It("validates profile for fresh installations", func() {
 			// Don't create any existing installation content
 			// Just ensure the claude directory exists (setup creates it)
