@@ -4,9 +4,12 @@ package profile_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/claudeup/claudeup/v5/internal/profile"
@@ -40,6 +43,44 @@ func gumWizardIO(input string, runner func(args ...string) ([]byte, error)) (pro
 	wio := profile.NewWizardIO(in, out, errBuf, gumLookPath)
 	wio.GumRun = runner
 	return wio, out, errBuf
+}
+
+// knownMarketplaceEntry mirrors the shape listPluginsFromMarketplace expects
+// to find in known_marketplaces.json.
+type knownMarketplaceEntry struct {
+	Source          string
+	Repo            string
+	InstallLocation string
+}
+
+// writeKnownMarketplaces writes a known_marketplaces.json under claudeDir/plugins
+// so listPluginsFromMarketplace can resolve a marketplace to its install location.
+func writeKnownMarketplaces(claudeDir string, entries map[string]knownMarketplaceEntry) {
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	Expect(os.MkdirAll(pluginsDir, 0755)).To(Succeed())
+
+	raw := make(map[string]interface{}, len(entries))
+	for name, entry := range entries {
+		raw[name] = map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": entry.Source,
+				"repo":   entry.Repo,
+			},
+			"installLocation": entry.InstallLocation,
+		}
+	}
+
+	data, err := json.Marshal(raw)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(pluginsDir, "known_marketplaces.json"), data, 0644)).To(Succeed())
+}
+
+// writeMarketplaceMetadata writes raw content as the marketplace.json for an
+// install location, letting callers inject malformed JSON to force a parse error.
+func writeMarketplaceMetadata(installLocation, rawJSON string) {
+	metadataDir := filepath.Join(installLocation, ".claude-plugin")
+	Expect(os.MkdirAll(metadataDir, 0755)).To(Succeed())
+	Expect(os.WriteFile(filepath.Join(metadataDir, "marketplace.json"), []byte(rawJSON), 0644)).To(Succeed())
 }
 
 // makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
@@ -273,17 +314,47 @@ var _ = Describe("Wizard", func() {
 			Expect(plugins).To(BeEmpty())
 		})
 
-		It("uses flat selection for marketplaces without categories", func() {
+		It("returns empty plugins for a marketplace with no plugins", func() {
+			claudeDir := GinkgoT().TempDir()
+			GinkgoT().Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+
+			installLocation := filepath.Join(claudeDir, "plugins", "repos", "empty-marketplace")
+			writeKnownMarketplaces(claudeDir, map[string]knownMarketplaceEntry{
+				"empty-marketplace": {Source: "github", Repo: "owner/empty-marketplace", InstallLocation: installLocation},
+			})
+			writeMarketplaceMetadata(installLocation, `{"plugins": []}`)
+
 			marketplace := profile.Marketplace{
 				Source: "github",
-				Repo:   "unknown/marketplace",
+				Repo:   "owner/empty-marketplace",
 			}
 
-			// Flat selection path — listPluginsFromMarketplace fails gracefully
-			// for unknown marketplace, returns empty list
 			wio, _ := testWizardIO("")
 			plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 			Expect(err).To(BeNil())
+			Expect(plugins).To(BeEmpty())
+		})
+
+		It("propagates the error when listing plugins from the marketplace fails", func() {
+			claudeDir := GinkgoT().TempDir()
+			GinkgoT().Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+
+			installLocation := filepath.Join(claudeDir, "plugins", "repos", "broken-marketplace")
+			writeKnownMarketplaces(claudeDir, map[string]knownMarketplaceEntry{
+				"broken-marketplace": {Source: "github", Repo: "owner/broken-marketplace", InstallLocation: installLocation},
+			})
+			// Malformed marketplace.json: listPluginsFromMarketplace must fail to parse it.
+			writeMarketplaceMetadata(installLocation, `{not valid json`)
+
+			marketplace := profile.Marketplace{
+				Source: "github",
+				Repo:   "owner/broken-marketplace",
+			}
+
+			wio, _ := testWizardIO("")
+			plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("owner/broken-marketplace"))
 			Expect(plugins).To(BeEmpty())
 		})
 	})
