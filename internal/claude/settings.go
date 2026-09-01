@@ -472,6 +472,10 @@ func SettingsPathForScope(scope string, claudeDir string, projectDir string) (st
 	}
 }
 
+// readSettingsFile is indirected over os.ReadFile so tests can simulate the
+// file disappearing between an existence check and the read (issue #254).
+var readSettingsFile = os.ReadFile
+
 // LoadSettingsForScope reads settings for the given scope.
 // If the settings file does not exist, it returns empty settings and a nil error.
 // Parse errors and I/O failures (other than ErrNotExist) are returned to the caller.
@@ -481,18 +485,19 @@ func LoadSettingsForScope(scope string, claudeDir string, projectDir string) (*S
 		return nil, err
 	}
 
-	// If file doesn't exist, return empty settings (not an error)
-	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+	// Read and parse. If the file doesn't exist, return empty settings (not an
+	// error) instead of a separate os.Stat existence check beforehand -- that
+	// would leave a race window in which the file could disappear between the
+	// check and the read.
+	data, err := readSettingsFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
 		return &Settings{
 			EnabledPlugins: make(map[string]bool),
 			raw:            make(map[string]interface{}),
 		}, nil
 	}
-
-	// Read and parse
-	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read settings from %s: %w", path, err)
 	}
 
 	// Unmarshal into raw map first to preserve all fields

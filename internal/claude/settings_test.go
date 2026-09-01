@@ -426,6 +426,37 @@ func TestLoadSettingsForScope(t *testing.T) {
 	}
 }
 
+// TestLoadSettingsForScopeRaceWindow simulates the TOCTOU race described in
+// issue #254: the settings file exists on disk (an existence check would
+// succeed), but the actual read reports fs.ErrNotExist -- e.g. because the
+// file was removed in the window between an existence check and the read.
+// LoadSettingsForScope must treat that the same as "file doesn't exist":
+// empty settings, nil error.
+func TestLoadSettingsForScopeRaceWindow(t *testing.T) {
+	tempDir := t.TempDir()
+	claudeDir := filepath.Join(tempDir, ".claude")
+	if err := os.MkdirAll(claudeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte(`{}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	original := readSettingsFile
+	readSettingsFile = func(path string) ([]byte, error) {
+		return nil, &fs.PathError{Op: "open", Path: path, Err: fs.ErrNotExist}
+	}
+	defer func() { readSettingsFile = original }()
+
+	settings, err := LoadSettingsForScope("user", claudeDir, "")
+	if err != nil {
+		t.Fatalf("LoadSettingsForScope should treat a race-window ErrNotExist as a missing file, got error: %v", err)
+	}
+	if len(settings.EnabledPlugins) != 0 {
+		t.Errorf("expected empty settings, got %d enabled plugins", len(settings.EnabledPlugins))
+	}
+}
+
 func TestSaveSettingsForScope(t *testing.T) {
 	// Create temp directory
 	tempDir, err := os.MkdirTemp("", "claudeup-scope-save-test-*")
