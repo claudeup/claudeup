@@ -321,6 +321,9 @@ func removeIfPresent(path string) error {
 // cleanupSymlinksRecursive removes symlinks in a directory and its subdirectories
 func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
