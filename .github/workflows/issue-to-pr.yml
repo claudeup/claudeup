@@ -203,7 +203,15 @@ jobs:
 
     # Run on any PR opened/updated against main
     # Bot-authored comments are handled by the fix-review job instead
-    if: github.event_name == 'pull_request'
+    #
+    # Skip when the triggering actor is Copilot: claude-code-action's OIDC
+    # token exchange rejects non-user actors like the Copilot coding agent
+    # with a 401 ("User does not have write access on this repository")
+    # before any of the action's own permission checks even run. This is an
+    # open upstream bug (anthropics/claude-code-action#1017) with no fix
+    # available short of standing up a separate GitHub App -- skip instead
+    # of failing every time Copilot pushes to a PR branch.
+    if: github.event_name == 'pull_request' && github.actor != 'Copilot'
 
     permissions:
       contents: read

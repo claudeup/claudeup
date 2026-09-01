@@ -271,7 +271,9 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 	}
 
 	// Remove existing symlinks (including in subdirectories)
-	m.cleanupSymlinksRecursive(targetDir)
+	if err := m.cleanupSymlinksRecursive(targetDir); err != nil {
+		return nil, fmt.Errorf("cleaning up existing symlinks in %s: %w", targetDir, err)
+	}
 
 	// Create symlinks for enabled items
 	var skipped []string
@@ -307,27 +309,58 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 	return skipped, nil
 }
 
+// removeIfPresent deletes path, tolerating an entry another process removed
+// first. The cleanup goal is met either way.
+func removeIfPresent(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 // cleanupSymlinksRecursive removes symlinks in a directory and its subdirectories
-func (m *Manager) cleanupSymlinksRecursive(dir string) {
-	entries, _ := os.ReadDir(dir)
+func (m *Manager) cleanupSymlinksRecursive(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", dir, err)
+	}
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
 		info, err := os.Lstat(path)
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
+		if err != nil {
+			return fmt.Errorf("inspecting %s: %w", path, err)
+		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			os.Remove(path)
+			if err := removeIfPresent(path); err != nil {
+				return fmt.Errorf("removing %s: %w", path, err)
+			}
 		} else if entry.IsDir() {
 			// Recurse into subdirectories
-			m.cleanupSymlinksRecursive(path)
+			if err := m.cleanupSymlinksRecursive(path); err != nil {
+				return err
+			}
 			// Remove directory if empty
-			remaining, _ := os.ReadDir(path)
+			remaining, err := os.ReadDir(path)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("reading %s: %w", path, err)
+			}
 			if len(remaining) == 0 {
-				os.Remove(path)
+				if err := removeIfPresent(path); err != nil {
+					return fmt.Errorf("removing %s: %w", path, err)
+				}
 			}
 		}
 	}
+	return nil
 }
 
 // syncAgents syncs the agents category (supports grouped agents). Returns skipped item names (bare, without category prefix).
@@ -343,30 +376,60 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]str
 	}
 
 	// Remove existing symlinks and empty group directories
-	entries, _ := os.ReadDir(targetDir)
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", targetDir, err)
+	}
 	for _, entry := range entries {
 		path := filepath.Join(targetDir, entry.Name())
 		info, err := os.Lstat(path)
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("inspecting %s: %w", path, err)
 		}
 
 		if info.Mode()&os.ModeSymlink != 0 {
-			os.Remove(path)
+			if err := removeIfPresent(path); err != nil {
+				return nil, fmt.Errorf("removing %s: %w", path, err)
+			}
 		} else if entry.IsDir() {
 			// Remove symlinks inside group directories
-			groupEntries, _ := os.ReadDir(path)
+			groupEntries, err := os.ReadDir(path)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("reading %s: %w", path, err)
+			}
 			for _, ge := range groupEntries {
 				gePath := filepath.Join(path, ge.Name())
-				geInfo, _ := os.Lstat(gePath)
-				if geInfo != nil && geInfo.Mode()&os.ModeSymlink != 0 {
-					os.Remove(gePath)
+				geInfo, err := os.Lstat(gePath)
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				if err != nil {
+					return nil, fmt.Errorf("inspecting %s: %w", gePath, err)
+				}
+				if geInfo.Mode()&os.ModeSymlink != 0 {
+					if err := removeIfPresent(gePath); err != nil {
+						return nil, fmt.Errorf("removing %s: %w", gePath, err)
+					}
 				}
 			}
 			// Remove group dir if empty
-			remaining, _ := os.ReadDir(path)
+			remaining, err := os.ReadDir(path)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return nil, fmt.Errorf("reading %s: %w", path, err)
+			}
 			if len(remaining) == 0 {
-				os.Remove(path)
+				if err := removeIfPresent(path); err != nil {
+					return nil, fmt.Errorf("removing %s: %w", path, err)
+				}
 			}
 		}
 	}
