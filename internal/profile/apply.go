@@ -114,8 +114,7 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 	}
 
 	if err != nil {
-		// If we can't read current state, treat as empty
-		current = &Profile{}
+		return nil, fmt.Errorf("failed to read current state: %w", err)
 	}
 
 	diff := &Diff{}
@@ -1070,8 +1069,7 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 	// Get current state to find installed plugins
 	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 	if err != nil {
-		// Can't read current state - nothing to remove
-		return result, nil
+		return nil, fmt.Errorf("failed to read current state: %w", err)
 	}
 
 	// Build lookup from repo to marketplace name for removal
