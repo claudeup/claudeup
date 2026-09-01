@@ -82,6 +82,43 @@ func TestComputeDiffWithScopePropagatesSnapshotError(t *testing.T) {
 	}
 }
 
+func TestComputeDiffIgnoresExtensionSnapshotErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"plugin-a@marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"plugin-a@marketplace": true,
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{})
+	writeTestJSON(t, filepath.Join(tmpDir, ".claude.json"), map[string]interface{}{})
+	if err := os.WriteFile(filepath.Join(claudeDir, "enabled.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatalf("Failed to write invalid enabled.json: %v", err)
+	}
+
+	profile := &Profile{Name: "test"}
+
+	diff, err := ComputeDiff(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir)
+	if err != nil {
+		t.Fatalf("ComputeDiff should ignore extension snapshot errors: %v", err)
+	}
+
+	if len(diff.PluginsToRemove) != 1 || diff.PluginsToRemove[0] != "plugin-a@marketplace" {
+		t.Errorf("Expected plugin diff to still be computed, got: %v", diff.PluginsToRemove)
+	}
+}
+
 func TestComputeDiffMCPServers(t *testing.T) {
 	tmpDir := t.TempDir()
 	claudeDir := filepath.Join(tmpDir, ".claude")
@@ -1372,6 +1409,58 @@ func TestResetHandlesErrors(t *testing.T) {
 	// Should have recorded the error
 	if len(result.Errors) != 1 {
 		t.Errorf("Expected 1 error recorded, got %d", len(result.Errors))
+	}
+}
+
+func TestResetIgnoresUnrelatedSnapshotErrors(t *testing.T) {
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	os.MkdirAll(pluginsDir, 0755)
+
+	currentPlugins := map[string]interface{}{
+		"version": 2,
+		"plugins": map[string]interface{}{
+			"test-plugin@test-marketplace": []map[string]interface{}{{"scope": "user", "version": "1.0"}},
+		},
+	}
+	currentSettings := map[string]interface{}{
+		"enabledPlugins": map[string]bool{
+			"test-plugin@test-marketplace": true,
+		},
+	}
+	marketplaces := map[string]interface{}{
+		"test-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "test/marketplace",
+			},
+		},
+	}
+	writeTestJSON(t, filepath.Join(pluginsDir, "installed_plugins.json"), currentPlugins)
+	writeTestJSON(t, filepath.Join(claudeDir, "settings.json"), currentSettings)
+	writeTestJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), marketplaces)
+	if err := os.WriteFile(filepath.Join(tmpDir, ".claude.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatalf("Failed to write invalid .claude.json: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(claudeDir, "enabled.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatalf("Failed to write invalid enabled.json: %v", err)
+	}
+
+	profile := &Profile{
+		Name: "test",
+		Marketplaces: []Marketplace{
+			{Source: "github", Repo: "test/marketplace"},
+		},
+	}
+
+	result, err := ResetWithExecutor(profile, claudeDir, filepath.Join(tmpDir, ".claude.json"), claudeDir, &mockExecutor{})
+	if err != nil {
+		t.Fatalf("Reset should ignore unrelated snapshot errors: %v", err)
+	}
+
+	if len(result.PluginsRemoved) != 1 || result.PluginsRemoved[0] != "test-plugin@test-marketplace" {
+		t.Errorf("Expected reset to remove plugin using partial snapshot, got: %v", result.PluginsRemoved)
 	}
 }
 
