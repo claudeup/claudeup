@@ -1212,6 +1212,47 @@ func TestEnableWithDirectoryConflict(t *testing.T) {
 	}
 }
 
+// TestCleanupSymlinksRecursivePropagatesReadDirError verifies that a
+// filesystem error encountered while listing a directory during cleanup is
+// returned to the caller instead of being silently discarded (issue #235).
+// A directory whose path component is a symlink to itself cannot be read
+// (ELOOP) regardless of privilege level, which gives a deterministic,
+// portable way to force os.ReadDir to fail.
+func TestCleanupSymlinksRecursivePropagatesReadDirError(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	loop := filepath.Join(claudeDir, "loop")
+	if err := os.Symlink(loop, loop); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+
+	if err := manager.cleanupSymlinksRecursive(loop); err == nil {
+		t.Fatal("cleanupSymlinksRecursive() should return an error when os.ReadDir fails, got nil")
+	}
+}
+
+// TestSyncAgentsPropagatesCleanupReadDirError verifies that syncAgents surfaces
+// a filesystem error from its cleanup phase instead of silently proceeding as
+// if the directory were empty (issue #235). No items are enabled here so the
+// only thing exercised is the cleanup path, isolating it from symlink
+// creation.
+func TestSyncAgentsPropagatesCleanupReadDirError(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	targetDir := filepath.Join(claudeDir, "agents")
+	if err := os.Symlink(targetDir, targetDir); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+
+	if _, err := manager.syncAgents(targetDir, map[string]bool{}); err == nil {
+		t.Fatal("syncAgents() should return an error when cleanup fails to read the target directory, got nil")
+	}
+}
+
 func TestDisableAgentGroupByDirectoryName(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()
