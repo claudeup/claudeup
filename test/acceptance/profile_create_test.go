@@ -3,11 +3,34 @@
 package acceptance
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/claudeup/claudeup/v5/internal/profile"
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+// pathWithoutExecutable returns the current PATH with every directory that
+// provides an executable named `name` removed. Acceptance tests use this to
+// guarantee gum is never found on PATH, regardless of what happens to be
+// installed on the host running the test -- see #292.
+func pathWithoutExecutable(name string) string {
+	dirs := filepath.SplitList(os.Getenv("PATH"))
+	kept := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		if dir == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			continue
+		}
+		kept = append(kept, dir)
+	}
+	return strings.Join(kept, string(os.PathListSeparator))
+}
 
 var _ = Describe("profile create", func() {
 	// Note: Old tests that expected `create` to clone profiles have been removed.
@@ -23,20 +46,17 @@ var _ = Describe("profile create", func() {
 
 	Context("wizard behavior", func() {
 		It("starts wizard and fails gracefully in non-interactive mode", func() {
-			result := env.Run("profile", "create", "new-profile")
+			// gum is deliberately excluded from PATH so this test's outcome
+			// never depends on whether the host has gum installed, or on
+			// gum's TTY-blocking behavior when it is. Without gum on PATH,
+			// SelectMarketplaces always takes the stdin fallback, which
+			// hits EOF immediately (no stdin is piped in) -- fast and
+			// deterministic, never a candidate for commandTimeout. See #292.
+			result := env.RunWithEnv(map[string]string{"PATH": pathWithoutExecutable("gum")}, "profile", "create", "new-profile")
 
+			Expect(result.TimedOut).To(BeFalse())
 			Expect(result.ExitCode).NotTo(Equal(0))
-			// Wizard starts but fails due to lack of TTY.
-			// With gum installed, gum exits 1 (no TTY), classified as user
-			// cancellation via ErrGumCanceled -- "profile creation cancelled".
-			// Without gum, the stdin fallback hits EOF -- "failed to select marketplaces".
-			// The test helper may also time out if gum blocks on input.
-			if !result.TimedOut {
-				Expect(result.Stderr).To(SatisfyAny(
-					ContainSubstring("profile creation cancelled"),
-					ContainSubstring("failed to select marketplaces"),
-				))
-			}
+			Expect(result.Stderr).To(ContainSubstring("failed to select marketplaces"))
 		})
 	})
 
