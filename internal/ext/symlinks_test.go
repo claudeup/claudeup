@@ -1253,6 +1253,48 @@ func TestSyncAgentsPropagatesCleanupReadDirError(t *testing.T) {
 	}
 }
 
+// TestRemoveIfPresentToleratesMissingEntry verifies that an entry removed by
+// another process before cleanup reaches it is not reported as an error, while
+// a genuine failure still is. Cleanup wants the entry gone; it already is.
+func TestRemoveIfPresentToleratesMissingEntry(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := removeIfPresent(filepath.Join(dir, "never-existed")); err != nil {
+		t.Errorf("removeIfPresent() on a missing entry = %v, want nil", err)
+	}
+
+	nonEmpty := filepath.Join(dir, "group")
+	if err := os.Mkdir(nonEmpty, 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nonEmpty, "child"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := removeIfPresent(nonEmpty); err == nil {
+		t.Error("removeIfPresent() on a non-empty directory = nil, want error")
+	}
+}
+
+// TestCleanupSymlinksRecursiveRemovesDanglingSymlink verifies that cleanup
+// removes a symlink whose target no longer exists rather than failing on it.
+func TestCleanupSymlinksRecursiveRemovesDanglingSymlink(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	manager := NewManager(claudeDir, claudeupHome)
+
+	link := filepath.Join(claudeDir, "dangling.md")
+	if err := os.Symlink(filepath.Join(claudeupHome, "gone.md"), link); err != nil {
+		t.Fatalf("Symlink() error = %v", err)
+	}
+
+	if err := manager.cleanupSymlinksRecursive(claudeDir); err != nil {
+		t.Fatalf("cleanupSymlinksRecursive() error = %v, want nil", err)
+	}
+	if _, err := os.Lstat(link); !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("dangling symlink still present after cleanup: Lstat err = %v", err)
+	}
+}
+
 func TestDisableAgentGroupByDirectoryName(t *testing.T) {
 	claudeDir := t.TempDir()
 	claudeupHome := t.TempDir()

@@ -309,6 +309,15 @@ func (m *Manager) syncFlatCategory(category string, targetDir string, catConfig 
 	return skipped, nil
 }
 
+// removeIfPresent deletes path, tolerating an entry another process removed
+// first. The cleanup goal is met either way.
+func removeIfPresent(path string) error {
+	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 // cleanupSymlinksRecursive removes symlinks in a directory and its subdirectories
 func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 	entries, err := os.ReadDir(dir)
@@ -318,11 +327,14 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
 		info, err := os.Lstat(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return err
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			if err := os.Remove(path); err != nil {
+			if err := removeIfPresent(path); err != nil {
 				return err
 			}
 		} else if entry.IsDir() {
@@ -332,11 +344,14 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 			}
 			// Remove directory if empty
 			remaining, err := os.ReadDir(path)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			if err != nil {
 				return err
 			}
 			if len(remaining) == 0 {
-				if err := os.Remove(path); err != nil {
+				if err := removeIfPresent(path); err != nil {
 					return err
 				}
 			}
@@ -365,39 +380,51 @@ func (m *Manager) syncAgents(targetDir string, catConfig map[string]bool) ([]str
 	for _, entry := range entries {
 		path := filepath.Join(targetDir, entry.Name())
 		info, err := os.Lstat(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
 			return nil, fmt.Errorf("inspecting %s: %w", path, err)
 		}
 
 		if info.Mode()&os.ModeSymlink != 0 {
-			if err := os.Remove(path); err != nil {
+			if err := removeIfPresent(path); err != nil {
 				return nil, fmt.Errorf("removing %s: %w", path, err)
 			}
 		} else if entry.IsDir() {
 			// Remove symlinks inside group directories
 			groupEntries, err := os.ReadDir(path)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			if err != nil {
 				return nil, fmt.Errorf("reading %s: %w", path, err)
 			}
 			for _, ge := range groupEntries {
 				gePath := filepath.Join(path, ge.Name())
 				geInfo, err := os.Lstat(gePath)
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
 				if err != nil {
 					return nil, fmt.Errorf("inspecting %s: %w", gePath, err)
 				}
 				if geInfo.Mode()&os.ModeSymlink != 0 {
-					if err := os.Remove(gePath); err != nil {
+					if err := removeIfPresent(gePath); err != nil {
 						return nil, fmt.Errorf("removing %s: %w", gePath, err)
 					}
 				}
 			}
 			// Remove group dir if empty
 			remaining, err := os.ReadDir(path)
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
 			if err != nil {
 				return nil, fmt.Errorf("reading %s: %w", path, err)
 			}
 			if len(remaining) == 0 {
-				if err := os.Remove(path); err != nil {
+				if err := removeIfPresent(path); err != nil {
 					return nil, fmt.Errorf("removing %s: %w", path, err)
 				}
 			}
