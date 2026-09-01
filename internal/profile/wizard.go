@@ -715,10 +715,7 @@ func selectPluginsFlat(wio WizardIO, marketplace Marketplace) ([]string, error) 
 	// List available plugins from marketplace metadata
 	availablePlugins, err := listPluginsFromMarketplace(marketplace)
 	if err != nil {
-		fmt.Fprintf(wio.Err, "Warning: Failed to list plugins from marketplace %q: %v\n", marketplace.DisplayName(), err)
-		fmt.Fprintln(wio.Err, "Profile will be created without any plugins from this marketplace.")
-		fmt.Fprintln(wio.Err)
-		return []string{}, nil
+		return nil, fmt.Errorf("failed to list plugins from marketplace %q: %w", marketplace.DisplayName(), err)
 	}
 
 	if len(availablePlugins) == 0 {
