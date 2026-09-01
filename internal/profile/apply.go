@@ -113,8 +113,16 @@ func ComputeDiffWithScope(profile *Profile, claudeDir, claudeJSONPath, claudeupH
 		current, err = Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
 	}
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to read current state: %w", err)
+	requiredSnapshotComponents := []snapshotComponent{
+		snapshotComponentMarketplaces,
+		snapshotComponentMCPServers,
+	}
+	if !profile.SkipPluginDiff {
+		requiredSnapshotComponents = append(requiredSnapshotComponents, snapshotComponentPlugins)
+	}
+	relevantSnapshotErr := filterSnapshotReadErrors(err, requiredSnapshotComponents...)
+	if relevantSnapshotErr != nil {
+		return nil, fmt.Errorf("failed to read current state: %w", relevantSnapshotErr)
 	}
 
 	diff := &Diff{}
@@ -1068,8 +1076,8 @@ func ResetWithExecutor(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 
 	// Get current state to find installed plugins
 	current, err := Snapshot("current", claudeDir, claudeJSONPath, claudeupHome)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read current state: %w", err)
+	if relevantSnapshotErr := filterSnapshotReadErrors(err, snapshotComponentPlugins); relevantSnapshotErr != nil {
+		return nil, fmt.Errorf("failed to read current state: %w", relevantSnapshotErr)
 	}
 
 	// Build lookup from repo to marketplace name for removal
