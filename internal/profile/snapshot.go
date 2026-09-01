@@ -5,6 +5,7 @@ package profile
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -66,15 +67,21 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 		opts.Scope = "user"
 	}
 
+	var errs []error
+
 	// Read plugins from scope-specific settings
 	plugins, err := readPluginsForScope(claudeDir, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.Plugins = plugins
+	} else {
+		errs = append(errs, fmt.Errorf("reading plugins: %w", err))
 	}
 
 	marketplaces, err := readAllMarketplaces(claudeDir)
 	if err == nil {
 		p.Marketplaces = marketplaces
+	} else {
+		errs = append(errs, fmt.Errorf("reading marketplaces: %w", err))
 	}
 
 	// Read MCP servers
@@ -82,18 +89,24 @@ func SnapshotWithScope(name, claudeDir, claudeJSONPath, claudeupHome string, opt
 	mcpServers, err := ReadMCPServersForScope(claudeJSONPath, opts.ProjectDir, opts.Scope)
 	if err == nil {
 		p.MCPServers = mcpServers
+	} else {
+		errs = append(errs, fmt.Errorf("reading MCP servers: %w", err))
 	}
 
 	// Read extensions from enabled.json
 	extensions, err := ReadExtensions(claudeDir, claudeupHome)
-	if err == nil && extensions != nil {
-		p.Extensions = extensions
+	if err == nil {
+		if extensions != nil {
+			p.Extensions = extensions
+		}
+	} else {
+		errs = append(errs, fmt.Errorf("reading extensions: %w", err))
 	}
 
 	// Auto-generate description based on contents
 	p.Description = p.GenerateDescription()
 
-	return p, nil
+	return p, errors.Join(errs...)
 }
 
 func readPluginsForScope(claudeDir, projectDir, scope string) ([]string, error) {
@@ -154,6 +167,11 @@ func readMarketplaces(claudeDir string, plugins []string) ([]Marketplace, error)
 
 	data, err := os.ReadFile(marketplacesPath)
 	if err != nil {
+		// File not existing is not an error: a fresh install has no
+		// marketplace registry yet.
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
