@@ -325,7 +325,7 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 		return nil
 	}
 	if err != nil {
-		return err
+		return fmt.Errorf("reading %s: %w", dir, err)
 	}
 	for _, entry := range entries {
 		path := filepath.Join(dir, entry.Name())
@@ -334,11 +334,11 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 			continue
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("inspecting %s: %w", path, err)
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			if err := removeIfPresent(path); err != nil {
-				return err
+				return fmt.Errorf("removing %s: %w", path, err)
 			}
 		} else if entry.IsDir() {
 			// Recurse into subdirectories
@@ -351,11 +351,11 @@ func (m *Manager) cleanupSymlinksRecursive(dir string) error {
 				continue
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("reading %s: %w", path, err)
 			}
 			if len(remaining) == 0 {
 				if err := removeIfPresent(path); err != nil {
-					return err
+					return fmt.Errorf("removing %s: %w", path, err)
 				}
 			}
 		}
