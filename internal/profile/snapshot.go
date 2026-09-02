@@ -419,6 +419,8 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 		PerScope: &PerScopeSettings{},
 	}
 
+	var errs []error
+
 	// Collect all plugins across scopes for marketplace filtering.
 	// Non-nil empty slice means "filter strictly" (no marketplaces if no plugins).
 	allPlugins := []string{}
@@ -430,8 +432,14 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	hasDistinctProjectScope := projectDir != "" && !sameDir(filepath.Join(projectDir, ".claude"), claudeDir)
 
 	// Capture user scope
-	userPlugins, _ := readPluginsForScope(claudeDir, projectDir, "user")
-	userMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "user")
+	userPlugins, err := readPluginsForScope(claudeDir, projectDir, "user")
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: fmt.Errorf("user scope: %w", err)})
+	}
+	userMCP, err := ReadMCPServersForScope(claudeJSONPath, projectDir, "user")
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: fmt.Errorf("user scope: %w", err)})
+	}
 	allPlugins = append(allPlugins, userPlugins...)
 	if len(userPlugins) > 0 || len(userMCP) > 0 {
 		p.PerScope.User = &ScopeSettings{
@@ -442,8 +450,14 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Capture project scope
 	if hasDistinctProjectScope {
-		projectPlugins, _ := readPluginsForScope(claudeDir, projectDir, "project")
-		projectMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "project")
+		projectPlugins, err := readPluginsForScope(claudeDir, projectDir, "project")
+		if err != nil {
+			errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: fmt.Errorf("project scope: %w", err)})
+		}
+		projectMCP, err := ReadMCPServersForScope(claudeJSONPath, projectDir, "project")
+		if err != nil {
+			errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: fmt.Errorf("project scope: %w", err)})
+		}
 		allPlugins = append(allPlugins, projectPlugins...)
 		if len(projectPlugins) > 0 || len(projectMCP) > 0 {
 			p.PerScope.Project = &ScopeSettings{
@@ -455,8 +469,14 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Capture local scope
 	if hasDistinctProjectScope {
-		localPlugins, _ := readPluginsForScope(claudeDir, projectDir, "local")
-		localMCP, _ := ReadMCPServersForScope(claudeJSONPath, projectDir, "local")
+		localPlugins, err := readPluginsForScope(claudeDir, projectDir, "local")
+		if err != nil {
+			errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: fmt.Errorf("local scope: %w", err)})
+		}
+		localMCP, err := ReadMCPServersForScope(claudeJSONPath, projectDir, "local")
+		if err != nil {
+			errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: fmt.Errorf("local scope: %w", err)})
+		}
 		allPlugins = append(allPlugins, localPlugins...)
 		if len(localPlugins) > 0 || len(localMCP) > 0 {
 			p.PerScope.Local = &ScopeSettings{
@@ -468,13 +488,17 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Marketplaces are always user-scoped; only include those used by plugins
 	marketplaces, err := readUsedMarketplaces(claudeDir, allPlugins)
-	if err == nil {
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentMarketplaces, err: err})
+	} else {
 		p.Marketplaces = marketplaces
 	}
 
 	// Read user-scoped extensions from enabled.json into PerScope.User
 	userExtensions, err := ReadExtensions(claudeDir, claudeupHome)
-	if err == nil && userExtensions != nil {
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentExtensions, err: fmt.Errorf("user scope: %w", err)})
+	} else if userExtensions != nil {
 		if p.PerScope.User == nil {
 			p.PerScope.User = &ScopeSettings{}
 		}
@@ -495,7 +519,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	// Auto-generate description based on contents
 	p.Description = p.GenerateDescription()
 
-	return p, nil
+	return p, errors.Join(errs...)
 }
 
 // sameDir returns true if a and b resolve to the same directory after

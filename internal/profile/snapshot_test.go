@@ -733,3 +733,52 @@ func TestSnapshotNoExtensionsWhenConfigMissing(t *testing.T) {
 		t.Errorf("Expected Extensions to be nil when no enabled.json, got %+v", p.Extensions)
 	}
 }
+
+func TestSnapshotAllScopesPropagatesReadErrors(t *testing.T) {
+	// SnapshotAllScopes must surface read failures instead of silently
+	// discarding them (same bug class as SnapshotWithScope, fixed in #237).
+	tmpDir := t.TempDir()
+	claudeDir := filepath.Join(tmpDir, ".claude")
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Valid marketplace registry, so the unrelated read still succeeds.
+	writeJSON(t, filepath.Join(pluginsDir, "known_marketplaces.json"), map[string]interface{}{
+		"superpowers-marketplace": map[string]interface{}{
+			"source": map[string]interface{}{
+				"source": "github",
+				"repo":   "obra/superpowers-marketplace",
+			},
+		},
+	})
+
+	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
+	writeJSON(t, claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{},
+	})
+
+	// Corrupt settings.json so readPluginsForScope's underlying read fails
+	// for user scope.
+	if err := os.WriteFile(filepath.Join(claudeDir, "settings.json"), []byte("{not valid json"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	p, err := SnapshotAllScopes("test-errors", claudeDir, claudeJSONPath, "", claudeDir)
+	if err == nil {
+		t.Fatal("Expected SnapshotAllScopes to return an error for corrupted settings.json, got nil")
+	}
+	if p == nil {
+		t.Fatal("Expected a partial profile even when a read fails")
+	}
+
+	// The unrelated marketplaces read succeeded and should still be
+	// reflected in the partial result -- SnapshotAllScopes filters
+	// marketplaces by plugin references, but since plugins failed to read,
+	// allPlugins stays empty and no marketplaces are included. What matters
+	// here is that the error from the corrupted settings.json is not lost.
+	if p.PerScope != nil && p.PerScope.User != nil && len(p.PerScope.User.Plugins) != 0 {
+		t.Errorf("Expected no user plugins captured when settings.json is corrupted, got %v", p.PerScope.User.Plugins)
+	}
+}
