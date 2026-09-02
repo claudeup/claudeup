@@ -198,6 +198,30 @@ var _ = Describe("profile save", func() {
 				_, hasLocal := perScope["local"]
 				Expect(hasLocal).To(BeFalse(), "local scope should not exist in user-only profile")
 			})
+
+			It("still succeeds when an unrelated scope's settings.json is corrupted", func() {
+				// project scope isn't being saved, so a read failure there
+				// must not block a --user save.
+				corruptPath := filepath.Join(projectDir, ".claude", "settings.json")
+				Expect(os.WriteFile(corruptPath, []byte("{not valid json"), 0644)).To(Succeed())
+
+				result := env.RunInDir(projectDir, "profile", "save", "user-only-despite-corruption", "--user")
+
+				Expect(result.ExitCode).To(Equal(0), "stderr: %s", result.Stderr)
+
+				profilePath := filepath.Join(env.ProfilesDir, "user-only-despite-corruption.json")
+				data, err := os.ReadFile(profilePath)
+				Expect(err).NotTo(HaveOccurred())
+
+				var p map[string]any
+				Expect(json.Unmarshal(data, &p)).To(Succeed())
+
+				perScope, ok := p["perScope"].(map[string]any)
+				Expect(ok).To(BeTrue(), "expected perScope field in profile")
+
+				_, hasUser := perScope["user"]
+				Expect(hasUser).To(BeTrue(), "user scope should still be captured despite unrelated corruption")
+			})
 		})
 
 		Context("without scope flag", func() {

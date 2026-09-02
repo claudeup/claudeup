@@ -61,11 +61,17 @@ const (
 
 type snapshotReadError struct {
 	component snapshotComponent
-	err       error
+	// scope is the scope ("user", "project", "local") this read failed for.
+	// Empty means the read applies regardless of scope (e.g. marketplaces).
+	scope string
+	err   error
 }
 
 func (e *snapshotReadError) Error() string {
-	return fmt.Sprintf("reading %s: %v", e.component, e.err)
+	if e.scope == "" {
+		return fmt.Sprintf("reading %s: %v", e.component, e.err)
+	}
+	return fmt.Sprintf("reading %s scope %s: %v", e.scope, e.component, e.err)
 }
 
 func (e *snapshotReadError) Unwrap() error {
@@ -139,18 +145,40 @@ func filterSnapshotReadErrors(err error, components ...snapshotComponent) error 
 		required[component] = struct{}{}
 	}
 
+	return filterSnapshotReadErrorsMatching(err, func(e *snapshotReadError) bool {
+		_, ok := required[e.component]
+		return ok
+	})
+}
+
+// FilterSnapshotErrorsForScope keeps only the errors relevant when a
+// SnapshotAllScopes result is about to be narrowed to a single scope via
+// Profile.FilterToScope: read failures for other scopes are dropped, since
+// FilterToScope discards that scope's data anyway. Scope-less errors (e.g.
+// marketplaces, which are always user-scoped but relevant to any narrowed
+// profile that still references them) are always kept.
+func FilterSnapshotErrorsForScope(err error, scope string) error {
+	return filterSnapshotReadErrorsMatching(err, func(e *snapshotReadError) bool {
+		return e.scope == "" || e.scope == scope
+	})
+}
+
+func filterSnapshotReadErrorsMatching(err error, match func(*snapshotReadError) bool) error {
+	if err == nil {
+		return nil
+	}
 	var matches []error
-	collectSnapshotReadErrors(err, required, &matches)
+	collectSnapshotReadErrors(err, match, &matches)
 	return errors.Join(matches...)
 }
 
-func collectSnapshotReadErrors(err error, required map[snapshotComponent]struct{}, matches *[]error) {
+func collectSnapshotReadErrors(err error, match func(*snapshotReadError) bool, matches *[]error) {
 	if err == nil {
 		return
 	}
 
 	if readErr, ok := err.(*snapshotReadError); ok {
-		if _, ok := required[readErr.component]; ok {
+		if match(readErr) {
 			*matches = append(*matches, readErr)
 		}
 		return
@@ -161,7 +189,7 @@ func collectSnapshotReadErrors(err error, required map[snapshotComponent]struct{
 	}
 	if joined, ok := err.(multiUnwrapper); ok {
 		for _, inner := range joined.Unwrap() {
-			collectSnapshotReadErrors(inner, required, matches)
+			collectSnapshotReadErrors(inner, match, matches)
 		}
 		return
 	}
@@ -170,7 +198,7 @@ func collectSnapshotReadErrors(err error, required map[snapshotComponent]struct{
 		Unwrap() error
 	}
 	if wrapped, ok := err.(singleUnwrapper); ok {
-		collectSnapshotReadErrors(wrapped.Unwrap(), required, matches)
+		collectSnapshotReadErrors(wrapped.Unwrap(), match, matches)
 	}
 }
 
@@ -410,6 +438,26 @@ func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 	return servers, nil
 }
 
+// snapshotScopePlugins reads plugins and MCP servers for a single scope,
+// tagging any read failure with that scope so callers narrowing the result
+// to one scope (via Profile.FilterToScope) can tell which failures still
+// matter.
+func snapshotScopePlugins(claudeDir, claudeJSONPath, projectDir, scope string) (plugins []string, mcpServers []MCPServer, errs []error) {
+	var err error
+
+	plugins, err = readPluginsForScope(claudeDir, projectDir, scope)
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, scope: scope, err: err})
+	}
+
+	mcpServers, err = ReadMCPServersForScope(claudeJSONPath, projectDir, scope)
+	if err != nil {
+		errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, scope: scope, err: err})
+	}
+
+	return plugins, mcpServers, errs
+}
+
 // SnapshotAllScopes creates a Profile capturing settings from all three scopes
 // (user, project, local) and organizing them in the PerScope structure.
 // This is the preferred way to save profiles as it preserves scope information.
@@ -432,14 +480,8 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	hasDistinctProjectScope := projectDir != "" && !sameDir(filepath.Join(projectDir, ".claude"), claudeDir)
 
 	// Capture user scope
-	userPlugins, err := readPluginsForScope(claudeDir, projectDir, "user")
-	if err != nil {
-		errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: fmt.Errorf("user scope: %w", err)})
-	}
-	userMCP, err := ReadMCPServersForScope(claudeJSONPath, projectDir, "user")
-	if err != nil {
-		errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: fmt.Errorf("user scope: %w", err)})
-	}
+	userPlugins, userMCP, userErrs := snapshotScopePlugins(claudeDir, claudeJSONPath, projectDir, "user")
+	errs = append(errs, userErrs...)
 	allPlugins = append(allPlugins, userPlugins...)
 	if len(userPlugins) > 0 || len(userMCP) > 0 {
 		p.PerScope.User = &ScopeSettings{
@@ -450,14 +492,8 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Capture project scope
 	if hasDistinctProjectScope {
-		projectPlugins, err := readPluginsForScope(claudeDir, projectDir, "project")
-		if err != nil {
-			errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: fmt.Errorf("project scope: %w", err)})
-		}
-		projectMCP, err := ReadMCPServersForScope(claudeJSONPath, projectDir, "project")
-		if err != nil {
-			errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: fmt.Errorf("project scope: %w", err)})
-		}
+		projectPlugins, projectMCP, projectErrs := snapshotScopePlugins(claudeDir, claudeJSONPath, projectDir, "project")
+		errs = append(errs, projectErrs...)
 		allPlugins = append(allPlugins, projectPlugins...)
 		if len(projectPlugins) > 0 || len(projectMCP) > 0 {
 			p.PerScope.Project = &ScopeSettings{
@@ -469,14 +505,8 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 
 	// Capture local scope
 	if hasDistinctProjectScope {
-		localPlugins, err := readPluginsForScope(claudeDir, projectDir, "local")
-		if err != nil {
-			errs = append(errs, &snapshotReadError{component: snapshotComponentPlugins, err: fmt.Errorf("local scope: %w", err)})
-		}
-		localMCP, err := ReadMCPServersForScope(claudeJSONPath, projectDir, "local")
-		if err != nil {
-			errs = append(errs, &snapshotReadError{component: snapshotComponentMCPServers, err: fmt.Errorf("local scope: %w", err)})
-		}
+		localPlugins, localMCP, localErrs := snapshotScopePlugins(claudeDir, claudeJSONPath, projectDir, "local")
+		errs = append(errs, localErrs...)
 		allPlugins = append(allPlugins, localPlugins...)
 		if len(localPlugins) > 0 || len(localMCP) > 0 {
 			p.PerScope.Local = &ScopeSettings{
@@ -486,7 +516,9 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 		}
 	}
 
-	// Marketplaces are always user-scoped; only include those used by plugins
+	// Marketplaces are always user-scoped in storage, but a narrowed save at
+	// any scope still keeps the marketplaces its remaining plugins reference
+	// (see Profile.FilterToScope), so this read matters regardless of scope.
 	marketplaces, err := readUsedMarketplaces(claudeDir, allPlugins)
 	if err != nil {
 		errs = append(errs, &snapshotReadError{component: snapshotComponentMarketplaces, err: err})
@@ -497,7 +529,7 @@ func SnapshotAllScopes(name, claudeDir, claudeJSONPath, projectDir, claudeupHome
 	// Read user-scoped extensions from enabled.json into PerScope.User
 	userExtensions, err := ReadExtensions(claudeDir, claudeupHome)
 	if err != nil {
-		errs = append(errs, &snapshotReadError{component: snapshotComponentExtensions, err: fmt.Errorf("user scope: %w", err)})
+		errs = append(errs, &snapshotReadError{component: snapshotComponentExtensions, scope: "user", err: err})
 	} else if userExtensions != nil {
 		if p.PerScope.User == nil {
 			p.PerScope.User = &ScopeSettings{}

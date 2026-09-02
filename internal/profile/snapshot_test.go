@@ -4,6 +4,8 @@ package profile
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -754,9 +756,17 @@ func TestSnapshotAllScopesPropagatesReadErrors(t *testing.T) {
 		},
 	})
 
+	// An MCP server that reads successfully, so PerScope.User is populated
+	// regardless of whether the plugins read below succeeds -- this makes
+	// the "no plugins leaked through" assertion below reachable rather than
+	// vacuously true.
 	claudeJSONPath := filepath.Join(tmpDir, ".claude.json")
 	writeJSON(t, claudeJSONPath, map[string]interface{}{
-		"mcpServers": map[string]interface{}{},
+		"mcpServers": map[string]interface{}{
+			"some-server": map[string]interface{}{
+				"command": "some-command",
+			},
+		},
 	})
 
 	// Corrupt settings.json so readPluginsForScope's underlying read fails
@@ -773,12 +783,88 @@ func TestSnapshotAllScopesPropagatesReadErrors(t *testing.T) {
 		t.Fatal("Expected a partial profile even when a read fails")
 	}
 
-	// The unrelated marketplaces read succeeded and should still be
-	// reflected in the partial result -- SnapshotAllScopes filters
-	// marketplaces by plugin references, but since plugins failed to read,
-	// allPlugins stays empty and no marketplaces are included. What matters
-	// here is that the error from the corrupted settings.json is not lost.
-	if p.PerScope != nil && p.PerScope.User != nil && len(p.PerScope.User.Plugins) != 0 {
+	// The error must identify which read failed: user-scope plugins.
+	var readErr *snapshotReadError
+	found := false
+	for _, e := range unwrapJoined(err) {
+		if re, ok := e.(*snapshotReadError); ok && re.component == snapshotComponentPlugins && re.scope == "user" {
+			readErr = re
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Expected a user-scope plugins snapshotReadError, got: %v", err)
+	}
+	if readErr.Error() == "" {
+		t.Error("Expected snapshotReadError.Error() to be non-empty")
+	}
+
+	// The MCP server read succeeded, so PerScope.User is populated -- but
+	// plugins failed to read, and must not have leaked through as a non-nil
+	// non-empty slice.
+	if p.PerScope == nil || p.PerScope.User == nil {
+		t.Fatal("Expected PerScope.User to be populated from the successful MCP read")
+	}
+	if len(p.PerScope.User.Plugins) != 0 {
 		t.Errorf("Expected no user plugins captured when settings.json is corrupted, got %v", p.PerScope.User.Plugins)
 	}
+	if len(p.PerScope.User.MCPServers) != 1 {
+		t.Errorf("Expected the successful MCP read to still be captured, got %v", p.PerScope.User.MCPServers)
+	}
+}
+
+// unwrapJoined returns the leaf errors of a tree built by errors.Join.
+func unwrapJoined(err error) []error {
+	type multiUnwrapper interface {
+		Unwrap() []error
+	}
+	if joined, ok := err.(multiUnwrapper); ok {
+		var leaves []error
+		for _, inner := range joined.Unwrap() {
+			leaves = append(leaves, unwrapJoined(inner)...)
+		}
+		return leaves
+	}
+	return []error{err}
+}
+
+func TestFilterSnapshotErrorsForScope(t *testing.T) {
+	userErr := &snapshotReadError{component: snapshotComponentPlugins, scope: "user", err: fmt.Errorf("boom")}
+	projectErr := &snapshotReadError{component: snapshotComponentMCPServers, scope: "project", err: fmt.Errorf("boom")}
+	marketplacesErr := &snapshotReadError{component: snapshotComponentMarketplaces, err: fmt.Errorf("boom")} // scope-less
+
+	joined := errors.Join(userErr, projectErr, marketplacesErr)
+
+	t.Run("keeps only the matching scope plus scope-less errors", func(t *testing.T) {
+		filtered := FilterSnapshotErrorsForScope(joined, "user")
+		if filtered == nil {
+			t.Fatal("expected a non-nil error")
+		}
+		leaves := unwrapJoined(filtered)
+		if len(leaves) != 2 {
+			t.Fatalf("expected 2 errors (user + scope-less), got %d: %v", len(leaves), filtered)
+		}
+		for _, e := range leaves {
+			re, ok := e.(*snapshotReadError)
+			if !ok {
+				t.Fatalf("expected *snapshotReadError, got %T", e)
+			}
+			if re.scope != "" && re.scope != "user" {
+				t.Errorf("unexpected scope %q leaked through filter for scope %q", re.scope, "user")
+			}
+		}
+	})
+
+	t.Run("returns nil when only errors from other scopes exist", func(t *testing.T) {
+		onlyProjectErr := errors.Join(projectErr)
+		if filtered := FilterSnapshotErrorsForScope(onlyProjectErr, "user"); filtered != nil {
+			t.Errorf("expected nil, got %v", filtered)
+		}
+	})
+
+	t.Run("returns nil for a nil error", func(t *testing.T) {
+		if filtered := FilterSnapshotErrorsForScope(nil, "user"); filtered != nil {
+			t.Errorf("expected nil, got %v", filtered)
+		}
+	})
 }
