@@ -1299,6 +1299,12 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 
 	// Create snapshot, optionally filtered to a single scope
 	p, err := profile.SnapshotAllScopes(name, claudeDir, claudeJSONPath, cwd, claudeupHome)
+	if resolvedScope != "" {
+		// Only a read failure relevant to the scope being saved should abort
+		// the command -- SnapshotAllScopes reads all three scopes, but
+		// FilterToScope below discards the other two anyway.
+		err = profile.FilterSnapshotErrorsForScope(err, resolvedScope)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to snapshot current state: %w", err)
 	}
@@ -2353,6 +2359,7 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 	claudeJSONPath := filepath.Join(claudeDir, ".claude.json")
 	live, err := profile.SnapshotAllScopes("live", claudeDir, claudeJSONPath, cwd, claudeupHome)
 	if err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not read live state for drift detection: %v", err))
 		return nil
 	}
 
