@@ -56,6 +56,33 @@ var _ = Describe("Profile diff vs live", func() {
 		})
 	})
 
+	Describe("profile saved with a plaintext secret before redaction existed", func() {
+		const secret = "sk-legacy-secret-1234567890"
+
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "legacy-secret",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						MCPServers: []profile.MCPServer{
+							{Name: "secret-server", Command: "npx", Args: []string{"--token", secret}, Scope: "user"},
+						},
+					},
+				},
+			})
+
+			claudeJSON := `{"mcpServers":{"secret-server":{"command":"npx","args":["--token","` + secret + `"]}}}`
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), []byte(claudeJSON), 0644)).To(Succeed())
+		})
+
+		It("does not report drift when the same value is in the environment", func() {
+			result := env.RunWithEnv(map[string]string{"MY_MCP_TOKEN": secret}, "profile", "diff", "legacy-secret")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("No differences"))
+		})
+	})
+
 	Describe("live has extra plugins not in profile", func() {
 		BeforeEach(func() {
 			// Create a profile with no plugins

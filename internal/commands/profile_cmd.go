@@ -1989,11 +1989,13 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to snapshot live state: %w", err)
 	}
-	// Redact the live snapshot the same way profile save does, so a profile
-	// saved with $VAR references compares equal to its own live state. The
-	// warnings describe what save would leave in plaintext; they are not
-	// relevant to a comparison and are dropped.
+	// Redact both sides the same way profile save does, so a profile saved
+	// with $VAR references compares equal to its own live state, and a
+	// profile saved with plaintext before redaction existed does not read
+	// as drift either. The warnings describe what save would leave in
+	// plaintext; they are not relevant to a comparison and are dropped.
 	live.RedactMCPSecretsFromEnv(os.Environ())
+	saved.RedactMCPSecretsFromEnv(os.Environ())
 
 	// Normalize both to PerScope form
 	savedNorm := saved.AsPerScope()
@@ -2390,6 +2392,9 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 		if err != nil {
 			continue
 		}
+		// Same redaction as the live side, so a profile saved with plaintext
+		// before redaction existed does not read as drift.
+		saved.RedactMCPSecretsFromEnv(os.Environ())
 
 		savedPerScope := saved.AsPerScope()
 
