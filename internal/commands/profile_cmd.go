@@ -1326,6 +1326,14 @@ func runProfileSave(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Replace plaintext MCP secrets with $VAR references where the value came
+	// from an environment variable, so a first save never writes the secret to
+	// disk. Runs after PreserveMCPSecrets so curated metadata from an existing
+	// profile wins over env inference.
+	for _, w := range p.RedactMCPSecretsFromEnv(os.Environ()) {
+		fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning(ui.SymbolWarning), w)
+	}
+
 	// Handle description
 	if profileSaveDescription != "" {
 		// User provided explicit description via flag

@@ -32,6 +32,52 @@ var _ = Describe("profile save", func() {
 
 	})
 
+	Context("with MCP server args that hold secret values", func() {
+		const secret = "sk-acceptance-secret-1234567890"
+
+		BeforeEach(func() {
+			claudeJSON := map[string]any{
+				"mcpServers": map[string]any{
+					"secret-server": map[string]any{
+						"command": "npx",
+						"args":    []string{"-y", "@my/mcp", "--token", secret},
+					},
+				},
+			}
+			data, err := json.MarshalIndent(claudeJSON, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), data, 0644)).To(Succeed())
+		})
+
+		It("replaces a value matching an env var with a $VAR reference on first save", func() {
+			result := env.RunWithEnv(map[string]string{"MY_MCP_TOKEN": secret}, "profile", "save", "secret-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("Saved profile"))
+
+			raw, err := os.ReadFile(filepath.Join(env.ProfilesDir, "secret-profile.json"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(raw)).NotTo(ContainSubstring(secret))
+			Expect(string(raw)).To(ContainSubstring("$MY_MCP_TOKEN"))
+
+			saved := env.LoadProfile("secret-profile")
+			srv := findMCPServer(saved, "secret-server")
+			Expect(srv).NotTo(BeNil())
+			Expect(srv.Args).To(Equal([]string{"-y", "@my/mcp", "--token", "$MY_MCP_TOKEN"}))
+			Expect(srv.Secrets).To(HaveKey("MY_MCP_TOKEN"))
+			Expect(srv.Secrets["MY_MCP_TOKEN"].Sources).To(Equal([]profile.SecretSource{{Type: "env", Key: "MY_MCP_TOKEN"}}))
+		})
+
+		It("warns when a secret-looking value matches no env var", func() {
+			result := env.Run("profile", "save", "secret-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stderr).To(ContainSubstring("secret-server"))
+			Expect(result.Stderr).To(ContainSubstring("sk-"))
+			Expect(result.Stderr).NotTo(ContainSubstring(secret))
+		})
+	})
+
 	Context("with an existing profile name", func() {
 		BeforeEach(func() {
 			env.CreateProfile(&profile.Profile{
@@ -274,3 +320,24 @@ var _ = Describe("profile save", func() {
 	})
 
 })
+
+// findMCPServer returns the named MCP server from the flat list or any scope,
+// or nil if the profile does not contain it.
+func findMCPServer(p *profile.Profile, name string) *profile.MCPServer {
+	lists := [][]profile.MCPServer{p.MCPServers}
+	if p.PerScope != nil {
+		for _, s := range []*profile.ScopeSettings{p.PerScope.User, p.PerScope.Project, p.PerScope.Local} {
+			if s != nil {
+				lists = append(lists, s.MCPServers)
+			}
+		}
+	}
+	for _, list := range lists {
+		for i := range list {
+			if list[i].Name == name {
+				return &list[i]
+			}
+		}
+	}
+	return nil
+}
