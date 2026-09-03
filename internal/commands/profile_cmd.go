@@ -1989,6 +1989,11 @@ func runProfileDiff(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to snapshot live state: %w", err)
 	}
+	// Redact the live snapshot the same way profile save does, so a profile
+	// saved with $VAR references compares equal to its own live state. The
+	// warnings describe what save would leave in plaintext; they are not
+	// relevant to a comparison and are dropped.
+	live.RedactMCPSecretsFromEnv(os.Environ())
 
 	// Normalize both to PerScope form
 	savedNorm := saved.AsPerScope()
@@ -2370,6 +2375,10 @@ func loadAppliedProfiles(profilesDir string) map[string]appliedProfileInfo {
 		ui.PrintWarning(fmt.Sprintf("Could not read live state for drift detection: %v", err))
 		return nil
 	}
+	// Redact as profile save does, so a saved $VAR reference does not read
+	// as drift against its own live value. Warnings are dropped: they are
+	// about what save would write, not about drift.
+	live.RedactMCPSecretsFromEnv(os.Environ())
 
 	result := make(map[string]appliedProfileInfo, len(bc))
 	for scope, entry := range bc {
@@ -2817,6 +2826,12 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 
 		// Preserve the wizard-created description
 		snapshot.Description = newProfile.Description
+
+		// Same redaction as profile save: never write env-sourced MCP
+		// secrets to disk in plaintext.
+		for _, w := range snapshot.RedactMCPSecretsFromEnv(os.Environ()) {
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning(ui.SymbolWarning), w)
+		}
 
 		if err := profile.Save(profilesDir, snapshot); err != nil {
 			ui.PrintWarning(fmt.Sprintf("Failed to save snapshot: %v", err))

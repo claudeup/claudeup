@@ -139,6 +139,11 @@ func handleExistingInstallationPreserve(existing *profile.Profile, profilesDir s
 		name := promptProfileName("Profile name", "my-setup")
 		existing.Name = name
 		existing.Description = "Saved from existing installation"
+		// Same redaction as profile save: never write env-sourced MCP
+		// secrets to disk in plaintext.
+		for _, w := range existing.RedactMCPSecretsFromEnv(os.Environ()) {
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning(ui.SymbolWarning), w)
+		}
 		if err := profile.Save(profilesDir, existing); err != nil {
 			return fmt.Errorf("failed to save profile: %w", err)
 		}

@@ -68,6 +68,16 @@ var _ = Describe("profile save", func() {
 			Expect(srv.Secrets["MY_MCP_TOKEN"].Sources).To(Equal([]profile.SecretSource{{Type: "env", Key: "MY_MCP_TOKEN"}}))
 		})
 
+		It("reports no differences from live state after a redacted save", func() {
+			withToken := map[string]string{"MY_MCP_TOKEN": secret}
+			Expect(env.RunWithEnv(withToken, "profile", "save", "secret-profile").ExitCode).To(Equal(0))
+
+			result := env.RunWithEnv(withToken, "profile", "diff", "secret-profile")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("No differences"))
+		})
+
 		It("warns when a secret-looking value matches no env var", func() {
 			result := env.Run("profile", "save", "secret-profile")
 

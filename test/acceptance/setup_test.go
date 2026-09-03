@@ -63,6 +63,34 @@ var _ = Describe("setup", func() {
 			Expect(result.Stdout).To(ContainSubstring("Saved as 'custom-name'"))
 		})
 
+		It("redacts env-sourced MCP secrets when saving the existing setup", func() {
+			const secret = "sk-setup-secret-1234567890"
+			claudeJSON := map[string]any{
+				"mcpServers": map[string]any{
+					"secret-server": map[string]any{
+						"command": "npx",
+						"args":    []string{"-y", "@my/mcp", "--token", secret},
+					},
+				},
+			}
+			data, err := json.MarshalIndent(claudeJSON, "", "  ")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), data, 0644)).To(Succeed())
+
+			result := env.RunWithEnvAndInput(map[string]string{"MY_MCP_TOKEN": secret}, "s\nmy-secrets\n", "setup")
+
+			Expect(result.Stdout).To(ContainSubstring("Saved as 'my-secrets'"))
+
+			raw, err := os.ReadFile(filepath.Join(env.ProfilesDir, "my-secrets.json"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(raw)).NotTo(ContainSubstring(secret))
+			Expect(string(raw)).To(ContainSubstring("$MY_MCP_TOKEN"))
+
+			srv := findMCPServer(env.LoadProfile("my-secrets"), "secret-server")
+			Expect(srv).NotTo(BeNil())
+			Expect(srv.Secrets).To(HaveKey("MY_MCP_TOKEN"))
+		})
+
 		It("defaults profile name to 'my-setup'", func() {
 			// Create an existing installation with content
 			env.CreateInstalledPlugins(map[string]interface{}{

@@ -912,7 +912,7 @@ Both the flat `mcpServers` and `perScope.*.mcpServers` formats are supported. Wh
 
 ### Automatic Redaction on Save
 
-`profile save` redacts MCP server secrets automatically when the value came from an environment variable. For every server arg, claudeup compares the captured value against the current environment. When the whole arg is exactly the value of one environment variable, the arg is saved as `$VAR` and a `secrets` entry with an `env` source is added, so the plaintext never reaches the profile JSON. This runs on every save, including the first save of a new profile.
+`profile save` redacts MCP server secrets automatically when the value came from an environment variable. For every server arg, claudeup compares the captured value against the current environment. When the whole arg is exactly the value of one environment variable, the arg is saved as `$VAR` and a `secrets` entry with an `env` source is added, so the plaintext never reaches the profile JSON. This runs on every save, including the first save of a new profile, and when `setup` saves an existing installation as a profile. `profile diff` and drift detection apply the same redaction to the live state, so a saved `$VAR` reference compares equal to its own live value as long as the variable is set.
 
 Some values are deliberately not matched, to avoid rewriting ordinary args:
 
