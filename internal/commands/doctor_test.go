@@ -3,6 +3,8 @@
 package commands
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -296,6 +298,65 @@ func TestCheckBrokenSymlinks(t *testing.T) {
 		}
 		if len(unchecked) != 0 {
 			t.Fatalf("expected 0 unchecked paths, got %d", len(unchecked))
+		}
+	})
+}
+
+func TestMergeUncheckedPaths(t *testing.T) {
+	errWalk := errors.New("from walk")
+	errDirs := errors.New("from dirs")
+
+	t.Run("keeps first entry for a duplicate path and sorts by path", func(t *testing.T) {
+		fromWalk := []UncheckedPath{
+			{Path: "/claude/agents/loop", Err: errWalk},
+			{Path: "/claude/skills/locked", Err: errWalk},
+		}
+		fromDirs := []UncheckedPath{
+			{Path: "/claude/agents/loop", Err: errDirs},
+			{Path: "/claude/agents/alpha", Err: errDirs},
+		}
+
+		merged := mergeUncheckedPaths(fromWalk, fromDirs)
+
+		if len(merged) != 3 {
+			t.Fatalf("expected 3 merged paths, got %d", len(merged))
+		}
+		wantPaths := []string{"/claude/agents/alpha", "/claude/agents/loop", "/claude/skills/locked"}
+		for i, want := range wantPaths {
+			if merged[i].Path != want {
+				t.Errorf("merged[%d].Path = %q, want %q", i, merged[i].Path, want)
+			}
+		}
+		if merged[1].Err != errWalk {
+			t.Errorf("expected the first-seen error for the duplicate path, got %v", merged[1].Err)
+		}
+	})
+
+	t.Run("returns nil for no input", func(t *testing.T) {
+		if merged := mergeUncheckedPaths(nil, nil); merged != nil {
+			t.Fatalf("expected nil, got %v", merged)
+		}
+	})
+}
+
+func TestUnderlyingError(t *testing.T) {
+	t.Run("returns empty string for nil", func(t *testing.T) {
+		if got := underlyingError(nil); got != "" {
+			t.Errorf("underlyingError(nil) = %q, want empty string", got)
+		}
+	})
+
+	t.Run("strips the operation and path from a PathError", func(t *testing.T) {
+		err := &fs.PathError{Op: "stat", Path: "/some/path", Err: errors.New("permission denied")}
+		if got := underlyingError(err); got != "permission denied" {
+			t.Errorf("underlyingError(PathError) = %q, want %q", got, "permission denied")
+		}
+	})
+
+	t.Run("returns other errors unchanged", func(t *testing.T) {
+		err := errors.New("plain error")
+		if got := underlyingError(err); got != "plain error" {
+			t.Errorf("underlyingError(plain) = %q, want %q", got, "plain error")
 		}
 	})
 }

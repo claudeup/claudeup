@@ -423,7 +423,11 @@ func mergeUncheckedPaths(lists ...[]UncheckedPath) []UncheckedPath {
 
 // underlyingError returns the OS-level cause of a path error without the
 // repeated operation and path prefix, so it can be printed next to the path.
+// A nil error yields an empty string.
 func underlyingError(err error) string {
+	if err == nil {
+		return ""
+	}
 	var pathErr *fs.PathError
 	if errors.As(err, &pathErr) {
 		return pathErr.Err.Error()
