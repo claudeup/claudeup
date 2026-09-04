@@ -910,6 +910,24 @@ MCP server args use `$KEY` references to substitute secret values at apply time.
 
 Both the flat `mcpServers` and `perScope.*.mcpServers` formats are supported. When claudeup applies this profile, `$API_TOKEN` in args is replaced with the resolved secret value. The profile JSON itself never contains the plaintext secret.
 
+### Automatic Redaction on Save
+
+`profile save` redacts MCP server secrets automatically when the value came from an environment variable. For every server arg, claudeup compares the captured value against the current environment. When the whole arg is exactly the value of one environment variable, the arg is saved as `$VAR` and a `secrets` entry with an `env` source is added, so the plaintext never reaches the profile JSON. This runs on every save, including the first save of a new profile, and when `setup` saves an existing installation as a profile. `profile diff` and drift detection apply the same redaction to the live state, so a saved `$VAR` reference compares equal to its own live value as long as the variable is set.
+
+Some values are deliberately not matched, to avoid rewriting ordinary args:
+
+- values shorter than 8 characters
+- absolute paths
+- well-known shell variables such as `HOME`, `PWD`, `TMPDIR`, `LANG`, and `CLAUDE_CONFIG_DIR`
+
+When a value cannot be redacted safely, the save still succeeds and a warning names the server and arg position (never the value) so you can fix it by hand:
+
+- the value matches more than one environment variable
+- the value appears inside a longer arg, such as `Authorization: Bearer <token>`, which apply cannot expand
+- the arg starts with a well-known token prefix (`sk-`, `ghp_`, `github_pat_`, `AKIA`, `xox`) but matches no environment variable
+
+Secrets sourced from 1Password or the keychain rather than an environment variable are not detected. Set them up once as described below; later saves preserve the `$KEY` references and `secrets` metadata.
+
 ### Redacting Secrets from Existing Profiles
 
 If you previously ran `profile save` and the saved JSON contains plaintext secrets in MCP server args, edit the profile to replace them with `$KEY` references:
