@@ -2616,6 +2616,17 @@ func saveAndPrintNewProfile(p *profile.Profile, profilesDir string) error {
 	return nil
 }
 
+// qualifyPlugin returns "plugin@repo-name", extracting repo-name from a
+// marketplaceRepo of the form "owner/repo". The Claude CLI expects
+// "plugin@repo-name" format.
+func qualifyPlugin(plugin, marketplaceRepo string) string {
+	ref := marketplaceRepo
+	if idx := strings.LastIndex(ref, "/"); idx != -1 {
+		ref = ref[idx+1:]
+	}
+	return plugin + "@" + ref
+}
+
 func runProfileCreate(cmd *cobra.Command, args []string) error {
 	profilesDir := getProfilesDir()
 
@@ -2750,14 +2761,8 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to select plugins from %s: %w", marketplace.DisplayName(), err)
 		}
 
-		// Qualify each plugin with the marketplace repo name (not owner/repo).
-		// The Claude CLI expects "plugin@repo-name" format.
-		ref := marketplace.Repo
-		if idx := strings.LastIndex(ref, "/"); idx != -1 {
-			ref = ref[idx+1:]
-		}
 		for _, p := range plugins {
-			allPlugins = append(allPlugins, p+"@"+ref)
+			allPlugins = append(allPlugins, qualifyPlugin(p, marketplace.Repo))
 		}
 	}
 

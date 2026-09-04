@@ -745,3 +745,11 @@ func TestApplyProfileWithScope_FlatStackRoutesToApplyAllScopes(t *testing.T) {
 		t.Errorf("Expected 'flat-plugin@test-market' in user-scope settings, got: %v", enabledPlugins)
 	}
 }
+
+func TestQualifyPlugin_AppendsRepoName(t *testing.T) {
+	got := qualifyPlugin("plugin", "owner/repo")
+	want := "plugin@repo"
+	if got != want {
+		t.Errorf("qualifyPlugin(%q, %q) = %q, want %q", "plugin", "owner/repo", got, want)
+	}
+}
