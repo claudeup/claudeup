@@ -35,7 +35,7 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		results := checkDirectorySymlinks(claudeDir)
+		results, _ := checkDirectorySymlinks(claudeDir)
 
 		if len(results) != 1 {
 			t.Fatalf("expected 1 directory symlink, got %d", len(results))
@@ -68,7 +68,7 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		results := checkDirectorySymlinks(claudeDir)
+		results, _ := checkDirectorySymlinks(claudeDir)
 
 		if len(results) != 0 {
 			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
@@ -84,7 +84,7 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		results := checkDirectorySymlinks(claudeDir)
+		results, _ := checkDirectorySymlinks(claudeDir)
 
 		if len(results) != 0 {
 			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
@@ -116,7 +116,7 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		results := checkDirectorySymlinks(claudeDir)
+		results, _ := checkDirectorySymlinks(claudeDir)
 
 		if len(results) != 0 {
 			t.Fatalf("expected 0 directory symlinks (skill dir should be excluded), got %d", len(results))
@@ -127,10 +127,175 @@ func TestCheckDirectorySymlinks(t *testing.T) {
 		claudeDir := t.TempDir()
 		// Don't create any category dirs
 
-		results := checkDirectorySymlinks(claudeDir)
+		results, unchecked := checkDirectorySymlinks(claudeDir)
 
 		if len(results) != 0 {
 			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
+		}
+		if len(unchecked) != 0 {
+			t.Fatalf("expected 0 unchecked paths, got %d", len(unchecked))
+		}
+	})
+
+	t.Run("reports unresolvable symlink as unchecked", func(t *testing.T) {
+		claudeDir := t.TempDir()
+
+		agentsDir := filepath.Join(claudeDir, "agents")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// A self-referencing symlink fails EvalSymlinks with ELOOP, not ErrNotExist
+		loop := filepath.Join(agentsDir, "loop")
+		if err := os.Symlink("loop", loop); err != nil {
+			t.Fatal(err)
+		}
+
+		results, unchecked := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 0 {
+			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
+		}
+		if len(unchecked) != 1 {
+			t.Fatalf("expected 1 unchecked path, got %d", len(unchecked))
+		}
+		if unchecked[0].Path != loop {
+			t.Errorf("expected unchecked path %q, got %q", loop, unchecked[0].Path)
+		}
+		if unchecked[0].Err == nil {
+			t.Error("expected unchecked entry to carry the underlying error")
+		}
+	})
+
+	t.Run("does not report dangling symlink as unchecked", func(t *testing.T) {
+		claudeDir := t.TempDir()
+
+		agentsDir := filepath.Join(claudeDir, "agents")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// Dangling symlinks are checkBrokenSymlinks' job; reporting them here too
+		// would double-count them in doctor output
+		if err := os.Symlink(filepath.Join(claudeDir, "missing"), filepath.Join(agentsDir, "dangling")); err != nil {
+			t.Fatal(err)
+		}
+
+		results, unchecked := checkDirectorySymlinks(claudeDir)
+
+		if len(results) != 0 {
+			t.Fatalf("expected 0 directory symlinks, got %d", len(results))
+		}
+		if len(unchecked) != 0 {
+			t.Fatalf("expected 0 unchecked paths, got %d", len(unchecked))
+		}
+	})
+}
+
+func TestCheckBrokenSymlinks(t *testing.T) {
+	t.Run("reports dangling symlink as broken, not unchecked", func(t *testing.T) {
+		claudeDir := t.TempDir()
+
+		agentsDir := filepath.Join(claudeDir, "agents")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		target := filepath.Join(claudeDir, "missing.md")
+		dangling := filepath.Join(agentsDir, "dangling.md")
+		if err := os.Symlink(target, dangling); err != nil {
+			t.Fatal(err)
+		}
+
+		broken, unchecked := checkBrokenSymlinks(claudeDir)
+
+		if len(broken) != 1 {
+			t.Fatalf("expected 1 broken symlink, got %d", len(broken))
+		}
+		if broken[0].Path != dangling || broken[0].Target != target {
+			t.Errorf("expected broken symlink %q -> %q, got %q -> %q", dangling, target, broken[0].Path, broken[0].Target)
+		}
+		if len(unchecked) != 0 {
+			t.Fatalf("expected 0 unchecked paths, got %d", len(unchecked))
+		}
+	})
+
+	t.Run("reports symlink loop as unchecked, not broken", func(t *testing.T) {
+		claudeDir := t.TempDir()
+
+		agentsDir := filepath.Join(claudeDir, "agents")
+		if err := os.MkdirAll(agentsDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+
+		// os.Stat on a self-referencing symlink fails with ELOOP, not ErrNotExist
+		loop := filepath.Join(agentsDir, "loop.md")
+		if err := os.Symlink("loop.md", loop); err != nil {
+			t.Fatal(err)
+		}
+
+		broken, unchecked := checkBrokenSymlinks(claudeDir)
+
+		if len(broken) != 0 {
+			t.Fatalf("expected 0 broken symlinks, got %d", len(broken))
+		}
+		if len(unchecked) != 1 {
+			t.Fatalf("expected 1 unchecked path, got %d", len(unchecked))
+		}
+		if unchecked[0].Path != loop {
+			t.Errorf("expected unchecked path %q, got %q", loop, unchecked[0].Path)
+		}
+		if unchecked[0].Err == nil {
+			t.Error("expected unchecked entry to carry the underlying error")
+		}
+	})
+
+	t.Run("reports unreadable subdirectory as unchecked", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("running as root: permission bits are not enforced")
+		}
+
+		claudeDir := t.TempDir()
+
+		agentsDir := filepath.Join(claudeDir, "agents")
+		lockedDir := filepath.Join(agentsDir, "locked")
+		if err := os.MkdirAll(lockedDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(lockedDir, "hidden.md"), []byte("agent"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(lockedDir, 0o000); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(lockedDir, 0o755) })
+
+		broken, unchecked := checkBrokenSymlinks(claudeDir)
+
+		if len(broken) != 0 {
+			t.Fatalf("expected 0 broken symlinks, got %d", len(broken))
+		}
+		if len(unchecked) != 1 {
+			t.Fatalf("expected 1 unchecked path, got %d", len(unchecked))
+		}
+		if unchecked[0].Path != lockedDir {
+			t.Errorf("expected unchecked path %q, got %q", lockedDir, unchecked[0].Path)
+		}
+		if unchecked[0].Err == nil {
+			t.Error("expected unchecked entry to carry the underlying error")
+		}
+	})
+
+	t.Run("skips missing category directories", func(t *testing.T) {
+		claudeDir := t.TempDir()
+
+		broken, unchecked := checkBrokenSymlinks(claudeDir)
+
+		if len(broken) != 0 {
+			t.Fatalf("expected 0 broken symlinks, got %d", len(broken))
+		}
+		if len(unchecked) != 0 {
+			t.Fatalf("expected 0 unchecked paths, got %d", len(unchecked))
 		}
 	})
 }

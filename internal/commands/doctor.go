@@ -116,10 +116,15 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.RenderSection("Checking Marketplaces", len(marketplaces)))
 	marketplaceIssues := 0
 	for name, marketplace := range marketplaces {
-		if _, err := os.Stat(marketplace.InstallLocation); errors.Is(err, fs.ErrNotExist) {
+		_, err := os.Stat(marketplace.InstallLocation)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
 			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+" "+name+": Directory not found at "+marketplace.InstallLocation, 1))
 			marketplaceIssues++
-		} else {
+		case err != nil:
+			fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+" "+name+": Cannot access directory at "+marketplace.InstallLocation+": "+underlyingError(err), 1))
+			marketplaceIssues++
+		default:
 			fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" "+name, 1))
 		}
 	}
@@ -212,10 +217,18 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 	// Check for broken symlinks in extensions
 	fmt.Println(ui.RenderSection("Checking Local Symlinks", -1))
-	brokenSymlinks := checkBrokenSymlinks()
-	if len(brokenSymlinks) == 0 {
+	brokenSymlinks, uncheckedFromWalk := checkBrokenSymlinks(claudeDir)
+
+	// Check for directory symlinks that bypass enable/disable controls
+	dirSymlinks, uncheckedFromDirs := checkDirectorySymlinks(claudeDir)
+
+	// The same entry can fail in both scans; report each path once
+	uncheckedPaths := mergeUncheckedPaths(uncheckedFromWalk, uncheckedFromDirs)
+
+	if len(brokenSymlinks) == 0 && len(uncheckedPaths) == 0 {
 		fmt.Println(ui.Indent(ui.Success(ui.SymbolSuccess)+" All local symlinks are valid", 1))
-	} else {
+	}
+	if len(brokenSymlinks) > 0 {
 		fmt.Println(ui.Indent(ui.Error(ui.SymbolError)+fmt.Sprintf(" %d broken symlink%s:", len(brokenSymlinks), pluralS(len(brokenSymlinks))), 1))
 		for _, bs := range brokenSymlinks {
 			fmt.Println(ui.Indent(ui.SymbolBullet+" "+bs.Path, 2))
@@ -225,8 +238,19 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Fix with: "+ui.Bold("claudeup extensions sync")), 1))
 	}
 
-	// Check for directory symlinks that bypass enable/disable controls
-	dirSymlinks := checkDirectorySymlinks(claudeDir)
+	if len(uncheckedPaths) > 0 {
+		if len(brokenSymlinks) > 0 {
+			fmt.Println()
+		}
+		fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d path%s could not be checked:", len(uncheckedPaths), pluralS(len(uncheckedPaths))), 1))
+		for _, up := range uncheckedPaths {
+			fmt.Println(ui.Indent(ui.SymbolBullet+" "+up.Path, 2))
+			fmt.Println(ui.Indent(ui.Muted(underlyingError(up.Err)), 3))
+		}
+		fmt.Println()
+		fmt.Println(ui.Indent(ui.Info(ui.SymbolArrow+" Symlink results above may be incomplete; check permissions on the listed paths"), 1))
+	}
+
 	if len(dirSymlinks) > 0 {
 		fmt.Println()
 		fmt.Println(ui.Indent(ui.Warning(ui.SymbolWarning)+fmt.Sprintf(" %d directory symlink%s bypassing enable/disable controls:", len(dirSymlinks), pluralS(len(dirSymlinks))), 1))
@@ -256,10 +280,13 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	fmt.Println(ui.Indent(ui.RenderDetail("Plugins", pluginSummary), 1))
 
 	symSummary := fmt.Sprintf("%d broken", len(brokenSymlinks))
+	if len(uncheckedPaths) > 0 {
+		symSummary += fmt.Sprintf(", %d unchecked", len(uncheckedPaths))
+	}
 	if len(dirSymlinks) > 0 {
 		symSummary += fmt.Sprintf(", %d directory symlinks", len(dirSymlinks))
 	}
-	if len(brokenSymlinks) == 0 && len(dirSymlinks) == 0 {
+	if len(brokenSymlinks) == 0 && len(uncheckedPaths) == 0 && len(dirSymlinks) == 0 {
 		symSummary = "all valid"
 	}
 	fmt.Println(ui.Indent(ui.RenderDetail("Symlinks", symSummary), 1))
@@ -269,7 +296,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
-	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(dirSymlinks) + len(scopeIssues)
+	allIssues := totalIssues + marketplaceIssues + len(brokenSymlinks) + len(uncheckedPaths) + len(dirSymlinks) + len(scopeIssues)
 	if allIssues > 0 {
 		ui.PrintInfo("Run the suggested commands to fix these issues.")
 	} else {
@@ -317,33 +344,27 @@ func analyzePathIssues(plugins *claude.PluginRegistry) []PathIssue {
 	return issues
 }
 
+// pluginsSubdirMarketplaces are marketplaces whose plugins live under a
+// plugins/ subdirectory that older registry entries omitted.
+var pluginsSubdirMarketplaces = []string{
+	"claude-code-plugins",
+	"claude-plugins-official",
+	"claude-code-templates",
+	"every-marketplace",
+	"awesome-claude-code-plugins",
+}
+
 func getExpectedPath(currentPath string) string {
 	// Based on fix-plugin-paths.sh logic
-	if strings.Contains(currentPath, "claude-code-plugins") || strings.Contains(currentPath, "claude-plugins-official") {
-		// Add /plugins/ subdirectory
-		base := filepath.Dir(currentPath)
-		plugin := filepath.Base(currentPath)
-		return filepath.Join(base, "plugins", plugin)
-	}
-	if strings.Contains(currentPath, "claude-code-templates") {
-		base := filepath.Dir(currentPath)
-		plugin := filepath.Base(currentPath)
-		return filepath.Join(base, "plugins", plugin)
+	for _, marker := range pluginsSubdirMarketplaces {
+		if strings.Contains(currentPath, marker) {
+			// Add /plugins/ subdirectory
+			return filepath.Join(filepath.Dir(currentPath), "plugins", filepath.Base(currentPath))
+		}
 	}
 	if strings.Contains(currentPath, "anthropic-agent-skills") {
-		base := filepath.Dir(currentPath)
-		plugin := filepath.Base(currentPath)
-		return filepath.Join(base, "skills", plugin)
-	}
-	if strings.Contains(currentPath, "every-marketplace") {
-		base := filepath.Dir(currentPath)
-		plugin := filepath.Base(currentPath)
-		return filepath.Join(base, "plugins", plugin)
-	}
-	if strings.Contains(currentPath, "awesome-claude-code-plugins") {
-		base := filepath.Dir(currentPath)
-		plugin := filepath.Base(currentPath)
-		return filepath.Join(base, "plugins", plugin)
+		// Add /skills/ subdirectory
+		return filepath.Join(filepath.Dir(currentPath), "skills", filepath.Base(currentPath))
 	}
 	if strings.Contains(currentPath, "platform-k8s-architect") {
 		// Remove duplicate directory name
@@ -371,14 +392,60 @@ type DirectorySymlink struct {
 	ItemCount int
 }
 
+// UncheckedPath represents a path doctor could not inspect because of an OS
+// error other than "not found" (for example permission denied or a symlink
+// loop). Doctor cannot tell whether such an entry is valid, so it is reported
+// separately from broken symlinks instead of being silently skipped.
+type UncheckedPath struct {
+	Path string
+	Err  error
+}
+
+// mergeUncheckedPaths combines unchecked entries from several scans, keeping
+// the first entry seen for each path, sorted by path.
+func mergeUncheckedPaths(lists ...[]UncheckedPath) []UncheckedPath {
+	var merged []UncheckedPath
+	seen := make(map[string]bool)
+	for _, list := range lists {
+		for _, up := range list {
+			if seen[up.Path] {
+				continue
+			}
+			seen[up.Path] = true
+			merged = append(merged, up)
+		}
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		return merged[i].Path < merged[j].Path
+	})
+	return merged
+}
+
+// underlyingError returns the OS-level cause of a path error without the
+// repeated operation and path prefix, so it can be printed next to the path.
+func underlyingError(err error) string {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Err.Error()
+	}
+	return err.Error()
+}
+
 // checkDirectorySymlinks scans category directories for symlinks that point to
 // directories. These bypass the per-item enable/disable controls in enabled.json.
-func checkDirectorySymlinks(baseDir string) []DirectorySymlink {
+// Symlinks that cannot be resolved for a reason other than a missing target are
+// returned as unchecked; missing targets are left to checkBrokenSymlinks.
+func checkDirectorySymlinks(baseDir string) ([]DirectorySymlink, []UncheckedPath) {
 	var results []DirectorySymlink
+	var unchecked []UncheckedPath
 	for _, category := range ext.AllCategories() {
 		catDir := filepath.Join(baseDir, category)
 		entries, err := os.ReadDir(catDir)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
 		if err != nil {
+			unchecked = append(unchecked, UncheckedPath{Path: catDir, Err: err})
 			continue
 		}
 
@@ -391,11 +458,18 @@ func checkDirectorySymlinks(baseDir string) []DirectorySymlink {
 
 			// Resolve the symlink and check if the target is a directory
 			resolved, err := filepath.EvalSymlinks(path)
-			if err != nil {
-				continue
+			if err == nil {
+				var resolvedInfo os.FileInfo
+				resolvedInfo, err = os.Stat(resolved)
+				if err == nil && !resolvedInfo.IsDir() {
+					continue
+				}
 			}
-			resolvedInfo, err := os.Stat(resolved)
-			if err != nil || !resolvedInfo.IsDir() {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue // dangling symlink: reported by checkBrokenSymlinks
+			}
+			if err != nil {
+				unchecked = append(unchecked, UncheckedPath{Path: path, Err: err})
 				continue
 			}
 
@@ -425,7 +499,7 @@ func checkDirectorySymlinks(baseDir string) []DirectorySymlink {
 			})
 		}
 	}
-	return results
+	return results, unchecked
 }
 
 // BrokenSymlink represents a symlink whose target no longer exists
@@ -434,37 +508,52 @@ type BrokenSymlink struct {
 	Target string
 }
 
-// checkBrokenSymlinks scans category directories recursively for symlinks with missing targets
-func checkBrokenSymlinks() []BrokenSymlink {
+// checkBrokenSymlinks scans category directories recursively for symlinks with
+// missing targets. Entries that could not be read or resolved for any other
+// reason are returned as unchecked rather than silently skipped, so doctor
+// never reports "all valid" for a tree it could not fully inspect.
+func checkBrokenSymlinks(baseDir string) ([]BrokenSymlink, []UncheckedPath) {
 	var broken []BrokenSymlink
+	var unchecked []UncheckedPath
 	for _, category := range ext.AllCategories() {
-		catDir := filepath.Join(claudeDir, category)
-		if _, err := os.Stat(catDir); err != nil {
+		catDir := filepath.Join(baseDir, category)
+		if _, err := os.Stat(catDir); errors.Is(err, fs.ErrNotExist) {
+			continue
+		} else if err != nil {
+			unchecked = append(unchecked, UncheckedPath{Path: catDir, Err: err})
 			continue
 		}
 
-		filepath.WalkDir(catDir, func(path string, d os.DirEntry, err error) error {
+		// WalkDir reports read errors through the callback; the callback never
+		// returns an error, so the walk itself cannot fail.
+		_ = filepath.WalkDir(catDir, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
-				return nil // skip entries we can't read
+				unchecked = append(unchecked, UncheckedPath{Path: path, Err: err})
+				return nil // keep walking the rest of the tree
 			}
 
 			info, err := d.Info()
 			if err != nil {
+				unchecked = append(unchecked, UncheckedPath{Path: path, Err: err})
 				return nil
 			}
 
 			if info.Mode()&os.ModeSymlink != 0 {
 				target, err := os.Readlink(path)
 				if err != nil {
-					broken = append(broken, BrokenSymlink{Path: path, Target: "(unreadable)"})
+					unchecked = append(unchecked, UncheckedPath{Path: path, Err: err})
 					return nil
 				}
-				if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+				_, err = os.Stat(path)
+				switch {
+				case errors.Is(err, fs.ErrNotExist):
 					broken = append(broken, BrokenSymlink{Path: path, Target: target})
+				case err != nil:
+					unchecked = append(unchecked, UncheckedPath{Path: path, Err: err})
 				}
 			}
 			return nil
 		})
 	}
-	return broken
+	return broken, unchecked
 }
