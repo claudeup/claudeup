@@ -139,6 +139,7 @@ claudeup profile apply frontend --local
 | `--reinstall`      | Force reinstall all plugins, MCP servers, and marketplaces      |
 | `--no-progress`    | Disable progress display (for CI/scripting)                     |
 | `--dry-run`        | Show what would be changed without making modifications         |
+| `--strict`         | Fail before applying if any extension is missing from storage   |
 
 **Replace mode:**
 

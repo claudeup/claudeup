@@ -210,6 +210,54 @@ func TestCopyToProjectNotFound(t *testing.T) {
 	}
 }
 
+func TestResolveForProjectReportsMatchesAndMissing(t *testing.T) {
+	extDir := t.TempDir()
+
+	rulesDir := filepath.Join(extDir, "rules")
+	if err := os.MkdirAll(rulesDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(rulesDir, "present.md"), []byte("# rule"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	matched, notFound, err := ResolveForProject(extDir, "rules", []string{"present.md", "pres*", "missing.md"})
+	if err != nil {
+		t.Fatalf("ResolveForProject failed: %v", err)
+	}
+
+	if len(matched) != 2 || matched[0] != "present.md" || matched[1] != "present.md" {
+		t.Errorf("expected matched [present.md present.md], got %v", matched)
+	}
+	if len(notFound) != 1 || notFound[0] != "missing.md" {
+		t.Errorf("expected notFound [missing.md], got %v", notFound)
+	}
+
+	// Copy semantics do not infer extensions, so a bare name is not found.
+	_, notFound, err = ResolveForProject(extDir, "rules", []string{"present"})
+	if err != nil {
+		t.Fatalf("ResolveForProject failed: %v", err)
+	}
+	if len(notFound) != 1 || notFound[0] != "present" {
+		t.Errorf("expected notFound [present], got %v", notFound)
+	}
+}
+
+func TestResolveForProjectMissingCategoryDir(t *testing.T) {
+	extDir := t.TempDir()
+
+	matched, notFound, err := ResolveForProject(extDir, "agents", []string{"reviewer.md"})
+	if err != nil {
+		t.Fatalf("ResolveForProject failed: %v", err)
+	}
+	if len(matched) != 0 {
+		t.Errorf("expected 0 matched, got %v", matched)
+	}
+	if len(notFound) != 1 || notFound[0] != "reviewer.md" {
+		t.Errorf("expected notFound [reviewer.md], got %v", notFound)
+	}
+}
+
 func TestProjectScopeCategories(t *testing.T) {
 	// agents and rules should be valid project-scope categories
 	if !ProjectScopeCategories[CategoryAgents] {

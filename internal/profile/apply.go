@@ -1574,22 +1574,8 @@ func warnNotFoundExtensions(notFound []string) {
 func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome string) ([]string, error) {
 	manager := ext.NewManager(claudeDir, claudeupHome)
 
-	type categoryItems struct {
-		category string
-		patterns []string
-	}
-
-	categories := []categoryItems{
-		{ext.CategoryAgents, items.Agents},
-		{ext.CategoryCommands, items.Commands},
-		{ext.CategorySkills, items.Skills},
-		{ext.CategoryHooks, items.Hooks},
-		{ext.CategoryRules, items.Rules},
-		{ext.CategoryOutputStyles, items.OutputStyles},
-	}
-
 	var allNotFound []string
-	for _, ci := range categories {
+	for _, ci := range extensionCategories(items) {
 		if len(ci.patterns) > 0 {
 			_, notFound, err := manager.Enable(ci.category, ci.patterns)
 			if err != nil {
@@ -1610,22 +1596,8 @@ func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome st
 func applyExtensionsCopy(items *ExtensionSettings, claudeupHome, projectDir string) ([]string, error) {
 	localDir := filepath.Join(claudeupHome, "ext")
 
-	type categoryItems struct {
-		category string
-		patterns []string
-	}
-
-	categories := []categoryItems{
-		{ext.CategoryAgents, items.Agents},
-		{ext.CategoryCommands, items.Commands},
-		{ext.CategorySkills, items.Skills},
-		{ext.CategoryHooks, items.Hooks},
-		{ext.CategoryRules, items.Rules},
-		{ext.CategoryOutputStyles, items.OutputStyles},
-	}
-
 	var allNotFound []string
-	for _, ci := range categories {
+	for _, ci := range extensionCategories(items) {
 		if len(ci.patterns) == 0 {
 			continue
 		}

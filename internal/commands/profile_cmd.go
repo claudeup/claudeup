@@ -304,6 +304,7 @@ var (
 	profileApplyNoProgress    bool
 	profileApplyReplace       bool
 	profileApplyDryRun        bool
+	profileApplyStrict        bool
 	// Scope aliases (shorthand for --scope)
 	profileApplyUser    bool
 	profileApplyProject bool
@@ -581,6 +582,7 @@ func init() {
 	profileApplyCmd.Flags().BoolVar(&profileApplyNoProgress, "no-progress", false, "Disable progress display (for CI/scripting)")
 	profileApplyCmd.Flags().BoolVar(&profileApplyReplace, "replace", false, "Replace user-scope settings instead of adding to them")
 	profileApplyCmd.Flags().BoolVar(&profileApplyDryRun, "dry-run", false, "Show what would be changed without making modifications")
+	profileApplyCmd.Flags().BoolVar(&profileApplyStrict, "strict", false, "Fail before applying if any extension in the profile is not found in extension storage (for CI/scripting)")
 
 	// Add flags to profile diff command
 	profileDiffCmd.Flags().BoolVar(&profileDiffOriginal, "original", false, "Compare a customized built-in profile against its embedded original")
@@ -842,6 +844,16 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	explicitScope := profileApplyScope != ""
+
+	// --strict is a pre-flight check: it must run before --replace clears
+	// anything so a failed apply leaves the current configuration untouched.
+	if profileApplyStrict {
+		if err := checkStrictExtensions(name, explicitScope); err != nil {
+			return err
+		}
+	}
+
 	// Handle --replace flag: clear scope before applying
 	if profileApplyReplace {
 		scopeStr := string(scope)
@@ -878,17 +890,35 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	explicitScope := profileApplyScope != ""
 	return applyProfileWithScope(name, scope, explicitScope)
 }
 
-// applyProfileWithScope applies a profile at the specified scope.
-// This is the core implementation shared by runProfileApply and runProfileCreate.
-// explicitScope indicates whether the user explicitly passed a scope flag.
-func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool) error {
-	profilesDir := getProfilesDir()
-	cwd, _ := os.Getwd()
+// checkStrictExtensions loads the named profile and fails if any extension it
+// references is missing from extension storage. It changes nothing on disk.
+func checkStrictExtensions(name string, explicitScope bool) error {
+	p, _, _, err := loadProfileForApply(getProfilesDir(), name, explicitScope)
+	if err != nil {
+		return err
+	}
 
+	missing, err := profile.MissingExtensions(p, claudeDir, claudeupHome)
+	if err != nil {
+		return fmt.Errorf("failed to check extensions: %w", err)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	for _, item := range missing {
+		ui.PrintError(fmt.Sprintf("Extension %q not found in extension storage", item))
+	}
+	return fmt.Errorf("strict mode: %d extension(s) not found; nothing was applied", len(missing))
+}
+
+// loadProfileForApply resolves name to a profile on disk or an embedded
+// profile and expands stack includes. It returns the loaded profile, the
+// display name to use for breadcrumbs, and whether the original was a stack.
+func loadProfileForApply(profilesDir, name string, explicitScope bool) (*profile.Profile, string, bool, error) {
 	// Resolve to exact path if ambiguous (handles nested profiles)
 	var p *profile.Profile
 	resolvedPath, resolveErr := resolveProfileArg(profilesDir, name)
@@ -897,7 +927,7 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		var loadErr error
 		p, loadErr = profile.LoadFromPath(resolvedPath)
 		if loadErr != nil {
-			return fmt.Errorf("failed to load profile %q: %w", name, loadErr)
+			return nil, "", false, fmt.Errorf("failed to load profile %q: %w", name, loadErr)
 		}
 		// Normalize name to the display name format (relative path without .json)
 		// so breadcrumbs match what profile list uses for lookups.
@@ -908,13 +938,13 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 		// Surface ambiguity and other non-not-found errors directly
 		var ambigErr *profile.AmbiguousProfileError
 		if errors.As(resolveErr, &ambigErr) {
-			return resolveErr
+			return nil, "", false, resolveErr
 		}
 		// Not found on disk -- try embedded profiles
 		var embeddedErr error
 		p, embeddedErr = profile.GetEmbeddedProfile(name)
 		if embeddedErr != nil {
-			return fmt.Errorf("profile %q not found: %w", name, resolveErr)
+			return nil, "", false, fmt.Errorf("profile %q not found: %w", name, resolveErr)
 		}
 	}
 
@@ -924,14 +954,29 @@ func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool)
 	wasStack := p.IsStack()
 	if wasStack {
 		if explicitScope {
-			return fmt.Errorf("stack profiles define their own scopes; --scope is not supported with stacks")
+			return nil, "", false, fmt.Errorf("stack profiles define their own scopes; --scope is not supported with stacks")
 		}
 		loader := &profile.DirLoader{ProfilesDir: profilesDir}
 		resolved, resolveIncludesErr := profile.ResolveIncludes(p, loader)
 		if resolveIncludesErr != nil {
-			return fmt.Errorf("failed to resolve includes: %w", resolveIncludesErr)
+			return nil, "", false, fmt.Errorf("failed to resolve includes: %w", resolveIncludesErr)
 		}
 		p = resolved
+	}
+
+	return p, name, wasStack, nil
+}
+
+// applyProfileWithScope applies a profile at the specified scope.
+// This is the core implementation shared by runProfileApply and runProfileCreate.
+// explicitScope indicates whether the user explicitly passed a scope flag.
+func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool) error {
+	profilesDir := getProfilesDir()
+	cwd, _ := os.Getwd()
+
+	p, name, wasStack, err := loadProfileForApply(profilesDir, name, explicitScope)
+	if err != nil {
+		return err
 	}
 
 	// Security check FIRST: warn about hooks from non-embedded profiles
