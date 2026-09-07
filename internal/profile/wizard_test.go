@@ -89,6 +89,34 @@ func testGumWizardIO(runner func(args ...string) ([]byte, error)) (WizardIO, *by
 	return wio, errBuf
 }
 
+// testGumWizardIOWithOut is testGumWizardIO that also returns the stdout buffer,
+// for tests that assert on user-facing feedback lines.
+func testGumWizardIOWithOut(runner func(args ...string) ([]byte, error)) (WizardIO, *bytes.Buffer, *bytes.Buffer) {
+	out := &bytes.Buffer{}
+	errBuf := &bytes.Buffer{}
+	wio := NewWizardIO(
+		strings.NewReader(""),
+		out,
+		errBuf,
+		func(name string) (string, error) { return "/usr/bin/gum", nil },
+	)
+	wio.GumRun = runner
+	return wio, out, errBuf
+}
+
+// testFallbackWizardIO creates a WizardIO with gum unavailable and piped input,
+// forcing the numbered-menu fallback paths. Returns the WizardIO and stdout buffer.
+func testFallbackWizardIO(input string) (WizardIO, *bytes.Buffer) {
+	out := &bytes.Buffer{}
+	wio := NewWizardIO(
+		strings.NewReader(input),
+		out,
+		&bytes.Buffer{},
+		func(name string) (string, error) { return "", fmt.Errorf("executable file not found in $PATH") },
+	)
+	return wio, out
+}
+
 // makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
 // Fails the test if the shell command does not produce an ExitError.
 func makeExitErrorWithCode(t *testing.T, code int) *exec.ExitError {
@@ -241,7 +269,7 @@ func TestSelectCategories_CancelWrapsErrGumCanceled(t *testing.T) {
 
 func TestPromptForDescription_CancelReturnsDefault(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
-	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
+	wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
 		return nil, exitErr // user says "no" to confirm
 	})
 
@@ -252,11 +280,14 @@ func TestPromptForDescription_CancelReturnsDefault(t *testing.T) {
 	if desc != "Auto description" {
 		t.Errorf("expected auto description on cancel, got %q", desc)
 	}
+	if !strings.Contains(out.String(), "Using auto-generated description") {
+		t.Errorf("expected feedback that the auto-generated description is used, got %q", out.String())
+	}
 }
 
 func TestEditDescription_CancelReturnsPlaceholder(t *testing.T) {
 	exitErr := makeExitErrorWithCode(t, 1)
-	wio, _ := testGumWizardIO(func(args ...string) ([]byte, error) {
+	wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
 		if args[0] == "confirm" {
 			return nil, nil // user said "yes" to editing
 		}
@@ -270,6 +301,209 @@ func TestEditDescription_CancelReturnsPlaceholder(t *testing.T) {
 	if desc != "Auto description" {
 		t.Errorf("expected placeholder on cancel, got %q", desc)
 	}
+	if !strings.Contains(out.String(), "Using auto-generated description") {
+		t.Errorf("expected feedback that the auto-generated description is used, got %q", out.String())
+	}
+}
+
+func TestEditDescription_EmptySubmitFeedback(t *testing.T) {
+	wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
+		if args[0] == "confirm" {
+			return nil, nil // user said "yes" to editing
+		}
+		return []byte("  \n"), nil // user saved the editor with nothing typed
+	})
+
+	desc, err := PromptForDescription(wio, "Auto description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if desc != "Auto description" {
+		t.Errorf("expected placeholder on empty submit, got %q", desc)
+	}
+	if !strings.Contains(out.String(), "Using auto-generated description") {
+		t.Errorf("expected feedback that the auto-generated description is used, got %q", out.String())
+	}
+}
+
+func TestPromptForDescription_EditedDescriptionHasNoFallbackFeedback(t *testing.T) {
+	wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
+		if args[0] == "confirm" {
+			return nil, nil // user said "yes" to editing
+		}
+		return []byte("My custom description\n"), nil
+	})
+
+	desc, err := PromptForDescription(wio, "Auto description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if desc != "My custom description" {
+		t.Errorf("expected edited description, got %q", desc)
+	}
+	if strings.Contains(out.String(), "Using auto-generated description") {
+		t.Errorf("expected no fallback feedback when the description was edited, got %q", out.String())
+	}
+}
+
+func TestFallbackDescriptionPrompt_DeclineFeedback(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"user answers n", "n\n"},
+		{"user presses enter", "\n"},
+		{"input ends (EOF)", ""},
+		{"user answers y then submits empty description", "y\n\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wio, out := testFallbackWizardIO(tt.input)
+
+			desc, err := PromptForDescription(wio, "Auto description")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if desc != "Auto description" {
+				t.Errorf("expected auto description, got %q", desc)
+			}
+			if !strings.Contains(out.String(), "Using auto-generated description") {
+				t.Errorf("expected feedback that the auto-generated description is used, got %q", out.String())
+			}
+		})
+	}
+}
+
+func TestFallbackDescriptionPrompt_EditedDescriptionHasNoFallbackFeedback(t *testing.T) {
+	wio, out := testFallbackWizardIO("y\nMy custom description\n")
+
+	desc, err := PromptForDescription(wio, "Auto description")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if desc != "My custom description" {
+		t.Errorf("expected edited description, got %q", desc)
+	}
+	if strings.Contains(out.String(), "Using auto-generated description") {
+		t.Errorf("expected no fallback feedback when the description was edited, got %q", out.String())
+	}
+}
+
+func TestRefinePluginSelection_CancelFeedback(t *testing.T) {
+	t.Run("announces pre-selected plugins on cancel", func(t *testing.T) {
+		exitErr := makeExitErrorWithCode(t, 1)
+		wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
+			return nil, exitErr
+		})
+
+		available := []string{"plugin-a", "plugin-b", "plugin-c"}
+		installed := map[string]bool{"plugin-a@marketplace": true, "plugin-c@marketplace": true}
+		result, err := refinePluginSelection(wio, available, installed)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 2 {
+			t.Errorf("expected 2 pre-selected plugins on cancel, got %v", result)
+		}
+		if !strings.Contains(out.String(), "Using pre-selected plugins (2)") {
+			t.Errorf("expected feedback naming the pre-selected plugin count, got %q", out.String())
+		}
+	})
+
+	t.Run("announces no plugins when nothing is pre-selected", func(t *testing.T) {
+		exitErr := makeExitErrorWithCode(t, 1)
+		wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
+			return nil, exitErr
+		})
+
+		available := []string{"plugin-a", "plugin-b"}
+		result, err := refinePluginSelection(wio, available, map[string]bool{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("expected no plugins on cancel with nothing pre-selected, got %v", result)
+		}
+		if !strings.Contains(out.String(), "No plugins selected") {
+			t.Errorf("expected feedback that no plugins were selected, got %q", out.String())
+		}
+		if strings.Contains(out.String(), "Using pre-selected plugins") {
+			t.Errorf("expected no pre-selected feedback when nothing is pre-selected, got %q", out.String())
+		}
+	})
+
+	t.Run("no fallback feedback when user confirms a selection", func(t *testing.T) {
+		wio, out, _ := testGumWizardIOWithOut(func(args ...string) ([]byte, error) {
+			return []byte("plugin-b\n"), nil
+		})
+
+		available := []string{"plugin-a", "plugin-b"}
+		installed := map[string]bool{"plugin-a@marketplace": true}
+		result, err := refinePluginSelection(wio, available, installed)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 1 || result[0] != "plugin-b" {
+			t.Errorf("expected [plugin-b], got %v", result)
+		}
+		if out.String() != "" {
+			t.Errorf("expected no output when a selection was confirmed, got %q", out.String())
+		}
+	})
+}
+
+func TestFallbackPluginRefinement_EmptyInputFeedback(t *testing.T) {
+	t.Run("announces pre-selected plugins on empty input", func(t *testing.T) {
+		wio, out := testFallbackWizardIO("\n")
+
+		available := []string{"plugin-a", "plugin-b"}
+		installed := map[string]bool{"plugin-a@marketplace": true}
+		result, err := refinePluginSelection(wio, available, installed)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 1 || result[0] != "plugin-a" {
+			t.Errorf("expected [plugin-a], got %v", result)
+		}
+		if !strings.Contains(out.String(), "Using pre-selected plugins (1)") {
+			t.Errorf("expected feedback naming the pre-selected plugin count, got %q", out.String())
+		}
+	})
+
+	t.Run("announces no plugins when nothing is pre-selected", func(t *testing.T) {
+		wio, out := testFallbackWizardIO("\n")
+
+		available := []string{"plugin-a", "plugin-b"}
+		result, err := refinePluginSelection(wio, available, map[string]bool{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 0 {
+			t.Errorf("expected no plugins with nothing pre-selected, got %v", result)
+		}
+		if !strings.Contains(out.String(), "No plugins selected") {
+			t.Errorf("expected feedback that no plugins were selected, got %q", out.String())
+		}
+	})
+
+	t.Run("no fallback feedback when user enters a selection", func(t *testing.T) {
+		wio, out := testFallbackWizardIO("2\n")
+
+		available := []string{"plugin-a", "plugin-b"}
+		installed := map[string]bool{"plugin-a@marketplace": true}
+		result, err := refinePluginSelection(wio, available, installed)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result) != 1 || result[0] != "plugin-b" {
+			t.Errorf("expected [plugin-b], got %v", result)
+		}
+		if strings.Contains(out.String(), "Using pre-selected plugins") ||
+			strings.Contains(out.String(), "No plugins selected") {
+			t.Errorf("expected no fallback feedback when a selection was entered, got %q", out.String())
+		}
+	})
 }
 
 func TestRefinePluginSelection_GumCrash(t *testing.T) {
@@ -322,7 +556,7 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		}
 	})
 
-	t.Run("silent on user cancellation", func(t *testing.T) {
+	t.Run("no stderr warning on user cancellation", func(t *testing.T) {
 		exitErr := makeExitErrorWithCode(t, 1)
 		wio, errBuf := testGumWizardIO(func(args ...string) ([]byte, error) {
 			return nil, exitErr
@@ -337,6 +571,8 @@ func TestRefinePluginSelection_GumCrash(t *testing.T) {
 		if len(result) == 0 {
 			t.Error("expected pre-selected plugins on cancel, got empty")
 		}
+		// User cancel is not a failure: feedback goes to stdout
+		// (see TestRefinePluginSelection_CancelFeedback), never stderr.
 		if errBuf.String() != "" {
 			t.Errorf("expected no warning for user cancel, got %q", errBuf.String())
 		}

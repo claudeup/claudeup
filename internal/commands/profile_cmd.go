@@ -2753,8 +2753,9 @@ func runProfileCreate(cmd *cobra.Command, args []string) error {
 		plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
 		if err != nil {
 			// Cancel at plugin refinement returns pre-selected plugins with no error
-			// (both flat and category-based paths). The sentinel is only returned
-			// by the category selection step itself.
+			// (both flat and category-based paths) and prints a "Using pre-selected
+			// plugins" notice. The sentinel is only returned by the category
+			// selection step itself.
 			if errors.Is(err, profile.ErrGumCanceled) {
 				return fmt.Errorf("profile creation cancelled")
 			}
