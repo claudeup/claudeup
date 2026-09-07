@@ -846,10 +846,17 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 
 	explicitScope := profileApplyScope != ""
 
+	// Load once, before --replace, so a missing profile or a failed --strict
+	// check leaves the current configuration untouched.
+	p, name, wasStack, err := loadProfileForApply(getProfilesDir(), name, explicitScope)
+	if err != nil {
+		return err
+	}
+
 	// --strict is a pre-flight check: it must run before --replace clears
 	// anything so a failed apply leaves the current configuration untouched.
 	if profileApplyStrict {
-		if err := checkStrictExtensions(name, explicitScope); err != nil {
+		if err := checkStrictExtensions(p); err != nil {
 			return err
 		}
 	}
@@ -890,17 +897,12 @@ func runProfileApply(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	return applyProfileWithScope(name, scope, explicitScope)
+	return applyLoadedProfile(p, name, wasStack, scope)
 }
 
-// checkStrictExtensions loads the named profile and fails if any extension it
-// references is missing from extension storage. It changes nothing on disk.
-func checkStrictExtensions(name string, explicitScope bool) error {
-	p, _, _, err := loadProfileForApply(getProfilesDir(), name, explicitScope)
-	if err != nil {
-		return err
-	}
-
+// checkStrictExtensions fails if any extension the profile references is
+// missing from extension storage. It changes nothing on disk.
+func checkStrictExtensions(p *profile.Profile) error {
 	missing, err := profile.MissingExtensions(p, claudeDir, claudeupHome)
 	if err != nil {
 		return fmt.Errorf("failed to check extensions: %w", err)
@@ -971,13 +973,18 @@ func loadProfileForApply(profilesDir, name string, explicitScope bool) (*profile
 // This is the core implementation shared by runProfileApply and runProfileCreate.
 // explicitScope indicates whether the user explicitly passed a scope flag.
 func applyProfileWithScope(name string, scope profile.Scope, explicitScope bool) error {
-	profilesDir := getProfilesDir()
-	cwd, _ := os.Getwd()
-
-	p, name, wasStack, err := loadProfileForApply(profilesDir, name, explicitScope)
+	p, name, wasStack, err := loadProfileForApply(getProfilesDir(), name, explicitScope)
 	if err != nil {
 		return err
 	}
+	return applyLoadedProfile(p, name, wasStack, scope)
+}
+
+// applyLoadedProfile applies an already-loaded profile at the specified scope.
+// name is the display name recorded in breadcrumbs; wasStack records whether
+// the profile was a stack before its includes were resolved.
+func applyLoadedProfile(p *profile.Profile, name string, wasStack bool, scope profile.Scope) error {
+	cwd, _ := os.Getwd()
 
 	// Security check FIRST: warn about hooks from non-embedded profiles
 	// Users should know about hooks before seeing the diff

@@ -9,26 +9,6 @@ import (
 	"github.com/claudeup/claudeup/v5/internal/ext"
 )
 
-// extensionCategoryItems pairs an extension category with the patterns a
-// profile lists for it.
-type extensionCategoryItems struct {
-	category string
-	patterns []string
-}
-
-// extensionCategories flattens an ExtensionSettings into per-category pattern
-// lists in the order apply processes them.
-func extensionCategories(items *ExtensionSettings) []extensionCategoryItems {
-	return []extensionCategoryItems{
-		{ext.CategoryAgents, items.Agents},
-		{ext.CategoryCommands, items.Commands},
-		{ext.CategorySkills, items.Skills},
-		{ext.CategoryHooks, items.Hooks},
-		{ext.CategoryRules, items.Rules},
-		{ext.CategoryOutputStyles, items.OutputStyles},
-	}
-}
-
 // MissingExtensions returns every extension pattern the profile references
 // that matches nothing in extension storage. It changes nothing on disk.
 //

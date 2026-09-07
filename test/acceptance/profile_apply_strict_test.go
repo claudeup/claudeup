@@ -100,6 +100,69 @@ var _ = Describe("profile apply --strict", func() {
 			Expect(result.Combined()).To(ContainSubstring("Profile applied"))
 			Expect(userRuleSymlinkExists("present.md")).To(BeTrue())
 		})
+
+		It("still previews with --strict --dry-run", func() {
+			result := env.Run("profile", "apply", "strict-ok", "-y", "--strict", "--dry-run")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Combined()).To(ContainSubstring("Dry run"))
+			Expect(result.Combined()).NotTo(ContainSubstring("Profile applied"))
+			Expect(userRuleSymlinkExists("present.md")).To(BeFalse())
+		})
+	})
+
+	Context("--strict combined with --dry-run on a missing extension", func() {
+		BeforeEach(func() {
+			writeProfile("strict-dry", map[string]any{
+				"name":    "strict-dry",
+				"plugins": []string{"plugin-a@market"},
+				"extensions": map[string]any{
+					"rules": []string{"missing.md"},
+				},
+			})
+		})
+
+		It("fails on the missing extension instead of previewing", func() {
+			result := env.Run("profile", "apply", "strict-dry", "-y", "--strict", "--dry-run")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Combined()).To(ContainSubstring("rules/missing.md"))
+			Expect(result.Combined()).NotTo(ContainSubstring("Dry run"))
+			Expect(userRuleSymlinkExists("present.md")).To(BeFalse())
+		})
+	})
+
+	Context("stack profile whose included profile references a missing extension", func() {
+		BeforeEach(func() {
+			writeProfile("strict-base", map[string]any{
+				"name":    "strict-base",
+				"plugins": []string{"plugin-a@market"},
+				"extensions": map[string]any{
+					"rules": []string{"present.md", "missing.md"},
+				},
+			})
+			writeProfile("strict-stack", map[string]any{
+				"name":     "strict-stack",
+				"includes": []string{"strict-base"},
+			})
+		})
+
+		It("fails after resolving includes when --strict is set", func() {
+			result := env.Run("profile", "apply", "strict-stack", "-y", "--strict")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Combined()).To(ContainSubstring("rules/missing.md"))
+			Expect(result.Combined()).NotTo(ContainSubstring("Profile applied"))
+			Expect(userRuleSymlinkExists("present.md")).To(BeFalse())
+			Expect(env.IsPluginEnabled("plugin-a@market")).To(BeFalse())
+		})
+
+		It("warns and continues without --strict", func() {
+			result := env.Run("profile", "apply", "strict-stack", "-y")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Combined()).To(ContainSubstring("Profile applied"))
+		})
 	})
 
 	Context("multi-scope profile referencing a missing project-scope extension", func() {

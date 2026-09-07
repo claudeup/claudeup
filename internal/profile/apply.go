@@ -1569,6 +1569,27 @@ func warnNotFoundExtensions(notFound []string) {
 	}
 }
 
+// extensionCategoryItems pairs an extension category with the patterns a
+// profile lists for it.
+type extensionCategoryItems struct {
+	category string
+	patterns []string
+}
+
+// extensionCategories flattens an ExtensionSettings into per-category pattern
+// lists in the order apply processes them. Shared by the symlink and copy
+// paths and by the --strict pre-flight in apply_strict.go.
+func extensionCategories(items *ExtensionSettings) []extensionCategoryItems {
+	return []extensionCategoryItems{
+		{ext.CategoryAgents, items.Agents},
+		{ext.CategoryCommands, items.Commands},
+		{ext.CategorySkills, items.Skills},
+		{ext.CategoryHooks, items.Hooks},
+		{ext.CategoryRules, items.Rules},
+		{ext.CategoryOutputStyles, items.OutputStyles},
+	}
+}
+
 // applyExtensionsSymlink enables extensions via symlinks (user scope).
 // Returns a list of unmatched patterns in "category/pattern" format.
 func applyExtensionsSymlink(items *ExtensionSettings, claudeDir, claudeupHome string) ([]string, error) {
