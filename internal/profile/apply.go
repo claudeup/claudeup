@@ -248,11 +248,12 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath, claudeupHome 
 	// is additive-only, suitable for project/local where we don't remove plugins.
 	if opts.ShowProgress && opts.Scope != ScopeUser {
 		concurrentResult, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
-			ClaudeDir: claudeDir,
-			Scope:     string(opts.Scope),
-			Reinstall: opts.Reinstall,
-			Output:    os.Stdout,
-			Executor:  executor,
+			ClaudeDir:   claudeDir,
+			Scope:       string(opts.Scope),
+			Reinstall:   opts.Reinstall,
+			Output:      os.Stdout,
+			Executor:    executor,
+			SecretChain: secretChain,
 		})
 		if err != nil {
 			return nil, err
@@ -950,6 +951,45 @@ func checkMCPAlreadyExists(output string, err error) error {
 	return fmt.Errorf("%w\n  Output: %s", err, strings.TrimSpace(output))
 }
 
+// resolveMCPSecrets resolves each secret declared on an MCP server by trying
+// its sources in order through the chain. Secrets that cannot be resolved are
+// reported as warnings and omitted from the returned map, so the placeholder
+// is passed through unchanged. A nil chain resolves nothing and warns nothing.
+func resolveMCPSecrets(mcp MCPServer, secretChain *secrets.Chain) (resolved map[string]string, warnings []error) {
+	if len(mcp.Secrets) == 0 || secretChain == nil {
+		return nil, nil
+	}
+	resolved = make(map[string]string)
+	for envVar, ref := range mcp.Secrets {
+		var value string
+		var resolveErr error
+		for _, source := range ref.Sources {
+			switch source.Type {
+			case "env":
+				value, _, resolveErr = secretChain.Resolve(source.Key)
+			case "1password":
+				value, _, resolveErr = secretChain.Resolve(source.Ref)
+			case "keychain":
+				keychainRef := source.Service
+				if source.Account != "" {
+					keychainRef = source.Service + ":" + source.Account
+				}
+				value, _, resolveErr = secretChain.Resolve(keychainRef)
+			}
+			if resolveErr == nil && value != "" {
+				break
+			}
+		}
+		if value != "" {
+			resolved[envVar] = value
+		} else {
+			warnings = append(warnings,
+				fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
+		}
+	}
+	return resolved, warnings
+}
+
 // installMCPServersCLI installs MCP servers via CLI and aggregates results.
 // For user scope (scope="" or "user"), the MCPServer's original Scope field is
 // preserved. For project/local scope, it is overridden to the target scope.
@@ -960,38 +1000,8 @@ func installMCPServersCLI(servers []MCPServer, scope string, secretChain *secret
 			mcp.Scope = scope
 		}
 
-		// Resolve secrets for this MCP server
-		var resolved map[string]string
-		if len(mcp.Secrets) > 0 && secretChain != nil {
-			resolved = make(map[string]string)
-			for envVar, ref := range mcp.Secrets {
-				var value string
-				var resolveErr error
-				for _, source := range ref.Sources {
-					switch source.Type {
-					case "env":
-						value, _, resolveErr = secretChain.Resolve(source.Key)
-					case "1password":
-						value, _, resolveErr = secretChain.Resolve(source.Ref)
-					case "keychain":
-						keychainRef := source.Service
-						if source.Account != "" {
-							keychainRef = source.Service + ":" + source.Account
-						}
-						value, _, resolveErr = secretChain.Resolve(keychainRef)
-					}
-					if resolveErr == nil && value != "" {
-						break
-					}
-				}
-				if value != "" {
-					resolved[envVar] = value
-				} else {
-					result.Warnings = append(result.Warnings,
-						fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
-				}
-			}
-		}
+		resolved, warnings := resolveMCPSecrets(mcp, secretChain)
+		result.Warnings = append(result.Warnings, warnings...)
 
 		args := buildMCPAddArgs(mcp, resolved)
 		output, err := executor.RunWithOutput(args...)

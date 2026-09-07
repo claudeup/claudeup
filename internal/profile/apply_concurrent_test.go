@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/claudeup/claudeup/v5/internal/secrets"
 )
 
 // concurrentMockExecutor records commands for testing concurrent apply
@@ -119,6 +121,133 @@ func TestApplyConcurrentlyHandlesMCPServers(t *testing.T) {
 
 	if len(result.MCPServersInstalled) != 1 {
 		t.Errorf("expected 1 MCP server installed, got %d", len(result.MCPServersInstalled))
+	}
+}
+
+// fakeSecretResolver resolves a fixed set of references. It stands in for a
+// non-env backend (1Password, keychain) so the test cannot be satisfied by
+// buildMCPAddArgs' os.Getenv fallback.
+type fakeSecretResolver struct {
+	values map[string]string
+}
+
+func (f *fakeSecretResolver) Name() string    { return "fake" }
+func (f *fakeSecretResolver) Available() bool { return true }
+func (f *fakeSecretResolver) Resolve(ref string) (string, error) {
+	if v, ok := f.values[ref]; ok {
+		return v, nil
+	}
+	return "", errors.New("unknown ref: " + ref)
+}
+
+func TestApplyConcurrentlyResolvesMCPSecrets(t *testing.T) {
+	profile := &Profile{
+		MCPServers: []MCPServer{
+			{
+				Name:    "secret-server",
+				Command: "node",
+				Args:    []string{"$MY_SECRET_TOKEN"},
+				Secrets: map[string]SecretRef{
+					"MY_SECRET_TOKEN": {
+						Sources: []SecretSource{
+							{Type: "1password", Ref: "op://vault/item/token"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Ensure the placeholder cannot be satisfied from the environment.
+	t.Setenv("MY_SECRET_TOKEN", "")
+	chain := secrets.NewChain(&fakeSecretResolver{
+		values: map[string]string{"op://vault/item/token": "resolved-value"},
+	})
+
+	executor := &concurrentMockExecutor{}
+	var output bytes.Buffer
+
+	result, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
+		ClaudeDir:   "/nonexistent",
+		Executor:    executor,
+		Output:      &output,
+		SecretChain: chain,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result.MCPServersInstalled) != 1 {
+		t.Fatalf("expected secret-server to be installed, got: %v", result.MCPServersInstalled)
+	}
+
+	var mcpCmd string
+	for _, cmd := range executor.commands {
+		if len(cmd) >= 3 && cmd[0] == "mcp" && cmd[1] == "add" && cmd[2] == "secret-server" {
+			mcpCmd = strings.Join(cmd, " ")
+		}
+	}
+	if mcpCmd == "" {
+		t.Fatalf("expected mcp add command for secret-server, got: %v", executor.commands)
+	}
+	if strings.Contains(mcpCmd, "$MY_SECRET_TOKEN") {
+		t.Errorf("expected $MY_SECRET_TOKEN to be resolved, but raw variable was passed: %s", mcpCmd)
+	}
+	if !strings.Contains(mcpCmd, "resolved-value") {
+		t.Errorf("expected resolved-value in mcp add args, got: %s", mcpCmd)
+	}
+}
+
+func TestApplyConcurrentlyWarnsOnUnresolvedMCPSecret(t *testing.T) {
+	profile := &Profile{
+		MCPServers: []MCPServer{
+			{
+				Name:    "secret-server",
+				Command: "node",
+				Args:    []string{"$MISSING_TOKEN"},
+				Secrets: map[string]SecretRef{
+					"MISSING_TOKEN": {
+						Sources: []SecretSource{
+							{Type: "env", Key: "MISSING_TOKEN"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	t.Setenv("MISSING_TOKEN", "")
+	chain := secrets.NewChain(secrets.NewEnvResolver())
+
+	executor := &concurrentMockExecutor{}
+	var output bytes.Buffer
+
+	result, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
+		ClaudeDir:   "/nonexistent",
+		Executor:    executor,
+		Output:      &output,
+		SecretChain: chain,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Matches the sequential path: an unresolved secret is a warning, and the
+	// server is still registered.
+	if len(result.MCPServersInstalled) != 1 {
+		t.Errorf("expected secret-server to still be installed, got: %v", result.MCPServersInstalled)
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("expected no errors for unresolved secret, got: %v", result.Errors)
+	}
+	found := false
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Error(), "secret-server") && strings.Contains(w.Error(), "MISSING_TOKEN") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected warning naming secret-server and MISSING_TOKEN, got: %v", result.Warnings)
 	}
 }
 
