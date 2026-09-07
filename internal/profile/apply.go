@@ -248,11 +248,12 @@ func ApplyWithOptions(profile *Profile, claudeDir, claudeJSONPath, claudeupHome 
 	// is additive-only, suitable for project/local where we don't remove plugins.
 	if opts.ShowProgress && opts.Scope != ScopeUser {
 		concurrentResult, err := ApplyConcurrently(profile, ConcurrentApplyOptions{
-			ClaudeDir: claudeDir,
-			Scope:     string(opts.Scope),
-			Reinstall: opts.Reinstall,
-			Output:    os.Stdout,
-			Executor:  executor,
+			ClaudeDir:   claudeDir,
+			Scope:       string(opts.Scope),
+			Reinstall:   opts.Reinstall,
+			Output:      os.Stdout,
+			Executor:    executor,
+			SecretChain: secretChain,
 		})
 		if err != nil {
 			return nil, err
@@ -950,6 +951,45 @@ func checkMCPAlreadyExists(output string, err error) error {
 	return fmt.Errorf("%w\n  Output: %s", err, strings.TrimSpace(output))
 }
 
+// resolveMCPSecrets resolves each secret declared on an MCP server by trying
+// its sources in order through the chain. Secrets that cannot be resolved are
+// reported as warnings and omitted from the returned map, so the placeholder
+// is passed through unchanged. A nil chain resolves nothing and warns nothing.
+func resolveMCPSecrets(mcp MCPServer, secretChain *secrets.Chain) (resolved map[string]string, warnings []error) {
+	if len(mcp.Secrets) == 0 || secretChain == nil {
+		return nil, nil
+	}
+	resolved = make(map[string]string)
+	for envVar, ref := range mcp.Secrets {
+		var value string
+		var resolveErr error
+		for _, source := range ref.Sources {
+			switch source.Type {
+			case "env":
+				value, _, resolveErr = secretChain.Resolve(source.Key)
+			case "1password":
+				value, _, resolveErr = secretChain.Resolve(source.Ref)
+			case "keychain":
+				keychainRef := source.Service
+				if source.Account != "" {
+					keychainRef = source.Service + ":" + source.Account
+				}
+				value, _, resolveErr = secretChain.Resolve(keychainRef)
+			}
+			if resolveErr == nil && value != "" {
+				break
+			}
+		}
+		if value != "" {
+			resolved[envVar] = value
+		} else {
+			warnings = append(warnings,
+				fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
+		}
+	}
+	return resolved, warnings
+}
+
 // installMCPServersCLI installs MCP servers via CLI and aggregates results.
 // For user scope (scope="" or "user"), the MCPServer's original Scope field is
 // preserved. For project/local scope, it is overridden to the target scope.
@@ -960,38 +1000,8 @@ func installMCPServersCLI(servers []MCPServer, scope string, secretChain *secret
 			mcp.Scope = scope
 		}
 
-		// Resolve secrets for this MCP server
-		var resolved map[string]string
-		if len(mcp.Secrets) > 0 && secretChain != nil {
-			resolved = make(map[string]string)
-			for envVar, ref := range mcp.Secrets {
-				var value string
-				var resolveErr error
-				for _, source := range ref.Sources {
-					switch source.Type {
-					case "env":
-						value, _, resolveErr = secretChain.Resolve(source.Key)
-					case "1password":
-						value, _, resolveErr = secretChain.Resolve(source.Ref)
-					case "keychain":
-						keychainRef := source.Service
-						if source.Account != "" {
-							keychainRef = source.Service + ":" + source.Account
-						}
-						value, _, resolveErr = secretChain.Resolve(keychainRef)
-					}
-					if resolveErr == nil && value != "" {
-						break
-					}
-				}
-				if value != "" {
-					resolved[envVar] = value
-				} else {
-					result.Warnings = append(result.Warnings,
-						fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
-				}
-			}
-		}
+		resolved, warnings := resolveMCPSecrets(mcp, secretChain)
+		result.Warnings = append(result.Warnings, warnings...)
 
 		args := buildMCPAddArgs(mcp, resolved)
 		output, err := executor.RunWithOutput(args...)
@@ -1219,10 +1229,68 @@ type ApplyAllScopesOptions struct {
 	// or merged additively (false). Default is false (additive).
 	// Project and local scopes always use declarative (replace) semantics.
 	ReplaceUserScope bool
-	Reinstall        bool            // Force reinstall of plugins even if already installed
-	ShowProgress     bool            // Reserved; concurrent progress UI not yet integrated
-	Executor         CommandExecutor // CLI executor; nil = create DefaultExecutor
-	Output           io.Writer       // Progress output destination; nil = os.Stdout
+	Reinstall        bool // Force reinstall of plugins even if already installed
+	// ShowProgress drives each scope's plugin and MCP installs through the
+	// concurrent engine, which renders a phased progress tracker to Output
+	// and installs in parallel. When false, installs run sequentially with
+	// no tracker output.
+	ShowProgress bool
+	Executor     CommandExecutor // CLI executor; nil = create DefaultExecutor
+	Output       io.Writer       // Progress output destination; nil = os.Stdout
+}
+
+// installScopeItems installs one scope's plugins and, when installMCP is
+// true, its MCP servers via the Claude CLI. With opts.ShowProgress it runs
+// ApplyConcurrently for the scope so the user sees the same phased progress
+// tracker as a single-scope apply; otherwise it uses the sequential helpers.
+// Marketplaces are never installed here: ApplyAllScopes registers them once,
+// up front, before any scope.
+func installScopeItems(scopeProfile *Profile, scope string, installMCP bool, claudeDir string, secretChain *secrets.Chain, opts *ApplyAllScopesOptions, executor CommandExecutor, output io.Writer, result *ApplyResult) {
+	var servers []MCPServer
+	if installMCP {
+		servers = scopeProfile.MCPServers
+	}
+
+	if !opts.ShowProgress {
+		installPluginsForScope(scopeProfile.Plugins, scope, opts.Reinstall, executor, result)
+		if installMCP {
+			installMCPServersCLI(servers, scope, secretChain, executor, result)
+		}
+		return
+	}
+
+	if len(scopeProfile.Plugins) == 0 && len(servers) == 0 {
+		return
+	}
+
+	label := scope
+	if label == "" {
+		label = "user"
+	}
+	fmt.Fprintf(output, "\n%s scope\n", label)
+
+	cr, err := ApplyConcurrently(&Profile{
+		Plugins:    scopeProfile.Plugins,
+		MCPServers: servers,
+	}, ConcurrentApplyOptions{
+		ClaudeDir:   claudeDir,
+		Scope:       label,
+		Reinstall:   opts.Reinstall,
+		Output:      output,
+		Executor:    executor,
+		SecretChain: secretChain,
+	})
+	if err != nil {
+		result.Errors = append(result.Errors, fmt.Errorf("%s scope: %w", label, err))
+		return
+	}
+
+	result.PluginsInstalled = append(result.PluginsInstalled, cr.PluginsInstalled...)
+	result.PluginsAlreadyPresent = append(result.PluginsAlreadyPresent, cr.PluginsSkipped...)
+	result.MCPServersInstalled = append(result.MCPServersInstalled, cr.MCPServersInstalled...)
+	result.MCPServersAlreadyPresent = append(result.MCPServersAlreadyPresent, cr.MCPServersSkipped...)
+	result.Warnings = append(result.Warnings, cr.Warnings...)
+	result.Errors = append(result.Errors, cr.Errors...)
 }
 
 // ApplyAllScopes applies a profile to all scope levels.
@@ -1292,8 +1360,7 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			}
 		}
 
-		installPluginsForScope(scopeProfile.Plugins, "", opts.Reinstall, executor, result)
-		installMCPServersCLI(scopeProfile.MCPServers, "", secretChain, executor, result)
+		installScopeItems(scopeProfile, "", true, claudeDir, secretChain, opts, executor, output, result)
 
 		if profile.PerScope.User.Extensions != nil {
 			notFound, err := applyExtensionsScoped(profile, profile.PerScope.User.Extensions, ScopeUser, claudeDir, claudeupHome, projectDir)
@@ -1322,7 +1389,9 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			}
 		}
 
-		installPluginsForScope(scopeProfile.Plugins, "project", opts.Reinstall, executor, result)
+		// Project MCP servers were written to .mcp.json above, so only plugins
+		// go through the CLI here.
+		installScopeItems(scopeProfile, "project", false, claudeDir, secretChain, opts, executor, output, result)
 
 		if profile.PerScope.Project.Extensions != nil {
 			notFound, err := applyExtensionsScoped(profile, profile.PerScope.Project.Extensions, ScopeProject, claudeDir, claudeupHome, projectDir)
@@ -1340,8 +1409,7 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			return nil, fmt.Errorf("failed to apply local scope: %w", err)
 		}
 
-		installPluginsForScope(scopeProfile.Plugins, "local", opts.Reinstall, executor, result)
-		installMCPServersCLI(scopeProfile.MCPServers, "local", secretChain, executor, result)
+		installScopeItems(scopeProfile, "local", true, claudeDir, secretChain, opts, executor, output, result)
 
 		if profile.PerScope.Local.Extensions != nil {
 			notFound, err := applyExtensionsScoped(profile, profile.PerScope.Local.Extensions, ScopeLocal, claudeDir, claudeupHome, projectDir)
