@@ -91,6 +91,11 @@ func missingExtensionsForScope(items *ExtensionSettings, scope Scope, claudeDir,
 		var notFound []string
 		var err error
 		if scope == ScopeProject || scope == ScopeLocal {
+			// Mirror applyExtensionsCopy: an unsupported category fails the
+			// apply, so surface it before anything is written.
+			if err := ext.ValidateProjectScope(ci.category); err != nil {
+				return nil, fmt.Errorf("%s scope: %w", scope, err)
+			}
 			_, notFound, err = ext.ResolveForProject(extDir, ci.category, ci.patterns)
 		} else {
 			_, notFound, err = manager.Resolve(ci.category, ci.patterns)

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -91,6 +92,31 @@ func TestMissingExtensionsMultiScopeProfile(t *testing.T) {
 	}
 	if !reflect.DeepEqual(missing, want) {
 		t.Errorf("MissingExtensions() = %v, want %v", missing, want)
+	}
+}
+
+func TestMissingExtensionsRejectsUnsupportedProjectCategory(t *testing.T) {
+	claudeDir := t.TempDir()
+	claudeupHome := t.TempDir()
+	writeExtFile(t, claudeupHome, "commands", "deploy.md")
+
+	// Commands cannot be copied to project scope, so apply would fail after
+	// writing settings. The pre-flight must report it instead.
+	p := &Profile{
+		Name: "multi",
+		PerScope: &PerScopeSettings{
+			Project: &ScopeSettings{
+				Extensions: &ExtensionSettings{Commands: []string{"deploy.md"}},
+			},
+		},
+	}
+
+	_, err := MissingExtensions(p, claudeDir, claudeupHome)
+	if err == nil {
+		t.Fatal("MissingExtensions() expected error for unsupported project-scope category, got nil")
+	}
+	if !strings.Contains(err.Error(), "project scope") || !strings.Contains(err.Error(), "commands") {
+		t.Errorf("MissingExtensions() error = %q, want it to name the scope and category", err)
 	}
 }
 
