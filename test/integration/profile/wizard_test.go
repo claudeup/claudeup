@@ -83,6 +83,38 @@ func writeMarketplaceMetadata(installLocation, rawJSON string) {
 	Expect(os.WriteFile(filepath.Join(metadataDir, "marketplace.json"), []byte(rawJSON), 0644)).To(Succeed())
 }
 
+// writeInstalledPlugins writes an installed_plugins.json under claudeDir/plugins
+// listing the given plugin keys (plugin-name@marketplace-name) as installed.
+func writeInstalledPlugins(claudeDir string, keys ...string) {
+	pluginsDir := filepath.Join(claudeDir, "plugins")
+	Expect(os.MkdirAll(pluginsDir, 0755)).To(Succeed())
+
+	plugins := make(map[string][]map[string]interface{}, len(keys))
+	for _, key := range keys {
+		plugins[key] = []map[string]interface{}{{"scope": "user"}}
+	}
+	data, err := json.Marshal(map[string]interface{}{"version": 2, "plugins": plugins})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(os.WriteFile(filepath.Join(pluginsDir, "installed_plugins.json"), data, 0644)).To(Succeed())
+}
+
+// setupFlatMarketplace creates an isolated CLAUDE_CONFIG_DIR containing a
+// marketplace without categories that offers plugin-a and plugin-b, with
+// plugin-a already installed. Returns the Marketplace to select from.
+func setupFlatMarketplace() profile.Marketplace {
+	claudeDir := GinkgoT().TempDir()
+	GinkgoT().Setenv("CLAUDE_CONFIG_DIR", claudeDir)
+
+	installLocation := filepath.Join(claudeDir, "plugins", "repos", "flat-marketplace")
+	writeKnownMarketplaces(claudeDir, map[string]knownMarketplaceEntry{
+		"flat-marketplace": {Source: "github", Repo: "owner/flat-marketplace", InstallLocation: installLocation},
+	})
+	writeMarketplaceMetadata(installLocation, `{"plugins": [{"name": "plugin-a"}, {"name": "plugin-b"}]}`)
+	writeInstalledPlugins(claudeDir, "plugin-a@flat-marketplace")
+
+	return profile.Marketplace{Source: "github", Repo: "owner/flat-marketplace"}
+}
+
 // makeExitErrorWithCode returns an *exec.ExitError with the given exit code.
 // Fails the current Ginkgo spec if the shell command does not produce an ExitError.
 func makeExitErrorWithCode(code int) *exec.ExitError {
@@ -361,27 +393,33 @@ var _ = Describe("Wizard", func() {
 
 	Describe("PromptForDescription", func() {
 		It("accepts auto-generated description when user declines edit", func() {
-			wio, _ := testWizardIO("n\n")
+			wio, out := testWizardIO("n\n")
 
 			desc, err := profile.PromptForDescription(wio, "Auto description")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(desc).To(Equal("Auto description"))
+			Expect(out.String()).To(ContainSubstring("Using auto-generated description"),
+				"declining to edit should tell the user the default is kept")
 		})
 
 		It("returns auto-generated on EOF", func() {
-			wio, _ := testWizardIO("")
+			wio, out := testWizardIO("")
 
 			desc, err := profile.PromptForDescription(wio, "Auto description")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(desc).To(Equal("Auto description"))
+			Expect(out.String()).To(ContainSubstring("Using auto-generated description"),
+				"EOF at the edit prompt should tell the user the default is kept")
 		})
 
 		It("allows user to enter custom description", func() {
-			wio, _ := testWizardIO("y\nMy custom description\n")
+			wio, out := testWizardIO("y\nMy custom description\n")
 
 			desc, err := profile.PromptForDescription(wio, "Auto description")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(desc).To(Equal("My custom description"))
+			Expect(out.String()).NotTo(ContainSubstring("Using auto-generated description"),
+				"an edited description should not print the fallback notice")
 		})
 
 		It("returns error when user says yes but input ends", func() {
@@ -393,11 +431,13 @@ var _ = Describe("Wizard", func() {
 		})
 
 		It("uses auto-generated if user says yes but enters empty description", func() {
-			wio, _ := testWizardIO("y\n\n")
+			wio, out := testWizardIO("y\n\n")
 
 			desc, err := profile.PromptForDescription(wio, "Auto description")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(desc).To(Equal("Auto description"))
+			Expect(out.String()).To(ContainSubstring("Using auto-generated description"),
+				"an empty description should tell the user the default is kept")
 		})
 	})
 
@@ -428,11 +468,13 @@ var _ = Describe("Wizard", func() {
 					}
 					return nil, exitErr // user cancelled gum write
 				}
-				wio, _, errBuf := gumWizardIO("", runner)
+				wio, out, errBuf := gumWizardIO("", runner)
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(desc).To(Equal("Auto description"))
+				Expect(out.String()).To(ContainSubstring("Using auto-generated description"),
+					"cancelling the editor should tell the user the default is kept")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})
@@ -456,17 +498,62 @@ var _ = Describe("Wizard", func() {
 				runner := func(args ...string) ([]byte, error) {
 					return nil, exitErr // user said "no"
 				}
-				wio, _, errBuf := gumWizardIO("", runner)
+				wio, out, errBuf := gumWizardIO("", runner)
 
 				desc, err := profile.PromptForDescription(wio, "Auto description")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(desc).To(Equal("Auto description"))
+				Expect(out.String()).To(ContainSubstring("Using auto-generated description"),
+					"declining to edit should tell the user the default is kept")
 				Expect(errBuf.String()).To(BeEmpty())
 			})
 		})
 
-		// refinePluginSelection tests are in internal/profile/wizard_test.go
-		// (same package, can access unexported function)
+		// Unit-level refinePluginSelection tests are in internal/profile/wizard_test.go
+		// (same package, can access unexported function). These exercise the same
+		// step through the exported SelectPluginsForMarketplace entry point.
+		Describe("plugin refinement cancel via SelectPluginsForMarketplace", func() {
+			It("keeps pre-selected plugins and says so when gum is cancelled", func() {
+				marketplace := setupFlatMarketplace()
+				exitErr := makeExitErrorWithCode(1)
+				runner := func(args ...string) ([]byte, error) {
+					return nil, exitErr // user pressed Esc at the plugin list
+				}
+				wio, out, errBuf := gumWizardIO("", runner)
+
+				plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(plugins).To(Equal([]string{"plugin-a"}))
+				Expect(out.String()).To(ContainSubstring("Using pre-selected plugins (1)"),
+					"cancelling refinement should tell the user which default was kept")
+				Expect(errBuf.String()).To(BeEmpty())
+			})
+
+			It("keeps pre-selected plugins and says so on empty fallback input", func() {
+				marketplace := setupFlatMarketplace()
+				wio, out := testWizardIO("\n")
+
+				plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(plugins).To(Equal([]string{"plugin-a"}))
+				Expect(out.String()).To(ContainSubstring("Using pre-selected plugins (1)"),
+					"accepting the fallback default should tell the user which default was kept")
+			})
+
+			It("prints no fallback notice when the user confirms a selection", func() {
+				marketplace := setupFlatMarketplace()
+				runner := func(args ...string) ([]byte, error) {
+					return []byte("plugin-b\n"), nil
+				}
+				wio, out, _ := gumWizardIO("", runner)
+
+				plugins, err := profile.SelectPluginsForMarketplace(wio, marketplace)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(plugins).To(Equal([]string{"plugin-b"}))
+				Expect(out.String()).NotTo(ContainSubstring("Using pre-selected plugins"))
+				Expect(out.String()).NotTo(ContainSubstring("No plugins selected"))
+			})
+		})
 
 		Describe("SelectMarketplaces", func() {
 			It("returns error on gum crash", func() {
