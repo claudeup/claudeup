@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/claudeup/claudeup/v5/internal/claude"
@@ -370,14 +371,19 @@ func setupAllScopesTestEnv(t *testing.T) *allScopesTestEnv {
 	}
 }
 
-// allScopesMockExecutor records commands for ApplyAllScopes tests
+// allScopesMockExecutor records commands for ApplyAllScopes tests.
+// The mutex guards commands because the progress path runs installs from
+// worker goroutines.
 type allScopesMockExecutor struct {
+	mu               sync.Mutex
 	commands         [][]string
 	failOn           map[string]bool   // command prefix → fail with empty output
 	failOnWithOutput map[string]string // command prefix → fail with this output string
 }
 
 func (m *allScopesMockExecutor) Run(args ...string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.commands = append(m.commands, args)
 	if len(args) > 0 && m.failOn != nil {
 		key := strings.Join(args[:min(3, len(args))], " ")
@@ -389,6 +395,8 @@ func (m *allScopesMockExecutor) Run(args ...string) error {
 }
 
 func (m *allScopesMockExecutor) RunWithOutput(args ...string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.commands = append(m.commands, args)
 	if len(args) > 0 {
 		key := strings.Join(args[:min(3, len(args))], " ")
@@ -405,16 +413,12 @@ func (m *allScopesMockExecutor) RunWithOutput(args ...string) (string, error) {
 }
 
 func (m *allScopesMockExecutor) hasCommand(prefix ...string) bool {
-	target := strings.Join(prefix, " ")
-	for _, cmd := range m.commands {
-		if strings.HasPrefix(strings.Join(cmd, " "), target) {
-			return true
-		}
-	}
-	return false
+	return len(m.commandsWithPrefix(prefix...)) > 0
 }
 
 func (m *allScopesMockExecutor) commandsWithPrefix(prefix ...string) [][]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	target := strings.Join(prefix, " ")
 	var matches [][]string
 	for _, cmd := range m.commands {
@@ -1114,5 +1118,270 @@ func TestApplyAllScopesInstallMarketplacesOutput(t *testing.T) {
 	output := buf.String()
 	if !strings.Contains(output, "org/my-mp") {
 		t.Errorf("expected marketplace name in output, got: %q", output)
+	}
+}
+
+// progressProfile returns a three-scope profile with plugins at every scope
+// and MCP servers at user, project, and local scope.
+func progressProfile() *Profile {
+	return &Profile{
+		Name: "test-progress",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				Plugins: []string{"user-plugin@mp"},
+				MCPServers: []MCPServer{
+					{Name: "user-server", Command: "node", Args: []string{"u.js"}},
+				},
+			},
+			Project: &ScopeSettings{
+				Plugins: []string{"project-plugin@mp"},
+				MCPServers: []MCPServer{
+					{Name: "project-server", Command: "node", Args: []string{"p.js"}},
+				},
+			},
+			Local: &ScopeSettings{
+				Plugins: []string{"local-plugin@mp"},
+				MCPServers: []MCPServer{
+					{Name: "local-server", Command: "node", Args: []string{"l.js"}},
+				},
+			},
+		},
+	}
+}
+
+func TestApplyAllScopesShowProgressRendersPerScopeTracker(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	var buf strings.Builder
+	executor := &allScopesMockExecutor{}
+
+	opts := &ApplyAllScopesOptions{
+		Executor:     executor,
+		Output:       &buf,
+		ShowProgress: true,
+	}
+	result, err := ApplyAllScopes(progressProfile(), env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, opts)
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+	if len(result.Errors) > 0 {
+		t.Fatalf("expected no errors, got: %v", result.Errors)
+	}
+
+	output := buf.String()
+
+	// The non-TTY tracker streams one line per completed item, prefixed by phase.
+	for _, want := range []string{
+		"[Plugins] ✓ user-plugin@mp",
+		"[Plugins] ✓ project-plugin@mp",
+		"[Plugins] ✓ local-plugin@mp",
+		"[MCP Servers] ✓ user-server",
+		"[MCP Servers] ✓ local-server",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected tracker line %q in output, got:\n%s", want, output)
+		}
+	}
+
+	// Each scope's tracker is introduced by a header so the three are distinguishable.
+	for _, want := range []string{"user scope", "project scope", "local scope"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("expected scope header %q in output, got:\n%s", want, output)
+		}
+	}
+
+	// Project MCP servers are file-based and must not go through the CLI.
+	if strings.Contains(output, "[MCP Servers] ✓ project-server") {
+		t.Errorf("project-server must be written to .mcp.json, not installed via CLI; output:\n%s", output)
+	}
+	if executor.hasCommand("mcp", "add", "project-server") {
+		t.Errorf("unexpected mcp add for project-server: %v", executor.commands)
+	}
+}
+
+func TestApplyAllScopesShowProgressInstallsWithCorrectScopes(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	executor := &allScopesMockExecutor{}
+
+	opts := &ApplyAllScopesOptions{
+		Executor:     executor,
+		Output:       io.Discard,
+		ShowProgress: true,
+	}
+	result, err := ApplyAllScopes(progressProfile(), env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, opts)
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	if !executor.hasCommand("plugin", "install", "user-plugin@mp") {
+		t.Errorf("expected user-scope plugin install without --scope, got: %v", executor.commands)
+	}
+	if !executor.hasCommand("plugin", "install", "--scope", "project", "project-plugin@mp") {
+		t.Errorf("expected plugin install --scope project, got: %v", executor.commands)
+	}
+	if !executor.hasCommand("plugin", "install", "--scope", "local", "local-plugin@mp") {
+		t.Errorf("expected plugin install --scope local, got: %v", executor.commands)
+	}
+	if got := len(executor.commandsWithPrefix("plugin", "install")); got != 3 {
+		t.Errorf("expected exactly 3 plugin install commands, got %d: %v", got, executor.commands)
+	}
+
+	if !executor.hasCommand("mcp", "add", "user-server", "-s", "user") {
+		t.Errorf("expected mcp add user-server -s user, got: %v", executor.commands)
+	}
+	if !executor.hasCommand("mcp", "add", "local-server", "-s", "local") {
+		t.Errorf("expected mcp add local-server -s local, got: %v", executor.commands)
+	}
+	if got := len(executor.commandsWithPrefix("mcp", "add")); got != 2 {
+		t.Errorf("expected exactly 2 mcp add commands, got %d: %v", got, executor.commands)
+	}
+
+	// .mcp.json still carries the project server.
+	data, err := os.ReadFile(filepath.Join(env.projectDir, ".mcp.json"))
+	if err != nil {
+		t.Fatalf("expected .mcp.json to be written: %v", err)
+	}
+	if !strings.Contains(string(data), "project-server") {
+		t.Errorf("expected project-server in .mcp.json, got: %s", data)
+	}
+
+	// Results aggregate across scopes.
+	if len(result.PluginsInstalled) != 3 {
+		t.Errorf("expected 3 plugins installed, got: %v", result.PluginsInstalled)
+	}
+	wantMCP := map[string]bool{"user-server": true, "project-server": true, "local-server": true}
+	for _, name := range result.MCPServersInstalled {
+		delete(wantMCP, name)
+	}
+	if len(wantMCP) != 0 {
+		t.Errorf("missing from MCPServersInstalled: %v (got %v)", wantMCP, result.MCPServersInstalled)
+	}
+}
+
+func TestApplyAllScopesNoProgressKeepsSequentialOutput(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	var buf strings.Builder
+	executor := &allScopesMockExecutor{}
+
+	opts := &ApplyAllScopesOptions{
+		Executor:     executor,
+		Output:       &buf,
+		ShowProgress: false,
+	}
+	_, err := ApplyAllScopes(progressProfile(), env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, opts)
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	output := buf.String()
+	if strings.Contains(output, "[Plugins]") || strings.Contains(output, "[MCP Servers]") {
+		t.Errorf("expected no tracker output with ShowProgress=false, got:\n%s", output)
+	}
+	if got := len(executor.commandsWithPrefix("plugin", "install")); got != 3 {
+		t.Errorf("expected 3 plugin install commands on the sequential path, got %d", got)
+	}
+}
+
+func TestApplyAllScopesShowProgressResolvesMCPSecrets(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	executor := &allScopesMockExecutor{}
+
+	p := &Profile{
+		Name: "test-progress-secrets",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{
+						Name:    "secret-server",
+						Command: "node",
+						Args:    []string{"$MY_SECRET_TOKEN"},
+						Secrets: map[string]SecretRef{
+							"MY_SECRET_TOKEN": {
+								Sources: []SecretSource{
+									{Type: "1password", Ref: "op://vault/item/token"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Ensure the placeholder cannot be satisfied from the environment.
+	t.Setenv("MY_SECRET_TOKEN", "")
+	chain := secrets.NewChain(&fakeSecretResolver{
+		values: map[string]string{"op://vault/item/token": "resolved-value"},
+	})
+
+	opts := &ApplyAllScopesOptions{
+		Executor:     executor,
+		Output:       io.Discard,
+		ShowProgress: true,
+	}
+	_, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, chain, opts)
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	mcpCmds := executor.commandsWithPrefix("mcp", "add", "secret-server")
+	if len(mcpCmds) != 1 {
+		t.Fatalf("expected one mcp add for secret-server, got: %v", executor.commands)
+	}
+	cmdStr := strings.Join(mcpCmds[0], " ")
+	if strings.Contains(cmdStr, "$MY_SECRET_TOKEN") {
+		t.Errorf("expected $MY_SECRET_TOKEN to be resolved on the progress path, got: %s", cmdStr)
+	}
+	if !strings.Contains(cmdStr, "resolved-value") {
+		t.Errorf("expected resolved-value in mcp add args, got: %s", cmdStr)
+	}
+}
+
+func TestApplyAllScopesShowProgressReplaceRemovesMCPBeforeAdd(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	writeTestJSON(t, env.claudeJSONPath, map[string]interface{}{
+		"mcpServers": map[string]interface{}{
+			"old-server": map[string]interface{}{"command": "npx", "args": []string{"old-pkg"}},
+		},
+	})
+	executor := &allScopesMockExecutor{}
+
+	p := &Profile{
+		Name: "test-progress-replace",
+		PerScope: &PerScopeSettings{
+			User: &ScopeSettings{
+				MCPServers: []MCPServer{
+					{Name: "new-server", Command: "npx", Args: []string{"new-pkg"}},
+				},
+			},
+		},
+	}
+
+	_, err := ApplyAllScopes(p, env.claudeDir, env.claudeJSONPath, env.projectDir, env.claudeupHome, nil, &ApplyAllScopesOptions{
+		Executor:         executor,
+		Output:           io.Discard,
+		ReplaceUserScope: true,
+		ShowProgress:     true,
+	})
+	if err != nil {
+		t.Fatalf("ApplyAllScopes failed: %v", err)
+	}
+
+	removeIdx, addIdx := -1, -1
+	executor.mu.Lock()
+	for i, cmd := range executor.commands {
+		cmdStr := strings.Join(cmd, " ")
+		if removeIdx == -1 && strings.HasPrefix(cmdStr, "mcp remove old-server") {
+			removeIdx = i
+		}
+		if addIdx == -1 && strings.HasPrefix(cmdStr, "mcp add new-server") {
+			addIdx = i
+		}
+	}
+	executor.mu.Unlock()
+	if removeIdx == -1 || addIdx == -1 {
+		t.Fatalf("expected both mcp remove old-server and mcp add new-server, got: %v", executor.commands)
+	}
+	if removeIdx >= addIdx {
+		t.Errorf("expected mcp remove (%d) before mcp add (%d)", removeIdx, addIdx)
 	}
 }
