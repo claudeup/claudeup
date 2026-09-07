@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/claudeup/claudeup/v5/internal/secrets"
 )
 
 func TestComputeDiffPlugins(t *testing.T) {
@@ -185,6 +187,92 @@ func TestBuildMCPAddArgs(t *testing.T) {
 		if args[i] != exp {
 			t.Errorf("Arg %d: expected %q, got %q", i, exp, args[i])
 		}
+	}
+}
+
+func TestResolveMCPSecretsNilChain(t *testing.T) {
+	mcp := MCPServer{
+		Name: "srv",
+		Secrets: map[string]SecretRef{
+			"TOKEN": {Sources: []SecretSource{{Type: "env", Key: "TOKEN"}}},
+		},
+	}
+
+	resolved, warnings := resolveMCPSecrets(mcp, nil)
+
+	if resolved != nil {
+		t.Errorf("expected nil resolved map with nil chain, got: %v", resolved)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings with nil chain, got: %v", warnings)
+	}
+}
+
+func TestResolveMCPSecretsTriesSourcesInOrder(t *testing.T) {
+	// First source (env) is unset; second (1password) resolves; keychain
+	// source with an account builds a "service:account" reference.
+	t.Setenv("UNSET_TOKEN", "")
+	chain := secrets.NewChain(&fakeSecretResolver{
+		values: map[string]string{
+			"op://vault/item/token": "from-op",
+			"my-service:my-account": "from-keychain",
+		},
+	})
+
+	mcp := MCPServer{
+		Name: "srv",
+		Secrets: map[string]SecretRef{
+			"API_TOKEN": {Sources: []SecretSource{
+				{Type: "env", Key: "UNSET_TOKEN"},
+				{Type: "1password", Ref: "op://vault/item/token"},
+			}},
+			"KEYCHAIN_TOKEN": {Sources: []SecretSource{
+				{Type: "keychain", Service: "my-service", Account: "my-account"},
+			}},
+		},
+	}
+
+	resolved, warnings := resolveMCPSecrets(mcp, chain)
+
+	if len(warnings) != 0 {
+		t.Errorf("expected no warnings, got: %v", warnings)
+	}
+	if resolved["API_TOKEN"] != "from-op" {
+		t.Errorf("expected API_TOKEN resolved from second source, got: %q", resolved["API_TOKEN"])
+	}
+	if resolved["KEYCHAIN_TOKEN"] != "from-keychain" {
+		t.Errorf("expected KEYCHAIN_TOKEN resolved via service:account ref, got: %q", resolved["KEYCHAIN_TOKEN"])
+	}
+}
+
+func TestResolveMCPSecretsWarnsAndOmitsUnresolved(t *testing.T) {
+	t.Setenv("MISSING_TOKEN", "")
+	chain := secrets.NewChain(&fakeSecretResolver{
+		values: map[string]string{"op://vault/item/ok": "ok-value"},
+	})
+
+	mcp := MCPServer{
+		Name: "srv",
+		Secrets: map[string]SecretRef{
+			"OK_TOKEN":      {Sources: []SecretSource{{Type: "1password", Ref: "op://vault/item/ok"}}},
+			"MISSING_TOKEN": {Sources: []SecretSource{{Type: "env", Key: "MISSING_TOKEN"}}},
+		},
+	}
+
+	resolved, warnings := resolveMCPSecrets(mcp, chain)
+
+	if resolved["OK_TOKEN"] != "ok-value" {
+		t.Errorf("expected OK_TOKEN resolved, got: %v", resolved)
+	}
+	if _, present := resolved["MISSING_TOKEN"]; present {
+		t.Errorf("expected MISSING_TOKEN to be omitted from resolved map, got: %v", resolved)
+	}
+	if len(warnings) != 1 {
+		t.Fatalf("expected exactly one warning, got: %v", warnings)
+	}
+	msg := warnings[0].Error()
+	if !strings.Contains(msg, "srv") || !strings.Contains(msg, "MISSING_TOKEN") {
+		t.Errorf("expected warning to name the server and secret, got: %s", msg)
 	}
 }
 
