@@ -582,8 +582,16 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 			}
 			plugin.GitCommitSha = latestCommit
 			if newVersion != "" && newVersion != plugin.Version {
+				// Confirm the version landed before recording it. Claude Code
+				// caches each version in its own directory, so a missing one
+				// means the update did not take despite the zero exit status.
+				newPath := filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
+				if _, err := os.Stat(newPath); err != nil {
+					return fmt.Errorf("claude plugin update reported success but version %s of %s is not installed at %s: %w",
+						newVersion, name, newPath, err)
+				}
 				plugin.Version = newVersion
-				plugin.InstallPath = filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
+				plugin.InstallPath = newPath
 			}
 			plugins.SetPlugin(name, plugin)
 			return nil

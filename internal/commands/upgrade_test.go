@@ -571,6 +571,11 @@ var _ = Describe("updatePlugin", func() {
 	})
 
 	It("updates version for URL-sourced plugins", func() {
+		// Stands in for the directory `claude plugin update` creates. The fake
+		// claude on PATH only reports success, so the spec has to materialize
+		// what the real one would.
+		Expect(os.MkdirAll(filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.2"), 0755)).To(Succeed())
+
 		// Get the marketplace HEAD commit
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
 		headOutput, err := headCmd.Output()
@@ -621,6 +626,8 @@ var _ = Describe("updatePlugin", func() {
 
 		githubCacheDir := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.8")
 		Expect(os.MkdirAll(githubCacheDir, 0755)).To(Succeed())
+		// Stands in for the directory `claude plugin update` creates.
+		Expect(os.MkdirAll(filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.9"), 0755)).To(Succeed())
 
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
 		headOutput, err := headCmd.Output()
@@ -655,6 +662,39 @@ var _ = Describe("updatePlugin", func() {
 		Expect(updated.GitCommitSha).To(Equal(headSha))
 		expectedPath := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.9")
 		Expect(updated.InstallPath).To(Equal(expectedPath))
+	})
+
+	It("returns an error when the delegated update did not install the new version", func() {
+		// The fake claude exits 0 without installing anything. Recording the new
+		// version anyway leaves a path that does not exist in Claude Code's
+		// registry, and PathExists then reports the plugin as needing an update
+		// forever.
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		_, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("superpowers@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "5.0.0",
+			InstallPath:  cacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		err = updatePlugin("superpowers@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).To(HaveOccurred(),
+			"a version that was not installed must not be recorded as installed")
+		Expect(err.Error()).To(ContainSubstring("5.0.2"))
 	})
 
 	It("preserves installPath when version has not changed", func() {
