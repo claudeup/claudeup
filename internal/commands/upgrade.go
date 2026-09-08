@@ -658,8 +658,14 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 	// Try local directories in marketplace (plugins/ and skills/)
 	for _, subdir := range []string{"plugins", "skills"} {
 		p := filepath.Join(marketplacePath, subdir, pluginBaseName)
-		if _, err := os.Stat(p); err == nil {
+		_, err := os.Stat(p)
+		if err == nil {
 			return p, "", nil
+		}
+		// Only a missing entry means the plugin is not here. An unreadable one
+		// would otherwise fall through and resolve from somewhere else.
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", "", fmt.Errorf("cannot read %s in marketplace: %w", filepath.Join(subdir, pluginBaseName), err)
 		}
 	}
 
@@ -698,6 +704,20 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 		}
 		if _, err := os.Stat(resolved); err != nil {
 			return "", "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
+		}
+
+		// The comparison above is lexical, so it cannot see a symlink inside the
+		// marketplace that points out of it. Compare the real paths as well.
+		realResolved, err := filepath.EvalSymlinks(resolved)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot resolve plugin source path %s: %w", resolved, err)
+		}
+		realMarketplace, err := filepath.EvalSymlinks(cleanMarketplace)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot resolve marketplace directory %s: %w", cleanMarketplace, err)
+		}
+		if realResolved != realMarketplace && !strings.HasPrefix(realResolved, realMarketplace+string(filepath.Separator)) {
+			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
 		}
 		return resolved, pluginInfo.Version, nil
 	}

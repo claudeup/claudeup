@@ -299,6 +299,22 @@ var _ = Describe("resolvePluginSource", func() {
 		Expect(version).To(BeEmpty())
 	})
 
+	It("propagates a stat error other than a missing directory", func() {
+		// An unreadable plugins/ directory is not the same as one that is absent.
+		// Treating it as absent falls through to the index and can resolve the
+		// plugin from the wrong place.
+		pluginsDir := filepath.Join(marketplaceDir, "plugins")
+		Expect(os.MkdirAll(filepath.Join(pluginsDir, "hookify"), 0755)).To(Succeed())
+		Expect(os.Chmod(pluginsDir, 0000)).To(Succeed())
+		DeferCleanup(func() {
+			os.Chmod(pluginsDir, 0755)
+		})
+
+		_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("plugins"))
+	})
+
 	Context("with marketplace index", func() {
 		writeIndex := func(content string) {
 			indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
@@ -428,6 +444,25 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(sourcePath).To(Equal(filepath.Clean(marketplaceDir)))
 			Expect(version).To(Equal("1.0.0"))
+		})
+
+		It("rejects a source that reaches outside the marketplace through a symlink", func() {
+			// The lexical prefix check cannot see through a symlink, so a link
+			// inside the marketplace pointing out of it would otherwise pass.
+			outside := filepath.Join(filepath.Dir(marketplaceDir), "outside-target")
+			Expect(os.MkdirAll(outside, 0755)).To(Succeed())
+			Expect(os.Symlink(outside, filepath.Join(marketplaceDir, "escape"))).To(Succeed())
+
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "sneaky", "version": "1.0.0", "source": "./escape"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "sneaky")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("outside marketplace directory"))
 		})
 
 		It("rejects path traversal in source field", func() {
