@@ -296,7 +296,7 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		for _, update := range outdatedUpdates {
 			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
 			attempted++
-			err := updatePlugin(update.Name, update.Scope, plugins, marketplaces)
+			err := updatePlugin(claudeDir, update.Name, update.Scope, plugins, marketplaces)
 			switch {
 			case err == nil:
 				ui.PrintSuccess(fmt.Sprintf("%s: Updated", displayName))
@@ -557,7 +557,7 @@ func updateMarketplace(name, path string) error {
 	return nil
 }
 
-func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry) error {
+func updatePlugin(claudeDir string, name string, scope string, plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry) error {
 	plugin, exists := plugins.GetPluginAtScope(name, scope)
 	if !exists {
 		return fmt.Errorf("plugin not found at scope %s", scope)
@@ -596,20 +596,29 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 			if err := updatePluginViaCLI(name, scope); err != nil {
 				return err
 			}
-			plugin.GitCommitSha = latestCommit
-			if newVersion != "" && newVersion != plugin.Version {
-				// Confirm the version landed before recording it. Claude Code
-				// caches each version in its own directory, so a missing one
-				// means the update did not take despite the zero exit status.
-				newPath := filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
-				if _, err := os.Stat(newPath); err != nil {
-					return fmt.Errorf("claude plugin update reported success but version %s of %s is not installed at %s: %w",
-						newVersion, name, newPath, err)
-				}
-				plugin.Version = newVersion
-				plugin.InstallPath = newPath
+
+			// Claude Code rewrites the registry file itself. Read its entry back
+			// rather than patching the copy loaded before delegating, which the
+			// save at the end of the run would write over the top of.
+			fresh, err := claude.LoadPlugins(claudeDir)
+			if err != nil {
+				return fmt.Errorf("cannot re-read the plugin registry after updating %s: %w", name, err)
 			}
-			plugins.SetPlugin(name, plugin)
+			updated, ok := fresh.GetPluginAtScope(name, scope)
+			if !ok {
+				return fmt.Errorf("claude plugin update reported success but %s is no longer registered at scope %s", name, scope)
+			}
+
+			// A zero exit status is not proof the version landed.
+			if newVersion != "" && updated.Version != newVersion {
+				return fmt.Errorf("claude plugin update reported success but %s is still at version %s, not %s",
+					name, updated.Version, newVersion)
+			}
+
+			// The commit claudeup compared against is its own bookkeeping; the
+			// rest of the entry belongs to Claude Code.
+			updated.GitCommitSha = latestCommit
+			plugins.SetPlugin(name, updated)
 			return nil
 		}
 
