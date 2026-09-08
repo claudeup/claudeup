@@ -356,6 +356,51 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(version).To(Equal("3.0.0"))
 		})
 
+		It("does not treat an index entry with no source as a stale registry entry", func() {
+			// Removing the user's registry entry is the remedy for a stale entry.
+			// A plugin present in the index but missing its source is a malformed
+			// marketplace, and deleting the user's entry would be the wrong cure.
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "1.0.0"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(isStalePluginError(err)).To(BeFalse(),
+				"a malformed index entry must not offer to delete the registry entry")
+		})
+
+		It("does not treat an index entry with a null source as a stale registry entry", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "1.0.0", "source": null}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(isStalePluginError(err)).To(BeFalse(),
+				"a malformed index entry must not offer to delete the registry entry")
+		})
+
+		It("treats a plugin absent from the index as a stale registry entry", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "other-plugin", "version": "1.0.0", "source": "./plugins/other"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(isStalePluginError(err)).To(BeTrue(),
+				"a plugin the marketplace no longer lists is genuinely stale")
+		})
+
 		It("returns error when plugin not in index", func() {
 			writeIndex(`{
 				"name": "test-marketplace",

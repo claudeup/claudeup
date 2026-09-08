@@ -669,8 +669,15 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 		}
 	}
 
-	if pluginInfo == nil || pluginInfo.Source == nil {
+	if pluginInfo == nil {
 		return "", "", fmt.Errorf("plugin %q not found in marketplace index", pluginBaseName)
+	}
+
+	// A listed plugin with no source is a malformed marketplace, not a registry
+	// entry the marketplace has dropped. Keep the two apart so the caller does
+	// not offer to delete the user's entry over someone else's bad index.
+	if pluginInfo.Source == nil {
+		return "", "", fmt.Errorf("plugin %q is listed in the marketplace index without a source", pluginBaseName)
 	}
 
 	if pluginInfo.Source.IsRelativePath() {
