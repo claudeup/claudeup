@@ -496,14 +496,22 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 		}
 		currentCommit := strings.TrimSpace(string(currentOutput))
 
-		// Compare with plugin's gitCommitSha
-		hasUpdate := plugin.GitCommitSha != currentCommit
+		declaredVersion, external := marketplaceIndexEntry(marketplacePath, name, indexCache)
 
-		// When the SHA matches, check for version mismatch from a previous
-		// buggy upgrade that updated the SHA but not the version.
-		if !hasUpdate {
-			if indexVersion := marketplaceIndexVersion(marketplacePath, name, indexCache); indexVersion != "" {
-				hasUpdate = indexVersion != plugin.Version
+		var hasUpdate bool
+		if external && declaredVersion != "" {
+			// The plugin's content lives in another repository, so a commit to
+			// the marketplace is no evidence about the plugin. The version the
+			// marketplace declares is the only signal available locally.
+			hasUpdate = declaredVersion != plugin.Version
+		} else {
+			// The plugin is a directory in the marketplace checkout, so the
+			// marketplace commit is the plugin's own history. This also covers an
+			// external plugin whose marketplace declares no version, where the
+			// commit is a coarse proxy but the only thing to go on.
+			hasUpdate = plugin.GitCommitSha != currentCommit
+			if !hasUpdate && declaredVersion != "" {
+				hasUpdate = declaredVersion != plugin.Version
 			}
 		}
 
@@ -519,21 +527,24 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 	return updates
 }
 
-// marketplaceIndexVersion looks up a plugin's version from the marketplace index.
-// Returns empty string if the index cannot be loaded or the plugin is not found.
-func marketplaceIndexVersion(marketplacePath, qualifiedName string, cache map[string]*claude.MarketplaceIndex) string {
+// marketplaceIndexEntry looks up what the marketplace index declares about a
+// plugin: the version it publishes, and whether the plugin is fetched from
+// elsewhere rather than living in the marketplace checkout. A missing index or
+// a plugin the index does not list yields an empty version and reports the
+// plugin as local, since the marketplace commit is then all there is.
+func marketplaceIndexEntry(marketplacePath, qualifiedName string, cache map[string]*claude.MarketplaceIndex) (version string, external bool) {
 	index, ok := cache[marketplacePath]
 	if !ok {
 		loaded, err := claude.LoadMarketplaceIndex(marketplacePath)
 		if err != nil {
 			cache[marketplacePath] = nil
-			return ""
+			return "", false
 		}
 		index = loaded
 		cache[marketplacePath] = index
 	}
 	if index == nil {
-		return ""
+		return "", false
 	}
 
 	baseName := qualifiedName
@@ -542,10 +553,10 @@ func marketplaceIndexVersion(marketplacePath, qualifiedName string, cache map[st
 	}
 	for _, p := range index.Plugins {
 		if p.Name == baseName {
-			return p.Version
+			return p.Version, p.Source != nil && !p.Source.IsRelativePath()
 		}
 	}
-	return ""
+	return "", false
 }
 
 func updateMarketplace(name, path string) error {

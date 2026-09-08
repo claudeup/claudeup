@@ -886,6 +886,88 @@ var _ = Describe("checkPluginUpdates", func() {
 		os.RemoveAll(tempDir)
 	})
 
+	It("does not flag an externally sourced plugin when only the marketplace commit moved", func() {
+		// An external plugin's content lives in another repository, so a commit
+		// to the marketplace says nothing about it. Flagging on that alone
+		// delegates to claude plugin update for nothing.
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		cacheDir := filepath.Join(tempDir, "cache", "superpowers", "5.0.2")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		// The installed version matches what the marketplace declares. Only the
+		// recorded marketplace commit is behind.
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "superpowers@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "5.0.2",
+					InstallPath:  cacheDir,
+					GitCommitSha: "a stale marketplace commit",
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].HasUpdate).To(BeFalse(),
+			"a marketplace commit is not evidence that an external plugin changed")
+	})
+
+	It("still flags a local plugin when the marketplace commit moved", func() {
+		// A plugin that is a directory in the checkout does change with the
+		// marketplace commit, so the commit is the right signal there.
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "hookify", "version": "1.0.0", "source": "./plugins/hookify"}
+			]
+		}`), 0644)).To(Succeed())
+		Expect(os.MkdirAll(filepath.Join(marketplaceDir, "plugins", "hookify"), 0755)).To(Succeed())
+
+		cacheDir := filepath.Join(tempDir, "cache", "hookify", "1.0.0")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "hookify@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "1.0.0",
+					InstallPath:  cacheDir,
+					GitCommitSha: "a stale marketplace commit",
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].HasUpdate).To(BeTrue(),
+			"a local plugin changes with the marketplace it lives in")
+	})
+
 	It("detects version mismatch even when SHA matches", func() {
 		// Get marketplace HEAD
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
