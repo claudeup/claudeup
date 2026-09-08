@@ -575,8 +575,8 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 		}
 
 		if sourcePath == "" {
-			// URL-sourced plugins require cloning from a remote repository.
-			// Delegate to Claude Code's plugin update command which handles this.
+			// External sources are fetched by Claude Code, not from the
+			// marketplace checkout. Delegate to its plugin update command.
 			if err := updatePluginViaCLI(name, scope); err != nil {
 				return err
 			}
@@ -620,7 +620,8 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 }
 
 // updatePluginViaCLI delegates plugin updates to Claude Code's `claude plugin update` command.
-// This handles URL-sourced plugins that require cloning from a remote repository.
+// This handles externally sourced plugins, which Claude Code fetches from npm or
+// from a remote repository rather than from the marketplace checkout.
 func updatePluginViaCLI(pluginName, scope string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -643,7 +644,7 @@ func updatePluginViaCLI(pluginName, scope string) error {
 // resolvePluginSource finds the source directory for a plugin within its marketplace.
 // It checks local directories first, then reads the marketplace index for
 // relative-path sources. Returns (sourcePath, version, error).
-// Returns empty sourcePath (not an error) when the plugin uses an external URL
+// Returns empty sourcePath (not an error) when the plugin uses an external
 // source, signaling the caller to delegate to `claude plugin update`.
 func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string, error) {
 	// Try local directories in marketplace (plugins/ and skills/)
@@ -686,7 +687,7 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 		return resolved, pluginInfo.Version, nil
 	}
 
-	// External URL source -- return empty to signal delegation
+	// External source; Claude Code fetches it. Return empty to signal delegation.
 	return "", pluginInfo.Version, nil
 }
 

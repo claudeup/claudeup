@@ -563,6 +563,55 @@ var _ = Describe("updatePlugin", func() {
 		Expect(updated.InstallPath).To(Equal(expectedPath), "installPath should point to new versioned directory")
 	})
 
+	It("delegates and records the update for a github-sourced plugin", func() {
+		// The github form carries a repo and no url, which is the shape that used
+		// to be joined onto the marketplace directory as a literal "github".
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "agent-skills", "version": "0.6.9", "source": {"source": "github", "repo": "addyosmani/agent-skills"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		githubCacheDir := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.8")
+		Expect(os.MkdirAll(githubCacheDir, 0755)).To(Succeed())
+
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("agent-skills@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "0.6.8",
+			InstallPath:  githubCacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		err = updatePlugin("agent-skills@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred(),
+			"a github source must delegate, not resolve to a path inside the marketplace")
+
+		updated, exists := plugins.GetPluginAtScope("agent-skills@test-marketplace", "user")
+		Expect(exists).To(BeTrue())
+		Expect(updated.Version).To(Equal("0.6.9"))
+		Expect(updated.GitCommitSha).To(Equal(headSha))
+		expectedPath := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.9")
+		Expect(updated.InstallPath).To(Equal(expectedPath))
+	})
+
 	It("preserves installPath when version has not changed", func() {
 		// Get the marketplace HEAD commit
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")

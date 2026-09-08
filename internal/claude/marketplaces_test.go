@@ -191,7 +191,7 @@ func TestPluginSourceUnmarshalJSON(t *testing.T) {
 		name             string
 		input            string
 		wantRelativePath string
-		wantSource       string
+		wantKind         string
 		wantURL          string
 		wantErr          bool
 	}{
@@ -201,16 +201,16 @@ func TestPluginSourceUnmarshalJSON(t *testing.T) {
 			wantRelativePath: "./plugins/hookify",
 		},
 		{
-			name:       "object source with url",
-			input:      `{"source":"git","url":"https://github.com/org/repo"}`,
-			wantSource: "git",
-			wantURL:    "https://github.com/org/repo",
+			name:     "object source with url",
+			input:    `{"source":"url","url":"https://github.com/org/repo.git"}`,
+			wantKind: "url",
+			wantURL:  "https://github.com/org/repo.git",
 		},
 		{
-			name:       "object with unrecognized source type",
-			input:      `{"source":"./local/path"}`,
-			wantSource: "./local/path",
-			wantURL:    "",
+			name:     "object with unrecognized source type",
+			input:    `{"source":"./local/path"}`,
+			wantKind: "./local/path",
+			wantURL:  "",
 		},
 		{
 			name:    "invalid JSON (number)",
@@ -240,8 +240,8 @@ func TestPluginSourceUnmarshalJSON(t *testing.T) {
 			if ps.RelativePath != tt.wantRelativePath {
 				t.Errorf("RelativePath = %q, want %q", ps.RelativePath, tt.wantRelativePath)
 			}
-			if ps.Source != tt.wantSource {
-				t.Errorf("Source = %q, want %q", ps.Source, tt.wantSource)
+			if ps.Kind != tt.wantKind {
+				t.Errorf("Kind = %q, want %q", ps.Kind, tt.wantKind)
 			}
 			if ps.URL != tt.wantURL {
 				t.Errorf("URL = %q, want %q", ps.URL, tt.wantURL)
@@ -257,7 +257,7 @@ func TestPluginSourceIsRelativePath(t *testing.T) {
 		want   bool
 	}{
 		{"relative path", PluginSource{RelativePath: "./plugins/hookify"}, true},
-		{"url source", PluginSource{Source: "git", URL: "https://github.com/org/repo"}, false},
+		{"url source", PluginSource{Kind: "url", URL: "https://github.com/org/repo.git"}, false},
 		{"empty source", PluginSource{}, false},
 	}
 	for _, tt := range tests {
@@ -269,13 +269,20 @@ func TestPluginSourceIsRelativePath(t *testing.T) {
 	}
 }
 
+// TestPluginSourceIsURL pins the boundary of IsURL. It reports whether a git URL
+// is present, which is narrower than "is this source external": the github and
+// npm forms are external and carry no URL, so IsURL is not a substitute for
+// negating IsRelativePath.
 func TestPluginSourceIsURL(t *testing.T) {
 	tests := []struct {
 		name   string
 		source PluginSource
 		want   bool
 	}{
-		{"url source", PluginSource{Source: "git", URL: "https://github.com/org/repo"}, true},
+		{"url source", PluginSource{Kind: "url", URL: "https://github.com/org/repo.git"}, true},
+		{"git-subdir source", PluginSource{Kind: "git-subdir", URL: "https://github.com/org/repo.git"}, true},
+		{"github source is external but carries no URL", PluginSource{Kind: "github"}, false},
+		{"npm source is external but carries no URL", PluginSource{Kind: "npm"}, false},
 		{"relative path", PluginSource{RelativePath: "./plugins/hookify"}, false},
 		{"empty source", PluginSource{}, false},
 	}
@@ -312,9 +319,10 @@ func TestGetMarketplaceByRepo(t *testing.T) {
 }
 
 // TestPluginSourceClassificationFromJSON covers every source form the published
-// marketplace schema allows (https://www.schemastore.org/claude-code-marketplace.json).
-// Only the string form names a path inside the marketplace; every object form names
-// an external source that must be fetched by Claude Code.
+// marketplace schema allows (https://www.schemastore.org/claude-code-marketplace.json),
+// plus one deliberately outside it. Only the string form names a marketplace-relative
+// path; object forms are treated as external and fetched by Claude Code, which is the
+// policy the off-schema case pins.
 func TestPluginSourceClassificationFromJSON(t *testing.T) {
 	tests := []struct {
 		name             string

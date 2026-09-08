@@ -37,17 +37,28 @@ type MarketplaceIndex struct {
 // PluginSource represents a plugin's source location.
 // In marketplace.json, source is either a string holding a path relative to the
 // marketplace root, or an object whose "source" field names an external source
-// type (npm, url, github, git-subdir) alongside type-specific location fields.
+// type alongside type-specific location fields. The recognized types are npm,
+// url, github and git-subdir, per
+// https://www.schemastore.org/claude-code-marketplace.json
+//
+// Only the discriminator and url are retained; the location fields belonging to
+// the other forms are not read, because external plugins are fetched by Claude
+// Code rather than by claudeup. The type is decode-only and has no MarshalJSON,
+// so it does not round-trip.
 type PluginSource struct {
 	// RelativePath holds the path inside the marketplace, set only for the
-	// string form. The object forms carry their own location fields; git-subdir
-	// in particular has a "path" field that means a subdirectory of a remote
-	// repository, which is not a marketplace-relative path.
+	// string form. It is named RelativePath rather than Path because the
+	// git-subdir form has its own required "path" field, which means a
+	// subdirectory of a remote repository.
 	RelativePath string `json:"-"`
 
-	// Source names the external source type, set only for the object form.
-	Source string `json:"source,omitempty"`
-	URL    string `json:"url,omitempty"`
+	// Kind names the external source type, set only for the object form.
+	Kind string `json:"source,omitempty"`
+
+	// URL is the location field of the url and git-subdir forms. The github and
+	// npm forms carry repo and package instead, so an empty URL does not mean
+	// the source is local.
+	URL string `json:"url,omitempty"`
 }
 
 // UnmarshalJSON handles source being either a string or an object
@@ -63,28 +74,25 @@ func (s *PluginSource) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
-	// Try object (like {"source": "git", "url": "https://github.com/org/repo"})
-	type raw struct {
-		Source string `json:"source"`
-		URL    string `json:"url"`
-	}
-	var obj raw
-	if err := json.Unmarshal(data, &obj); err != nil {
-		return err
-	}
-	s.Source = obj.Source
-	s.URL = obj.URL
-	return nil
+	// Try object (like {"source": "url", "url": "https://github.com/org/repo.git"}).
+	// Decoding into a method-less copy of the type keeps the field list in one
+	// place, so a field added above is picked up here rather than staying empty.
+	// RelativePath is excluded by its json tag, so the string form stays distinct.
+	type plain PluginSource
+	return json.Unmarshal(data, (*plain)(s))
 }
 
-// IsRelativePath returns true if the source names a local path within the
-// marketplace. Only the string form does; every object form names an external
-// source, including types this build does not recognize.
+// IsRelativePath returns true if the source names a marketplace-relative path.
+// Only the string form does. Object forms are treated as external, including
+// source types this build does not recognize. Whether the path stays inside the
+// marketplace is the caller's check, not this one.
 func (s *PluginSource) IsRelativePath() bool {
 	return s.RelativePath != ""
 }
 
-// IsURL returns true if the source is an external git URL
+// IsURL returns true if the source carries a git URL, which only the url and
+// git-subdir forms do. It is not a test for whether the source is external:
+// the github and npm forms are external and carry no URL.
 func (s *PluginSource) IsURL() bool {
 	return s.URL != ""
 }
