@@ -351,8 +351,13 @@ func writeLocalScopeConfigs(profile *Profile, claudeDir, projectDir string) erro
 func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
-	// 1. Write .mcp.json for MCP servers (Claude native format)
+	// 1. Write .mcp.json for MCP servers (Claude native format). Secrets are
+	// written as ${KEY} placeholders; check them first so a missing or
+	// unexported one is reported.
 	if len(profile.MCPServers) > 0 {
+		for _, mcp := range profile.MCPServers {
+			result.Warnings = append(result.Warnings, checkMCPSecrets(mcp, secretChain)...)
+		}
 		if err := WriteMCPJSON(opts.ProjectDir, profile.MCPServers); err != nil {
 			return nil, fmt.Errorf("failed to write %s: %w", MCPConfigFile, err)
 		}
@@ -881,31 +886,10 @@ func checkMCPAlreadyExists(output string, err error) error {
 	return fmt.Errorf("%w\n  Output: %s", err, strings.TrimSpace(output))
 }
 
-// resolveMCPSecrets resolves each secret declared on an MCP server by trying
-// its sources in order through the chain. Secrets that cannot be resolved are
-// reported as warnings and omitted from the returned map. A nil chain
-// resolves nothing and warns nothing.
-//
-// The resolved values are never written to Claude's config or passed to the
-// CLI (see buildMCPAddArgs); apply only uses them through checkMCPSecrets.
-func resolveMCPSecrets(mcp MCPServer, secretChain *secrets.Chain) (resolved map[string]string, warnings []error) {
-	if len(mcp.Secrets) == 0 || secretChain == nil {
-		return nil, nil
-	}
-	resolved = make(map[string]string)
-	for envVar, ref := range mcp.Secrets {
-		if value := resolveMCPSecret(ref, secretChain); value != "" {
-			resolved[envVar] = value
-		} else {
-			warnings = append(warnings,
-				fmt.Errorf("MCP %s: could not resolve secret %q from any configured source", mcp.Name, envVar))
-		}
-	}
-	return resolved, warnings
-}
-
-// resolveMCPSecret tries each source of one secret in order and returns the
-// first non-empty value, or "" when none resolves.
+// resolveMCPSecret tries each source of one secret in order through the
+// chain and returns the first non-empty value, or "" when none resolves.
+// The value is never written to Claude's config or passed to the CLI (see
+// buildMCPAddArgs); checkMCPSecrets uses it only to word its warning.
 func resolveMCPSecret(ref SecretRef, secretChain *secrets.Chain) string {
 	for _, source := range ref.Sources {
 		var value string
@@ -1347,8 +1331,13 @@ func ApplyAllScopes(profile *Profile, claudeDir, claudeJSONPath, projectDir, cla
 			return nil, fmt.Errorf("failed to apply project scope: %w", err)
 		}
 
-		// Write .mcp.json for project-scope MCP servers (file-based, not CLI)
+		// Write .mcp.json for project-scope MCP servers (file-based, not CLI).
+		// Same secret preflight as the CLI scopes: the file carries ${KEY}
+		// placeholders, so warn if a key is missing or not exported.
 		if len(scopeProfile.MCPServers) > 0 {
+			for _, mcp := range scopeProfile.MCPServers {
+				result.Warnings = append(result.Warnings, checkMCPSecrets(mcp, secretChain)...)
+			}
 			if err := WriteMCPJSON(projectDir, scopeProfile.MCPServers); err != nil {
 				result.Errors = append(result.Errors, fmt.Errorf("failed to write %s: %w", MCPConfigFile, err))
 			} else {

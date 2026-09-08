@@ -529,6 +529,28 @@ var _ = Describe("ApplySecretPlaceholders", func() {
 			Expect(string(data)).NotTo(ContainSubstring(secretValue))
 		})
 
+		It("runs the secret preflight for project-scope servers written to .mcp.json", func() {
+			os.Unsetenv("PROJECT_ONLY_KEY")
+			projectOnly := &profile.Profile{
+				Name: "project-only",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{MCPServers: []profile.MCPServer{secretServer("project-mcp", "PROJECT_ONLY_KEY")}},
+				},
+			}
+
+			executor := NewMockExecutor()
+			chain := secrets.NewChain(secrets.NewEnvResolver())
+
+			result, err := profile.ApplyAllScopes(projectOnly, env.claudeDir, env.claudeJSON, projectDir, env.claudeupHome, chain, &profile.ApplyAllScopesOptions{
+				Executor: executor,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.MCPServersInstalled).To(Equal([]string{"project-mcp"}))
+
+			Expect(result.Warnings).To(HaveLen(1))
+			Expect(result.Warnings[0].Error()).To(ContainSubstring(`"PROJECT_ONLY_KEY"`))
+		})
+
 		It("never places a resolved value in any executor command on the concurrent path", func() {
 			executor := NewMockExecutor()
 			chain := secrets.NewChain(secrets.NewEnvResolver())

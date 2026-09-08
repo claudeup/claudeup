@@ -1338,6 +1338,53 @@ func TestApplyAllScopesShowProgressWritesMCPSecretPlaceholders(t *testing.T) {
 	}
 }
 
+// Project-scope servers are written to .mcp.json rather than through the CLI,
+// but they carry the same ${KEY} placeholders and need the same preflight.
+func TestApplyProjectScopeWarnsOnUnexportedMCPSecret(t *testing.T) {
+	env := setupAllScopesTestEnv(t)
+	executor := &allScopesMockExecutor{}
+
+	t.Setenv("PROJECT_TOKEN", "")
+	chain := secrets.NewChain(&fakeSecretResolver{
+		values: map[string]string{"op://vault/item/token": "from-op"},
+	})
+
+	p := &Profile{
+		Name: "project-secrets",
+		MCPServers: []MCPServer{
+			{
+				Name:    "project-server",
+				Command: "npx",
+				Args:    []string{"--token", "$PROJECT_TOKEN"},
+				Secrets: map[string]SecretRef{
+					"PROJECT_TOKEN": {Sources: []SecretSource{{Type: "1password", Ref: "op://vault/item/token"}}},
+				},
+			},
+		},
+	}
+
+	result, err := applyProjectScope(p, env.claudeDir, env.claudeJSONPath, env.claudeupHome, chain,
+		ApplyOptions{Scope: ScopeProject, ProjectDir: env.projectDir}, executor)
+	if err != nil {
+		t.Fatalf("applyProjectScope failed: %v", err)
+	}
+
+	if len(result.Warnings) != 1 || !strings.Contains(result.Warnings[0].Error(), "not exported") {
+		t.Errorf("expected one 'not exported' warning for PROJECT_TOKEN, got: %v", result.Warnings)
+	}
+	if len(result.Warnings) == 1 && strings.Contains(result.Warnings[0].Error(), "from-op") {
+		t.Errorf("warning must not include the secret value: %v", result.Warnings[0])
+	}
+
+	data, err := os.ReadFile(filepath.Join(env.projectDir, MCPConfigFile))
+	if err != nil {
+		t.Fatalf("expected .mcp.json to be written: %v", err)
+	}
+	if !strings.Contains(string(data), `"${PROJECT_TOKEN}"`) || strings.Contains(string(data), "from-op") {
+		t.Errorf("expected placeholder and no value in .mcp.json, got: %s", data)
+	}
+}
+
 func TestApplyAllScopesShowProgressReplaceRemovesMCPBeforeAdd(t *testing.T) {
 	env := setupAllScopesTestEnv(t)
 	writeTestJSON(t, env.claudeJSONPath, map[string]interface{}{

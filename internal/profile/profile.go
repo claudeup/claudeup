@@ -578,8 +578,7 @@ func restoreServerSecrets(snapServers, origServers []MCPServer) []string {
 
 		// Replace only args that reference keys in the Secrets map.
 		for j, origArg := range orig.Args {
-			if strings.HasPrefix(origArg, "$") {
-				key := origArg[1:]
+			if key, ok := envRefName(origArg); ok {
 				if _, isSecret := orig.Secrets[key]; isSecret {
 					snapServers[i].Args[j] = origArg
 				}
