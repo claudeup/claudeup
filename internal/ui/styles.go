@@ -11,13 +11,13 @@ import (
 
 // Semantic color definitions
 var (
-	ColorSuccess = lipgloss.Color("#22c55e") // Green
-	ColorError   = lipgloss.Color("#ef4444") // Red
-	ColorWarning = lipgloss.Color("#eab308") // Yellow
-	ColorInfo    = lipgloss.Color("#06b6d4") // Cyan
-	ColorMuted   = lipgloss.Color("#6b7280") // Gray
+	ColorSuccess = lipgloss.Color("#22c55e")   // Green
+	ColorError   = lipgloss.Color("#ef4444")   // Red
+	ColorWarning = lipgloss.Color("#eab308")   // Yellow
+	ColorInfo    = lipgloss.Color("#06b6d4")   // Cyan
+	ColorMuted   = lipgloss.Color("#6b7280")   // Gray
 	ColorAccent  = lipgloss.Color("#096becff") // Blue
-	ColorFlags  = lipgloss.Color("#ffffff") // White
+	ColorFlags   = lipgloss.Color("#ffffff")   // White
 )
 
 // Symbol definitions
