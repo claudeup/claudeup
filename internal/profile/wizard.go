@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/claudeup/claudeup/v5/internal/claude"
 )
 
 // ErrGumCanceled indicates the user canceled a gum prompt.
@@ -653,54 +655,25 @@ func fallbackPluginRefinement(wio WizardIO, availablePlugins []string, installed
 	return selected, nil
 }
 
-// marketplaceMetadata represents the structure of .claude-plugin/marketplace.json
-type marketplaceMetadata struct {
-	Plugins []struct {
-		Name        string `json:"name"`
-		Description string `json:"description,omitempty"`
-		Version     string `json:"version,omitempty"`
-	} `json:"plugins"`
-}
-
 // listPluginsFromMarketplace reads marketplace.json and returns available plugin names
 func listPluginsFromMarketplace(marketplace Marketplace) ([]string, error) {
 	claudeDir := DefaultClaudeDir()
 
-	// Load known_marketplaces.json to find the install location
-	marketplacesFile := filepath.Join(claudeDir, "plugins", "known_marketplaces.json")
-	data, err := os.ReadFile(marketplacesFile)
+	knownMarketplaces, err := claude.LoadMarketplaces(claudeDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read known_marketplaces.json: %w", err)
-	}
-
-	var knownMarketplaces map[string]struct {
-		Source struct {
-			Source string `json:"source"`
-			Repo   string `json:"repo,omitempty"`
-			URL    string `json:"url,omitempty"`
-		} `json:"source"`
-		InstallLocation string `json:"installLocation"`
-	}
-
-	if err := json.Unmarshal(data, &knownMarketplaces); err != nil {
-		return nil, fmt.Errorf("failed to parse known_marketplaces.json: %w", err)
+		return nil, err
 	}
 
 	// Find matching marketplace by comparing source details
 	var marketplacePath string
 	for _, entry := range knownMarketplaces {
-		if entry.Source.Source == marketplace.Source {
-			match := false
-			if marketplace.Repo != "" && entry.Source.Repo == marketplace.Repo {
-				match = true
-			} else if marketplace.URL != "" && entry.Source.URL == marketplace.URL {
-				match = true
-			}
-
-			if match {
-				marketplacePath = entry.InstallLocation
-				break
-			}
+		if entry.Source.Source != marketplace.Source {
+			continue
+		}
+		if (marketplace.Repo != "" && entry.Source.Repo == marketplace.Repo) ||
+			(marketplace.URL != "" && entry.Source.URL == marketplace.URL) {
+			marketplacePath = entry.InstallLocation
+			break
 		}
 	}
 
@@ -708,21 +681,14 @@ func listPluginsFromMarketplace(marketplace Marketplace) ([]string, error) {
 		return nil, fmt.Errorf("marketplace not found in known_marketplaces.json")
 	}
 
-	// Read marketplace.json from the install location
-	metadataPath := filepath.Join(marketplacePath, ".claude-plugin", "marketplace.json")
-	metadataData, err := os.ReadFile(metadataPath)
+	index, err := claude.LoadMarketplaceIndex(marketplacePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read marketplace.json: %w", err)
-	}
-
-	var metadata marketplaceMetadata
-	if err := json.Unmarshal(metadataData, &metadata); err != nil {
-		return nil, fmt.Errorf("failed to parse marketplace.json: %w", err)
+		return nil, err
 	}
 
 	// Extract plugin names
-	plugins := make([]string, 0, len(metadata.Plugins))
-	for _, plugin := range metadata.Plugins {
+	plugins := make([]string, 0, len(index.Plugins))
+	for _, plugin := range index.Plugins {
 		plugins = append(plugins, plugin.Name)
 	}
 
