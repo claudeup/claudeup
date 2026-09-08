@@ -20,39 +20,55 @@ import (
 func CopyToProject(extDir, category string, patterns []string, projectDir string) ([]string, []string, error) {
 	sourceDir := filepath.Join(extDir, category)
 
+	matched, notFound, err := ResolveForProject(extDir, category, patterns)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var copied []string
+	destBase := filepath.Clean(filepath.Join(projectDir, ".claude", category))
+	for _, item := range matched {
+		srcPath := filepath.Join(sourceDir, item)
+		destPath := filepath.Clean(filepath.Join(destBase, item))
+
+		if err := validateDestPath(destPath, destBase); err != nil {
+			return nil, nil, fmt.Errorf("item %q: %w", item, err)
+		}
+
+		if err := copyItemToProject(srcPath, destPath); err != nil {
+			return nil, nil, fmt.Errorf("copy %s/%s from %s to %s: %w", category, item, srcPath, destPath, err)
+		}
+		copied = append(copied, item)
+	}
+
+	return copied, notFound, nil
+}
+
+// ResolveForProject reports which patterns match items in extension storage
+// using the same rules as CopyToProject (wildcards against the item listing).
+// It changes nothing on disk.
+// Returns (matched items, not found patterns, error).
+func ResolveForProject(extDir, category string, patterns []string) ([]string, []string, error) {
+	sourceDir := filepath.Join(extDir, category)
+
 	// List available items in extension storage
 	allItems, err := listItems(sourceDir, category)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list items for %s: %w", category, err)
 	}
 
-	var copied []string
+	var matched []string
 	var notFound []string
-
-	destBase := filepath.Clean(filepath.Join(projectDir, ".claude", category))
 	for _, pattern := range patterns {
-		matched := MatchWildcard(pattern, allItems)
-		if len(matched) == 0 {
+		items := MatchWildcard(pattern, allItems)
+		if len(items) == 0 {
 			notFound = append(notFound, pattern)
 			continue
 		}
-
-		for _, item := range matched {
-			srcPath := filepath.Join(sourceDir, item)
-			destPath := filepath.Clean(filepath.Join(destBase, item))
-
-			if err := validateDestPath(destPath, destBase); err != nil {
-				return nil, nil, fmt.Errorf("item %q: %w", item, err)
-			}
-
-			if err := copyItemToProject(srcPath, destPath); err != nil {
-				return nil, nil, fmt.Errorf("copy %s/%s from %s to %s: %w", category, item, srcPath, destPath, err)
-			}
-			copied = append(copied, item)
-		}
+		matched = append(matched, items...)
 	}
 
-	return copied, notFound, nil
+	return matched, notFound, nil
 }
 
 // validateDestPath checks that destPath stays within baseDir.

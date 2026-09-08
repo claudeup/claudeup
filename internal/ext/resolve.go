@@ -24,6 +24,34 @@ func (m *Manager) ResolveItemName(category, item string) (string, error) {
 	return m.resolveFlatItem(category, item)
 }
 
+// Resolve reports which patterns match items in extension storage using the
+// same rules as Enable (wildcards, extension inference, directory expansion,
+// skill directories). It changes nothing on disk.
+// Returns (matched items, not found patterns, error).
+func (m *Manager) Resolve(category string, patterns []string) ([]string, []string, error) {
+	if err := ValidateCategory(category); err != nil {
+		return nil, nil, err
+	}
+
+	allItems, err := m.ListItems(category)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list %s items: %w", category, err)
+	}
+
+	var matched []string
+	var notFound []string
+	for _, pattern := range patterns {
+		items, _, found := m.resolvePattern(category, pattern, allItems)
+		if !found {
+			notFound = append(notFound, pattern)
+			continue
+		}
+		matched = append(matched, items...)
+	}
+
+	return matched, notFound, nil
+}
+
 func (m *Manager) resolveFlatItem(category, item string) (string, error) {
 	libPath := filepath.Join(m.extDir, category, item)
 
