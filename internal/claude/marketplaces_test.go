@@ -188,17 +188,17 @@ func TestMarketplaceExists(t *testing.T) {
 
 func TestPluginSourceUnmarshalJSON(t *testing.T) {
 	tests := []struct {
-		name       string
-		input      string
-		wantSource string
-		wantURL    string
-		wantErr    bool
+		name             string
+		input            string
+		wantRelativePath string
+		wantSource       string
+		wantURL          string
+		wantErr          bool
 	}{
 		{
-			name:       "string source (relative path)",
-			input:      `"./plugins/hookify"`,
-			wantSource: "./plugins/hookify",
-			wantURL:    "",
+			name:             "string source (relative path)",
+			input:            `"./plugins/hookify"`,
+			wantRelativePath: "./plugins/hookify",
 		},
 		{
 			name:       "object source with url",
@@ -207,7 +207,7 @@ func TestPluginSourceUnmarshalJSON(t *testing.T) {
 			wantURL:    "https://github.com/org/repo",
 		},
 		{
-			name:       "object source without url",
+			name:       "object with unrecognized source type",
 			input:      `{"source":"./local/path"}`,
 			wantSource: "./local/path",
 			wantURL:    "",
@@ -237,6 +237,9 @@ func TestPluginSourceUnmarshalJSON(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+			if ps.RelativePath != tt.wantRelativePath {
+				t.Errorf("RelativePath = %q, want %q", ps.RelativePath, tt.wantRelativePath)
+			}
 			if ps.Source != tt.wantSource {
 				t.Errorf("Source = %q, want %q", ps.Source, tt.wantSource)
 			}
@@ -253,7 +256,7 @@ func TestPluginSourceIsRelativePath(t *testing.T) {
 		source PluginSource
 		want   bool
 	}{
-		{"relative path", PluginSource{Source: "./plugins/hookify"}, true},
+		{"relative path", PluginSource{RelativePath: "./plugins/hookify"}, true},
 		{"url source", PluginSource{Source: "git", URL: "https://github.com/org/repo"}, false},
 		{"empty source", PluginSource{}, false},
 	}
@@ -273,7 +276,7 @@ func TestPluginSourceIsURL(t *testing.T) {
 		want   bool
 	}{
 		{"url source", PluginSource{Source: "git", URL: "https://github.com/org/repo"}, true},
-		{"relative path", PluginSource{Source: "./plugins/hookify"}, false},
+		{"relative path", PluginSource{RelativePath: "./plugins/hookify"}, false},
 		{"empty source", PluginSource{}, false},
 	}
 	for _, tt := range tests {
@@ -305,5 +308,59 @@ func TestGetMarketplaceByRepo(t *testing.T) {
 	name = registry.GetMarketplaceByRepo("nonexistent/repo")
 	if name != "" {
 		t.Errorf("Expected empty string for not found, got '%s'", name)
+	}
+}
+
+// TestPluginSourceClassificationFromJSON covers every source form the published
+// marketplace schema allows (https://www.schemastore.org/claude-code-marketplace.json).
+// Only the string form names a path inside the marketplace; every object form names
+// an external source that must be fetched by Claude Code.
+func TestPluginSourceClassificationFromJSON(t *testing.T) {
+	tests := []struct {
+		name             string
+		input            string
+		wantRelative     bool
+		wantRelativePath string
+	}{
+		{"string relative path", `"./plugins/hookify"`, true, "./plugins/hookify"},
+		{"string marketplace root", `"./"`, true, "./"},
+		{"npm object", `{"source":"npm","package":"@org/plugin"}`, false, ""},
+		{"url object", `{"source":"url","url":"https://github.com/org/repo.git"}`, false, ""},
+		{"github object", `{"source":"github","repo":"addyosmani/agent-skills"}`, false, ""},
+		{"git-subdir object", `{"source":"git-subdir","url":"https://github.com/org/repo.git","path":"plugins/foo"}`, false, ""},
+		{"unrecognized object type", `{"source":"future-transport","location":"somewhere"}`, false, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ps PluginSource
+			if err := json.Unmarshal([]byte(tt.input), &ps); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got := ps.IsRelativePath(); got != tt.wantRelative {
+				t.Errorf("IsRelativePath() = %v, want %v", got, tt.wantRelative)
+			}
+			if ps.RelativePath != tt.wantRelativePath {
+				t.Errorf("RelativePath = %q, want %q", ps.RelativePath, tt.wantRelativePath)
+			}
+		})
+	}
+}
+
+// TestPluginSourceUnmarshalResetsReceiver guards against a value decoded twice
+// carrying fields from the first decode into the second, which would classify an
+// object form as a marketplace-relative path.
+func TestPluginSourceUnmarshalResetsReceiver(t *testing.T) {
+	var ps PluginSource
+	if err := json.Unmarshal([]byte(`"./plugins/hookify"`), &ps); err != nil {
+		t.Fatalf("unexpected error decoding string form: %v", err)
+	}
+	if err := json.Unmarshal([]byte(`{"source":"github","repo":"addyosmani/agent-skills"}`), &ps); err != nil {
+		t.Fatalf("unexpected error decoding object form: %v", err)
+	}
+	if ps.RelativePath != "" {
+		t.Errorf("RelativePath = %q, want empty after decoding an object form", ps.RelativePath)
+	}
+	if ps.IsRelativePath() {
+		t.Error("IsRelativePath() = true, want false for a github source")
 	}
 }

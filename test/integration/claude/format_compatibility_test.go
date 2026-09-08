@@ -41,6 +41,76 @@ var _ = Describe("Claude CLI Format Compatibility", func() {
 				"Plugin registry version should be at least 1")
 		})
 
+		It("classifies every real plugin source as either a resolvable path or external", func() {
+			marketplacesDir := filepath.Join(claudeDir, "plugins", "marketplaces")
+			entries, err := os.ReadDir(marketplacesDir)
+			if errors.Is(err, fs.ErrNotExist) {
+				Skip("No marketplaces installed on this system")
+			}
+			Expect(err).NotTo(HaveOccurred())
+
+			// Count directories carrying a plugin index. A marketplace directory
+			// without one is a half-finished add or a user's backup copy, neither
+			// of which says anything about the Claude CLI format.
+			indexed := 0
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				indexPath := filepath.Join(marketplacesDir, entry.Name(), ".claude-plugin", "marketplace.json")
+				if _, err := os.Stat(indexPath); err == nil {
+					indexed++
+				}
+			}
+			if indexed == 0 {
+				Skip("No indexed marketplaces installed on this system")
+			}
+
+			checked := 0
+			for _, entry := range entries {
+				if !entry.IsDir() {
+					continue
+				}
+				marketplacePath := filepath.Join(marketplacesDir, entry.Name())
+				index, err := claude.LoadMarketplaceIndex(marketplacePath)
+				if errors.Is(err, fs.ErrNotExist) {
+					// Directory carries no plugin index.
+					continue
+				}
+				Expect(err).NotTo(HaveOccurred(),
+					"Failed to parse marketplace index for %q - Claude CLI format may have changed",
+					entry.Name())
+				for _, plugin := range index.Plugins {
+					if plugin.Source == nil {
+						continue
+					}
+					checked++
+					if !plugin.Source.IsRelativePath() {
+						// External source; Claude Code fetches it. Nothing to resolve locally.
+						continue
+					}
+					// A source classified as relative must carry a path. An empty
+					// one means a source type is being read as a path, and the join
+					// below would silently resolve to the marketplace root.
+					Expect(plugin.Source.RelativePath).NotTo(BeEmpty(),
+						"plugin %q in marketplace %q classified as a relative path but carries no path",
+						plugin.Name, entry.Name())
+
+					// The path must exist inside the marketplace. A path that does
+					// not exist means upgrade would fail on a path built from a
+					// source type it is reading as a path.
+					resolved := filepath.Join(marketplacePath, plugin.Source.RelativePath)
+					_, statErr := os.Stat(resolved)
+					Expect(statErr).NotTo(HaveOccurred(),
+						"plugin %q in marketplace %q classified as a relative path to %q, which does not exist",
+						plugin.Name, entry.Name(), resolved)
+				}
+			}
+			Expect(checked).To(BeNumerically(">", 0),
+				"Found %d indexed marketplaces but no plugin sources to check - Claude CLI layout may have changed",
+				indexed)
+		})
+
 		It("can parse settings.json from user's Claude dir", func() {
 			// Skip if Claude not installed
 			if _, err := os.Stat(claudeDir); errors.Is(err, fs.ErrNotExist) {

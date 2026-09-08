@@ -398,6 +398,62 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(err.Error()).To(ContainSubstring("resolves outside marketplace directory"))
 		})
 
+		It("returns empty sourcePath for github source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "agent-skills", "version": "0.6.9", "source": {"source": "github", "repo": "addyosmani/agent-skills"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "agent-skills")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("0.6.9"))
+		})
+
+		It("returns empty sourcePath for npm source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "packaged", "version": "1.0.0", "source": {"source": "npm", "package": "@org/packaged"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "packaged")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("1.0.0"))
+		})
+
+		It("returns empty sourcePath for git-subdir source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "nested", "version": "1.5.5", "source": {"source": "git-subdir", "url": "https://github.com/org/repo.git", "path": "plugins/nested"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "nested")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("1.5.5"))
+		})
+
+		It("returns empty sourcePath for a source type it does not recognize", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "exotic", "version": "2.0.0", "source": {"source": "future-transport", "location": "somewhere"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "exotic")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("2.0.0"))
+		})
+
 		It("returns error when relative path does not exist", func() {
 			writeIndex(`{
 				"name": "test-marketplace",

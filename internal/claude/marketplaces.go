@@ -35,18 +35,31 @@ type MarketplaceIndex struct {
 }
 
 // PluginSource represents a plugin's source location.
-// In marketplace.json, source can be a string (relative path) or an object (with url).
+// In marketplace.json, source is either a string holding a path relative to the
+// marketplace root, or an object whose "source" field names an external source
+// type (npm, url, github, git-subdir) alongside type-specific location fields.
 type PluginSource struct {
+	// RelativePath holds the path inside the marketplace, set only for the
+	// string form. The object forms carry their own location fields; git-subdir
+	// in particular has a "path" field that means a subdirectory of a remote
+	// repository, which is not a marketplace-relative path.
+	RelativePath string `json:"-"`
+
+	// Source names the external source type, set only for the object form.
 	Source string `json:"source,omitempty"`
 	URL    string `json:"url,omitempty"`
 }
 
 // UnmarshalJSON handles source being either a string or an object
 func (s *PluginSource) UnmarshalJSON(data []byte) error {
+	// Clear the receiver so a value decoded more than once cannot carry a field
+	// from one source form into another.
+	*s = PluginSource{}
+
 	// Try string first (relative path like "./plugins/hookify")
 	var str string
 	if err := json.Unmarshal(data, &str); err == nil {
-		s.Source = str
+		s.RelativePath = str
 		return nil
 	}
 
@@ -64,9 +77,11 @@ func (s *PluginSource) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// IsRelativePath returns true if the source is a local path within the marketplace
+// IsRelativePath returns true if the source names a local path within the
+// marketplace. Only the string form does; every object form names an external
+// source, including types this build does not recognize.
 func (s *PluginSource) IsRelativePath() bool {
-	return s.URL == "" && s.Source != ""
+	return s.RelativePath != ""
 }
 
 // IsURL returns true if the source is an external git URL
