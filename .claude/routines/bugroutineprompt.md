@@ -25,7 +25,7 @@ An issue is CLAIMED if any of these is true:
 
 - An open PR references it.
 - A fix/issue-<N>-* branch exists.
-- A prior run left an "Automated triage" comment, EXCEPT when a LATER comment contains a line starting with "## Decision:". That comment is a maintainer decision that reopens the issue for implementation. It counts as reopened only if there is no "Automated pickup" comment posted after it (a pickup comment means a run already took it).
+- A prior run left an "Automated triage" comment, EXCEPT when a LATER comment contains a line starting with "## Decision:". That comment is a maintainer decision that reopens the issue for implementation. It counts as reopened only if there is no comment titled "Automated pickup" or "Pickup" posted after it (a pickup comment means a run or a person already took it).
 
 Skip claimed issues and move to the next oldest. Work exactly ONE issue per run.
 
