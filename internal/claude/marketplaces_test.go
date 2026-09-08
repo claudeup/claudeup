@@ -372,3 +372,27 @@ func TestPluginSourceUnmarshalResetsReceiver(t *testing.T) {
 		t.Error("IsRelativePath() = true, want false for a github source")
 	}
 }
+
+// TestPluginSourceRejectsMalformed covers source values that carry no location.
+// Accepting them would classify a malformed marketplace as an external source and
+// turn an upgrade into a silent no-op instead of an error a user can act on.
+func TestPluginSourceRejectsMalformed(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"empty string", `""`},
+		{"object with no source type", `{}`},
+		{"object with empty source type", `{"source":""}`},
+		{"object with only a url and no source type", `{"url":"https://github.com/org/repo.git"}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var ps PluginSource
+			if err := json.Unmarshal([]byte(tt.input), &ps); err == nil {
+				t.Errorf("expected an error for %s, got none (RelativePath=%q Kind=%q URL=%q)",
+					tt.input, ps.RelativePath, ps.Kind, ps.URL)
+			}
+		})
+	}
+}

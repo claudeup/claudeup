@@ -70,6 +70,9 @@ func (s *PluginSource) UnmarshalJSON(data []byte) error {
 	// Try string first (relative path like "./plugins/hookify")
 	var str string
 	if err := json.Unmarshal(data, &str); err == nil {
+		if str == "" {
+			return fmt.Errorf("plugin source is an empty string, which names no path")
+		}
 		s.RelativePath = str
 		return nil
 	}
@@ -79,7 +82,18 @@ func (s *PluginSource) UnmarshalJSON(data []byte) error {
 	// place, so a field added above is picked up here rather than staying empty.
 	// RelativePath is excluded by its json tag, so the string form stays distinct.
 	type plain PluginSource
-	return json.Unmarshal(data, (*plain)(s))
+	if err := json.Unmarshal(data, (*plain)(s)); err != nil {
+		return err
+	}
+
+	// Without a type there is no way to tell where the plugin comes from.
+	// Accepting it would classify the plugin as external and make an upgrade a
+	// silent no-op rather than an error naming the marketplace at fault.
+	if s.Kind == "" {
+		*s = PluginSource{}
+		return fmt.Errorf(`plugin source object has no "source" field naming its type`)
+	}
+	return nil
 }
 
 // IsRelativePath returns true if the source names a marketplace-relative path.
