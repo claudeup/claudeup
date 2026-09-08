@@ -319,33 +319,145 @@ var _ = Describe("ApplyAddsMarketplaces", func() {
 	})
 })
 
-var _ = Describe("ApplyWithSecrets", func() {
+// Secrets referenced from MCP server args must never be passed to
+// `claude mcp add` in plaintext: the argv is visible to every local user via
+// ps and /proc/<pid>/cmdline, and Claude Code stores it verbatim so the value
+// would also sit in the MCP server's own command line on every launch.
+// Instead, claudeup writes a ${KEY} placeholder that Claude Code expands from
+// its parent environment at launch (issue #312).
+var _ = Describe("ApplySecretPlaceholders", func() {
+	const secretValue = "secret-value-123"
+
 	var env *applyTestEnv
+
+	// mcpAddArgs returns the argv of every `mcp add` command recorded by the
+	// executor, joined so a whole-arg match is easy to assert on.
+	mcpAddArgs := func(executor *MockExecutor, server string) []string {
+		var found []string
+		for _, cmd := range executor.Commands {
+			if len(cmd) >= 3 && cmd[0] == "mcp" && cmd[1] == "add" && cmd[2] == server {
+				found = append(found, strings.Join(cmd, " "))
+			}
+		}
+		return found
+	}
+
+	// allArgs flattens every recorded command so a secret can be searched
+	// for across the whole apply, not only the mcp add calls.
+	allArgs := func(executor *MockExecutor) []string {
+		var flat []string
+		for _, cmd := range executor.Commands {
+			flat = append(flat, cmd...)
+		}
+		return flat
+	}
+
+	secretServer := func(name, key string) profile.MCPServer {
+		return profile.MCPServer{
+			Name:    name,
+			Command: "npx",
+			Args:    []string{"-y", "package", "--token", "$" + key},
+			Secrets: map[string]profile.SecretRef{
+				key: {
+					Description: "Test API key",
+					Sources: []profile.SecretSource{
+						{Type: "env", Key: key},
+					},
+				},
+			},
+		}
+	}
 
 	BeforeEach(func() {
 		env = setupApplyTestEnv()
 
-		os.Setenv("TEST_API_KEY", "secret-value-123")
+		os.Setenv("TEST_API_KEY", secretValue)
 		DeferCleanup(func() {
 			os.Unsetenv("TEST_API_KEY")
 		})
 	})
 
-	It("resolves secrets in MCP server args", func() {
+	It("passes a ${KEY} placeholder instead of the resolved value at user scope", func() {
+		p := &profile.Profile{
+			Name:       "test",
+			MCPServers: []profile.MCPServer{secretServer("secret-mcp", "TEST_API_KEY")},
+		}
+
+		executor := NewMockExecutor()
+		chain := secrets.NewChain(secrets.NewEnvResolver())
+
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeupHome, chain, executor)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.MCPServersInstalled).To(Equal([]string{"secret-mcp"}))
+		Expect(result.Warnings).To(BeEmpty())
+
+		cmds := mcpAddArgs(executor, "secret-mcp")
+		Expect(cmds).To(HaveLen(1))
+		Expect(cmds[0]).To(ContainSubstring(" --token ${TEST_API_KEY}"))
+		Expect(allArgs(executor)).NotTo(ContainElement(secretValue),
+			"resolved secret must not appear in any CLI argv. Commands: %v", executor.Commands)
+	})
+
+	It("does not fall back to the environment for a $VAR arg with no secrets entry", func() {
+		p := &profile.Profile{
+			Name: "test",
+			MCPServers: []profile.MCPServer{
+				{
+					Name:    "plain-mcp",
+					Command: "npx",
+					Args:    []string{"-y", "package", "$TEST_API_KEY"},
+				},
+			},
+		}
+
+		executor := NewMockExecutor()
+		chain := secrets.NewChain(secrets.NewEnvResolver())
+
+		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeupHome, chain, executor)
+		Expect(err).NotTo(HaveOccurred())
+
+		cmds := mcpAddArgs(executor, "plain-mcp")
+		Expect(cmds).To(HaveLen(1))
+		Expect(cmds[0]).To(HaveSuffix(" ${TEST_API_KEY}"))
+		Expect(allArgs(executor)).NotTo(ContainElement(secretValue))
+	})
+
+	It("warns but still installs with a placeholder when a secret cannot be resolved", func() {
+		p := &profile.Profile{
+			Name:       "test",
+			MCPServers: []profile.MCPServer{secretServer("secret-mcp", "MISSING_SECRET")},
+		}
+
+		executor := NewMockExecutor()
+		chain := secrets.NewChain(secrets.NewEnvResolver())
+
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeupHome, chain, executor)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.Errors).To(BeEmpty())
+		Expect(result.MCPServersInstalled).To(Equal([]string{"secret-mcp"}))
+
+		Expect(result.Warnings).To(HaveLen(1))
+		Expect(result.Warnings[0].Error()).To(ContainSubstring("MISSING_SECRET"))
+
+		cmds := mcpAddArgs(executor, "secret-mcp")
+		Expect(cmds).To(HaveLen(1))
+		Expect(cmds[0]).To(HaveSuffix(" --token ${MISSING_SECRET}"))
+	})
+
+	It("warns when the secret is found but the placeholder variable is not exported", func() {
+		// Documented shape: the secrets map key (API_KEY) differs from the
+		// env source (TEST_API_KEY). Claude Code expands ${API_KEY}, so the
+		// exported TEST_API_KEY does not help and the preflight must say so.
+		os.Unsetenv("API_KEY")
 		p := &profile.Profile{
 			Name: "test",
 			MCPServers: []profile.MCPServer{
 				{
 					Name:    "secret-mcp",
 					Command: "npx",
-					Args:    []string{"-y", "package", "$TEST_API_KEY"},
+					Args:    []string{"--token", "$API_KEY"},
 					Secrets: map[string]profile.SecretRef{
-						"TEST_API_KEY": {
-							Description: "Test API key",
-							Sources: []profile.SecretSource{
-								{Type: "env", Key: "TEST_API_KEY"},
-							},
-						},
+						"API_KEY": {Sources: []profile.SecretSource{{Type: "env", Key: "TEST_API_KEY"}}},
 					},
 				},
 			},
@@ -356,53 +468,109 @@ var _ = Describe("ApplyWithSecrets", func() {
 
 		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeupHome, chain, executor)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(result.MCPServersInstalled).To(Equal([]string{"secret-mcp"}))
 
-		Expect(result.MCPServersInstalled).To(HaveLen(1))
+		Expect(result.Warnings).To(HaveLen(1))
+		Expect(result.Warnings[0].Error()).To(SatisfyAll(
+			ContainSubstring(`"API_KEY"`),
+			ContainSubstring("not exported"),
+			Not(ContainSubstring(secretValue)),
+		))
 
-		found := false
-		for _, cmd := range executor.Commands {
-			for _, arg := range cmd {
-				if arg == "secret-value-123" {
-					found = true
-					break
-				}
-			}
-		}
-		Expect(found).To(BeTrue(), "Expected resolved secret in command args. Commands: %v", executor.Commands)
-	})
-})
-
-var _ = Describe("ApplyMissingSecretFails", func() {
-	var env *applyTestEnv
-
-	BeforeEach(func() {
-		env = setupApplyTestEnv()
+		cmds := mcpAddArgs(executor, "secret-mcp")
+		Expect(cmds).To(HaveLen(1))
+		Expect(cmds[0]).To(HaveSuffix(" --token ${API_KEY}"))
+		Expect(allArgs(executor)).NotTo(ContainElement(secretValue))
 	})
 
-	It("fails when secret cannot be resolved", func() {
-		p := &profile.Profile{
-			Name: "test",
-			MCPServers: []profile.MCPServer{
-				{
-					Name:    "secret-mcp",
-					Command: "npx",
-					Args:    []string{"package", "$MISSING_SECRET"},
-					Secrets: map[string]profile.SecretRef{
-						"MISSING_SECRET": {
-							Sources: []profile.SecretSource{
-								{Type: "env", Key: "MISSING_SECRET"},
-							},
-						},
-					},
+	Describe("across all scopes", func() {
+		var (
+			projectDir string
+			p          *profile.Profile
+		)
+
+		BeforeEach(func() {
+			projectDir = GinkgoT().TempDir()
+			Expect(os.MkdirAll(filepath.Join(projectDir, ".claude"), 0755)).To(Succeed())
+
+			p = &profile.Profile{
+				Name: "all-scopes",
+				PerScope: &profile.PerScopeSettings{
+					User:    &profile.ScopeSettings{MCPServers: []profile.MCPServer{secretServer("user-mcp", "TEST_API_KEY")}},
+					Project: &profile.ScopeSettings{MCPServers: []profile.MCPServer{secretServer("project-mcp", "TEST_API_KEY")}},
+					Local:   &profile.ScopeSettings{MCPServers: []profile.MCPServer{secretServer("local-mcp", "TEST_API_KEY")}},
 				},
-			},
-		}
+			}
+		})
 
-		executor := NewMockExecutor()
-		chain := secrets.NewChain(secrets.NewEnvResolver())
+		It("never places a resolved value in any executor command on the sequential path", func() {
+			executor := NewMockExecutor()
+			chain := secrets.NewChain(secrets.NewEnvResolver())
 
-		_, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeupHome, chain, executor)
-		Expect(err).To(HaveOccurred())
+			result, err := profile.ApplyAllScopes(p, env.claudeDir, env.claudeJSON, projectDir, env.claudeupHome, chain, &profile.ApplyAllScopesOptions{
+				Executor: executor,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.MCPServersInstalled).To(ConsistOf("user-mcp", "project-mcp", "local-mcp"))
+
+			Expect(allArgs(executor)).NotTo(ContainElement(secretValue),
+				"resolved secret must not appear in any CLI argv. Commands: %v", executor.Commands)
+			for _, server := range []string{"user-mcp", "local-mcp"} {
+				cmds := mcpAddArgs(executor, server)
+				Expect(cmds).To(HaveLen(1), "expected one mcp add for %s", server)
+				Expect(cmds[0]).To(HaveSuffix(" --token ${TEST_API_KEY}"))
+			}
+
+			// Project scope is file-based: the placeholder must be written to
+			// .mcp.json args too, since Claude Code does not expand bare $VAR.
+			data, err := os.ReadFile(filepath.Join(projectDir, ".mcp.json"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(data)).To(ContainSubstring(`"${TEST_API_KEY}"`))
+			Expect(string(data)).NotTo(ContainSubstring(secretValue))
+		})
+
+		It("runs the secret preflight for project-scope servers written to .mcp.json", func() {
+			os.Unsetenv("PROJECT_ONLY_KEY")
+			projectOnly := &profile.Profile{
+				Name: "project-only",
+				PerScope: &profile.PerScopeSettings{
+					Project: &profile.ScopeSettings{MCPServers: []profile.MCPServer{secretServer("project-mcp", "PROJECT_ONLY_KEY")}},
+				},
+			}
+
+			executor := NewMockExecutor()
+			chain := secrets.NewChain(secrets.NewEnvResolver())
+
+			result, err := profile.ApplyAllScopes(projectOnly, env.claudeDir, env.claudeJSON, projectDir, env.claudeupHome, chain, &profile.ApplyAllScopesOptions{
+				Executor: executor,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.MCPServersInstalled).To(Equal([]string{"project-mcp"}))
+
+			Expect(result.Warnings).To(HaveLen(1))
+			Expect(result.Warnings[0].Error()).To(ContainSubstring(`"PROJECT_ONLY_KEY"`))
+		})
+
+		It("never places a resolved value in any executor command on the concurrent path", func() {
+			executor := NewMockExecutor()
+			chain := secrets.NewChain(secrets.NewEnvResolver())
+
+			result, err := profile.ApplyAllScopes(p, env.claudeDir, env.claudeJSON, projectDir, env.claudeupHome, chain, &profile.ApplyAllScopesOptions{
+				Executor:     executor,
+				Output:       GinkgoWriter,
+				ShowProgress: true,
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(result.MCPServersInstalled).To(ConsistOf("user-mcp", "project-mcp", "local-mcp"))
+
+			Expect(allArgs(executor)).NotTo(ContainElement(secretValue),
+				"resolved secret must not appear in any CLI argv. Commands: %v", executor.Commands)
+			for _, server := range []string{"user-mcp", "local-mcp"} {
+				cmds := mcpAddArgs(executor, server)
+				Expect(cmds).To(HaveLen(1), "expected one mcp add for %s", server)
+				Expect(cmds[0]).To(HaveSuffix(" --token ${TEST_API_KEY}"))
+			}
+		})
 	})
 })
 

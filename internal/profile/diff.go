@@ -305,7 +305,7 @@ func diffMCPServers(saved, live []MCPServer) []DiffItem {
 		s, exists := savedMap[l.Name]
 		if !exists {
 			items = append(items, DiffItem{Op: DiffAdded, Kind: DiffMCP, Name: l.Name})
-		} else if !mcpServersEqual(s, l) {
+		} else if !mcpServersEqualLive(s, l) {
 			items = append(items, DiffItem{Op: DiffModified, Kind: DiffMCP, Name: l.Name, Detail: mcpDiffDetail(s, l)})
 		}
 	}
@@ -320,21 +320,26 @@ func diffMCPServers(saved, live []MCPServer) []DiffItem {
 	return items
 }
 
+// mcpServersEqualLive reports whether a saved server matches its live
+// counterpart. Only command, scope and args are compared: the secrets map is
+// profile-side metadata (descriptions, 1Password or keychain sources) that
+// the live config cannot carry, so comparing it would report drift forever.
+// Args are compared as references, so a saved $KEY matches the ${KEY}
+// placeholder apply writes.
+func mcpServersEqualLive(saved, live MCPServer) bool {
+	return saved.Command == live.Command &&
+		saved.Scope == live.Scope &&
+		mcpArgsEqual(saved.Args, live.Args)
+}
+
 // mcpDiffDetail returns a summary of what changed between two MCP servers
 func mcpDiffDetail(saved, live MCPServer) string {
 	var changes []string
 	if saved.Command != live.Command {
 		changes = append(changes, "command")
 	}
-	if len(saved.Args) != len(live.Args) {
+	if !mcpArgsEqual(saved.Args, live.Args) {
 		changes = append(changes, "args")
-	} else {
-		for i := range saved.Args {
-			if saved.Args[i] != live.Args[i] {
-				changes = append(changes, "args")
-				break
-			}
-		}
 	}
 	if saved.Scope != live.Scope {
 		changes = append(changes, "scope")

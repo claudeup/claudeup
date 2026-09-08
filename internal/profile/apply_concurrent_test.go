@@ -140,7 +140,10 @@ func (f *fakeSecretResolver) Resolve(ref string) (string, error) {
 	return "", errors.New("unknown ref: " + ref)
 }
 
-func TestApplyConcurrentlyResolvesMCPSecrets(t *testing.T) {
+// The concurrent path checks that a declared secret resolves (so a missing
+// one is warned about early) but must pass a ${KEY} placeholder, never the
+// resolved value, to `claude mcp add` (#312).
+func TestApplyConcurrentlyWritesMCPSecretPlaceholders(t *testing.T) {
 	profile := &Profile{
 		MCPServers: []MCPServer{
 			{
@@ -190,11 +193,22 @@ func TestApplyConcurrentlyResolvesMCPSecrets(t *testing.T) {
 	if mcpCmd == "" {
 		t.Fatalf("expected mcp add command for secret-server, got: %v", executor.commands)
 	}
-	if strings.Contains(mcpCmd, "$MY_SECRET_TOKEN") {
-		t.Errorf("expected $MY_SECRET_TOKEN to be resolved, but raw variable was passed: %s", mcpCmd)
+	if !strings.HasSuffix(mcpCmd, " ${MY_SECRET_TOKEN}") {
+		t.Errorf("expected ${MY_SECRET_TOKEN} placeholder in mcp add args, got: %s", mcpCmd)
 	}
-	if !strings.Contains(mcpCmd, "resolved-value") {
-		t.Errorf("expected resolved-value in mcp add args, got: %s", mcpCmd)
+	if strings.Contains(mcpCmd, "resolved-value") {
+		t.Errorf("resolved secret leaked into mcp add argv: %s", mcpCmd)
+	}
+	// The secret exists in 1Password but MY_SECRET_TOKEN is not exported, so
+	// Claude Code would have nothing to expand: the preflight must say so.
+	var secretWarnings []string
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Error(), "MY_SECRET_TOKEN") {
+			secretWarnings = append(secretWarnings, w.Error())
+		}
+	}
+	if len(secretWarnings) != 1 || !strings.Contains(secretWarnings[0], "not exported") {
+		t.Errorf("expected one 'not exported' warning for MY_SECRET_TOKEN, got: %v", secretWarnings)
 	}
 }
 

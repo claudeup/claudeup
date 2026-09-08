@@ -46,9 +46,11 @@ func WriteMCPJSON(projectDir string, servers []MCPServer) error {
 			envPtr = env
 		}
 
+		// Args use the same ${VAR} form: Claude Code expands it at runtime
+		// but leaves a bare $VAR as a literal.
 		cfg.MCPServers[s.Name] = MCPJSONServer{
 			Command: s.Command,
-			Args:    s.Args,
+			Args:    placeholderArgs(s.Args),
 			Env:     envPtr,
 		}
 	}
