@@ -209,12 +209,15 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+	attempted, failures := 0, 0
 	if len(marketplacesToPull) > 0 {
 		fmt.Println()
 		fmt.Println(ui.RenderSection("Updating Marketplaces", len(marketplacesToPull)))
 		for _, name := range marketplacesToPull {
+			attempted++
 			if err := updateMarketplace(name, marketplaces[name].InstallLocation); err != nil {
 				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
+				failures++
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
 			}
@@ -292,20 +295,30 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.RenderSection("Updating Plugins", len(outdatedUpdates)))
 		for _, update := range outdatedUpdates {
 			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
-			if err := updatePlugin(update.Name, update.Scope, plugins, marketplaces); err != nil {
-				if isStalePluginError(err) {
-					ui.PrintWarning(fmt.Sprintf("%s: %v", displayName, err))
-					confirmed, promptErr := ui.ConfirmYesNo(
-						fmt.Sprintf("  Remove stale registry entry for %s?", displayName))
-					if promptErr == nil && confirmed {
-						plugins.RemovePluginAtScope(update.Name, update.Scope)
-						ui.PrintSuccess(fmt.Sprintf("%s: Removed stale entry", displayName))
-					}
-				} else {
-					ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
-				}
-			} else {
+			attempted++
+			err := updatePlugin(update.Name, update.Scope, plugins, marketplaces)
+			switch {
+			case err == nil:
 				ui.PrintSuccess(fmt.Sprintf("%s: Updated", displayName))
+			case isStalePluginError(err):
+				ui.PrintWarning(fmt.Sprintf("%s: %v", displayName, err))
+				confirmed, promptErr := ui.ConfirmYesNo(
+					fmt.Sprintf("  Remove stale registry entry for %s?", displayName))
+				switch {
+				case promptErr != nil:
+					// Leaving the entry in place without saying so hides the
+					// stale plugin from the next run's summary too.
+					ui.PrintError(fmt.Sprintf("%s: cannot ask whether to remove the stale entry: %v", displayName, promptErr))
+					failures++
+				case confirmed:
+					plugins.RemovePluginAtScope(update.Name, update.Scope)
+					ui.PrintSuccess(fmt.Sprintf("%s: Removed stale entry", displayName))
+				default:
+					ui.PrintWarning(fmt.Sprintf("%s: Kept stale entry", displayName))
+				}
+			default:
+				ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
+				failures++
 			}
 		}
 
@@ -316,6 +329,9 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
+	if failures > 0 {
+		return fmt.Errorf("%d of %d updates failed", failures, attempted)
+	}
 	ui.PrintSuccess("Updates complete!")
 
 	return nil

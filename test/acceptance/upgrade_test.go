@@ -246,6 +246,64 @@ var _ = Describe("upgrade", func() {
 		})
 	})
 
+	Describe("reporting failures", func() {
+		It("exits non-zero when a plugin update fails", func() {
+			env = helpers.NewTestEnv(binaryPath)
+
+			marketplacesDir := filepath.Join(env.ClaudeDir, "plugins", "marketplaces")
+			marketplaceDir := filepath.Join(marketplacesDir, "test-marketplace")
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, ".claude-plugin"), 0755)).To(Succeed())
+
+			// The index points at a directory that is not there, so resolving the
+			// plugin fails for a reason that is not a stale registry entry.
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, ".claude-plugin", "marketplace.json"), []byte(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "test-plugin", "version": "2.0.0", "source": "./plugins/gone"}
+				]
+			}`), 0644)).To(Succeed())
+
+			Expect(exec.Command("git", "-C", marketplaceDir, "init").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.name", "Test").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
+
+			cacheDir := filepath.Join(env.ClaudeDir, "plugins", "cache", "test-plugin", "1.0.0")
+			Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source":          map[string]interface{}{"repo": "example/test-marketplace"},
+					"installLocation": marketplaceDir,
+				},
+			})
+			// A SHA that does not match the marketplace HEAD flags the plugin as
+			// outdated, so the update is attempted and fails.
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"test-plugin@test-marketplace": []interface{}{
+					map[string]interface{}{
+						"scope":        "user",
+						"version":      "1.0.0",
+						"installedAt":  "2025-01-01T00:00:00Z",
+						"lastUpdated":  "2025-01-01T00:00:00Z",
+						"installPath":  cacheDir,
+						"gitCommitSha": "0000000000000000000000000000000000000000",
+					},
+				},
+			})
+
+			result := env.Run("upgrade")
+
+			Expect(result.ExitCode).NotTo(Equal(0),
+				"a failed plugin update must not report success\nstdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("does not exist"),
+				"the per-plugin failure should still be shown")
+			Expect(result.Stdout).NotTo(ContainSubstring("Updates complete"),
+				"a run with failures should not claim completion")
+		})
+	})
+
 	Describe("stale plugin registry cleanup", func() {
 		It("removes stale entries when confirmed with --yes", func() {
 			env = helpers.NewTestEnv(binaryPath)
