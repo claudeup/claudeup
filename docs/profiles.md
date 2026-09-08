@@ -90,14 +90,13 @@ When applying a flat profile (no `perScope`) or using `--scope`, these operation
 
 **3. MCP server configuration.** MCP servers are added via `claude mcp add`:
 
-| Scope   | MCP config file  | Secret handling                                                                    |
-| ------- | ---------------- | ---------------------------------------------------------------------------------- |
-| user    | `~/.claude.json` | `$KEY` references written as `${KEY}` placeholders; Claude Code expands at launch  |
-| project | `.mcp.json`      | `${VAR}` env placeholders written; Claude Code expands them per user at runtime    |
+| Scope   | MCP config file                      | Secret handling                                                                   |
+| ------- | ------------------------------------ | --------------------------------------------------------------------------------- |
+| user    | `~/.claude.json`                     | `$KEY` references written as `${KEY}` placeholders; Claude Code expands at launch |
+| project | `.mcp.json`                          | `${VAR}` env placeholders written; Claude Code expands them per user at runtime   |
+| local   | `~/.claude.json` (per-project entry) | Same as user scope, registered with `claude mcp add -s local`                     |
 
 Secret values are never passed to `claude mcp add` or written to Claude's config. See [Secret Management](#secret-management).
-
-Local scope does not support MCP server configuration.
 
 **4. Extension activation.** Extensions (agents, commands, skills, hooks, rules, output-styles) are symlinked from `~/.claude/<category>/` to `~/.claudeup/ext/<category>/`.
 
@@ -921,7 +920,14 @@ claude
 
 `1password` and `keychain` sources therefore confirm that a secret exists but do not deliver it to the server on their own. Placeholder expansion in user- and local-scope MCP args was verified with Claude Code 2.1.263; earlier versions have not been tested.
 
-Earlier claudeup releases substituted the resolved value into the `claude mcp add` command line for user and local scope, which exposed it to every local user through `ps` and `/proc/<pid>/cmdline` and stored it in plaintext in `~/.claude.json`. Re-apply a profile to replace those stored values with placeholders.
+When a secret is not exported and one of its sources is `1password` or `keychain`, the check calls that backend (for example `op read`), so apply may prompt for 1Password or keychain access even though the value is only used to word the warning.
+
+Earlier claudeup releases substituted the resolved value into the `claude mcp add` command line for user and local scope, which exposed it to every local user through `ps` and `/proc/<pid>/cmdline` and stored it in plaintext in `~/.claude.json`. Re-applying a profile does not fix servers that were registered that way: apply skips any MCP server whose name already exists, and `claude mcp add` refuses to overwrite one even with `--reinstall`. Remove each affected server first, then apply again so it is re-registered with placeholders:
+
+```bash
+claude mcp remove my-api -s user   # or -s local
+claudeup profile apply my-profile
+```
 
 ### Automatic Redaction on Save
 
