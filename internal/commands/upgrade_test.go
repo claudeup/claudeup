@@ -334,7 +334,7 @@ var _ = Describe("resolvePluginSource", func() {
 				]
 			}`)
 
-			// Source should come from directory scan, not index (directory takes priority)
+			// The index names the same directory, so both routes agree here
 			sourcePath, _, err := resolvePluginSource(marketplaceDir, "hookify")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(sourcePath).To(Equal(targetDir))
@@ -476,6 +476,25 @@ var _ = Describe("resolvePluginSource", func() {
 			_, _, err := resolvePluginSource(marketplaceDir, "evil")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("resolves outside marketplace directory"))
+		})
+
+		It("lets the index decide when a plugin name collides with a local directory", func() {
+			// A directory named after the plugin must not override what the index
+			// says the source is. An external plugin resolved from the checkout
+			// would have its cache replaced with the wrong content.
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, "plugins", "agent-skills"), 0755)).To(Succeed())
+
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "agent-skills", "version": "0.6.9", "source": {"source": "github", "repo": "addyosmani/agent-skills"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "agent-skills")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty(), "a github source must delegate even when plugins/agent-skills exists")
+			Expect(version).To(Equal("0.6.9"))
 		})
 
 		It("returns empty sourcePath for github source", func() {

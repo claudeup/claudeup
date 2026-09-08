@@ -666,40 +666,42 @@ func updatePluginViaCLI(pluginName, scope string) error {
 }
 
 // resolvePluginSource finds the source directory for a plugin within its marketplace.
-// It checks local directories first, then reads the marketplace index for
-// relative-path sources. Returns (sourcePath, version, error).
+// The marketplace index decides where a plugin comes from. Only when the index
+// cannot be read, or does not list the plugin, does it fall back to the
+// conventional plugins/ and skills/ directories. Returns (sourcePath, version, error).
 // Returns empty sourcePath (not an error) when the plugin uses an external
 // source, signaling the caller to delegate to `claude plugin update`.
 func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string, error) {
-	// Try local directories in marketplace (plugins/ and skills/)
-	for _, subdir := range []string{"plugins", "skills"} {
-		p := filepath.Join(marketplacePath, subdir, pluginBaseName)
-		_, err := os.Stat(p)
-		if err == nil {
-			return p, "", nil
-		}
-		// Only a missing entry means the plugin is not here. An unreadable one
-		// would otherwise fall through and resolve from somewhere else.
-		if !errors.Is(err, fs.ErrNotExist) {
-			return "", "", fmt.Errorf("cannot read %s in marketplace: %w", filepath.Join(subdir, pluginBaseName), err)
-		}
-	}
-
-	// Read marketplace index to find plugin source info
-	index, err := claude.LoadMarketplaceIndex(marketplacePath)
-	if err != nil {
-		return "", "", fmt.Errorf("plugin source not found in marketplace and cannot read index: %w", err)
-	}
+	index, indexErr := claude.LoadMarketplaceIndex(marketplacePath)
 
 	var pluginInfo *claude.MarketplacePluginInfo
-	for i := range index.Plugins {
-		if index.Plugins[i].Name == pluginBaseName {
-			pluginInfo = &index.Plugins[i]
-			break
+	if indexErr == nil {
+		for i := range index.Plugins {
+			if index.Plugins[i].Name == pluginBaseName {
+				pluginInfo = &index.Plugins[i]
+				break
+			}
 		}
 	}
 
 	if pluginInfo == nil {
+		// Fall back to the conventional directories. A marketplace may ship no
+		// index at all, and one that does may not list every directory it holds.
+		for _, subdir := range []string{"plugins", "skills"} {
+			p := filepath.Join(marketplacePath, subdir, pluginBaseName)
+			_, err := os.Stat(p)
+			if err == nil {
+				return p, "", nil
+			}
+			// Only a missing entry means the plugin is not here. An unreadable one
+			// would otherwise fall through and resolve from somewhere else.
+			if !errors.Is(err, fs.ErrNotExist) {
+				return "", "", fmt.Errorf("cannot read %s in marketplace: %w", filepath.Join(subdir, pluginBaseName), err)
+			}
+		}
+		if indexErr != nil {
+			return "", "", fmt.Errorf("plugin source not found in marketplace and cannot read index: %w", indexErr)
+		}
 		return "", "", fmt.Errorf("plugin %q not found in marketplace index", pluginBaseName)
 	}
 
