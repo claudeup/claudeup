@@ -16,17 +16,27 @@ gh issue list --repo claudeup/claudeup --label bug --state open
 
 If there are none, stop and report "No open bug issues." Do not invent work.
 
-Otherwise pick the OLDEST open bug (lowest issue number) that is not already claimed. An issue is CLAIMED if any of these is true -- check all three:
-gh issue view <N> --repo claudeup/claudeup --comments (a prior run left a claim comment)
-gh pr list --repo claudeup/claudeup --state open --search "<N>" (an open PR references it)
-git ls-remote --heads origin "fix/issue-<N>-*" (a branch already exists)
+Otherwise pick the OLDEST open bug (lowest issue number) that is not already claimed. Check all three of these for every candidate:
+gh issue view <N> --repo claudeup/claudeup --comments
+gh pr list --repo claudeup/claudeup --state open --search "<N>"
+git ls-remote --heads origin "fix/issue-<N>-*"
+
+An issue is CLAIMED if any of these is true:
+
+- An open PR references it.
+- A fix/issue-<N>-* branch exists.
+- A prior run left an "Automated triage" comment, EXCEPT when a LATER comment contains a line starting with "## Decision:". That comment is a maintainer decision that reopens the issue for implementation. It counts as reopened only if there is no "Automated pickup" comment posted after it (a pickup comment means a run already took it).
+
 Skip claimed issues and move to the next oldest. Work exactly ONE issue per run.
 
 =====================================================
 PHASE 2 -- CLASSIFY
 =====================================================
 
-Read the issue and the code it points at. Then classify it as exactly one of:
+IF the issue was reopened by a "## Decision:" comment:
+Do NOT re-classify. Treat it as BOUNDED. The decision comment is the spec: follow its implementation steps and respect any scope limits it states. Post a comment titled "Automated pickup" quoting the decision comment's URL and stating you are implementing it. Post it BEFORE writing any code; it is your claim. Then proceed directly to Phase 3.
+
+OTHERWISE, read the issue and the code it points at. Then classify it as exactly one of:
 
 SPIKE -- the problem is not understood well enough to fix. The report is vague, unreproducible, or you cannot find the mechanism.
 BOUNDED -- you can name the broken mechanism, the fix touches a small number of files, and it changes no public interface or architectural boundary.
@@ -38,7 +48,7 @@ Then branch on the classification:
 
 IF SPIKE: timebox your investigation. Write up what you found, what you ruled out, and what information would make this actionable. Post it to the issue. Push nothing. Stop.
 
-IF ARCHITECTURAL: do NOT implement. Write a short spec and plan into the issue comment -- the decision to be made, at least two options with their tradeoffs, your recommendation and why, and the implementation steps that would follow. Push nothing. Stop. A human will decide.
+IF ARCHITECTURAL: do NOT implement. Write a short spec and plan into the issue comment -- the decision to be made, at least two options with their tradeoffs, your recommendation and why, and the implementation steps that would follow. Push nothing. Stop. A human will decide. When they do, they will post a comment with a line starting with "## Decision:", which reopens the issue for a later run under the rule in Phase 1.
 
 IF BOUNDED: proceed automatically to Phase 3. No approval needed.
 
@@ -85,7 +95,7 @@ Commit with a conventional-commit message: fix: <what changed> (#<N>)
 git push -u origin fix/issue-<N>-<short-slug>
 gh pr create --repo claudeup/claudeup --base main --title "fix: <what> (#<N>)" --body "..."
 
-The PR body must contain: Closes #<N>; the root cause in one or two sentences; what the fix changes; the test added and why it fails without the fix; the subagent review findings and how each was handled.
+The PR body must contain: Closes #<N>; the root cause in one or two sentences; what the fix changes; the test added and why it fails without the fix; the subagent review findings and how each was handled. If the issue was reopened by a "## Decision:" comment, link that comment as the spec.
 
 Then request an automated review:
 gh pr comment <PR> --repo claudeup/claudeup --body "@copilot review"
