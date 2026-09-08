@@ -199,10 +199,16 @@ func TestApplyConcurrentlyWritesMCPSecretPlaceholders(t *testing.T) {
 	if strings.Contains(mcpCmd, "resolved-value") {
 		t.Errorf("resolved secret leaked into mcp add argv: %s", mcpCmd)
 	}
+	// The secret exists in 1Password but MY_SECRET_TOKEN is not exported, so
+	// Claude Code would have nothing to expand: the preflight must say so.
+	var secretWarnings []string
 	for _, w := range result.Warnings {
 		if strings.Contains(w.Error(), "MY_SECRET_TOKEN") {
-			t.Errorf("expected no warning for a resolvable secret, got: %v", w)
+			secretWarnings = append(secretWarnings, w.Error())
 		}
+	}
+	if len(secretWarnings) != 1 || !strings.Contains(secretWarnings[0], "not exported") {
+		t.Errorf("expected one 'not exported' warning for MY_SECRET_TOKEN, got: %v", secretWarnings)
 	}
 }
 

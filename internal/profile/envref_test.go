@@ -41,6 +41,65 @@ func TestIsEnvPlaceholder(t *testing.T) {
 	}
 }
 
+func TestMCPArgsEqual(t *testing.T) {
+	cases := []struct {
+		a, b []string
+		want bool
+	}{
+		{[]string{"-y", "$KEY"}, []string{"-y", "${KEY}"}, true},
+		{[]string{"${KEY}"}, []string{"$KEY"}, true},
+		{[]string{"$KEY"}, []string{"$KEY"}, true},
+		{[]string{"$KEY"}, []string{"$OTHER"}, false},
+		{[]string{"$KEY"}, []string{"literal"}, false},
+		{[]string{"$KEY"}, []string{"$KEY", "extra"}, false},
+		{nil, []string{}, true},
+	}
+	for _, c := range cases {
+		if got := mcpArgsEqual(c.a, c.b); got != c.want {
+			t.Errorf("mcpArgsEqual(%v, %v) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}
+
+// A live snapshot cannot carry secret descriptions or 1Password/keychain
+// sources, so the live comparison must ignore the secrets map and accept
+// either reference form; otherwise diff reports drift on every run.
+func TestMCPServersEqualLiveIgnoresSecretMetadata(t *testing.T) {
+	saved := MCPServer{
+		Name:    "api",
+		Command: "npx",
+		Args:    []string{"--token", "$API_TOKEN"},
+		Scope:   "user",
+		Secrets: map[string]SecretRef{
+			"API_TOKEN": {
+				Description: "API token",
+				Sources: []SecretSource{
+					{Type: "env", Key: "API_TOKEN"},
+					{Type: "1password", Ref: "op://vault/item/token"},
+				},
+			},
+		},
+	}
+	live := MCPServer{
+		Name:    "api",
+		Command: "npx",
+		Args:    []string{"--token", "${API_TOKEN}"},
+		Scope:   "user",
+	}
+	if !mcpServersEqualLive(saved, live) {
+		t.Error("expected saved $KEY with curated secrets to match live ${KEY}")
+	}
+
+	changed := live
+	changed.Args = []string{"--token", "${OTHER}"}
+	if mcpServersEqualLive(saved, changed) {
+		t.Error("expected a different reference to be reported as drift")
+	}
+	if detail := mcpDiffDetail(saved, changed); detail != "args changed" {
+		t.Errorf("mcpDiffDetail = %q, want %q", detail, "args changed")
+	}
+}
+
 func TestPlaceholderArgs(t *testing.T) {
 	in := []string{"-y", "$API_KEY", "${OTHER}", "$", "a$B"}
 	got := placeholderArgs(in)

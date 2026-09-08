@@ -486,10 +486,13 @@ type HookEntry struct {
 }
 
 // PreserveMCPSecrets restores $VAR references and Secrets metadata from an
-// existing profile onto a snapshotted profile. When profile save captures live
-// MCP server configs, secret values are resolved to plaintext. This function
-// matches servers by name and replaces resolved arg values with the original
-// $KEY references using positional matching against the existing profile's args.
+// existing profile onto a snapshotted profile. A live snapshot only knows
+// which args are ${KEY} placeholders (read back as $KEY with a plain env
+// source), and servers configured before placeholders existed still carry
+// the plaintext value. This function matches servers by name and restores the
+// existing profile's $KEY references and curated Secrets metadata
+// (descriptions, 1Password or keychain sources) using positional matching
+// against the existing profile's args.
 //
 // Returns warning messages for servers that could not be restored (e.g., when
 // arg counts have changed since the profile was last saved).
@@ -1041,13 +1044,8 @@ func mcpServersEqual(a, b MCPServer) bool {
 	}
 
 	// Compare args
-	if len(a.Args) != len(b.Args) {
+	if !mcpArgsEqual(a.Args, b.Args) {
 		return false
-	}
-	for i := range a.Args {
-		if a.Args[i] != b.Args[i] {
-			return false
-		}
 	}
 
 	// Compare secrets

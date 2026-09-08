@@ -912,7 +912,7 @@ MCP server args use `$KEY` references for secret values. The key must match an e
 
 Both the flat `mcpServers` and `perScope.*.mcpServers` formats are supported. When claudeup applies this profile, `$API_TOKEN` in args is written to Claude's config as the placeholder `${API_TOKEN}`. Claude Code expands the placeholder from its own environment each time it launches the server. Neither the profile JSON, Claude's config, nor the `claude mcp add` command line ever contains the plaintext secret. This applies to every scope: user and local servers are registered through `claude mcp add`, project servers are written to `.mcp.json`, and all three carry the same `${KEY}` form.
 
-At apply time, claudeup still tries each source in the `secrets` map and warns when a secret cannot be found, so a missing key is reported early. The resolved value is only used for that check. Because Claude Code reads the placeholder from the environment of the shell that launched it, the variable must be exported there:
+At apply time, claudeup checks each key in the `secrets` map: if the variable is exported, nothing is reported. If it is not, the configured sources are tried so the warning can say whether the secret was found somewhere and only needs exporting, or cannot be found at all. The resolved value is only used for that check. Because Claude Code reads the placeholder from the environment of the shell that launched it, the variable must be exported there under the same name as the `secrets` key:
 
 ```bash
 export API_TOKEN="$(op read 'op://Private/My API/credential')"

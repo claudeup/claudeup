@@ -205,6 +205,76 @@ func TestBuildMCPAddArgs(t *testing.T) {
 	}
 }
 
+// checkMCPSecrets is the preflight for ${KEY} placeholders: what matters at
+// launch is whether KEY is exported, whatever the configured sources say.
+func TestCheckMCPSecrets(t *testing.T) {
+	chain := secrets.NewChain(&fakeSecretResolver{
+		values: map[string]string{"op://vault/item/token": "from-op"},
+	})
+
+	t.Run("exported key needs no warning even when its sources differ", func(t *testing.T) {
+		// Documented shape: map key API_KEY, env source MY_API_KEY (unset).
+		t.Setenv("API_KEY", "exported-value")
+		t.Setenv("MY_API_KEY", "")
+		mcp := MCPServer{
+			Name: "srv",
+			Secrets: map[string]SecretRef{
+				"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "MY_API_KEY"}}},
+			},
+		}
+		if warnings := checkMCPSecrets(mcp, chain); len(warnings) != 0 {
+			t.Errorf("expected no warnings, got: %v", warnings)
+		}
+	})
+
+	t.Run("found in a source but not exported warns to export it", func(t *testing.T) {
+		t.Setenv("API_KEY", "")
+		mcp := MCPServer{
+			Name: "srv",
+			Secrets: map[string]SecretRef{
+				"API_KEY": {Sources: []SecretSource{{Type: "1password", Ref: "op://vault/item/token"}}},
+			},
+		}
+		warnings := checkMCPSecrets(mcp, chain)
+		if len(warnings) != 1 {
+			t.Fatalf("expected one warning, got: %v", warnings)
+		}
+		msg := warnings[0].Error()
+		if !strings.Contains(msg, `"API_KEY"`) || !strings.Contains(msg, "not exported") || !strings.Contains(msg, "${API_KEY}") {
+			t.Errorf("unexpected warning text: %s", msg)
+		}
+		if strings.Contains(msg, "from-op") {
+			t.Errorf("warning must not include the secret value: %s", msg)
+		}
+	})
+
+	t.Run("not found anywhere warns that it could not be resolved", func(t *testing.T) {
+		t.Setenv("API_KEY", "")
+		t.Setenv("MY_API_KEY", "")
+		mcp := MCPServer{
+			Name: "srv",
+			Secrets: map[string]SecretRef{
+				"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "MY_API_KEY"}}},
+			},
+		}
+		warnings := checkMCPSecrets(mcp, chain)
+		if len(warnings) != 1 || !strings.Contains(warnings[0].Error(), "could not resolve secret") {
+			t.Errorf("expected one 'could not resolve' warning, got: %v", warnings)
+		}
+	})
+
+	t.Run("nil chain warns nothing", func(t *testing.T) {
+		t.Setenv("API_KEY", "")
+		mcp := MCPServer{
+			Name:    "srv",
+			Secrets: map[string]SecretRef{"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "API_KEY"}}}},
+		}
+		if warnings := checkMCPSecrets(mcp, nil); warnings != nil {
+			t.Errorf("expected nil warnings with nil chain, got: %v", warnings)
+		}
+	})
+}
+
 func TestResolveMCPSecretsNilChain(t *testing.T) {
 	mcp := MCPServer{
 		Name: "srv",

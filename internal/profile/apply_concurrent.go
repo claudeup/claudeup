@@ -20,8 +20,10 @@ type ConcurrentApplyOptions struct {
 	Reinstall bool   // Force reinstall even if already installed
 	Output    io.Writer
 	Executor  CommandExecutor
-	// SecretChain resolves MCP server secrets before `claude mcp add` runs.
-	// nil leaves secret placeholders unresolved.
+	// SecretChain is used to check MCP server secrets before `claude mcp add`
+	// runs, so a missing or unexported one is reported as a warning. The
+	// values are never passed to the CLI; args carry ${KEY} placeholders
+	// that Claude Code expands at launch. nil skips the check.
 	SecretChain *secrets.Chain
 }
 
@@ -164,8 +166,7 @@ func ApplyConcurrently(profile *Profile, opts ConcurrentApplyOptions) (*Concurre
 		if opts.Scope != "" && opts.Scope != "user" {
 			mcpCopy.Scope = opts.Scope
 		}
-		_, warnings := resolveMCPSecrets(mcpCopy, opts.SecretChain)
-		result.Warnings = append(result.Warnings, warnings...)
+		result.Warnings = append(result.Warnings, checkMCPSecrets(mcpCopy, opts.SecretChain)...)
 		args := buildMCPAddArgs(mcpCopy)
 
 		mcpJobs[i] = Job{

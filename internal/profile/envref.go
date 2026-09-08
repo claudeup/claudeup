@@ -70,6 +70,26 @@ func isEnvIdentifier(name string) bool {
 	return true
 }
 
+// mcpArgsEqual compares two MCP arg lists, treating a whole-arg $KEY and
+// ${KEY} as the same reference. Apply writes the braced form and profiles
+// carry the bare form, so a literal comparison would never match.
+func mcpArgsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] == b[i] {
+			continue
+		}
+		nameA, okA := envRefName(a[i])
+		nameB, okB := envRefName(b[i])
+		if !okA || !okB || nameA != nameB {
+			return false
+		}
+	}
+	return true
+}
+
 // placeholderArgs returns a copy of args with every whole-arg $KEY or ${KEY}
 // reference written as ${KEY}. The input slice is not modified.
 func placeholderArgs(args []string) []string {

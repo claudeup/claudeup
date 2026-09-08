@@ -444,6 +444,45 @@ var _ = Describe("ApplySecretPlaceholders", func() {
 		Expect(cmds[0]).To(HaveSuffix(" --token ${MISSING_SECRET}"))
 	})
 
+	It("warns when the secret is found but the placeholder variable is not exported", func() {
+		// Documented shape: the secrets map key (API_KEY) differs from the
+		// env source (TEST_API_KEY). Claude Code expands ${API_KEY}, so the
+		// exported TEST_API_KEY does not help and the preflight must say so.
+		os.Unsetenv("API_KEY")
+		p := &profile.Profile{
+			Name: "test",
+			MCPServers: []profile.MCPServer{
+				{
+					Name:    "secret-mcp",
+					Command: "npx",
+					Args:    []string{"--token", "$API_KEY"},
+					Secrets: map[string]profile.SecretRef{
+						"API_KEY": {Sources: []profile.SecretSource{{Type: "env", Key: "TEST_API_KEY"}}},
+					},
+				},
+			},
+		}
+
+		executor := NewMockExecutor()
+		chain := secrets.NewChain(secrets.NewEnvResolver())
+
+		result, err := profile.ApplyWithExecutor(p, env.claudeDir, env.claudeJSON, env.claudeupHome, chain, executor)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result.MCPServersInstalled).To(Equal([]string{"secret-mcp"}))
+
+		Expect(result.Warnings).To(HaveLen(1))
+		Expect(result.Warnings[0].Error()).To(SatisfyAll(
+			ContainSubstring(`"API_KEY"`),
+			ContainSubstring("not exported"),
+			Not(ContainSubstring(secretValue)),
+		))
+
+		cmds := mcpAddArgs(executor, "secret-mcp")
+		Expect(cmds).To(HaveLen(1))
+		Expect(cmds[0]).To(HaveSuffix(" --token ${API_KEY}"))
+		Expect(allArgs(executor)).NotTo(ContainElement(secretValue))
+	})
+
 	Describe("across all scopes", func() {
 		var (
 			projectDir string

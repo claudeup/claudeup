@@ -99,16 +99,29 @@ var _ = Describe("Profile diff vs live", func() {
 								Command: "npx",
 								Args:    []string{"--token", "$MY_MCP_TOKEN"},
 								Scope:   "user",
+								// Curated metadata the live config can never
+								// carry: a description and a non-env source.
 								Secrets: map[string]profile.SecretRef{
-									"MY_MCP_TOKEN": {Sources: []profile.SecretSource{{Type: "env", Key: "MY_MCP_TOKEN"}}},
+									"MY_MCP_TOKEN": {
+										Description: "Token for secret-server",
+										Sources: []profile.SecretSource{
+											{Type: "env", Key: "MY_MCP_TOKEN"},
+											{Type: "1password", Ref: "op://Private/secret-server/token"},
+										},
+									},
 								},
 							},
+							// A $VAR arg with no secrets entry is written as a
+							// placeholder too and must not read as drift.
+							{Name: "plain-server", Command: "npx", Args: []string{"--port", "$MCP_PORT"}, Scope: "user"},
 						},
 					},
 				},
 			})
 
-			claudeJSON := `{"mcpServers":{"secret-server":{"command":"npx","args":["--token","${MY_MCP_TOKEN}"]}}}`
+			claudeJSON := `{"mcpServers":{` +
+				`"secret-server":{"command":"npx","args":["--token","${MY_MCP_TOKEN}"]},` +
+				`"plain-server":{"command":"npx","args":["--port","${MCP_PORT}"]}}}`
 			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), []byte(claudeJSON), 0644)).To(Succeed())
 		})
 
@@ -117,6 +130,19 @@ var _ = Describe("Profile diff vs live", func() {
 
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("No differences"))
+		})
+
+		It("still reports a changed reference", func() {
+			claudeJSON := `{"mcpServers":{` +
+				`"secret-server":{"command":"npx","args":["--token","${OTHER_TOKEN}"]},` +
+				`"plain-server":{"command":"npx","args":["--port","${MCP_PORT}"]}}}`
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), []byte(claudeJSON), 0644)).To(Succeed())
+
+			result := env.Run("profile", "diff", "placeholder-secret")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("secret-server (args changed)"))
+			Expect(result.Stdout).NotTo(ContainSubstring("plain-server"))
 		})
 	})
 
