@@ -845,7 +845,9 @@ func TestApplyAllScopesNoPluginDoubleCounting(t *testing.T) {
 	}
 }
 
-func TestApplyAllScopesMCPSecretResolution(t *testing.T) {
+// User-scope MCP servers go through `claude mcp add`; the secret reference
+// must reach it as a ${KEY} placeholder, never as the resolved value (#312).
+func TestApplyAllScopesMCPSecretPlaceholders(t *testing.T) {
 	env := setupAllScopesTestEnv(t)
 	executor := &allScopesMockExecutor{}
 
@@ -885,17 +887,17 @@ func TestApplyAllScopesMCPSecretResolution(t *testing.T) {
 		t.Fatal("expected secret-server to be installed")
 	}
 
-	// Verify the resolved value was passed, not the raw $MY_SECRET_TOKEN
+	// Verify the placeholder was passed, not the resolved value
 	mcpCmds := executor.commandsWithPrefix("mcp", "add", "secret-server")
 	if len(mcpCmds) == 0 {
 		t.Fatal("expected mcp add command for secret-server")
 	}
 	cmdStr := strings.Join(mcpCmds[0], " ")
-	if strings.Contains(cmdStr, "$MY_SECRET_TOKEN") {
-		t.Error("expected $MY_SECRET_TOKEN to be resolved, but raw variable was passed")
+	if !strings.HasSuffix(cmdStr, " ${MY_SECRET_TOKEN}") {
+		t.Errorf("expected ${MY_SECRET_TOKEN} placeholder in mcp add args, got: %s", cmdStr)
 	}
-	if !strings.Contains(cmdStr, "resolved-value") {
-		t.Errorf("expected resolved-value in mcp add args, got: %s", cmdStr)
+	if strings.Contains(cmdStr, "resolved-value") {
+		t.Errorf("resolved secret leaked into mcp add argv: %s", cmdStr)
 	}
 }
 
@@ -1281,7 +1283,7 @@ func TestApplyAllScopesNoProgressKeepsSequentialOutput(t *testing.T) {
 	}
 }
 
-func TestApplyAllScopesShowProgressResolvesMCPSecrets(t *testing.T) {
+func TestApplyAllScopesShowProgressWritesMCPSecretPlaceholders(t *testing.T) {
 	env := setupAllScopesTestEnv(t)
 	executor := &allScopesMockExecutor{}
 
@@ -1328,11 +1330,11 @@ func TestApplyAllScopesShowProgressResolvesMCPSecrets(t *testing.T) {
 		t.Fatalf("expected one mcp add for secret-server, got: %v", executor.commands)
 	}
 	cmdStr := strings.Join(mcpCmds[0], " ")
-	if strings.Contains(cmdStr, "$MY_SECRET_TOKEN") {
-		t.Errorf("expected $MY_SECRET_TOKEN to be resolved on the progress path, got: %s", cmdStr)
+	if !strings.HasSuffix(cmdStr, " ${MY_SECRET_TOKEN}") {
+		t.Errorf("expected ${MY_SECRET_TOKEN} placeholder on the progress path, got: %s", cmdStr)
 	}
-	if !strings.Contains(cmdStr, "resolved-value") {
-		t.Errorf("expected resolved-value in mcp add args, got: %s", cmdStr)
+	if strings.Contains(cmdStr, "resolved-value") {
+		t.Errorf("resolved secret leaked into mcp add argv: %s", cmdStr)
 	}
 }
 

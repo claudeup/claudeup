@@ -84,6 +84,52 @@ func TestWriteMCPJSON(t *testing.T) {
 	}
 }
 
+// Claude Code expands ${VAR} in .mcp.json args but leaves a bare $VAR alone,
+// so secret references in args must be written in the braced form.
+func TestWriteMCPJSON_ArgPlaceholders(t *testing.T) {
+	tempDir := t.TempDir()
+
+	servers := []MCPServer{
+		{
+			Name:    "api",
+			Command: "npx",
+			Args:    []string{"-y", "@my/mcp", "--token", "$API_TOKEN", "${ALREADY_BRACED}", "$", "literal$notref"},
+			Secrets: map[string]SecretRef{
+				"API_TOKEN": {Sources: []SecretSource{{Type: "env", Key: "API_TOKEN"}}},
+			},
+		},
+	}
+
+	if err := WriteMCPJSON(tempDir, servers); err != nil {
+		t.Fatalf("WriteMCPJSON failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(tempDir, MCPConfigFile))
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+	var cfg MCPJSONConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("failed to parse JSON: %v", err)
+	}
+
+	want := []string{"-y", "@my/mcp", "--token", "${API_TOKEN}", "${ALREADY_BRACED}", "$", "literal$notref"}
+	got := cfg.MCPServers["api"].Args
+	if len(got) != len(want) {
+		t.Fatalf("args = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("arg %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	// The caller's slice must not be rewritten in place.
+	if servers[0].Args[3] != "$API_TOKEN" {
+		t.Errorf("WriteMCPJSON mutated caller args: %v", servers[0].Args)
+	}
+}
+
 func TestWriteMCPJSON_EmptyServers(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "claudeup-test-*")
 	if err != nil {

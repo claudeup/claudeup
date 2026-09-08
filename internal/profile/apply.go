@@ -424,46 +424,14 @@ func applyProjectScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome
 func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome string, secretChain *secrets.Chain, opts ApplyOptions, executor CommandExecutor) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
-	// 1. Resolve secrets for MCP servers
-	resolvedMCP := make(map[string]map[string]string)
-	for _, mcp := range profile.MCPServers {
-		if len(mcp.Secrets) > 0 {
-			resolved := make(map[string]string)
-			for envVar, ref := range mcp.Secrets {
-				var value string
-				var resolveErr error
-				for _, source := range ref.Sources {
-					switch source.Type {
-					case "env":
-						value, _, resolveErr = secretChain.Resolve(source.Key)
-					case "1password":
-						value, _, resolveErr = secretChain.Resolve(source.Ref)
-					case "keychain":
-						keychainRef := source.Service
-						if source.Account != "" {
-							keychainRef = source.Service + ":" + source.Account
-						}
-						value, _, resolveErr = secretChain.Resolve(keychainRef)
-					}
-					if resolveErr == nil && value != "" {
-						break
-					}
-				}
-				if value == "" {
-					result.Errors = append(result.Errors, fmt.Errorf("could not resolve secret %s for MCP server %s", envVar, mcp.Name))
-					continue
-				}
-				resolved[envVar] = value
-			}
-			resolvedMCP[mcp.Name] = resolved
-		}
-	}
-
-	// 2. Add MCP servers with local scope
+	// 1. Add MCP servers with local scope. Secrets are only checked here so
+	// a missing one is reported early; the value itself is never passed on.
 	for _, mcp := range profile.MCPServers {
 		mcpCopy := mcp
 		mcpCopy.Scope = "local" // Override to local
-		args := buildMCPAddArgs(mcpCopy, resolvedMCP[mcp.Name])
+		_, warnings := resolveMCPSecrets(mcpCopy, secretChain)
+		result.Warnings = append(result.Warnings, warnings...)
+		args := buildMCPAddArgs(mcpCopy)
 		output, err := executor.RunWithOutput(args...)
 		switch mcpErr := checkMCPAlreadyExists(output, err); {
 		case mcpErr == nil:
@@ -475,7 +443,7 @@ func applyLocalScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome s
 		}
 	}
 
-	// 3. Add marketplaces (user-level)
+	// 2. Add marketplaces (user-level)
 	validMarketplaces := filterValidMarketplaceKeys(profile.Marketplaces)
 	for i, key := range validMarketplaces {
 		fmt.Printf("  [%d/%d] Adding marketplace %s\n", i+1, len(validMarketplaces), key)
@@ -551,39 +519,12 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 
 	result := &ApplyResult{}
 
-	// Resolve secrets for MCP servers before making any changes
-	resolvedMCP := make(map[string]map[string]string) // mcp name -> env var -> value
+	// Check MCP secrets before making any changes so a missing one is
+	// reported early. The value is never used: apply writes a ${KEY}
+	// placeholder that Claude Code expands from its environment at launch.
 	for _, mcp := range diff.MCPToInstall {
-		if len(mcp.Secrets) > 0 {
-			resolved := make(map[string]string)
-			for envVar, ref := range mcp.Secrets {
-				// Try each source in order
-				var value string
-				var resolveErr error
-				for _, source := range ref.Sources {
-					switch source.Type {
-					case "env":
-						value, _, resolveErr = secretChain.Resolve(source.Key)
-					case "1password":
-						value, _, resolveErr = secretChain.Resolve(source.Ref)
-					case "keychain":
-						keychainRef := source.Service
-						if source.Account != "" {
-							keychainRef = source.Service + ":" + source.Account
-						}
-						value, _, resolveErr = secretChain.Resolve(keychainRef)
-					}
-					if resolveErr == nil && value != "" {
-						break
-					}
-				}
-				if value == "" {
-					return nil, fmt.Errorf("could not resolve secret %s for MCP server %s", envVar, mcp.Name)
-				}
-				resolved[envVar] = value
-			}
-			resolvedMCP[mcp.Name] = resolved
-		}
+		_, warnings := resolveMCPSecrets(mcp, secretChain)
+		result.Warnings = append(result.Warnings, warnings...)
 	}
 
 	// Remove plugins by disabling them in settings.json
@@ -702,7 +643,7 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 
 	// Install MCP servers
 	for _, mcp := range diff.MCPToInstall {
-		args := buildMCPAddArgs(mcp, resolvedMCP[mcp.Name])
+		args := buildMCPAddArgs(mcp)
 		output, err := executor.RunWithOutput(args...)
 		switch mcpErr := checkMCPAlreadyExists(output, err); {
 		case mcpErr == nil:
@@ -727,7 +668,14 @@ func applyUserScope(profile *Profile, claudeDir, claudeJSONPath, claudeupHome st
 	return result, nil
 }
 
-func buildMCPAddArgs(mcp MCPServer, resolvedSecrets map[string]string) []string {
+// buildMCPAddArgs builds the argv for `claude mcp add`. Secret references in
+// args ($KEY) are passed as ${KEY} placeholders, never as resolved values:
+// the argv of `claude mcp add` is readable by every local user via ps and
+// /proc/<pid>/cmdline, and Claude Code stores it verbatim, so a substituted
+// value would also sit in the MCP server's own command line on every launch.
+// Claude Code expands ${KEY} from its parent environment when it starts the
+// server (see #312).
+func buildMCPAddArgs(mcp MCPServer) []string {
 	args := []string{"mcp", "add", mcp.Name}
 
 	// Add scope if specified
@@ -740,23 +688,7 @@ func buildMCPAddArgs(mcp MCPServer, resolvedSecrets map[string]string) []string 
 	// Add separator and command
 	args = append(args, "--", mcp.Command)
 
-	// Add command args, substituting secrets
-	for _, arg := range mcp.Args {
-		if strings.HasPrefix(arg, "$") {
-			envVar := strings.TrimPrefix(arg, "$")
-			if value, ok := resolvedSecrets[envVar]; ok {
-				args = append(args, value)
-			} else if value := os.Getenv(envVar); value != "" {
-				args = append(args, value)
-			} else {
-				args = append(args, arg) // Keep as-is if not resolved
-			}
-		} else {
-			args = append(args, arg)
-		}
-	}
-
-	return args
+	return append(args, placeholderArgs(mcp.Args)...)
 }
 
 func runClaude(claudeDir string, args ...string) error {
@@ -953,8 +885,15 @@ func checkMCPAlreadyExists(output string, err error) error {
 
 // resolveMCPSecrets resolves each secret declared on an MCP server by trying
 // its sources in order through the chain. Secrets that cannot be resolved are
-// reported as warnings and omitted from the returned map, so the placeholder
-// is passed through unchanged. A nil chain resolves nothing and warns nothing.
+// reported as warnings and omitted from the returned map. A nil chain
+// resolves nothing and warns nothing.
+//
+// Apply uses this only as a preflight check: the resolved values are never
+// written to Claude's config or passed to the CLI (see buildMCPAddArgs).
+// Claude Code expands the ${KEY} placeholder from its own environment, so a
+// 1password or keychain source can confirm the secret exists but cannot
+// deliver it to the server; the user must export the variable in the shell
+// that launches Claude Code.
 func resolveMCPSecrets(mcp MCPServer, secretChain *secrets.Chain) (resolved map[string]string, warnings []error) {
 	if len(mcp.Secrets) == 0 || secretChain == nil {
 		return nil, nil
@@ -993,17 +932,18 @@ func resolveMCPSecrets(mcp MCPServer, secretChain *secrets.Chain) (resolved map[
 // installMCPServersCLI installs MCP servers via CLI and aggregates results.
 // For user scope (scope="" or "user"), the MCPServer's original Scope field is
 // preserved. For project/local scope, it is overridden to the target scope.
-// If secretChain is non-nil, secrets are resolved before building CLI args.
+// If secretChain is non-nil, secrets are checked first so a missing one is
+// reported as a warning; the values themselves are never passed to the CLI.
 func installMCPServersCLI(servers []MCPServer, scope string, secretChain *secrets.Chain, executor CommandExecutor, result *ApplyResult) {
 	for _, mcp := range servers {
 		if scope != "" && scope != "user" {
 			mcp.Scope = scope
 		}
 
-		resolved, warnings := resolveMCPSecrets(mcp, secretChain)
+		_, warnings := resolveMCPSecrets(mcp, secretChain)
 		result.Warnings = append(result.Warnings, warnings...)
 
-		args := buildMCPAddArgs(mcp, resolved)
+		args := buildMCPAddArgs(mcp)
 		output, err := executor.RunWithOutput(args...)
 		switch mcpErr := checkMCPAlreadyExists(output, err); {
 		case mcpErr == nil:

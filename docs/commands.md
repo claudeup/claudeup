@@ -168,14 +168,14 @@ Backups are stored in `~/.claudeup/backups/`.
 3. Other team members clone/pull and run `claudeup profile apply <name> --project`
 4. MCP servers load automatically; plugins are configured by apply
 
-**Secrets and project scope:**
+**Secrets and MCP servers:**
 
-MCP servers often require secrets (API keys, tokens). When using `--project`:
+MCP servers often require secrets (API keys, tokens). At every scope:
 
-- Secrets are **not** stored in `.mcp.json` - only secret references
-- Each team member must have the referenced secrets available locally
-- Common secret sources: environment variables, 1Password, system keychain
-- Profile apply does not handle secrets - configure them separately
+- Secret values are **not** written to `.mcp.json` or `~/.claude.json`, and are never passed to `claude mcp add` - only `${KEY}` placeholders
+- Claude Code expands each placeholder from the environment of the shell that launched it
+- Each user must export the referenced variables locally before starting Claude Code
+- Profile apply checks that each declared secret can be found and warns if not, but does not deliver the value itself; 1Password and keychain sources serve as that check only
 
 Example `.mcp.json` with secret reference:
 

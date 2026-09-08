@@ -422,11 +422,13 @@ func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 
 	var servers []MCPServer
 	for name, server := range claudeJSON.MCPServers {
+		args, secretRefs := profileArgs(server.Args)
 		servers = append(servers, MCPServer{
 			Name:    name,
 			Command: server.Command,
-			Args:    server.Args,
+			Args:    args,
 			Scope:   scope,
+			Secrets: secretRefs,
 		})
 	}
 
@@ -436,6 +438,37 @@ func ReadMCPServersForScope(claudeJSONPath, projectDir, scope string) ([]MCPServ
 	})
 
 	return servers, nil
+}
+
+// profileArgs maps live MCP args back to the profile form. Apply writes
+// secret references as ${KEY} placeholders that Claude Code expands from its
+// environment at launch, so each whole-arg ${KEY} becomes $KEY with an env
+// SecretRef recording where the value comes from. That keeps a saved profile
+// comparable to its own live state instead of reporting perpetual drift. A
+// bare $KEY in the live config is a literal Claude Code does not expand, so
+// it is left alone. The input slice is not modified.
+func profileArgs(liveArgs []string) ([]string, map[string]SecretRef) {
+	var args []string
+	var secretRefs map[string]SecretRef
+	for i, arg := range liveArgs {
+		if !isEnvPlaceholder(arg) {
+			continue
+		}
+		if args == nil {
+			args = make([]string, len(liveArgs))
+			copy(args, liveArgs)
+			secretRefs = make(map[string]SecretRef)
+		}
+		name, _ := envRefName(arg)
+		args[i] = envReference(name)
+		if _, exists := secretRefs[name]; !exists {
+			secretRefs[name] = SecretRef{Sources: []SecretSource{{Type: "env", Key: name}}}
+		}
+	}
+	if args == nil {
+		return liveArgs, nil
+	}
+	return args, secretRefs
 }
 
 // snapshotScopePlugins reads plugins and MCP servers for a single scope,

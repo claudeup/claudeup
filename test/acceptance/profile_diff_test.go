@@ -83,6 +83,43 @@ var _ = Describe("Profile diff vs live", func() {
 		})
 	})
 
+	Describe("profile applied with a ${KEY} secret placeholder", func() {
+		// Apply writes $KEY secret references as ${KEY} placeholders that
+		// Claude Code expands at launch, so the live config carries the
+		// braced form while the profile keeps the bare form. Diff must treat
+		// them as the same reference rather than reporting perpetual drift.
+		BeforeEach(func() {
+			env.CreateProfile(&profile.Profile{
+				Name: "placeholder-secret",
+				PerScope: &profile.PerScopeSettings{
+					User: &profile.ScopeSettings{
+						MCPServers: []profile.MCPServer{
+							{
+								Name:    "secret-server",
+								Command: "npx",
+								Args:    []string{"--token", "$MY_MCP_TOKEN"},
+								Scope:   "user",
+								Secrets: map[string]profile.SecretRef{
+									"MY_MCP_TOKEN": {Sources: []profile.SecretSource{{Type: "env", Key: "MY_MCP_TOKEN"}}},
+								},
+							},
+						},
+					},
+				},
+			})
+
+			claudeJSON := `{"mcpServers":{"secret-server":{"command":"npx","args":["--token","${MY_MCP_TOKEN}"]}}}`
+			Expect(os.WriteFile(filepath.Join(env.ClaudeDir, ".claude.json"), []byte(claudeJSON), 0644)).To(Succeed())
+		})
+
+		It("does not report drift", func() {
+			result := env.Run("profile", "diff", "placeholder-secret")
+
+			Expect(result.ExitCode).To(Equal(0))
+			Expect(result.Stdout).To(ContainSubstring("No differences"))
+		})
+	})
+
 	Describe("live has extra plugins not in profile", func() {
 		BeforeEach(func() {
 			// Create a profile with no plugins

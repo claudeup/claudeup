@@ -90,10 +90,12 @@ When applying a flat profile (no `perScope`) or using `--scope`, these operation
 
 **3. MCP server configuration.** MCP servers are added via `claude mcp add`:
 
-| Scope   | MCP config file  | Secret handling                                                                 |
-| ------- | ---------------- | ------------------------------------------------------------------------------- |
-| user    | `~/.claude.json` | `$KEY` references resolved to plaintext via profile's `secrets` metadata        |
-| project | `.mcp.json`      | `${VAR}` env placeholders written; Claude Code expands them per user at runtime |
+| Scope   | MCP config file  | Secret handling                                                                    |
+| ------- | ---------------- | ---------------------------------------------------------------------------------- |
+| user    | `~/.claude.json` | `$KEY` references written as `${KEY}` placeholders; Claude Code expands at launch  |
+| project | `.mcp.json`      | `${VAR}` env placeholders written; Claude Code expands them per user at runtime    |
+
+Secret values are never passed to `claude mcp add` or written to Claude's config. See [Secret Management](#secret-management).
 
 Local scope does not support MCP server configuration.
 
@@ -884,7 +886,7 @@ Resolution tries each source in order. First success wins.
 
 ### Referencing Secrets in Args
 
-MCP server args use `$KEY` references to substitute secret values at apply time. The key must match an entry in the server's `secrets` map:
+MCP server args use `$KEY` references for secret values. The key must match an entry in the server's `secrets` map:
 
 ```json
 {
@@ -908,7 +910,18 @@ MCP server args use `$KEY` references to substitute secret values at apply time.
 }
 ```
 
-Both the flat `mcpServers` and `perScope.*.mcpServers` formats are supported. When claudeup applies this profile, `$API_TOKEN` in args is replaced with the resolved secret value. The profile JSON itself never contains the plaintext secret.
+Both the flat `mcpServers` and `perScope.*.mcpServers` formats are supported. When claudeup applies this profile, `$API_TOKEN` in args is written to Claude's config as the placeholder `${API_TOKEN}`. Claude Code expands the placeholder from its own environment each time it launches the server. Neither the profile JSON, Claude's config, nor the `claude mcp add` command line ever contains the plaintext secret. This applies to every scope: user and local servers are registered through `claude mcp add`, project servers are written to `.mcp.json`, and all three carry the same `${KEY}` form.
+
+At apply time, claudeup still tries each source in the `secrets` map and warns when a secret cannot be found, so a missing key is reported early. The resolved value is only used for that check. Because Claude Code reads the placeholder from the environment of the shell that launched it, the variable must be exported there:
+
+```bash
+export API_TOKEN="$(op read 'op://Private/My API/credential')"
+claude
+```
+
+`1password` and `keychain` sources therefore confirm that a secret exists but do not deliver it to the server on their own. Placeholder expansion in user- and local-scope MCP args was verified with Claude Code 2.1.263; earlier versions have not been tested.
+
+Earlier claudeup releases substituted the resolved value into the `claude mcp add` command line for user and local scope, which exposed it to every local user through `ps` and `/proc/<pid>/cmdline` and stored it in plaintext in `~/.claude.json`. Re-apply a profile to replace those stored values with placeholders.
 
 ### Automatic Redaction on Save
 
@@ -966,7 +979,7 @@ Replace the plaintext value in `args` with a `$KEY` reference, and add a `secret
 }
 ```
 
-**4. Set the environment variable** so the secret resolves at apply time:
+**4. Set the environment variable** in the shell that launches Claude Code, so it can expand the placeholder at launch:
 
 ```bash
 export MY_TOKEN="your-secret-value"
@@ -980,7 +993,7 @@ Add this to your shell profile (`~/.zshrc`, `~/.bashrc`) so it persists.
 # Review the args arrays for any remaining plaintext values
 claudeup profile show my-profile
 
-# Test that apply resolves correctly
+# Apply: a warning is printed if the secret cannot be found
 claudeup profile apply my-profile
 ```
 

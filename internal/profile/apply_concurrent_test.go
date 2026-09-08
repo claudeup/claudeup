@@ -140,7 +140,10 @@ func (f *fakeSecretResolver) Resolve(ref string) (string, error) {
 	return "", errors.New("unknown ref: " + ref)
 }
 
-func TestApplyConcurrentlyResolvesMCPSecrets(t *testing.T) {
+// The concurrent path checks that a declared secret resolves (so a missing
+// one is warned about early) but must pass a ${KEY} placeholder, never the
+// resolved value, to `claude mcp add` (#312).
+func TestApplyConcurrentlyWritesMCPSecretPlaceholders(t *testing.T) {
 	profile := &Profile{
 		MCPServers: []MCPServer{
 			{
@@ -190,11 +193,16 @@ func TestApplyConcurrentlyResolvesMCPSecrets(t *testing.T) {
 	if mcpCmd == "" {
 		t.Fatalf("expected mcp add command for secret-server, got: %v", executor.commands)
 	}
-	if strings.Contains(mcpCmd, "$MY_SECRET_TOKEN") {
-		t.Errorf("expected $MY_SECRET_TOKEN to be resolved, but raw variable was passed: %s", mcpCmd)
+	if !strings.HasSuffix(mcpCmd, " ${MY_SECRET_TOKEN}") {
+		t.Errorf("expected ${MY_SECRET_TOKEN} placeholder in mcp add args, got: %s", mcpCmd)
 	}
-	if !strings.Contains(mcpCmd, "resolved-value") {
-		t.Errorf("expected resolved-value in mcp add args, got: %s", mcpCmd)
+	if strings.Contains(mcpCmd, "resolved-value") {
+		t.Errorf("resolved secret leaked into mcp add argv: %s", mcpCmd)
+	}
+	for _, w := range result.Warnings {
+		if strings.Contains(w.Error(), "MY_SECRET_TOKEN") {
+			t.Errorf("expected no warning for a resolvable secret, got: %v", w)
+		}
 	}
 }
 

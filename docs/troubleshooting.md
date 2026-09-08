@@ -198,6 +198,12 @@ Test 1Password:
 op read "op://Private/My Secret/credential"
 ```
 
+Apply only checks that the secret can be found. The MCP server itself receives the value from a `${KEY}` placeholder that Claude Code expands from its environment at launch, so if `claude mcp list` reports a missing environment variable, export it in the shell that starts Claude Code:
+
+```bash
+export MY_TOKEN="$(op read 'op://Private/My Secret/credential')"
+```
+
 ## Getting Help
 
 If `claudeup doctor` and `claudeup cleanup` don't resolve your issue:

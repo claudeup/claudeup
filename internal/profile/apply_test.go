@@ -163,21 +163,27 @@ func TestComputeDiffMCPServers(t *testing.T) {
 	}
 }
 
+// Secret references are passed to `claude mcp add` as ${KEY} placeholders
+// that Claude Code expands at launch. The resolved value must never appear in
+// the argv, which is world-readable via ps and /proc/<pid>/cmdline (#312).
 func TestBuildMCPAddArgs(t *testing.T) {
+	// A value in the environment must not be substituted either: the old
+	// os.Getenv fallback leaked the same way.
+	t.Setenv("API_KEY", "secret-value-123")
+
 	mcp := MCPServer{
 		Name:    "test-mcp",
 		Command: "npx",
-		Args:    []string{"-y", "some-package", "$API_KEY"},
+		Args:    []string{"-y", "some-package", "$API_KEY", "${BRACED}", "$", "$1", "prefix$API_KEY"},
 		Scope:   "user",
+		Secrets: map[string]SecretRef{
+			"API_KEY": {Sources: []SecretSource{{Type: "env", Key: "API_KEY"}}},
+		},
 	}
 
-	resolvedSecrets := map[string]string{
-		"API_KEY": "secret-value-123",
-	}
+	args := buildMCPAddArgs(mcp)
 
-	args := buildMCPAddArgs(mcp, resolvedSecrets)
-
-	expected := []string{"mcp", "add", "test-mcp", "-s", "user", "--", "npx", "-y", "some-package", "secret-value-123"}
+	expected := []string{"mcp", "add", "test-mcp", "-s", "user", "--", "npx", "-y", "some-package", "${API_KEY}", "${BRACED}", "$", "$1", "prefix$API_KEY"}
 
 	if len(args) != len(expected) {
 		t.Fatalf("Expected %d args, got %d: %v", len(expected), len(args), args)
@@ -187,6 +193,15 @@ func TestBuildMCPAddArgs(t *testing.T) {
 		if args[i] != exp {
 			t.Errorf("Arg %d: expected %q, got %q", i, exp, args[i])
 		}
+	}
+
+	for _, arg := range args {
+		if arg == "secret-value-123" {
+			t.Fatalf("resolved secret leaked into mcp add argv: %v", args)
+		}
+	}
+	if mcp.Args[2] != "$API_KEY" {
+		t.Errorf("buildMCPAddArgs mutated the profile args: %v", mcp.Args)
 	}
 }
 
@@ -284,7 +299,7 @@ func TestBuildMCPAddArgsDefaultScope(t *testing.T) {
 		// Scope not set - should default to "user"
 	}
 
-	args := buildMCPAddArgs(mcp, nil)
+	args := buildMCPAddArgs(mcp)
 
 	// Check that -s user is present
 	foundScope := false
