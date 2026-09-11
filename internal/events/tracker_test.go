@@ -30,10 +30,10 @@ func TestEvents(t *testing.T) {
 
 var _ = Describe("Tracker", func() {
 	var (
-		tracker   *events.Tracker
-		writer    *fakeEventWriter
-		tempDir   string
-		testFile  string
+		tracker  *events.Tracker
+		writer   *fakeEventWriter
+		tempDir  string
+		testFile string
 	)
 
 	BeforeEach(func() {

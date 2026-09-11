@@ -125,13 +125,19 @@ claudeup respects Claude Code's scope layering (user -> project -> local, later 
 
 ### Claude CLI Format Compatibility
 
-claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `settings.json`). When Claude CLI updates break parsing:
+claudeup parses Claude CLI's internal JSON files (`installed_plugins.json`, `settings.json`, `known_marketplaces.json`, `.claude-plugin/marketplace.json`). All of them are read through `internal/claude`; do not add a second parser for a file that package already loads, or format drift can break a caller the smoke tests never reach.
+
+When Claude CLI updates break parsing:
 
 1. Smoke tests in `test/integration/claude/format_compatibility_test.go` fail against your real `~/.claude/`
 2. Examine actual file structure to understand changes
 3. Update validation in `internal/claude/validation.go`
 4. Extend `LoadPlugins()` to handle the new version
 5. Update supported version range in error messages
+
+These smoke tests read the real `~/.claude/` and ignore `CLAUDE_CONFIG_DIR` on purpose, since their job is to notice that the installed Claude CLI's files have changed shape. That makes them a developer-machine canary: on a runner with no `~/.claude/` they skip, so a green CI says nothing about format drift. The unit tests are the only automated guard there.
+
+Coverage is also limited by what happens to be installed. A source form absent from every installed marketplace, such as `npm` plugin sources, cannot be exercised by these tests at all and needs unit coverage instead.
 
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->

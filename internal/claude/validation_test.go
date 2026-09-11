@@ -9,10 +9,10 @@ import (
 
 func TestValidatePluginRegistry(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		registry *PluginRegistry
-		wantErr bool
-		errMsg  string
+		wantErr  bool
+		errMsg   string
 	}{
 		{
 			name: "valid V1 format",
@@ -96,10 +96,10 @@ func TestValidatePluginRegistry(t *testing.T) {
 
 func TestValidateSettings(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		settings *Settings
-		wantErr bool
-		errMsg  string
+		wantErr  bool
+		errMsg   string
 	}{
 		{
 			name: "valid settings with enabled plugins",

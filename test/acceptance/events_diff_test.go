@@ -30,6 +30,19 @@ var _ = Describe("events diff", func() {
 		})
 	})
 
+	Context("without the required --file flag", func() {
+		It("reports the missing flag with usage", func() {
+			// Cobra checks required flags after the pre-run hooks, so this is
+			// the usage error most easily lost by silencing usage too early.
+			result := env.Run("events", "diff")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stdout + result.Stderr).To(ContainSubstring(`required flag(s) "file" not set`))
+			Expect(result.Stdout+result.Stderr).To(ContainSubstring("Usage:"),
+				"a missing required flag is a usage error")
+		})
+	})
+
 	Context("with event log", func() {
 		var settingsPath string
 

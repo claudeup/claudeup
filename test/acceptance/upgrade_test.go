@@ -246,6 +246,145 @@ var _ = Describe("upgrade", func() {
 		})
 	})
 
+	Describe("reporting failures", func() {
+		It("exits non-zero when a plugin update fails", func() {
+			env = helpers.NewTestEnv(binaryPath)
+
+			marketplacesDir := filepath.Join(env.ClaudeDir, "plugins", "marketplaces")
+			marketplaceDir := filepath.Join(marketplacesDir, "test-marketplace")
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, ".claude-plugin"), 0755)).To(Succeed())
+
+			// The index points at a directory that is not there, so resolving the
+			// plugin fails for a reason that is not a stale registry entry.
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, ".claude-plugin", "marketplace.json"), []byte(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "test-plugin", "version": "2.0.0", "source": "./plugins/gone"}
+				]
+			}`), 0644)).To(Succeed())
+
+			Expect(exec.Command("git", "-C", marketplaceDir, "init").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.name", "Test").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
+
+			cacheDir := filepath.Join(env.ClaudeDir, "plugins", "cache", "test-plugin", "1.0.0")
+			Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source":          map[string]interface{}{"repo": "example/test-marketplace"},
+					"installLocation": marketplaceDir,
+				},
+			})
+			// A SHA that does not match the marketplace HEAD flags the plugin as
+			// outdated, so the update is attempted and fails.
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"test-plugin@test-marketplace": []interface{}{
+					map[string]interface{}{
+						"scope":        "user",
+						"version":      "1.0.0",
+						"installedAt":  "2025-01-01T00:00:00Z",
+						"lastUpdated":  "2025-01-01T00:00:00Z",
+						"installPath":  cacheDir,
+						"gitCommitSha": "0000000000000000000000000000000000000000",
+					},
+				},
+			})
+
+			result := env.Run("upgrade")
+
+			Expect(result.ExitCode).NotTo(Equal(0),
+				"a failed plugin update must not report success\nstdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("does not exist"),
+				"the per-plugin failure should still be shown")
+			Expect(result.Stdout).NotTo(ContainSubstring("Updates complete"),
+				"a run with failures should not claim completion")
+			Expect(result.Stdout+result.Stderr).NotTo(ContainSubstring("Global Flags"),
+				"a failed run is not a usage error, so the usage block must not follow the error")
+		})
+
+		It("still prints usage for an unknown flag", func() {
+			result := env.Run("upgrade", "--no-such-flag")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stdout+result.Stderr).To(ContainSubstring("Usage:"),
+				"a flag the command does not have is a usage error")
+		})
+	})
+
+	Describe("externally sourced plugins", func() {
+		It("delegates to claude plugin update and reports no change when it made none", func() {
+			env = helpers.NewTestEnv(binaryPath)
+
+			marketplacesDir := filepath.Join(env.ClaudeDir, "plugins", "marketplaces")
+			marketplaceDir := filepath.Join(marketplacesDir, "test-marketplace")
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, ".claude-plugin"), 0755)).To(Succeed())
+
+			// The marketplace declares 0.0.1, but Claude Code recorded 9.9.9 from
+			// the plugin's own plugin.json, which is the version it prefers. The
+			// two never agree for such a plugin, and that is not an update.
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, ".claude-plugin", "marketplace.json"), []byte(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "ext-plugin", "version": "0.0.1", "source": {"source": "url", "url": "https://example.com/ext-plugin.git"}}
+				]
+			}`), 0644)).To(Succeed())
+
+			Expect(exec.Command("git", "-C", marketplaceDir, "init").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.name", "Test").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
+			headBytes, err := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD").Output()
+			Expect(err).NotTo(HaveOccurred())
+			headSHA := strings.TrimSpace(string(headBytes))
+
+			cacheDir := filepath.Join(env.ClaudeDir, "plugins", "cache", "test-marketplace", "ext-plugin", "9.9.9")
+			Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source":          map[string]interface{}{"repo": "example/test-marketplace"},
+					"installLocation": marketplaceDir,
+				},
+			})
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"ext-plugin@test-marketplace": []interface{}{
+					map[string]interface{}{
+						"scope":        "user",
+						"version":      "9.9.9",
+						"installedAt":  "2025-01-01T00:00:00Z",
+						"lastUpdated":  "2025-01-01T00:00:00Z",
+						"installPath":  cacheDir,
+						"gitCommitSha": headSHA,
+					},
+				},
+			})
+
+			// A claude that finds nothing to do exits 0 and leaves the registry alone.
+			fakeBin := filepath.Join(env.TempDir, "fakebin")
+			Expect(os.MkdirAll(fakeBin, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(fakeBin, "claude"), []byte("#!/bin/sh\nexit 0\n"), 0755)).To(Succeed())
+
+			result := env.RunWithEnv(map[string]string{"PATH": fakeBin + string(os.PathListSeparator) + os.Getenv("PATH")}, "upgrade", "--yes")
+
+			Expect(result.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("Already up to date"),
+				"a delegated update that changed nothing is not a failure")
+			Expect(result.Stdout).NotTo(ContainSubstring("still at version"),
+				"the marketplace's version must not be held against Claude Code's")
+
+			pluginsData, err := os.ReadFile(filepath.Join(env.ClaudeDir, "plugins", "installed_plugins.json"))
+			Expect(err).NotTo(HaveOccurred())
+			var registry map[string]interface{}
+			Expect(json.Unmarshal(pluginsData, &registry)).To(Succeed())
+			instance := registry["plugins"].(map[string]interface{})["ext-plugin@test-marketplace"].([]interface{})[0].(map[string]interface{})
+			Expect(instance["version"]).To(Equal("9.9.9"), "claudeup must not rewrite the version Claude Code recorded")
+		})
+	})
+
 	Describe("stale plugin registry cleanup", func() {
 		It("removes stale entries when confirmed with --yes", func() {
 			env = helpers.NewTestEnv(binaryPath)

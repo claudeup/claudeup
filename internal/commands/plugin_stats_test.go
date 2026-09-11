@@ -119,14 +119,14 @@ func TestCalculatePluginStatistics(t *testing.T) {
 					ActiveSource: "project",
 					EnabledAt:    []string{"project"},
 					InstalledAt: []claude.PluginMetadata{
-						{Scope: "user", IsLocal: false},    // cached at user
-						{Scope: "project", IsLocal: true},  // local at project (active)
+						{Scope: "user", IsLocal: false},   // cached at user
+						{Scope: "project", IsLocal: true}, // local at project (active)
 					},
 				},
 			},
 			want: PluginStatistics{
 				Total:    1,
-				Cached:   0,  // should use project's local, not user's cached
+				Cached:   0, // should use project's local, not user's cached
 				Local:    1,
 				Enabled:  1,
 				Disabled: 0,

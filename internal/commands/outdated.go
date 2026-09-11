@@ -99,14 +99,20 @@ func runOutdated(cmd *cobra.Command, args []string) error {
 		if len(pluginUpdates) == 0 {
 			fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 		} else {
-			hasOutdated := false
+			hasOutdated, hasExternal := false, false
 			for _, update := range pluginUpdates {
-				if update.HasUpdate {
+				switch {
+				case update.HasUpdate:
 					hasOutdated = true
 					fmt.Printf("  %s %s (%s) %s %s %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.Scope, update.CurrentCommit, ui.SymbolArrow, ui.Success(update.LatestCommit))
+				case update.External:
+					// This command only reads, and nothing readable says whether
+					// an external plugin is behind; `claude plugin update` does.
+					hasExternal = true
+					fmt.Printf("  %s %s (%s) %s\n", ui.Warning(ui.SymbolWarning), update.Name, update.Scope, ui.Muted("(external source, checked by claudeup upgrade)"))
 				}
 			}
-			if !hasOutdated {
+			if !hasOutdated && !hasExternal {
 				fmt.Printf("  %s All plugins up to date\n", ui.Success(ui.SymbolSuccess))
 			}
 		}

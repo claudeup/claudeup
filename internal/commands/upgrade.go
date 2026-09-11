@@ -74,10 +74,14 @@ type MarketplaceUpdate struct {
 
 // PluginUpdate represents the update status of an installed plugin.
 // HasUpdate indicates whether the plugin's source marketplace has newer commits.
+// External marks a plugin fetched from outside the marketplace checkout, where
+// nothing claudeup can read locally says whether it is behind; only
+// `claude plugin update` can tell, so HasUpdate is never set for one.
 type PluginUpdate struct {
 	Name          string
 	Scope         string
 	HasUpdate     bool
+	External      bool
 	CurrentCommit string
 	LatestCommit  string
 }
@@ -209,12 +213,15 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
+	attempted, failures := 0, 0
 	if len(marketplacesToPull) > 0 {
 		fmt.Println()
 		fmt.Println(ui.RenderSection("Updating Marketplaces", len(marketplacesToPull)))
 		for _, name := range marketplacesToPull {
+			attempted++
 			if err := updateMarketplace(name, marketplaces[name].InstallLocation); err != nil {
 				ui.PrintError(fmt.Sprintf("%s: %v", name, err))
+				failures++
 			} else {
 				ui.PrintSuccess(fmt.Sprintf("%s: Updated", name))
 			}
@@ -236,32 +243,39 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 
 	var outdatedUpdates []PluginUpdate
 	for _, update := range pluginUpdates {
-		if update.HasUpdate {
-			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
-			// Filter by target if specified.
-			// Targeting a plugin by name upgrades it at all scopes where it's outdated.
-			if hasTargets {
-				if len(targetPlugins) > 0 {
-					found := false
-					for _, target := range targetPlugins {
-						if target == update.Name {
-							found = true
-							break
-						}
+		// An external plugin goes through the update step whether or not it is
+		// behind, because only `claude plugin update` can find that out.
+		if !update.HasUpdate && !update.External {
+			continue
+		}
+		displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
+		status := "Update available"
+		if update.External {
+			status = "Checked by claude plugin update"
+		}
+		// Filter by target if specified.
+		// Targeting a plugin by name upgrades it at all scopes where it's outdated.
+		if hasTargets {
+			if len(targetPlugins) > 0 {
+				found := false
+				for _, target := range targetPlugins {
+					if target == update.Name {
+						found = true
+						break
 					}
-					if !found {
-						fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning("Update available (skipped)"))
-						continue
-					}
-				} else {
-					// User specified marketplaces only, skip plugins
-					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning("Update available (skipped)"))
+				}
+				if !found {
+					fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning(status+" (skipped)"))
 					continue
 				}
+			} else {
+				// User specified marketplaces only, skip plugins
+				fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning(status+" (skipped)"))
+				continue
 			}
-			fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning("Update available"))
-			outdatedUpdates = append(outdatedUpdates, update)
 		}
+		fmt.Printf("  %s %s: %s\n", ui.Warning(ui.SymbolWarning), displayName, ui.Warning(status))
+		outdatedUpdates = append(outdatedUpdates, update)
 	}
 
 	if len(outdatedUpdates) == 0 {
@@ -292,20 +306,32 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 		fmt.Println(ui.RenderSection("Updating Plugins", len(outdatedUpdates)))
 		for _, update := range outdatedUpdates {
 			displayName := fmt.Sprintf("%s (%s)", update.Name, update.Scope)
-			if err := updatePlugin(update.Name, update.Scope, plugins, marketplaces); err != nil {
-				if isStalePluginError(err) {
-					ui.PrintWarning(fmt.Sprintf("%s: %v", displayName, err))
-					confirmed, promptErr := ui.ConfirmYesNo(
-						fmt.Sprintf("  Remove stale registry entry for %s?", displayName))
-					if promptErr == nil && confirmed {
-						plugins.RemovePluginAtScope(update.Name, update.Scope)
-						ui.PrintSuccess(fmt.Sprintf("%s: Removed stale entry", displayName))
-					}
-				} else {
-					ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
-				}
-			} else {
+			attempted++
+			changed, err := updatePlugin(claudeDir, update.Name, update.Scope, plugins, marketplaces)
+			switch {
+			case err == nil && !changed:
+				ui.PrintSuccess(fmt.Sprintf("%s: Already up to date", displayName))
+			case err == nil:
 				ui.PrintSuccess(fmt.Sprintf("%s: Updated", displayName))
+			case isStalePluginError(err):
+				ui.PrintWarning(fmt.Sprintf("%s: %v", displayName, err))
+				confirmed, promptErr := ui.ConfirmYesNo(
+					fmt.Sprintf("  Remove stale registry entry for %s?", displayName))
+				switch {
+				case promptErr != nil:
+					// Leaving the entry in place without saying so hides the
+					// stale plugin from the next run's summary too.
+					ui.PrintError(fmt.Sprintf("%s: cannot ask whether to remove the stale entry: %v", displayName, promptErr))
+					failures++
+				case confirmed:
+					plugins.RemovePluginAtScope(update.Name, update.Scope)
+					ui.PrintSuccess(fmt.Sprintf("%s: Removed stale entry", displayName))
+				default:
+					ui.PrintWarning(fmt.Sprintf("%s: Kept stale entry", displayName))
+				}
+			default:
+				ui.PrintError(fmt.Sprintf("%s: %v", displayName, err))
+				failures++
 			}
 		}
 
@@ -316,6 +342,9 @@ func runUpgrade(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println()
+	if failures > 0 {
+		return fmt.Errorf("%d of %d updates failed", failures, attempted)
+	}
 	ui.PrintSuccess("Updates complete!")
 
 	return nil
@@ -480,15 +509,33 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 		}
 		currentCommit := strings.TrimSpace(string(currentOutput))
 
-		// Compare with plugin's gitCommitSha
+		declaredVersion, external := marketplaceIndexEntry(marketplacePath, name, indexCache)
+
+		if external {
+			// The plugin's content lives in another repository, which Claude
+			// Code fetches. Nothing readable here says whether it is behind: a
+			// marketplace commit is another repository's history, and the
+			// version the marketplace declares need never match the one Claude
+			// Code records, since plugin.json's version takes precedence over
+			// it. Only `claude plugin update` can tell.
+			updates = append(updates, PluginUpdate{
+				Name:          name,
+				Scope:         plugin.Scope,
+				External:      true,
+				CurrentCommit: truncateHash(plugin.GitCommitSha),
+				LatestCommit:  truncateHash(currentCommit),
+			})
+			continue
+		}
+
+		// The plugin is a directory in the marketplace checkout, so the
+		// marketplace commit is the plugin's own history.
 		hasUpdate := plugin.GitCommitSha != currentCommit
 
 		// When the SHA matches, check for version mismatch from a previous
 		// buggy upgrade that updated the SHA but not the version.
-		if !hasUpdate {
-			if indexVersion := marketplaceIndexVersion(marketplacePath, name, indexCache); indexVersion != "" {
-				hasUpdate = indexVersion != plugin.Version
-			}
+		if !hasUpdate && declaredVersion != "" {
+			hasUpdate = declaredVersion != plugin.Version
 		}
 
 		updates = append(updates, PluginUpdate{
@@ -503,21 +550,24 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 	return updates
 }
 
-// marketplaceIndexVersion looks up a plugin's version from the marketplace index.
-// Returns empty string if the index cannot be loaded or the plugin is not found.
-func marketplaceIndexVersion(marketplacePath, qualifiedName string, cache map[string]*claude.MarketplaceIndex) string {
+// marketplaceIndexEntry looks up what the marketplace index declares about a
+// plugin: the version it publishes, and whether the plugin is fetched from
+// elsewhere rather than living in the marketplace checkout. A missing index or
+// a plugin the index does not list yields an empty version and reports the
+// plugin as local, since the marketplace commit is then all there is.
+func marketplaceIndexEntry(marketplacePath, qualifiedName string, cache map[string]*claude.MarketplaceIndex) (version string, external bool) {
 	index, ok := cache[marketplacePath]
 	if !ok {
 		loaded, err := claude.LoadMarketplaceIndex(marketplacePath)
 		if err != nil {
 			cache[marketplacePath] = nil
-			return ""
+			return "", false
 		}
 		index = loaded
 		cache[marketplacePath] = index
 	}
 	if index == nil {
-		return ""
+		return "", false
 	}
 
 	baseName := qualifiedName
@@ -526,10 +576,10 @@ func marketplaceIndexVersion(marketplacePath, qualifiedName string, cache map[st
 	}
 	for _, p := range index.Plugins {
 		if p.Name == baseName {
-			return p.Version
+			return p.Version, p.Source != nil && !p.Source.IsRelativePath()
 		}
 	}
-	return ""
+	return "", false
 }
 
 func updateMarketplace(name, path string) error {
@@ -541,22 +591,26 @@ func updateMarketplace(name, path string) error {
 	return nil
 }
 
-func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry) error {
+// updatePlugin brings one plugin up to date and records the result in plugins.
+// It reports whether the registry entry changed: a plugin refreshed from the
+// marketplace checkout always does, while one delegated to `claude plugin
+// update` may already have been current.
+func updatePlugin(claudeDir string, name string, scope string, plugins *claude.PluginRegistry, marketplaces claude.MarketplaceRegistry) (bool, error) {
 	plugin, exists := plugins.GetPluginAtScope(name, scope)
 	if !exists {
-		return fmt.Errorf("plugin not found at scope %s", scope)
+		return false, fmt.Errorf("plugin not found at scope %s", scope)
 	}
 
 	marketplacePath := findMarketplacePath(name, plugin.InstallPath, marketplaces)
 	if marketplacePath == "" {
-		return fmt.Errorf("marketplace not found for plugin")
+		return false, fmt.Errorf("marketplace not found for plugin")
 	}
 
 	// Get latest commit from marketplace
 	cmd := exec.Command("git", "-C", marketplacePath, "rev-parse", "HEAD")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to get latest commit: %w", err)
+		return false, fmt.Errorf("failed to get latest commit: %w", err)
 	}
 	latestCommit := strings.TrimSpace(string(output))
 
@@ -566,27 +620,48 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 
 		// Sanitize: prevent path traversal attacks
 		if strings.Contains(pluginBaseName, "..") || strings.Contains(pluginBaseName, string(filepath.Separator)) {
-			return fmt.Errorf("invalid plugin name: %s", pluginBaseName)
+			return false, fmt.Errorf("invalid plugin name: %s", pluginBaseName)
 		}
 
 		sourcePath, newVersion, err := resolvePluginSource(marketplacePath, pluginBaseName)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		if sourcePath == "" {
-			// URL-sourced plugins require cloning from a remote repository.
-			// Delegate to Claude Code's plugin update command which handles this.
+			// External sources are fetched by Claude Code, not from the
+			// marketplace checkout. Delegate to its plugin update command.
 			if err := updatePluginViaCLI(name, scope); err != nil {
-				return err
+				return false, err
 			}
-			plugin.GitCommitSha = latestCommit
-			if newVersion != "" && newVersion != plugin.Version {
-				plugin.Version = newVersion
-				plugin.InstallPath = filepath.Join(filepath.Dir(plugin.InstallPath), newVersion)
+
+			// Claude Code rewrites the registry file itself. Read its entry back
+			// rather than patching the copy loaded before delegating, which the
+			// save at the end of the run would write over the top of.
+			fresh, err := claude.LoadPlugins(claudeDir)
+			if err != nil {
+				return false, fmt.Errorf("cannot re-read the plugin registry after updating %s: %w", name, err)
 			}
-			plugins.SetPlugin(name, plugin)
-			return nil
+			updated, ok := fresh.GetPluginAtScope(name, scope)
+			if !ok {
+				return false, fmt.Errorf("claude plugin update reported success but %s is no longer registered at scope %s", name, scope)
+			}
+
+			// A zero exit status says the command ran, not what it did. Claude
+			// Code's own entry is the record: version, installPath and
+			// lastUpdated all move on an update and none does otherwise. The
+			// version the marketplace declares is no yardstick, because Claude
+			// Code records plugin.json's version in preference to it, so the
+			// two need never agree for a plugin that is fully current.
+			changed := updated.Version != plugin.Version ||
+				updated.InstallPath != plugin.InstallPath ||
+				updated.LastUpdated != plugin.LastUpdated
+
+			// The commit claudeup compared against is its own bookkeeping; the
+			// rest of the entry belongs to Claude Code.
+			updated.GitCommitSha = latestCommit
+			plugins.SetPlugin(name, updated)
+			return changed, nil
 		}
 
 		// Determine cache destination. When the marketplace provides a new version,
@@ -598,12 +673,12 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 
 		// Remove old cached version
 		if err := os.RemoveAll(plugin.InstallPath); err != nil {
-			return fmt.Errorf("failed to remove old cached plugin: %w", err)
+			return false, fmt.Errorf("failed to remove old cached plugin: %w", err)
 		}
 
 		// Copy updated plugin to cache
 		if err := copyDir(sourcePath, destPath); err != nil {
-			return fmt.Errorf("failed to copy updated plugin: %w", err)
+			return false, fmt.Errorf("failed to copy updated plugin: %w", err)
 		}
 
 		plugin.InstallPath = destPath
@@ -616,11 +691,12 @@ func updatePlugin(name string, scope string, plugins *claude.PluginRegistry, mar
 	plugin.GitCommitSha = latestCommit
 	plugins.SetPlugin(name, plugin)
 
-	return nil
+	return true, nil
 }
 
 // updatePluginViaCLI delegates plugin updates to Claude Code's `claude plugin update` command.
-// This handles URL-sourced plugins that require cloning from a remote repository.
+// This handles externally sourced plugins, which Claude Code fetches from npm or
+// from a remote repository rather than from the marketplace checkout.
 func updatePluginViaCLI(pluginName, scope string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
@@ -641,52 +717,81 @@ func updatePluginViaCLI(pluginName, scope string) error {
 }
 
 // resolvePluginSource finds the source directory for a plugin within its marketplace.
-// It checks local directories first, then reads the marketplace index for
-// relative-path sources. Returns (sourcePath, version, error).
-// Returns empty sourcePath (not an error) when the plugin uses an external URL
+// The marketplace index decides where a plugin comes from. Only when the index
+// cannot be read, or does not list the plugin, does it fall back to the
+// conventional plugins/ and skills/ directories. Returns (sourcePath, version, error).
+// Returns empty sourcePath (not an error) when the plugin uses an external
 // source, signaling the caller to delegate to `claude plugin update`.
 func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string, error) {
-	// Try local directories in marketplace (plugins/ and skills/)
-	for _, subdir := range []string{"plugins", "skills"} {
-		p := filepath.Join(marketplacePath, subdir, pluginBaseName)
-		if _, err := os.Stat(p); err == nil {
-			return p, "", nil
-		}
-	}
-
-	// Read marketplace index to find plugin source info
-	index, err := claude.LoadMarketplaceIndex(marketplacePath)
-	if err != nil {
-		return "", "", fmt.Errorf("plugin source not found in marketplace and cannot read index: %w", err)
-	}
+	index, indexErr := claude.LoadMarketplaceIndex(marketplacePath)
 
 	var pluginInfo *claude.MarketplacePluginInfo
-	for i := range index.Plugins {
-		if index.Plugins[i].Name == pluginBaseName {
-			pluginInfo = &index.Plugins[i]
-			break
+	if indexErr == nil {
+		for i := range index.Plugins {
+			if index.Plugins[i].Name == pluginBaseName {
+				pluginInfo = &index.Plugins[i]
+				break
+			}
 		}
 	}
 
-	if pluginInfo == nil || pluginInfo.Source == nil {
+	if pluginInfo == nil {
+		// Fall back to the conventional directories. A marketplace may ship no
+		// index at all, and one that does may not list every directory it holds.
+		for _, subdir := range []string{"plugins", "skills"} {
+			p := filepath.Join(marketplacePath, subdir, pluginBaseName)
+			_, err := os.Stat(p)
+			if err == nil {
+				return p, "", nil
+			}
+			// Only a missing entry means the plugin is not here. An unreadable one
+			// would otherwise fall through and resolve from somewhere else.
+			if !errors.Is(err, fs.ErrNotExist) {
+				return "", "", fmt.Errorf("cannot read %s in marketplace: %w", filepath.Join(subdir, pluginBaseName), err)
+			}
+		}
+		if indexErr != nil {
+			return "", "", fmt.Errorf("plugin source not found in marketplace and cannot read index: %w", indexErr)
+		}
 		return "", "", fmt.Errorf("plugin %q not found in marketplace index", pluginBaseName)
+	}
+
+	// A listed plugin with no source is a malformed marketplace, not a registry
+	// entry the marketplace has dropped. Keep the two apart so the caller does
+	// not offer to delete the user's entry over someone else's bad index.
+	if pluginInfo.Source == nil {
+		return "", "", fmt.Errorf("plugin %q is listed in the marketplace index without a source", pluginBaseName)
 	}
 
 	if pluginInfo.Source.IsRelativePath() {
 		// Resolve relative path within marketplace, ensuring it stays within bounds
-		resolved := filepath.Join(marketplacePath, pluginInfo.Source.Source)
+		resolved := filepath.Join(marketplacePath, pluginInfo.Source.RelativePath)
 		resolved = filepath.Clean(resolved)
 		cleanMarketplace := filepath.Clean(marketplacePath)
 		if resolved != cleanMarketplace && !strings.HasPrefix(resolved, cleanMarketplace+string(filepath.Separator)) {
-			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.Source)
+			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
 		}
 		if _, err := os.Stat(resolved); err != nil {
 			return "", "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
 		}
+
+		// The comparison above is lexical, so it cannot see a symlink inside the
+		// marketplace that points out of it. Compare the real paths as well.
+		realResolved, err := filepath.EvalSymlinks(resolved)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot resolve plugin source path %s: %w", resolved, err)
+		}
+		realMarketplace, err := filepath.EvalSymlinks(cleanMarketplace)
+		if err != nil {
+			return "", "", fmt.Errorf("cannot resolve marketplace directory %s: %w", cleanMarketplace, err)
+		}
+		if realResolved != realMarketplace && !strings.HasPrefix(realResolved, realMarketplace+string(filepath.Separator)) {
+			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
+		}
 		return resolved, pluginInfo.Version, nil
 	}
 
-	// External URL source -- return empty to signal delegation
+	// External source; Claude Code fetches it. Return empty to signal delegation.
 	return "", pluginInfo.Version, nil
 }
 

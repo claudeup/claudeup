@@ -299,6 +299,22 @@ var _ = Describe("resolvePluginSource", func() {
 		Expect(version).To(BeEmpty())
 	})
 
+	It("propagates a stat error other than a missing directory", func() {
+		// An unreadable plugins/ directory is not the same as one that is absent.
+		// Treating it as absent falls through to the index and can resolve the
+		// plugin from the wrong place.
+		pluginsDir := filepath.Join(marketplaceDir, "plugins")
+		Expect(os.MkdirAll(filepath.Join(pluginsDir, "hookify"), 0755)).To(Succeed())
+		Expect(os.Chmod(pluginsDir, 0000)).To(Succeed())
+		DeferCleanup(func() {
+			os.Chmod(pluginsDir, 0755)
+		})
+
+		_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("plugins"))
+	})
+
 	Context("with marketplace index", func() {
 		writeIndex := func(content string) {
 			indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
@@ -318,7 +334,7 @@ var _ = Describe("resolvePluginSource", func() {
 				]
 			}`)
 
-			// Source should come from directory scan, not index (directory takes priority)
+			// The index names the same directory, so both routes agree here
 			sourcePath, _, err := resolvePluginSource(marketplaceDir, "hookify")
 			Expect(err).NotTo(HaveOccurred())
 			Expect(sourcePath).To(Equal(targetDir))
@@ -356,6 +372,51 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(version).To(Equal("3.0.0"))
 		})
 
+		It("does not treat an index entry with no source as a stale registry entry", func() {
+			// Removing the user's registry entry is the remedy for a stale entry.
+			// A plugin present in the index but missing its source is a malformed
+			// marketplace, and deleting the user's entry would be the wrong cure.
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "1.0.0"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(isStalePluginError(err)).To(BeFalse(),
+				"a malformed index entry must not offer to delete the registry entry")
+		})
+
+		It("does not treat an index entry with a null source as a stale registry entry", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "hookify", "version": "1.0.0", "source": null}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(isStalePluginError(err)).To(BeFalse(),
+				"a malformed index entry must not offer to delete the registry entry")
+		})
+
+		It("treats a plugin absent from the index as a stale registry entry", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "other-plugin", "version": "1.0.0", "source": "./plugins/other"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "hookify")
+			Expect(err).To(HaveOccurred())
+			Expect(isStalePluginError(err)).To(BeTrue(),
+				"a plugin the marketplace no longer lists is genuinely stale")
+		})
+
 		It("returns error when plugin not in index", func() {
 			writeIndex(`{
 				"name": "test-marketplace",
@@ -385,6 +446,25 @@ var _ = Describe("resolvePluginSource", func() {
 			Expect(version).To(Equal("1.0.0"))
 		})
 
+		It("rejects a source that reaches outside the marketplace through a symlink", func() {
+			// The lexical prefix check cannot see through a symlink, so a link
+			// inside the marketplace pointing out of it would otherwise pass.
+			outside := filepath.Join(filepath.Dir(marketplaceDir), "outside-target")
+			Expect(os.MkdirAll(outside, 0755)).To(Succeed())
+			Expect(os.Symlink(outside, filepath.Join(marketplaceDir, "escape"))).To(Succeed())
+
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "sneaky", "version": "1.0.0", "source": "./escape"}
+				]
+			}`)
+
+			_, _, err := resolvePluginSource(marketplaceDir, "sneaky")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("outside marketplace directory"))
+		})
+
 		It("rejects path traversal in source field", func() {
 			writeIndex(`{
 				"name": "test-marketplace",
@@ -396,6 +476,81 @@ var _ = Describe("resolvePluginSource", func() {
 			_, _, err := resolvePluginSource(marketplaceDir, "evil")
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("resolves outside marketplace directory"))
+		})
+
+		It("lets the index decide when a plugin name collides with a local directory", func() {
+			// A directory named after the plugin must not override what the index
+			// says the source is. An external plugin resolved from the checkout
+			// would have its cache replaced with the wrong content.
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, "plugins", "agent-skills"), 0755)).To(Succeed())
+
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "agent-skills", "version": "0.6.9", "source": {"source": "github", "repo": "addyosmani/agent-skills"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "agent-skills")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty(), "a github source must delegate even when plugins/agent-skills exists")
+			Expect(version).To(Equal("0.6.9"))
+		})
+
+		It("returns empty sourcePath for github source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "agent-skills", "version": "0.6.9", "source": {"source": "github", "repo": "addyosmani/agent-skills"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "agent-skills")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("0.6.9"))
+		})
+
+		It("returns empty sourcePath for npm source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "packaged", "version": "1.0.0", "source": {"source": "npm", "package": "@org/packaged"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "packaged")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("1.0.0"))
+		})
+
+		It("returns empty sourcePath for git-subdir source", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "nested", "version": "1.5.5", "source": {"source": "git-subdir", "url": "https://github.com/org/repo.git", "path": "plugins/nested"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "nested")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("1.5.5"))
+		})
+
+		It("returns empty sourcePath for a source type it does not recognize", func() {
+			writeIndex(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "exotic", "version": "2.0.0", "source": {"source": "future-transport", "location": "somewhere"}}
+				]
+			}`)
+
+			sourcePath, version, err := resolvePluginSource(marketplaceDir, "exotic")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(sourcePath).To(BeEmpty())
+			Expect(version).To(Equal("2.0.0"))
 		})
 
 		It("returns error when relative path does not exist", func() {
@@ -424,13 +579,25 @@ var _ = Describe("updatePlugin", func() {
 		tempDir        string
 		marketplaceDir string
 		cacheDir       string
+		testClaudeDir  string
 		origPath       string
+		// writeRegistry lays down the installed_plugins.json that
+		// `claude plugin update` is standing in for.
+		writeRegistry func(entries string)
 	)
 
 	BeforeEach(func() {
 		var err error
 		tempDir, err = os.MkdirTemp("", "update-plugin-test-*")
 		Expect(err).NotTo(HaveOccurred())
+
+		testClaudeDir = filepath.Join(tempDir, "claudehome")
+		Expect(os.MkdirAll(filepath.Join(testClaudeDir, "plugins"), 0755)).To(Succeed())
+		writeRegistry = func(entries string) {
+			Expect(os.WriteFile(
+				filepath.Join(testClaudeDir, "plugins", "installed_plugins.json"),
+				[]byte(fmt.Sprintf(`{"version":2,"plugins":{%s}}`, entries)), 0644)).To(Succeed())
+		}
 
 		// Create a fake marketplace git repo
 		marketplaceDir = filepath.Join(tempDir, "marketplace")
@@ -469,7 +636,18 @@ var _ = Describe("updatePlugin", func() {
 		os.RemoveAll(tempDir)
 	})
 
-	It("updates version for URL-sourced plugins", func() {
+	It("records what Claude Code installed for a URL-sourced plugin, not what the marketplace declares", func() {
+		// Stands in for what `claude plugin update` leaves behind. The fake claude
+		// on PATH only reports success, so the spec writes the result itself.
+		//
+		// The version Claude Code records comes from the plugin's own plugin.json
+		// when it has one, and only otherwise from the marketplace entry. Here
+		// the two disagree (9.9.9 against the index's 5.0.2), which is the
+		// documented case, not a corrupt one.
+		newCache := filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "9.9.9")
+		Expect(os.MkdirAll(newCache, 0755)).To(Succeed())
+		writeRegistry(fmt.Sprintf(`"superpowers@test-marketplace":[{"scope":"user","version":"9.9.9","installPath":%q,"gitCommitSha":"clisha","isLocal":false}]`, newCache))
+
 		// Get the marketplace HEAD commit
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
 		headOutput, err := headCmd.Output()
@@ -495,16 +673,167 @@ var _ = Describe("updatePlugin", func() {
 			},
 		}
 
-		err = updatePlugin("superpowers@test-marketplace", "user", plugins, marketplaces)
-		Expect(err).NotTo(HaveOccurred())
+		changed, err := updatePlugin(testClaudeDir, "superpowers@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred(),
+			"a version that differs from the marketplace entry is what Claude Code records when plugin.json sets one")
+		Expect(changed).To(BeTrue())
 
-		// Verify version and installPath were updated
 		updated, exists := plugins.GetPluginAtScope("superpowers@test-marketplace", "user")
 		Expect(exists).To(BeTrue())
-		Expect(updated.Version).To(Equal("5.0.2"), "version should be updated from marketplace index")
+		Expect(updated.Version).To(Equal("9.9.9"), "the version is whatever Claude Code wrote")
 		Expect(updated.GitCommitSha).To(Equal(headSha), "SHA should be updated to marketplace HEAD")
-		expectedPath := filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.2")
-		Expect(updated.InstallPath).To(Equal(expectedPath), "installPath should point to new versioned directory")
+		Expect(updated.InstallPath).To(Equal(newCache), "installPath is whatever Claude Code wrote")
+	})
+
+	It("delegates and records the update for a github-sourced plugin", func() {
+		// The github form carries a repo and no url, which is the shape that used
+		// to be joined onto the marketplace directory as a literal "github".
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "agent-skills", "version": "0.6.9", "source": {"source": "github", "repo": "addyosmani/agent-skills"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		githubCacheDir := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.8")
+		Expect(os.MkdirAll(githubCacheDir, 0755)).To(Succeed())
+		// Stands in for what `claude plugin update` leaves behind.
+		newGithubCache := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.9")
+		Expect(os.MkdirAll(newGithubCache, 0755)).To(Succeed())
+		writeRegistry(fmt.Sprintf(`"agent-skills@test-marketplace":[{"scope":"user","version":"0.6.9","installPath":%q,"gitCommitSha":"clisha","isLocal":false}]`, newGithubCache))
+
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("agent-skills@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "0.6.8",
+			InstallPath:  githubCacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		changed, err := updatePlugin(testClaudeDir, "agent-skills@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred(),
+			"a github source must delegate, not resolve to a path inside the marketplace")
+		Expect(changed).To(BeTrue())
+
+		updated, exists := plugins.GetPluginAtScope("agent-skills@test-marketplace", "user")
+		Expect(exists).To(BeTrue())
+		Expect(updated.Version).To(Equal("0.6.9"))
+		Expect(updated.GitCommitSha).To(Equal(headSha))
+		expectedPath := filepath.Join(tempDir, "cache", "test-marketplace", "agent-skills", "0.6.9")
+		Expect(updated.InstallPath).To(Equal(expectedPath))
+	})
+
+	It("keeps what claude plugin update wrote to the registry", func() {
+		// claudeup loads the registry before delegating and saves it after, so
+		// anything the CLI wrote in between is reverted unless claudeup reads it
+		// back. lastUpdated is a field the CLI maintains and claudeup never sets.
+		newCache := filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.2")
+		Expect(os.MkdirAll(newCache, 0755)).To(Succeed())
+
+		regPath := filepath.Join(testClaudeDir, "plugins", "installed_plugins.json")
+		writeRegistry(fmt.Sprintf(`"superpowers@test-marketplace":[{"scope":"user","version":"5.0.0","installPath":%q,"gitCommitSha":"oldsha123","isLocal":false}]`, cacheDir))
+
+		// This fake claude rewrites the registry the way the real one would.
+		cliWrote := fmt.Sprintf(`{"version":2,"plugins":{"superpowers@test-marketplace":[{"scope":"user","version":"5.0.2","installedAt":"2025-01-01T00:00:00Z","lastUpdated":"2026-09-08T12:00:00Z","installPath":%q,"gitCommitSha":"clisha","isLocal":false}]}}`, newCache)
+		Expect(os.WriteFile(filepath.Join(tempDir, "claude"),
+			[]byte(fmt.Sprintf("#!/bin/sh\nprintf '%%s' '%s' > '%s'\nexit 0\n", cliWrote, regPath)), 0755)).To(Succeed())
+
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("superpowers@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "5.0.0",
+			InstalledAt:  "2025-01-01T00:00:00Z",
+			LastUpdated:  "2025-01-01T00:00:00Z",
+			InstallPath:  cacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		changed, err := updatePlugin(testClaudeDir, "superpowers@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(changed).To(BeTrue())
+
+		updated, exists := plugins.GetPluginAtScope("superpowers@test-marketplace", "user")
+		Expect(exists).To(BeTrue())
+		Expect(updated.LastUpdated).To(Equal("2026-09-08T12:00:00Z"),
+			"claudeup must not revert a field the CLI maintains")
+		Expect(updated.Version).To(Equal("5.0.2"))
+		Expect(updated.InstallPath).To(Equal(newCache))
+		Expect(updated.GitCommitSha).To(Equal(headSha),
+			"claudeup still records the marketplace commit it compared against")
+	})
+
+	It("reports no change when claude plugin update left the registry as it was", func() {
+		// The fake claude exits 0 and touches nothing, which is what the real one
+		// does when the plugin is already current. The registry says 5.0.0 while
+		// the marketplace declares 5.0.2; that is not a failed update, because
+		// Claude Code records plugin.json's version over the marketplace's.
+		// Treating it as one flags the plugin on every run and fails it every
+		// time, since nothing on either side can change.
+		writeRegistry(fmt.Sprintf(`"superpowers@test-marketplace":[{"scope":"user","version":"5.0.0","installPath":%q,"gitCommitSha":"oldsha123","isLocal":false}]`, cacheDir))
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		plugins := &claude.PluginRegistry{
+			Version: 2,
+			Plugins: make(map[string][]claude.PluginMetadata),
+		}
+		plugins.SetPlugin("superpowers@test-marketplace", claude.PluginMetadata{
+			Scope:        "user",
+			Version:      "5.0.0",
+			InstallPath:  cacheDir,
+			GitCommitSha: "oldsha123",
+			IsLocal:      false,
+		})
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		changed, err := updatePlugin(testClaudeDir, "superpowers@test-marketplace", "user", plugins, marketplaces)
+		Expect(err).NotTo(HaveOccurred(),
+			"the marketplace's version is not evidence that the delegated update failed")
+		Expect(changed).To(BeFalse(), "nothing in the registry entry moved")
+
+		updated, exists := plugins.GetPluginAtScope("superpowers@test-marketplace", "user")
+		Expect(exists).To(BeTrue())
+		Expect(updated.Version).To(Equal("5.0.0"),
+			"claudeup must not write the marketplace's version over what Claude Code recorded")
+		Expect(updated.GitCommitSha).To(Equal(headSha))
 	})
 
 	It("preserves installPath when version has not changed", func() {
@@ -517,6 +846,7 @@ var _ = Describe("updatePlugin", func() {
 		// Create cache directory matching the current marketplace index version
 		cacheDir502 := filepath.Join(tempDir, "cache", "test-marketplace", "superpowers", "5.0.2")
 		Expect(os.MkdirAll(cacheDir502, 0755)).To(Succeed())
+		writeRegistry(fmt.Sprintf(`"superpowers@test-marketplace":[{"scope":"user","version":"5.0.2","installPath":%q,"gitCommitSha":"clisha","isLocal":false}]`, cacheDir502))
 
 		// Set up registry with same version as marketplace index (5.0.2)
 		plugins := &claude.PluginRegistry{
@@ -537,8 +867,9 @@ var _ = Describe("updatePlugin", func() {
 			},
 		}
 
-		err = updatePlugin("superpowers@test-marketplace", "user", plugins, marketplaces)
+		changed, err := updatePlugin(testClaudeDir, "superpowers@test-marketplace", "user", plugins, marketplaces)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(changed).To(BeFalse())
 
 		updated, exists := plugins.GetPluginAtScope("superpowers@test-marketplace", "user")
 		Expect(exists).To(BeTrue())
@@ -573,6 +904,138 @@ var _ = Describe("checkPluginUpdates", func() {
 		os.RemoveAll(tempDir)
 	})
 
+	It("leaves an externally sourced plugin to Claude Code instead of judging it by the marketplace commit", func() {
+		// An external plugin's content lives in another repository, so a commit
+		// to the marketplace says nothing about it. Nothing claudeup can read
+		// locally does: the plugin's own repository is where it changes.
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		cacheDir := filepath.Join(tempDir, "cache", "superpowers", "5.0.2")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		// The installed version matches what the marketplace declares. Only the
+		// recorded marketplace commit is behind.
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "superpowers@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "5.0.2",
+					InstallPath:  cacheDir,
+					GitCommitSha: "a stale marketplace commit",
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].External).To(BeTrue(),
+			"an external plugin is checked by claude plugin update, not by claudeup")
+		Expect(updates[0].HasUpdate).To(BeFalse(),
+			"a marketplace commit is not evidence that an external plugin changed")
+	})
+
+	It("leaves an externally sourced plugin to Claude Code instead of judging it by the marketplace version", func() {
+		// Claude Code records the version from the plugin's own plugin.json when
+		// it has one, and the marketplace entry only otherwise. So a recorded
+		// version that differs from the marketplace's is the documented state
+		// of a current plugin, not a sign it is behind. Comparing the two flags
+		// such a plugin on every run.
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "superpowers", "version": "0.0.1", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+			]
+		}`), 0644)).To(Succeed())
+
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		cacheDir := filepath.Join(tempDir, "cache", "superpowers", "9.9.9")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "superpowers@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "9.9.9",
+					InstallPath:  cacheDir,
+					GitCommitSha: headSha,
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].External).To(BeTrue())
+		Expect(updates[0].HasUpdate).To(BeFalse(),
+			"the marketplace's declared version is not evidence that an external plugin is behind")
+	})
+
+	It("still flags a local plugin when the marketplace commit moved", func() {
+		// A plugin that is a directory in the checkout does change with the
+		// marketplace commit, so the commit is the right signal there.
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "hookify", "version": "1.0.0", "source": "./plugins/hookify"}
+			]
+		}`), 0644)).To(Succeed())
+		Expect(os.MkdirAll(filepath.Join(marketplaceDir, "plugins", "hookify"), 0755)).To(Succeed())
+
+		cacheDir := filepath.Join(tempDir, "cache", "hookify", "1.0.0")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "hookify@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "1.0.0",
+					InstallPath:  cacheDir,
+					GitCommitSha: "a stale marketplace commit",
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].HasUpdate).To(BeTrue(),
+			"a local plugin changes with the marketplace it lives in")
+	})
+
 	It("detects version mismatch even when SHA matches", func() {
 		// Get marketplace HEAD
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
@@ -580,13 +1043,15 @@ var _ = Describe("checkPluginUpdates", func() {
 		Expect(err).NotTo(HaveOccurred())
 		headSha := strings.TrimSpace(string(headOutput))
 
-		// Write marketplace index with version 5.0.2
+		// Write marketplace index with version 5.0.2 for a plugin that lives in
+		// the marketplace checkout, where the declared version is claudeup's to
+		// act on.
 		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
 		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
 		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
 			"name": "test-marketplace",
 			"plugins": [
-				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+				{"name": "superpowers", "version": "5.0.2", "source": "./plugins/superpowers"}
 			]
 		}`), 0644)).To(Succeed())
 
@@ -615,6 +1080,7 @@ var _ = Describe("checkPluginUpdates", func() {
 
 		updates := checkPluginUpdates(scopedPlugins, marketplaces)
 		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].External).To(BeFalse())
 		Expect(updates[0].HasUpdate).To(BeTrue(), "should detect version mismatch even when SHA matches")
 	})
 
@@ -629,7 +1095,7 @@ var _ = Describe("checkPluginUpdates", func() {
 		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
 			"name": "test-marketplace",
 			"plugins": [
-				{"name": "superpowers", "version": "5.0.2", "source": {"source": "url", "url": "https://github.com/example/superpowers.git"}}
+				{"name": "superpowers", "version": "5.0.2", "source": "./plugins/superpowers"}
 			]
 		}`), 0644)).To(Succeed())
 
@@ -656,6 +1122,7 @@ var _ = Describe("checkPluginUpdates", func() {
 
 		updates := checkPluginUpdates(scopedPlugins, marketplaces)
 		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].External).To(BeFalse())
 		Expect(updates[0].HasUpdate).To(BeFalse(), "should not flag update when SHA and version both match")
 	})
 })

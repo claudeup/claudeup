@@ -109,7 +109,7 @@ func setupFlatMarketplace() profile.Marketplace {
 	writeKnownMarketplaces(claudeDir, map[string]knownMarketplaceEntry{
 		"flat-marketplace": {Source: "github", Repo: "owner/flat-marketplace", InstallLocation: installLocation},
 	})
-	writeMarketplaceMetadata(installLocation, `{"plugins": [{"name": "plugin-a"}, {"name": "plugin-b"}]}`)
+	writeMarketplaceMetadata(installLocation, `{"name": "flat-marketplace", "plugins": [{"name": "plugin-a"}, {"name": "plugin-b"}]}`)
 	writeInstalledPlugins(claudeDir, "plugin-a@flat-marketplace")
 
 	return profile.Marketplace{Source: "github", Repo: "owner/flat-marketplace"}
@@ -354,7 +354,7 @@ var _ = Describe("Wizard", func() {
 			writeKnownMarketplaces(claudeDir, map[string]knownMarketplaceEntry{
 				"empty-marketplace": {Source: "github", Repo: "owner/empty-marketplace", InstallLocation: installLocation},
 			})
-			writeMarketplaceMetadata(installLocation, `{"plugins": []}`)
+			writeMarketplaceMetadata(installLocation, `{"name": "empty-marketplace", "plugins": []}`)
 
 			marketplace := profile.Marketplace{
 				Source: "github",

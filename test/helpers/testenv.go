@@ -35,8 +35,6 @@ type TestEnv struct {
 // Set to 30s to accommodate slow CI runners while still catching infinite hangs.
 const commandTimeout = 30 * time.Second
 
-
-
 // NewTestEnv creates a new isolated test environment
 func NewTestEnv(binary string) *TestEnv {
 	tempDir := GinkgoT().TempDir()

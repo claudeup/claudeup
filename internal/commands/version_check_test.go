@@ -76,12 +76,12 @@ func TestIsVersionOutdated(t *testing.T) {
 		{"1.0.81", "v1.0.80", false},
 
 		// Edge cases for invalid/unusual formats
-		{"", "1.0.80", true},           // Empty version is outdated
-		{"abc", "1.0.80", true},        // Non-numeric is outdated
-		{"unknown", "1.0.80", true},    // "unknown" version is outdated
-		{"1.0.80", "", false},          // Anything beats empty minimum
-		{"0.0.0", "0.0.1", true},       // Zero versions work
-		{"0.0.1", "0.0.0", false},      // Zero versions work
+		{"", "1.0.80", true},        // Empty version is outdated
+		{"abc", "1.0.80", true},     // Non-numeric is outdated
+		{"unknown", "1.0.80", true}, // "unknown" version is outdated
+		{"1.0.80", "", false},       // Anything beats empty minimum
+		{"0.0.0", "0.0.1", true},    // Zero versions work
+		{"0.0.1", "0.0.0", false},   // Zero versions work
 	}
 
 	for _, tc := range tests {
