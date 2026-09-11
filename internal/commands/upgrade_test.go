@@ -1289,6 +1289,58 @@ var _ = Describe("checkPluginUpdates", func() {
 			"the recorded version is behind what plugin.json sets, whatever the marketplace entry says")
 	})
 
+	It("does not read a manifest through a source that reaches outside the marketplace", func() {
+		// updatePlugin refuses a source that escapes the marketplace through a
+		// symlink. The check must not trust what such a source says either,
+		// or it can report the plugin current while the update that follows
+		// would reject the same path: the marketplace's declared version
+		// stands, and the update reports the bad source.
+		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
+		headOutput, err := headCmd.Output()
+		Expect(err).NotTo(HaveOccurred())
+		headSha := strings.TrimSpace(string(headOutput))
+
+		outside := filepath.Join(tempDir, "outside-target")
+		Expect(os.MkdirAll(filepath.Join(outside, ".claude-plugin"), 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(outside, ".claude-plugin", "plugin.json"), []byte(`{"name":"sneaky","version":"1.0.0"}`), 0644)).To(Succeed())
+		Expect(os.Symlink(outside, filepath.Join(marketplaceDir, "escape"))).To(Succeed())
+
+		indexDir := filepath.Join(marketplaceDir, ".claude-plugin")
+		Expect(os.MkdirAll(indexDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(indexDir, "marketplace.json"), []byte(`{
+			"name": "test-marketplace",
+			"plugins": [
+				{"name": "sneaky", "version": "2.0.0", "source": "./escape"}
+			]
+		}`), 0644)).To(Succeed())
+
+		cacheDir := filepath.Join(tempDir, "cache", "sneaky", "1.0.0")
+		Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+		scopedPlugins := []claude.ScopedPlugin{
+			{
+				Name: "sneaky@test-marketplace",
+				PluginMetadata: claude.PluginMetadata{
+					Scope:        "user",
+					Version:      "1.0.0",
+					InstallPath:  cacheDir,
+					GitCommitSha: headSha,
+				},
+			},
+		}
+
+		marketplaces := claude.MarketplaceRegistry{
+			"test-marketplace": claude.MarketplaceMetadata{
+				InstallLocation: marketplaceDir,
+			},
+		}
+
+		updates := checkPluginUpdates(scopedPlugins, marketplaces)
+		Expect(updates).To(HaveLen(1))
+		Expect(updates[0].HasUpdate).To(BeTrue(),
+			"a manifest outside the marketplace must not stand in for the declared version")
+	})
+
 	It("reports no update when both SHA and version match", func() {
 		headCmd := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD")
 		headOutput, err := headCmd.Output()

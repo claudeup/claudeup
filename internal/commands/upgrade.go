@@ -605,9 +605,8 @@ func marketplaceIndexEntry(marketplacePath, qualifiedName string, cache map[stri
 		// the marketplace or a manifest that cannot be read is left to
 		// resolvePluginSource to report, and the declared version stands in
 		// until then.
-		sourceDir := filepath.Clean(filepath.Join(marketplacePath, p.Source.RelativePath))
-		cleanMarketplace := filepath.Clean(marketplacePath)
-		if sourceDir != cleanMarketplace && !strings.HasPrefix(sourceDir, cleanMarketplace+string(filepath.Separator)) {
+		sourceDir, err := marketplaceLocalSourceDir(marketplacePath, p.Source.RelativePath)
+		if err != nil {
 			return p.Version, false
 		}
 		recorded, err := recordedPluginVersion(sourceDir, p.Version)
@@ -811,29 +810,9 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 	}
 
 	if pluginInfo.Source.IsRelativePath() {
-		// Resolve relative path within marketplace, ensuring it stays within bounds
-		resolved := filepath.Join(marketplacePath, pluginInfo.Source.RelativePath)
-		resolved = filepath.Clean(resolved)
-		cleanMarketplace := filepath.Clean(marketplacePath)
-		if resolved != cleanMarketplace && !strings.HasPrefix(resolved, cleanMarketplace+string(filepath.Separator)) {
-			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
-		}
-		if _, err := os.Stat(resolved); err != nil {
-			return "", "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
-		}
-
-		// The comparison above is lexical, so it cannot see a symlink inside the
-		// marketplace that points out of it. Compare the real paths as well.
-		realResolved, err := filepath.EvalSymlinks(resolved)
+		resolved, err := marketplaceLocalSourceDir(marketplacePath, pluginInfo.Source.RelativePath)
 		if err != nil {
-			return "", "", fmt.Errorf("cannot resolve plugin source path %s: %w", resolved, err)
-		}
-		realMarketplace, err := filepath.EvalSymlinks(cleanMarketplace)
-		if err != nil {
-			return "", "", fmt.Errorf("cannot resolve marketplace directory %s: %w", cleanMarketplace, err)
-		}
-		if realResolved != realMarketplace && !strings.HasPrefix(realResolved, realMarketplace+string(filepath.Separator)) {
-			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
+			return "", "", err
 		}
 
 		version, err := recordedPluginVersion(resolved, pluginInfo.Version)
@@ -845,6 +824,37 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 
 	// External source; Claude Code fetches it. Return empty to signal delegation.
 	return "", pluginInfo.Version, nil
+}
+
+// marketplaceLocalSourceDir resolves a marketplace-relative plugin source and
+// confirms it stays inside the marketplace. The lexical check cannot see a
+// symlink inside the marketplace that points out of it, so the real paths are
+// compared as well. The update copies from here and the outdated check reads
+// the manifest here, and both go through this one function so that neither
+// trusts a path the other refuses. The cleaned lexical path is returned, since
+// that is the path to copy from and to report.
+func marketplaceLocalSourceDir(marketplacePath, relativePath string) (string, error) {
+	resolved := filepath.Clean(filepath.Join(marketplacePath, relativePath))
+	cleanMarketplace := filepath.Clean(marketplacePath)
+	if resolved != cleanMarketplace && !strings.HasPrefix(resolved, cleanMarketplace+string(filepath.Separator)) {
+		return "", fmt.Errorf("plugin source %q resolves outside marketplace directory", relativePath)
+	}
+	if _, err := os.Stat(resolved); err != nil {
+		return "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
+	}
+
+	realResolved, err := filepath.EvalSymlinks(resolved)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve plugin source path %s: %w", resolved, err)
+	}
+	realMarketplace, err := filepath.EvalSymlinks(cleanMarketplace)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve marketplace directory %s: %w", cleanMarketplace, err)
+	}
+	if realResolved != realMarketplace && !strings.HasPrefix(realResolved, realMarketplace+string(filepath.Separator)) {
+		return "", fmt.Errorf("plugin source %q resolves outside marketplace directory", relativePath)
+	}
+	return resolved, nil
 }
 
 // isStalePluginError returns true when the error indicates a registry entry
