@@ -301,6 +301,16 @@ var _ = Describe("upgrade", func() {
 				"the per-plugin failure should still be shown")
 			Expect(result.Stdout).NotTo(ContainSubstring("Updates complete"),
 				"a run with failures should not claim completion")
+			Expect(result.Stdout+result.Stderr).NotTo(ContainSubstring("Global Flags"),
+				"a failed run is not a usage error, so the usage block must not follow the error")
+		})
+
+		It("still prints usage for an unknown flag", func() {
+			result := env.Run("upgrade", "--no-such-flag")
+
+			Expect(result.ExitCode).NotTo(Equal(0))
+			Expect(result.Stdout+result.Stderr).To(ContainSubstring("Usage:"),
+				"a flag the command does not have is a usage error")
 		})
 	})
 
