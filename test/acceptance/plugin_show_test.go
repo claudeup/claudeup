@@ -142,6 +142,23 @@ var _ = Describe("plugin show", func() {
 				"the marketplace's version is not what Claude Code installed")
 		})
 
+		It("still shows a plugin whose plugin.json cannot be parsed", func() {
+			// The manifest is the file a user would come here to inspect, so a
+			// malformed one must not make the command refuse to show anything.
+			Expect(os.MkdirAll(filepath.Join(pluginPath, ".claude-plugin"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(pluginPath, ".claude-plugin", "plugin.json"), []byte(`{"name":`), 0644)).To(Succeed())
+
+			result := env.Run("plugin", "show", "test-plugin@acme-marketplace")
+
+			Expect(result.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("(v1.0.0)"), "the marketplace's version stands in when the manifest cannot be read")
+			Expect(result.Stdout).To(MatchRegexp(`[├└]──`))
+
+			fileResult := env.Run("plugin", "show", "test-plugin@acme-marketplace", ".claude-plugin/plugin.json")
+			Expect(fileResult.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", fileResult.Stdout, fileResult.Stderr)
+			Expect(fileResult.Stdout).To(ContainSubstring(`{"name":`), "the malformed manifest itself must remain viewable")
+		})
+
 		It("shows tree with box-drawing characters", func() {
 			result := env.Run("plugin", "show", "test-plugin@acme-marketplace")
 
