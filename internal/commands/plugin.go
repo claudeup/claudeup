@@ -487,7 +487,17 @@ func resolvePluginPath(claudeConfigDir, pluginName, marketplaceID string) (plugi
 		return pluginLocation{}, fmt.Errorf("plugin %q is not cached locally\n\nThe marketplace index lists it, but it hasn't been downloaded.\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
 	}
 
-	version := indexVersion
+	// Claude Code records the version the plugin's own plugin.json sets and
+	// ignores the marketplace entry's when the two disagree, so that is the
+	// version to show. The marketplace's applies only when the plugin sets
+	// none, and the cache directory's name only when neither says. This
+	// command only displays, and a manifest it cannot read is one the user
+	// may be here to look at, so that is not a reason to refuse: the label
+	// falls back to the marketplace's version and the tree is still shown.
+	version, err := recordedPluginVersion(pluginPath, indexVersion)
+	if err != nil {
+		version = indexVersion
+	}
 	if version == "" {
 		version = installedVersion
 	}

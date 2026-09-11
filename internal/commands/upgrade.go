@@ -550,11 +550,29 @@ func checkPluginUpdates(scopedPlugins []claude.ScopedPlugin, marketplaces claude
 	return updates
 }
 
-// marketplaceIndexEntry looks up what the marketplace index declares about a
-// plugin: the version it publishes, and whether the plugin is fetched from
-// elsewhere rather than living in the marketplace checkout. A missing index or
-// a plugin the index does not list yields an empty version and reports the
-// plugin as local, since the marketplace commit is then all there is.
+// recordedPluginVersion returns the version Claude Code records for a plugin
+// whose content is in sourceDir: the one its own plugin.json sets, or declared,
+// the marketplace entry's version, when the manifest sets none or is absent.
+// The marketplace entry never overrides a version the plugin sets itself.
+func recordedPluginVersion(sourceDir, declared string) (string, error) {
+	manifest, err := claude.LoadPluginManifest(sourceDir)
+	if err != nil {
+		return "", err
+	}
+	if manifest != nil && manifest.Version != "" {
+		return manifest.Version, nil
+	}
+	return declared, nil
+}
+
+// marketplaceIndexEntry looks up what the marketplace index says about a
+// plugin: whether the plugin is fetched from elsewhere rather than living in
+// the marketplace checkout, and for one that lives there, the version Claude
+// Code would record on install. That is the version the plugin's own
+// plugin.json sets, and the marketplace entry's only when it sets none. A
+// missing index or a plugin the index does not list yields an empty version
+// and reports the plugin as local, since the marketplace commit is then all
+// there is.
 func marketplaceIndexEntry(marketplacePath, qualifiedName string, cache map[string]*claude.MarketplaceIndex) (version string, external bool) {
 	index, ok := cache[marketplacePath]
 	if !ok {
@@ -575,9 +593,27 @@ func marketplaceIndexEntry(marketplacePath, qualifiedName string, cache map[stri
 		baseName = parts[0]
 	}
 	for _, p := range index.Plugins {
-		if p.Name == baseName {
-			return p.Version, p.Source != nil && !p.Source.IsRelativePath()
+		if p.Name != baseName {
+			continue
 		}
+		if p.Source == nil || !p.Source.IsRelativePath() {
+			return p.Version, p.Source != nil
+		}
+
+		// The plugin's content is in the checkout, so its manifest is readable
+		// here. This is a check, not an update: a source that resolves outside
+		// the marketplace or a manifest that cannot be read is left to
+		// resolvePluginSource to report, and the declared version stands in
+		// until then.
+		sourceDir, err := marketplaceLocalSourceDir(marketplacePath, p.Source.RelativePath)
+		if err != nil {
+			return p.Version, false
+		}
+		recorded, err := recordedPluginVersion(sourceDir, p.Version)
+		if err != nil {
+			return p.Version, false
+		}
+		return recorded, false
 	}
 	return "", false
 }
@@ -722,6 +758,12 @@ func updatePluginViaCLI(pluginName, scope string) error {
 // conventional plugins/ and skills/ directories. Returns (sourcePath, version, error).
 // Returns empty sourcePath (not an error) when the plugin uses an external
 // source, signaling the caller to delegate to `claude plugin update`.
+//
+// For a plugin that lives in the checkout, the version is the one Claude Code
+// would record on install: the plugin's own plugin.json version when it sets
+// one, and the marketplace entry's only otherwise. For an external plugin it is
+// the marketplace entry's, which is all that is readable here; the caller reads
+// what Claude Code recorded back from the registry instead of acting on it.
 func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string, error) {
 	index, indexErr := claude.LoadMarketplaceIndex(marketplacePath)
 
@@ -742,7 +784,11 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 			p := filepath.Join(marketplacePath, subdir, pluginBaseName)
 			_, err := os.Stat(p)
 			if err == nil {
-				return p, "", nil
+				version, manifestErr := recordedPluginVersion(p, "")
+				if manifestErr != nil {
+					return "", "", manifestErr
+				}
+				return p, version, nil
 			}
 			// Only a missing entry means the plugin is not here. An unreadable one
 			// would otherwise fall through and resolve from somewhere else.
@@ -764,35 +810,51 @@ func resolvePluginSource(marketplacePath, pluginBaseName string) (string, string
 	}
 
 	if pluginInfo.Source.IsRelativePath() {
-		// Resolve relative path within marketplace, ensuring it stays within bounds
-		resolved := filepath.Join(marketplacePath, pluginInfo.Source.RelativePath)
-		resolved = filepath.Clean(resolved)
-		cleanMarketplace := filepath.Clean(marketplacePath)
-		if resolved != cleanMarketplace && !strings.HasPrefix(resolved, cleanMarketplace+string(filepath.Separator)) {
-			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
-		}
-		if _, err := os.Stat(resolved); err != nil {
-			return "", "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
+		resolved, err := marketplaceLocalSourceDir(marketplacePath, pluginInfo.Source.RelativePath)
+		if err != nil {
+			return "", "", err
 		}
 
-		// The comparison above is lexical, so it cannot see a symlink inside the
-		// marketplace that points out of it. Compare the real paths as well.
-		realResolved, err := filepath.EvalSymlinks(resolved)
+		version, err := recordedPluginVersion(resolved, pluginInfo.Version)
 		if err != nil {
-			return "", "", fmt.Errorf("cannot resolve plugin source path %s: %w", resolved, err)
+			return "", "", err
 		}
-		realMarketplace, err := filepath.EvalSymlinks(cleanMarketplace)
-		if err != nil {
-			return "", "", fmt.Errorf("cannot resolve marketplace directory %s: %w", cleanMarketplace, err)
-		}
-		if realResolved != realMarketplace && !strings.HasPrefix(realResolved, realMarketplace+string(filepath.Separator)) {
-			return "", "", fmt.Errorf("plugin source %q resolves outside marketplace directory", pluginInfo.Source.RelativePath)
-		}
-		return resolved, pluginInfo.Version, nil
+		return resolved, version, nil
 	}
 
 	// External source; Claude Code fetches it. Return empty to signal delegation.
 	return "", pluginInfo.Version, nil
+}
+
+// marketplaceLocalSourceDir resolves a marketplace-relative plugin source and
+// confirms it stays inside the marketplace. The lexical check cannot see a
+// symlink inside the marketplace that points out of it, so the real paths are
+// compared as well. The update copies from here and the outdated check reads
+// the manifest here, and both go through this one function so that neither
+// trusts a path the other refuses. The cleaned lexical path is returned, since
+// that is the path to copy from and to report.
+func marketplaceLocalSourceDir(marketplacePath, relativePath string) (string, error) {
+	resolved := filepath.Clean(filepath.Join(marketplacePath, relativePath))
+	cleanMarketplace := filepath.Clean(marketplacePath)
+	if resolved != cleanMarketplace && !strings.HasPrefix(resolved, cleanMarketplace+string(filepath.Separator)) {
+		return "", fmt.Errorf("plugin source %q resolves outside marketplace directory", relativePath)
+	}
+	if _, err := os.Stat(resolved); err != nil {
+		return "", fmt.Errorf("plugin source path %s does not exist: %w", resolved, err)
+	}
+
+	realResolved, err := filepath.EvalSymlinks(resolved)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve plugin source path %s: %w", resolved, err)
+	}
+	realMarketplace, err := filepath.EvalSymlinks(cleanMarketplace)
+	if err != nil {
+		return "", fmt.Errorf("cannot resolve marketplace directory %s: %w", cleanMarketplace, err)
+	}
+	if realResolved != realMarketplace && !strings.HasPrefix(realResolved, realMarketplace+string(filepath.Separator)) {
+		return "", fmt.Errorf("plugin source %q resolves outside marketplace directory", relativePath)
+	}
+	return resolved, nil
 }
 
 // isStalePluginError returns true when the error indicates a registry entry

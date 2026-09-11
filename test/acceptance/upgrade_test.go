@@ -385,6 +385,78 @@ var _ = Describe("upgrade", func() {
 		})
 	})
 
+	Describe("marketplace-local plugins", func() {
+		It("leaves a plugin alone when its plugin.json disagrees with the marketplace entry and the commit has not moved", func() {
+			env = helpers.NewTestEnv(binaryPath)
+
+			marketplacesDir := filepath.Join(env.ClaudeDir, "plugins", "marketplaces")
+			marketplaceDir := filepath.Join(marketplacesDir, "test-marketplace")
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, ".claude-plugin"), 0755)).To(Succeed())
+
+			// The marketplace declares 2.0.0, but the plugin's own plugin.json
+			// says 1.0.0, and that is what Claude Code recorded when it installed
+			// the plugin. The marketplace entry is ignored, as documented.
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, ".claude-plugin", "marketplace.json"), []byte(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "local-plugin", "version": "2.0.0", "source": "./plugins/local-plugin"}
+				]
+			}`), 0644)).To(Succeed())
+			sourceManifestDir := filepath.Join(marketplaceDir, "plugins", "local-plugin", ".claude-plugin")
+			Expect(os.MkdirAll(sourceManifestDir, 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(sourceManifestDir, "plugin.json"), []byte(`{"name":"local-plugin","version":"1.0.0"}`), 0644)).To(Succeed())
+
+			Expect(exec.Command("git", "-C", marketplaceDir, "init").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.name", "Test").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
+			headBytes, err := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD").Output()
+			Expect(err).NotTo(HaveOccurred())
+			headSHA := strings.TrimSpace(string(headBytes))
+
+			cacheDir := filepath.Join(env.ClaudeDir, "plugins", "cache", "test-marketplace", "local-plugin", "1.0.0")
+			Expect(os.MkdirAll(filepath.Join(cacheDir, ".claude-plugin"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(cacheDir, ".claude-plugin", "plugin.json"), []byte(`{"name":"local-plugin","version":"1.0.0"}`), 0644)).To(Succeed())
+
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source":          map[string]interface{}{"repo": "example/test-marketplace"},
+					"installLocation": marketplaceDir,
+				},
+			})
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"local-plugin@test-marketplace": []interface{}{
+					map[string]interface{}{
+						"scope":        "user",
+						"version":      "1.0.0",
+						"installedAt":  "2025-01-01T00:00:00Z",
+						"lastUpdated":  "2025-01-01T00:00:00Z",
+						"installPath":  cacheDir,
+						"gitCommitSha": headSHA,
+					},
+				},
+			})
+
+			result := env.Run("upgrade", "--yes")
+
+			Expect(result.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).NotTo(ContainSubstring("Update available"),
+				"a version that differs from the marketplace entry is not an update when plugin.json sets it")
+			Expect(result.Stdout).To(ContainSubstring("All plugins up to date"))
+
+			pluginsData, err := os.ReadFile(filepath.Join(env.ClaudeDir, "plugins", "installed_plugins.json"))
+			Expect(err).NotTo(HaveOccurred())
+			var registry map[string]interface{}
+			Expect(json.Unmarshal(pluginsData, &registry)).To(Succeed())
+			instance := registry["plugins"].(map[string]interface{})["local-plugin@test-marketplace"].([]interface{})[0].(map[string]interface{})
+			Expect(instance["version"]).To(Equal("1.0.0"), "claudeup must record what Claude Code would")
+			Expect(instance["installPath"]).To(Equal(cacheDir))
+			Expect(filepath.Join(env.ClaudeDir, "plugins", "cache", "test-marketplace", "local-plugin", "2.0.0")).NotTo(BeADirectory(),
+				"the marketplace's version must not name a cache directory")
+		})
+	})
+
 	Describe("stale plugin registry cleanup", func() {
 		It("removes stale entries when confirmed with --yes", func() {
 			env = helpers.NewTestEnv(binaryPath)
