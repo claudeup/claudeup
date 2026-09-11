@@ -22,11 +22,20 @@ It provides visibility into and control over:
   - Profile management and configuration
   - Installed plugins and their state
   - Plugin updates and maintenance`,
-	// Usage belongs with a usage error, which cobra reports before any Run
-	// hook fires. Once a command is running, an error is the command's own,
-	// and printing the usage block after it buries the message.
-	PersistentPreRun: func(cmd *cobra.Command, _ []string) {
+	// Usage belongs with a usage error. Once a command is running, an error
+	// is the command's own, and printing the usage block after it buries the
+	// message. Cobra reports unknown flags and bad arguments before this hook
+	// fires, but checks required flags and flag groups after it, so those are
+	// checked here first, while usage is still printed.
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		if err := cmd.ValidateRequiredFlags(); err != nil {
+			return err
+		}
+		if err := cmd.ValidateFlagGroups(); err != nil {
+			return err
+		}
 		cmd.Root().SilenceUsage = true
+		return nil
 	},
 }
 
