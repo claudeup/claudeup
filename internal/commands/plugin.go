@@ -487,7 +487,14 @@ func resolvePluginPath(claudeConfigDir, pluginName, marketplaceID string) (plugi
 		return pluginLocation{}, fmt.Errorf("plugin %q is not cached locally\n\nThe marketplace index lists it, but it hasn't been downloaded.\nRun 'claudeup plugin install %s@%s' first", pluginName, pluginName, marketplaceName)
 	}
 
-	version := indexVersion
+	// Claude Code records the version the plugin's own plugin.json sets and
+	// ignores the marketplace entry's when the two disagree, so that is the
+	// version to show. The marketplace's applies only when the plugin sets
+	// none, and the cache directory's name only when neither says.
+	version, err := recordedPluginVersion(pluginPath, indexVersion)
+	if err != nil {
+		return pluginLocation{}, err
+	}
 	if version == "" {
 		version = installedVersion
 	}

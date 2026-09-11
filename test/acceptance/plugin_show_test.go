@@ -128,6 +128,20 @@ var _ = Describe("plugin show", func() {
 			Expect(result.Stdout).To(ContainSubstring("1.0.0"))
 		})
 
+		It("labels the plugin with the version its plugin.json sets over the marketplace's", func() {
+			// Claude Code records plugin.json's version and ignores the marketplace
+			// entry's when the two disagree, so that is the version to show.
+			Expect(os.MkdirAll(filepath.Join(pluginPath, ".claude-plugin"), 0755)).To(Succeed())
+			Expect(os.WriteFile(filepath.Join(pluginPath, ".claude-plugin", "plugin.json"), []byte(`{"name":"test-plugin","version":"9.9.9"}`), 0644)).To(Succeed())
+
+			result := env.Run("plugin", "show", "test-plugin@acme-marketplace")
+
+			Expect(result.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("(v9.9.9)"))
+			Expect(result.Stdout).NotTo(ContainSubstring("(v1.0.0)"),
+				"the marketplace's version is not what Claude Code installed")
+		})
+
 		It("shows tree with box-drawing characters", func() {
 			result := env.Run("plugin", "show", "test-plugin@acme-marketplace")
 
