@@ -4,7 +4,9 @@ package acceptance
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/claudeup/claudeup/v5/test/helpers"
 	. "github.com/onsi/ginkgo/v2"
@@ -46,6 +48,60 @@ var _ = Describe("outdated", func() {
 			Expect(result.ExitCode).To(Equal(0))
 			Expect(result.Stdout).To(ContainSubstring("claudeup update"))
 			Expect(result.Stdout).To(ContainSubstring("claudeup upgrade"))
+		})
+	})
+
+	Describe("externally sourced plugins", func() {
+		It("does not claim to know whether an external plugin is up to date", func() {
+			marketplaceDir := filepath.Join(env.ClaudeDir, "plugins", "marketplaces", "test-marketplace")
+			Expect(os.MkdirAll(filepath.Join(marketplaceDir, ".claude-plugin"), 0755)).To(Succeed())
+			// The marketplace declares 0.0.1 while Claude Code recorded 9.9.9
+			// from the plugin's own plugin.json. Neither that nor the marketplace
+			// commit says whether the plugin is behind.
+			Expect(os.WriteFile(filepath.Join(marketplaceDir, ".claude-plugin", "marketplace.json"), []byte(`{
+				"name": "test-marketplace",
+				"plugins": [
+					{"name": "ext-plugin", "version": "0.0.1", "source": {"source": "url", "url": "https://example.com/ext-plugin.git"}}
+				]
+			}`), 0644)).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "init").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.email", "test@example.com").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "config", "user.name", "Test").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "add", ".").Run()).To(Succeed())
+			Expect(exec.Command("git", "-C", marketplaceDir, "-c", "commit.gpgsign=false", "commit", "-m", "initial").Run()).To(Succeed())
+			headBytes, err := exec.Command("git", "-C", marketplaceDir, "rev-parse", "HEAD").Output()
+			Expect(err).NotTo(HaveOccurred())
+
+			cacheDir := filepath.Join(env.ClaudeDir, "plugins", "cache", "test-marketplace", "ext-plugin", "9.9.9")
+			Expect(os.MkdirAll(cacheDir, 0755)).To(Succeed())
+
+			env.CreateKnownMarketplaces(map[string]interface{}{
+				"test-marketplace": map[string]interface{}{
+					"source":          map[string]interface{}{"repo": "example/test-marketplace"},
+					"installLocation": marketplaceDir,
+				},
+			})
+			env.CreateInstalledPlugins(map[string]interface{}{
+				"ext-plugin@test-marketplace": []interface{}{
+					map[string]interface{}{
+						"scope":        "user",
+						"version":      "9.9.9",
+						"installedAt":  "2025-01-01T00:00:00Z",
+						"lastUpdated":  "2025-01-01T00:00:00Z",
+						"installPath":  cacheDir,
+						"gitCommitSha": strings.TrimSpace(string(headBytes)),
+					},
+				},
+			})
+
+			result := env.Run("outdated")
+
+			Expect(result.ExitCode).To(Equal(0), "stdout: %s\nstderr: %s", result.Stdout, result.Stderr)
+			Expect(result.Stdout).To(ContainSubstring("ext-plugin@test-marketplace (user)"))
+			Expect(result.Stdout).To(ContainSubstring("external source"),
+				"a read-only check cannot know whether an external plugin is behind")
+			Expect(result.Stdout).NotTo(ContainSubstring("All plugins up to date"),
+				"that is a claim this command cannot make for an external plugin")
 		})
 	})
 
