@@ -23,7 +23,25 @@ jobs:
 
       - name: Run shellcheck on example scripts
         run: |
-          shellcheck -x -S warning examples/*/*.sh examples/lib/*.sh
+          shellcheck -x -S warning examples/*/*.sh examples/lib/*.sh examples/lib/stub-bin/claude
+
+      - name: Check example fixture JSON
+        run: |
+          # A path with & guards write_fixture against bash 5.2 patsub_replacement
+          export CLAUDE_CONFIG_DIR="$RUNNER_TEMP/a&b/.claude"
+          mkdir -p "$CLAUDE_CONFIG_DIR/plugins"
+          bash -c 'source examples/lib/common.sh && seed_fixture_data'
+          for f in installed_plugins.json known_marketplaces.json; do
+            path="$CLAUDE_CONFIG_DIR/plugins/$f"
+            jq empty "$path"
+            if grep -q '@CLAUDE_CONFIG_DIR@' "$path"; then
+              echo "::error::$f still contains @CLAUDE_CONFIG_DIR@"
+              exit 1
+            fi
+          done
+          jq -e --arg dir "$CLAUDE_CONFIG_DIR" \
+            '[.plugins[][] | .installPath | startswith($dir)] | all' \
+            "$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json"
 
   test:
     name: Test

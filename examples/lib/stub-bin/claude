@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# ABOUTME: Stand-in for the claude CLI in example temp mode
+# ABOUTME: Accepts the commands claudeup runs and succeeds without installing anything
+
+# The temp environment has no real marketplace clones, and CI does not
+# install claude, so real plugin and MCP installs cannot succeed there.
+# claudeup writes enabledPlugins itself; this stub does not touch
+# installed_plugins.json.
+
+set -euo pipefail
+
+case "${1:-} ${2:-} ${3:-}" in
+    "--version  ")
+        # Stay above claudeup setup's minimum version, or setup would offer
+        # (and with --yes, run) the real Claude installer.
+        echo "99.0.0 (claudeup examples stub)"
+        ;;
+    "plugin install "* | "plugin uninstall "* | "plugin update "* | \
+    "plugin marketplace add" | "plugin marketplace remove" | \
+    "mcp add "* | "mcp remove "*)
+        ;;
+    *)
+        echo "claude stub: unsupported command: $*" >&2
+        exit 1
+        ;;
+esac

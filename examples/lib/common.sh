@@ -29,6 +29,7 @@ EXAMPLE_TEMP_DIR=""
 EXAMPLE_REAL_MODE=false
 EXAMPLE_INTERACTIVE=true
 EXAMPLE_CLAUDEUP_BIN="${CLAUDEUP_BIN:-claudeup}"
+EXAMPLE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 # =============================================================================
 # Output Helpers
@@ -179,6 +180,19 @@ resolve_claudeup_bin() {
     fi
 }
 
+# Write a fixture from a quoted heredoc on stdin, replacing each
+# @CLAUDE_CONFIG_DIR@ with the real path. The quoted heredoc keeps any
+# other $ or backtick in the JSON literal. patsub_replacement (bash 5.2+)
+# would turn & in the path into the matched text, so it is switched off.
+write_fixture() {
+    local dest="$1" content
+    content=$(cat)
+    (
+        shopt -u patsub_replacement 2>/dev/null || true
+        printf '%s\n' "${content//@CLAUDE_CONFIG_DIR@/$CLAUDE_CONFIG_DIR}"
+    ) > "$dest"
+}
+
 seed_fixture_data() {
     # Settings with enabled plugins
     cat > "$CLAUDE_CONFIG_DIR/settings.json" <<'JSON'
@@ -200,8 +214,8 @@ JSON
         "$CLAUDE_CONFIG_DIR/plugins/marketplaces/superpowers-marketplace" \
         "$CLAUDE_CONFIG_DIR/plugins/marketplaces/claude-plugins-official"
 
-    # Installed plugins registry (V2 format; unquoted heredoc for $cache expansion)
-    cat > "$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json" <<JSON
+    # Installed plugins registry (V2 format)
+    write_fixture "$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json" <<'JSON'
 {
   "version": 2,
   "plugins": {
@@ -211,7 +225,7 @@ JSON
         "version": "4.3.0",
         "installedAt": "2025-12-01T10:00:00Z",
         "lastUpdated": "2026-01-15T14:30:00Z",
-        "installPath": "$cache/superpowers-marketplace/superpowers/4.3.0",
+        "installPath": "@CLAUDE_CONFIG_DIR@/plugins/cache/superpowers-marketplace/superpowers/4.3.0",
         "gitCommitSha": "a1b2c3d",
         "isLocal": false
       }
@@ -222,7 +236,7 @@ JSON
         "version": "1.1.0",
         "installedAt": "2025-12-01T10:05:00Z",
         "lastUpdated": "2026-01-10T09:00:00Z",
-        "installPath": "$cache/superpowers-marketplace/elements-of-style/1.1.0",
+        "installPath": "@CLAUDE_CONFIG_DIR@/plugins/cache/superpowers-marketplace/elements-of-style/1.1.0",
         "gitCommitSha": "e4f5g6h",
         "isLocal": false
       }
@@ -233,7 +247,7 @@ JSON
         "version": "2.0.0",
         "installedAt": "2026-01-20T08:00:00Z",
         "lastUpdated": "2026-01-20T08:00:00Z",
-        "installPath": "$cache/claude-plugins-official/tdd-workflows/2.0.0",
+        "installPath": "@CLAUDE_CONFIG_DIR@/plugins/cache/claude-plugins-official/tdd-workflows/2.0.0",
         "gitCommitSha": "i7j8k9l",
         "isLocal": false
       }
@@ -242,15 +256,15 @@ JSON
 }
 JSON
 
-    # Known marketplaces registry (unquoted heredoc for $CLAUDE_CONFIG_DIR expansion)
-    cat > "$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json" <<JSON
+    # Known marketplaces registry
+    write_fixture "$CLAUDE_CONFIG_DIR/plugins/known_marketplaces.json" <<'JSON'
 {
   "superpowers-marketplace": {
     "source": {
       "source": "github",
       "repo": "https://github.com/anthropics/superpowers-marketplace"
     },
-    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/superpowers-marketplace",
+    "installLocation": "@CLAUDE_CONFIG_DIR@/plugins/marketplaces/superpowers-marketplace",
     "lastUpdated": "2026-01-15T14:30:00Z"
   },
   "claude-plugins-official": {
@@ -258,11 +272,17 @@ JSON
       "source": "github",
       "repo": "https://github.com/anthropics/claude-plugins-official"
     },
-    "installLocation": "$CLAUDE_CONFIG_DIR/plugins/marketplaces/claude-plugins-official",
+    "installLocation": "@CLAUDE_CONFIG_DIR@/plugins/marketplaces/claude-plugins-official",
     "lastUpdated": "2026-01-20T08:00:00Z"
   }
 }
 JSON
+}
+
+# Put the claude stub first on PATH. The temp environment has no real
+# marketplace clones, so real plugin and MCP installs would fail.
+use_claude_stub() {
+    export PATH="$EXAMPLE_LIB_DIR/stub-bin:$PATH"
 }
 
 setup_temp_claude_dir() {
@@ -280,6 +300,7 @@ setup_temp_claude_dir() {
 
     # Seed fixture data so commands produce meaningful output
     seed_fixture_data
+    use_claude_stub
 
     # Work from a project dir that is a sibling of CLAUDE_CONFIG_DIR. From
     # $EXAMPLE_TEMP_DIR itself, ./.claude/settings.json would be the user
