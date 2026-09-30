@@ -21,6 +21,7 @@ check_claude_config_dir_override
 
 EXAMPLE_TEMP_DIR=$(mktemp -d "/tmp/claudeup-example-XXXXXXXXXX")
 trap_preserve_on_error
+use_claude_stub
 
 # ---------------------------------------------------------------------------
 # Helper: switch active team member and cd to their project directory

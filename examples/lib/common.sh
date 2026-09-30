@@ -29,6 +29,7 @@ EXAMPLE_TEMP_DIR=""
 EXAMPLE_REAL_MODE=false
 EXAMPLE_INTERACTIVE=true
 EXAMPLE_CLAUDEUP_BIN="${CLAUDEUP_BIN:-claudeup}"
+EXAMPLE_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 # =============================================================================
 # Output Helpers
@@ -278,6 +279,12 @@ JSON
 JSON
 }
 
+# Put the claude stub first on PATH. The temp environment has no real
+# marketplace clones, so real plugin and MCP installs would fail.
+use_claude_stub() {
+    export PATH="$EXAMPLE_LIB_DIR/stub-bin:$PATH"
+}
+
 setup_temp_claude_dir() {
     resolve_claudeup_bin
 
@@ -293,6 +300,7 @@ setup_temp_claude_dir() {
 
     # Seed fixture data so commands produce meaningful output
     seed_fixture_data
+    use_claude_stub
 
     # Work from a project dir that is a sibling of CLAUDE_CONFIG_DIR. From
     # $EXAMPLE_TEMP_DIR itself, ./.claude/settings.json would be the user
