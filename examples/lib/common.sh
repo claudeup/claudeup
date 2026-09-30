@@ -286,6 +286,10 @@ setup_temp_claude_dir() {
     # settings file, and user-scope plugins would read as project scope.
     mkdir -p "$EXAMPLE_TEMP_DIR/project"
     cd "$EXAMPLE_TEMP_DIR/project" || exit 1
+    if [[ .claude -ef "$CLAUDE_CONFIG_DIR" ]]; then
+        error "Project .claude/ is CLAUDE_CONFIG_DIR; user and project scope would collide"
+        exit 1
+    fi
 
     success "Created isolated environment: $EXAMPLE_TEMP_DIR"
     info "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
