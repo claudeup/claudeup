@@ -191,8 +191,17 @@ seed_fixture_data() {
 }
 JSON
 
-    # Installed plugins registry (V2 format)
-    cat > "$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json" <<'JSON'
+    # Plugin cache and marketplace directories, so status and doctor
+    # see a healthy installation rather than missing paths
+    local cache="$CLAUDE_CONFIG_DIR/plugins/cache"
+    mkdir -p "$cache/superpowers-marketplace/superpowers/4.3.0" \
+        "$cache/superpowers-marketplace/elements-of-style/1.1.0" \
+        "$cache/claude-plugins-official/tdd-workflows/2.0.0" \
+        "$CLAUDE_CONFIG_DIR/plugins/marketplaces/superpowers-marketplace" \
+        "$CLAUDE_CONFIG_DIR/plugins/marketplaces/claude-plugins-official"
+
+    # Installed plugins registry (V2 format; unquoted heredoc for $cache expansion)
+    cat > "$CLAUDE_CONFIG_DIR/plugins/installed_plugins.json" <<JSON
 {
   "version": 2,
   "plugins": {
@@ -202,7 +211,7 @@ JSON
         "version": "4.3.0",
         "installedAt": "2025-12-01T10:00:00Z",
         "lastUpdated": "2026-01-15T14:30:00Z",
-        "installPath": "",
+        "installPath": "$cache/superpowers-marketplace/superpowers/4.3.0",
         "gitCommitSha": "a1b2c3d",
         "isLocal": false
       }
@@ -213,7 +222,7 @@ JSON
         "version": "1.1.0",
         "installedAt": "2025-12-01T10:05:00Z",
         "lastUpdated": "2026-01-10T09:00:00Z",
-        "installPath": "",
+        "installPath": "$cache/superpowers-marketplace/elements-of-style/1.1.0",
         "gitCommitSha": "e4f5g6h",
         "isLocal": false
       }
@@ -224,7 +233,7 @@ JSON
         "version": "2.0.0",
         "installedAt": "2026-01-20T08:00:00Z",
         "lastUpdated": "2026-01-20T08:00:00Z",
-        "installPath": "",
+        "installPath": "$cache/claude-plugins-official/tdd-workflows/2.0.0",
         "gitCommitSha": "i7j8k9l",
         "isLocal": false
       }
@@ -272,8 +281,15 @@ setup_temp_claude_dir() {
     # Seed fixture data so commands produce meaningful output
     seed_fixture_data
 
-    # Change to temp directory to avoid project-scope contamination
-    cd "$EXAMPLE_TEMP_DIR" || exit 1
+    # Work from a project dir that is a sibling of CLAUDE_CONFIG_DIR. From
+    # $EXAMPLE_TEMP_DIR itself, ./.claude/settings.json would be the user
+    # settings file, and user-scope plugins would read as project scope.
+    mkdir -p "$EXAMPLE_TEMP_DIR/project"
+    cd "$EXAMPLE_TEMP_DIR/project" || exit 1
+    if [[ .claude -ef "$CLAUDE_CONFIG_DIR" ]]; then
+        error "Project .claude/ is CLAUDE_CONFIG_DIR; user and project scope would collide"
+        exit 1
+    fi
 
     success "Created isolated environment: $EXAMPLE_TEMP_DIR"
     info "CLAUDE_CONFIG_DIR=$CLAUDE_CONFIG_DIR"
