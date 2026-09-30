@@ -281,7 +281,7 @@ setup_temp_claude_dir() {
     # Seed fixture data so commands produce meaningful output
     seed_fixture_data
 
-    # Work from a project dir outside CLAUDE_CONFIG_DIR's parent. From
+    # Work from a project dir that is a sibling of CLAUDE_CONFIG_DIR. From
     # $EXAMPLE_TEMP_DIR itself, ./.claude/settings.json would be the user
     # settings file, and user-scope plugins would read as project scope.
     mkdir -p "$EXAMPLE_TEMP_DIR/project"
