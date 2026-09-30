@@ -23,7 +23,7 @@ jobs:
 
       - name: Run shellcheck on example scripts
         run: |
-          shellcheck -x -S warning examples/*/*.sh examples/lib/*.sh
+          shellcheck -x -S warning examples/*/*.sh examples/lib/*.sh examples/lib/stub-bin/claude
 
   test:
     name: Test
