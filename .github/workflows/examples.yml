@@ -158,15 +158,23 @@ jobs:
         env:
           CLAUDEUP_BIN: ${{ github.workspace }}/claudeup
         run: |
+          set -o pipefail
           FAILED=0
+          OUT="$RUNNER_TEMP/example-output.txt"
 
           for script in examples/${{ matrix.directory }}/*.sh; do
             SCRIPT_NAME=$(basename "$script")
             echo "::group::Running $SCRIPT_NAME"
 
-            if "$script" --non-interactive; then
+            if "$script" --non-interactive 2>&1 | tee "$OUT"; then
               echo "::endgroup::"
-              echo "::notice::$SCRIPT_NAME passed"
+              # claudeup prints ✗ for a failed step even when the script exits 0
+              if grep -q '✗' "$OUT"; then
+                echo "::error file=$script::$SCRIPT_NAME printed a claudeup failure (✗)"
+                FAILED=1
+              else
+                echo "::notice::$SCRIPT_NAME passed"
+              fi
             else
               EXIT_CODE=$?
               echo "::endgroup::"

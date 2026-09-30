@@ -11,7 +11,9 @@ set -euo pipefail
 
 case "${1:-} ${2:-} ${3:-}" in
     "--version  ")
-        echo "0.0.0 (claudeup examples stub)"
+        # Stay above claudeup setup's minimum version, or setup would offer
+        # (and with --yes, run) the real Claude installer.
+        echo "99.0.0 (claudeup examples stub)"
         ;;
     "plugin install "* | "plugin uninstall "* | "plugin update "* | \
     "plugin marketplace add" | "plugin marketplace remove" | \
